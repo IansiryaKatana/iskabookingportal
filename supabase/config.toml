@@ -1,0 +1,49 @@
+project_id = "pzptocwdaqpczexlbajr"
+
+[functions.get-publishable-key]
+verify_jwt = false
+
+[functions.docusign-envelopes]
+verify_jwt = true
+
+[functions.docusign-recipient-view]
+verify_jwt = true
+
+[functions.docusign-check-status]
+verify_jwt = true
+
+[functions.check-payment-status]
+verify_jwt = true
+
+[functions.calculate-forecast]
+verify_jwt = true
+
+[functions.get-user-emails]
+verify_jwt = true
+
+[functions.send-bulk-message]
+verify_jwt = true
+
+[functions.release-expired-reservations]
+verify_jwt = false
+
+[functions.create-contract-pdf]
+verify_jwt = true
+
+[functions.download-signed-document]
+verify_jwt = true
+
+[functions.process-refund]
+verify_jwt = true
+
+[functions.send-transactional-email]
+verify_jwt = true
+
+[functions.get-email-template]
+verify_jwt = true
+
+[functions.check-integration-status]
+verify_jwt = true
+
+[functions.weekly-payment-report]
+verify_jwt = true
