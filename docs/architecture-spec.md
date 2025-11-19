@@ -8,6 +8,7 @@ Deliver a data-driven accommodation booking experience where every studio-grade 
 
 - **Student**: discovers studio grades, logs in, selects a studio, completes five-step journey, signs contract, pays deposit/instalments, manages documents.
 - **Staff**: manages academic years, studio content, amenities, contracts, payment plans, reviews applications/documents, allocates studios.
+- **Partner**: tracks referred students, views payment status, monitors commission earnings, manages referral codes.
 - **Superadmin**: full system control, including role management and audit oversight.
 
 ## 3. Data Model Overview
@@ -26,7 +27,11 @@ Deliver a data-driven accommodation booking experience where every studio-grade 
 - `contract_payment_plans` – junction table allowing multiple payment plans per contract.
 - `contract_payment_schedule` – resolved due dates/amounts for generated contracts.
 - `docusign_envelopes` – tracks DocuSign envelope status and metadata for agreements.
-- `profiles` – Supabase `auth` extension storing role and profile basics.
+- `profiles` – Supabase `auth` extension storing role and profile basics (roles: `student`, `staff`, `partner`, `superadmin`).
+- `partners` – partner referral program management with referral codes and commission rates.
+- `partner_referrals` – tracks which applications are referred by partners, commission calculations.
+- `cashback_campaigns` – cashback campaign definitions (amount, applies_to, dates, max_uses).
+- `application_cashbacks` – applied cashbacks to student applications.
 - `student_applications` – booking pipeline state machine.
 - `student_application_steps` – JSON payload per form step.
 - `student_documents` – uploads metadata & verification status.
@@ -46,8 +51,8 @@ Deliver a data-driven accommodation booking experience where every studio-grade 
 
 ### 3.3 Roles & RLS
 
-- Roles stored in `profiles.role` (`student`, `staff`, `superadmin`).
-- RLS policies ensure students only access their records; staff/superadmin have scoped or full access.
+- Roles stored in `profiles.role` (`student`, `staff`, `partner`, `superadmin`).
+- RLS policies ensure students only access their records; staff/superadmin have scoped or full access; partners only access their own referral data.
 - Service role key used for migrations/edge functions only.
 
 ## 4. Workflows
@@ -94,9 +99,43 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
 
 - Upon deposit + signature + verification, application status → `confirmed`; studio `status = 'occupied'`. Notification dispatched.
 
-## 5. Portals
+## 5. Error Handling & Validation
 
-### 5.1 Student Portal
+### 5.1 Error Boundaries
+- **ErrorBoundary Component**: React Error Boundary implemented to catch and handle unhandled errors gracefully
+- **Location**: Wraps entire application in `App.tsx` and routes in `BrowserRouter`
+- **Features**:
+  - Catches React component errors
+  - Displays user-friendly error UI with "Try Again" and "Go Home" options
+  - Shows detailed error information in development mode
+  - Prevents entire application crashes
+
+### 5.2 Form Validation
+- **Validation Library**: Zod schemas with React Hook Form integration
+- **Validated Forms**:
+  - Email Templates: Full Zod validation with type safety
+  - Academic Years: Date range validation (start_date < end_date), format validation
+  - Payment Plans: Comprehensive validation with installment rules
+  - Contracts: Full validation with date and relationship checks
+  - Studio Grades: Media and content validation
+- **Validation Features**:
+  - Client-side validation before submission
+  - Real-time error messages
+  - Type-safe form data
+  - Database constraint alignment
+
+### 5.3 Refunds System
+- **Payment Intent Fetching**: Edge function `get-payment-intent-details` fetches real Stripe payment amounts
+- **Refund Processing**: Edge function `process-refund` handles Stripe refunds with audit trail
+- **Features**:
+  - Fetches actual payment amounts from Stripe (not placeholder data)
+  - Validates payment status before allowing refunds
+  - Records refunds in database with full audit trail
+  - Sends notifications to students
+
+## 6. Portals
+
+### 6.1 Student Portal
 
 - **Dashboard**: application status, outstanding tasks, quick links to resume form, pay instalments.
 - **Payments Page**: 
@@ -138,7 +177,7 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
   - Sign-out confirmation dialog
   - Responsive design throughout
 
-### 5.2 Staff Portal
+### 6.2 Staff Portal
 
 - Overview metrics (occupancy, revenue projections, pending verifications).
 - CRUD modules:
@@ -206,8 +245,64 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
   - Collapsible mobile menu
   - Sign-out confirmation dialog
   - Responsive design throughout
+- **Partner Management**:
+  - Create and manage partners
+  - Assign referral codes (one per partner)
+  - Set commission percentages (configurable, default 5%)
+  - Create partner user accounts (admin can create accounts for partners)
+  - View partner referral statistics
+- **Partner Commission Tracking**:
+  - View all partner commissions
+  - Filter by partner, status, date range
+  - Update commission status (pending, approved, paid, cancelled)
+  - Export commission reports (CSV, PDF)
+- **Cashback Campaign Management**:
+  - Create cashback campaigns (amount, applies_to: all/new/rebooking, dates, max_uses)
+  - Apply cashbacks to applications
+  - Track campaign usage
+- **Payment History**:
+  - Unified view of Stripe and manual payments
+  - Payment summaries per application
+  - Export functionality
 
-## 6. Integrations
+### 6.3 Partner Portal ✅ IMPLEMENTED
+
+- **Authentication**:
+  - Separate partner login page (`/partner/login`)
+  - Partner registration with referral code validation (`/partner/register`)
+  - Real-time referral code validation during registration
+  - Auto-linking of accounts to partner records via referral code
+  - Admin can create partner accounts directly (sends password reset email)
+- **Dashboard** (`/partner`):
+  - Overview metrics:
+    - Total referrals
+    - Confirmed applications
+    - Total commission earned
+    - Pending commission
+  - Recent referrals list with payment status
+- **My Referrals** (`/partner/referrals`):
+  - List of all referred students (names only, no email/phone for privacy)
+  - Payment status per student (fully paid, partially paid, unpaid)
+  - Contract value and commission amount
+  - Remaining balance tracking
+  - Last payment date
+  - Export to CSV
+- **Commissions** (`/partner/commissions`):
+  - Commission history with status badges
+  - Summary cards (total, paid, pending)
+  - Filter by commission status
+  - Export to CSV
+- **Profile** (`/partner/profile`):
+  - Partner information display
+  - Referral code display
+  - Commission rate
+  - Account status
+- **Mobile Navigation**:
+  - Collapsible mobile menu
+  - Sign-out confirmation dialog
+  - Responsive design throughout
+
+## 7. Integrations
 
 - **Supabase Edge Functions**
   - `reserve-studio` – Studio reservation logic
@@ -224,15 +319,18 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
   - `send-bulk-message` – Bulk notification and email sending with template variable replacement, enhanced error handling with HTML response detection and detailed logging
   - `send-transactional-email` – Transactional email sending for specific events, enhanced error handling with HTML response detection and detailed logging
   - `process-refund` – Refund processing with Stripe integration, audit logging, and notifications
+  - `get-payment-intent-details` – Fetches payment intent details from Stripe for refund processing
   - `release-expired-reservations` – Automatic release of expired studio reservations
   - `create-contract-pdf` – PDF generation for contracts
   - `download-signed-document` – DocuSign signed document download
   - `get-email-template` – Secure email template fetching for students (bypasses RLS, validates notification ownership)
+  - `create-partner-account` – Admin function to create partner user accounts with password reset email
+  - `weekly-payment-report` – Weekly payment report generation
 - **Stripe** – capture payment method, deposit, instalment payments, webhook for payment updates, refund processing.
 - **DocuSign** – agreement creation, embedded signing, status polling, signed document retrieval, envelope management.
 - **Email Service (Resend)** – transactional notifications, bulk messaging, template-based emails with variable replacement. Configured with dedicated sending domain `send.portal.urbanhub.uk` for high deliverability. Enhanced error handling with HTML response detection, detailed logging, and API key validation. See `docs/SYSTEM_IMPROVEMENTS_AND_CONFIG.md` for complete setup instructions.
 
-## 7. UI/UX Principles
+## 8. UI/UX Principles
 
 - Keep existing visual language; enhance with iOS-like micro-interactions, smooth transitions via Framer Motion.
 - Typography: use **Big Shoulders Display** in bold or black weight only, always uppercase; use **Inter Tight** with appropriate weight for body copy and supporting text with normal casing.
@@ -256,7 +354,7 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
 - Ensure "Back" buttons align right edge, deposit CTA sticky on mobile.
 - **Sign-Out Confirmation**: AlertDialog for sign-out confirmation on both portals
 
-## 8. Implementation Roadmap
+## 9. Implementation Roadmap
 
 1. **Environment Setup** – ensure Supabase/Stripe keys in `.env.local`.
 2. **Database Migrations** – create tables, relationships, indexes, RLS policies, storage buckets.
@@ -272,7 +370,7 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
 12. **Testing & QA** – unit/integration tests, responsive checks, security review.
 13. **Launch Readiness** – data seeding tools, monitoring, backup strategy.
 
-## 9. Implemented Features Beyond Original Spec
+## 10. Implemented Features Beyond Original Spec
 
 ### 9.1 Notification System
 - **Email-Style UI**: Gmail-inspired notification interface with filter tabs, search, multiselect, and pagination
@@ -328,7 +426,41 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
 - **Auto-Allocation**: Automatic studio allocation on confirmation
 - **Reservation Expiry**: Automatic release of expired reservations
 
-### 9.9 Name Synchronization System
+### 9.9 Partner Referral System ✅ IMPLEMENTED
+- **Referral Code Management**: 
+  - One unique referral code per partner (manually created by admin)
+  - Real-time validation in student application wizard
+  - Auto-assignment of partner when valid code is entered
+- **Partner Authentication**:
+  - Separate partner portal (`/partner/*`)
+  - Partner registration with referral code validation
+  - Admin can create partner accounts directly (sends password reset email)
+  - Auto-linking of accounts to partner records
+- **Partner Dashboard**:
+  - Overview metrics (total referrals, confirmed applications, commissions)
+  - Recent referrals list
+  - Payment tracking per referred student
+  - Commission history with status tracking
+- **Payment Tracking**: Partners can see payment status (fully paid, partially paid, unpaid) for each referred student
+- **Commission Management**: 
+  - Automatic commission calculation on application confirmation
+  - Commission status tracking (pending, approved, paid, cancelled)
+  - Exportable commission reports (CSV, PDF)
+- **Privacy**: Partners only see student names, not email/phone numbers
+
+### 9.10 Cashback System ✅ IMPLEMENTED
+- **Campaign Management**:
+  - Create cashback campaigns (amount, applies_to: all/new/rebooking, dates, max_uses)
+  - Admin can apply cashbacks to applications
+  - Campaign usage tracking
+- **Application Integration**:
+  - Cashback deducted from total booking amount (not given as money)
+  - Adjusted payment schedules (final installment reduced by cashback)
+  - Student portal displays cashback information
+  - Payment summary accounts for cashback
+- **Auto-Application**: Eligible cashbacks automatically applied when application is confirmed
+
+### 9.11 Name Synchronization System
 - **Multi-Source Name Resolution**: `useStudentName` hook that checks multiple sources in priority order:
   1. `profiles` table (first_name, last_name)
   2. `user.app_metadata` (first_name, last_name)
@@ -346,14 +478,14 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
 
 See `docs/SYSTEM_IMPROVEMENTS_AND_CONFIG.md` for detailed documentation of all improvements and configurations.
 
-## 10. Outstanding Inputs
+## 11. Outstanding Inputs
 
 - ~~Stripe webhook signing secret~~ ✅ Configured
 - ~~Adobe Sign client credentials + endpoint~~ ✅ DocuSign configured
 - ~~Email provider choice + API key~~ ✅ Resend configured
 - ~~Confirmation of payment approach~~ ✅ Manual Payment Intents implemented
 
-## 11. Next Deliverables
+## 12. Next Deliverables
 
 - ✅ SQL migration scripts + Supabase CLI commands
 - ✅ RLS policy definitions
@@ -362,7 +494,7 @@ See `docs/SYSTEM_IMPROVEMENTS_AND_CONFIG.md` for detailed documentation of all i
 - API documentation
 - Maintenance guides
 
-## 12. Future Enhancements (Planned)
+## 13. Future Enhancements (Planned)
 
 ### 12.1 Studio Availability Tracking & Dynamic Tags
 - **Status:** Planned
@@ -375,14 +507,42 @@ See `docs/SYSTEM_IMPROVEMENTS_AND_CONFIG.md` for detailed documentation of all i
 - "Book Now" button changes to "Fully Booked" when no availability
 - See `docs/COMPREHENSIVE_ANALYSIS_AND_IMPLEMENTATION_PLAN.md` for details
 
-### 12.2 Rebooking System
-- **Status:** Planned
+### 12.2 Rebooking System ✅ IMPLEMENTED
+- **Status:** ✅ Complete
 - **Priority:** MEDIUM
-- Support for students rebooking for upcoming academic year
-- Support for students returning after multiple years
-- Pre-fill application data from previous applications
-- Finance department workflow for returning students
-- See `docs/COMPREHENSIVE_ANALYSIS_AND_IMPLEMENTATION_PLAN.md` for details
+- **Implementation Date:** November 2025
+- **Features:**
+  - ✅ Database fields added to `student_applications`:
+    - `is_rebooking` (BOOLEAN)
+    - `previous_application_id` (UUID)
+    - `rebooking_reason` (TEXT)
+    - `rebooking_approved_at` (TIMESTAMPTZ)
+    - `rebooking_approved_by` (UUID)
+  - ✅ Database functions:
+    - `can_student_rebook(p_user_id, p_contract_id)` - Checks eligibility
+    - `get_rebooking_data(p_previous_application_id)` - Fetches previous application data
+  - ✅ Frontend integration:
+    - **Contract Detail Page**: Shows rebooking alert and "Rebook for This Contract" button when eligible
+    - **Application Wizard**: Automatically pre-fills all form steps (1-5) with data from previous application
+    - **Student Dashboard**: Displays rebooking opportunities section with available contracts
+  - ✅ React hooks (`src/hooks/useRebooking.ts`):
+    - `useCanRebook(contractId)` - Checks rebooking eligibility
+    - `useRebookingData(previousApplicationId)` - Fetches previous application data
+    - `useMarkAsRebooking()` - Marks application as rebooking
+  - **Workflow:**
+    1. Student views contract detail page → System checks if they can rebook
+    2. If eligible, shows "Rebook for This Contract" button
+    3. Clicking button creates application with `is_rebooking = true` and links to previous application
+    4. Application wizard automatically pre-fills all steps with previous data
+    5. Student reviews and updates any changed information
+  - **Files:**
+    - `supabase/migrations/20251118_rebooking_system.sql` - Database schema
+    - `supabase/migrations/20251118_fix_rebooking_user_id.sql` - Bug fix (uses `student_id` instead of `user_id`)
+    - `src/pages/ContractDetail.tsx` - Rebooking check and UI
+    - `src/pages/portal/ApplicationWizard.tsx` - Data pre-fill logic
+    - `src/pages/portal/Dashboard.tsx` - Rebooking opportunities section
+    - `src/hooks/useRebooking.ts` - React hooks
+  - See `docs/COMPREHENSIVE_ANALYSIS_AND_IMPLEMENTATION_PLAN.md` for original analysis
 
 ### 12.3 Historical Data Management & CSV Import
 - **Status:** Planned
@@ -416,13 +576,13 @@ See `docs/SYSTEM_IMPROVEMENTS_AND_CONFIG.md` for detailed documentation of all i
 - Support for deploying system to other student accommodations
 - See `docs/COMPREHENSIVE_ANALYSIS_AND_IMPLEMENTATION_PLAN.md` for details
 
-## 13. Data Seeding
+## 14. Data Seeding
 
 - Run `npm run seed` (with `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in the environment) to populate the remote database.
 - The seeder ingests `studios-data.csv`, creating studio records linked to their grades, and sets status/alignment automatically.
 - Seeds academic year `2026/2027`, five studio grades in order Silver → Gold → Platinum → Rhodium → Rhodium Plus, grade pricing (Silver £165 PW, Gold £179 PW, Platinum £205 PW, Rhodium £231 PW, Rhodium Plus £247 PW), three payment plans (3, 4, and 10 instalments with £99 deposit), and two contracts (45-week ending 18 July 2027, 51-week ending 29 August 2027) per grade.
 
-## 14. Recent Implementations
+## 15. Recent Implementations
 
 ### 14.1 Bulk Message Filters
 - **Status:** ✅ Implemented & Deployed

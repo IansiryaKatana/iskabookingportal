@@ -15,11 +15,14 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   useSaveApplicationStep,
   useStudentApplication,
 } from "@/hooks/useStudentApplication";
+import { useRebookingData } from "@/hooks/useRebooking";
+import { useValidateReferralCode } from "@/hooks/useReferralCode";
 import PortalLayout from "@/components/portal/PortalLayout";
 import {
   Loader2,
@@ -28,6 +31,8 @@ import {
   ChevronsUpDown,
   Check,
   FileText,
+  RotateCcw,
+  Info,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
@@ -230,6 +235,7 @@ const personalSchema = z.object({
   gender: z.string().trim().min(1, "Select your gender"),
   ucas_id: optionalText(32),
   country: z.string().trim().min(1, "Select your country"),
+  referral_code: optionalText(50), // Optional partner referral code
 });
 
 const contactSchema = z.object({
@@ -310,6 +316,13 @@ const StudentApplicationWizard = () => {
   } = useStudentApplication(applicationId);
   const { mutateAsync: saveStep } = useSaveApplicationStep(
     applicationId ?? "",
+  );
+
+  // Fetch rebooking data if this is a rebooking
+  const { data: rebookingData, isLoading: loadingRebookingData } = useRebookingData(
+    application?.is_rebooking && application?.previous_application_id 
+      ? application.previous_application_id 
+      : null
   );
 
   const [currentStep, setCurrentStep] = useState(() =>
@@ -396,10 +409,12 @@ const StudentApplicationWizard = () => {
   // populated later once upload field state exists
 
   const personalDefaults = useMemo<PersonalValues>(() => {
+    // Use rebooking data if available, otherwise use current application data
+    const rebookingStep1 = rebookingData?.step1_data as Record<string, any> | undefined;
     const payload =
       application?.student_application_steps.find(
         (step) => step.step_number === 1,
-      )?.payload ?? {};
+      )?.payload ?? rebookingStep1 ?? {};
     const dob = (payload.date_of_birth as string) || "";
     const derivedAge =
       calculateAgeFromDob(dob) ||
@@ -419,8 +434,9 @@ const StudentApplicationWizard = () => {
       gender: (payload.gender as string) || "",
       ucas_id: (payload.ucas_id as string) || "",
       country: (payload.country as string) || "",
+      referral_code: (payload.referral_code as string) || "",
     };
-  }, [application, profile]);
+  }, [application, profile, rebookingData]);
 
   const [personalValues, setPersonalValues] = useState<PersonalValues>(
     () => personalDefaults,
@@ -483,10 +499,12 @@ const StudentApplicationWizard = () => {
   }, [personalDefaults, profile]);
 
   const contactDefaults = useMemo<ContactValues>(() => {
+    // Use rebooking data if available, otherwise use current application data
+    const rebookingStep2 = rebookingData?.step2_data as Record<string, any> | undefined;
     const stepPayload =
       application?.student_application_steps.find(
         (step) => step.step_number === 2,
-      )?.payload ?? {};
+      )?.payload ?? rebookingStep2 ?? {};
     const payload =
       typeof stepPayload === "object" && stepPayload !== null
         ? Object(stepPayload)
@@ -578,10 +596,12 @@ const StudentApplicationWizard = () => {
   // Removed auto-sanitise effect to avoid overwriting valid contact details after refetches.
 
   const academicDefaults = useMemo<AcademicForm>(() => {
+    // Use rebooking data if available, otherwise use current application data
+    const rebookingStep3 = rebookingData?.step3_data as Record<string, any> | undefined;
     const payload =
       application?.student_application_steps.find(
         (step) => step.step_number === 3,
-      )?.payload ?? {};
+      )?.payload ?? rebookingStep3 ?? {};
     return {
       year_of_study: (payload.year_of_study as string) || "",
       field_of_study: (payload.field_of_study as string) || "",
@@ -590,7 +610,7 @@ const StudentApplicationWizard = () => {
       medical_requirements: (payload.medical_requirements as string) || "",
       entry_into_uk: (payload.entry_into_uk as string) || "",
     };
-  }, [application]);
+  }, [application, rebookingData]);
 
   const [academicValues, setAcademicValues] = useState<AcademicForm>(
     () => academicDefaults,
@@ -626,16 +646,18 @@ const StudentApplicationWizard = () => {
   );
 
   const documentationDefaults = useMemo<DocumentationForm>(() => {
+    // Use rebooking data if available, otherwise use current application data
+    const rebookingStep4 = rebookingData?.step4_data as Record<string, any> | undefined;
     const payload =
       application?.student_application_steps.find(
         (step) => step.step_number === 4,
-      )?.payload ?? {};
+      )?.payload ?? rebookingStep4 ?? {};
     return {
       uk_citizen: (payload.uk_citizen as "yes" | "no") || "yes",
       passport_document: (payload.passport_document as string) || "",
       visa_document: (payload.visa_document as string) || "",
     };
-  }, [application]);
+  }, [application, rebookingData]);
 
   const [documentationValues, setDocumentationValues] =
     useState<DocumentationForm>(() => documentationDefaults);
@@ -854,10 +876,12 @@ const StudentApplicationWizard = () => {
   ]);
 
   const paymentDefaults = useMemo<PaymentForm>(() => {
+    // Use rebooking data if available, otherwise use current application data
+    const rebookingStep5 = rebookingData?.step5_data as Record<string, any> | undefined;
     const payload =
       application?.student_application_steps.find(
         (step) => step.step_number === 5,
-      )?.payload ?? {};
+      )?.payload ?? rebookingStep5 ?? {};
     const initialPlanId =
       (payload.selected_plan_id as string | undefined) ??
       application?.selected_payment_plan_id ??
@@ -879,7 +903,7 @@ const StudentApplicationWizard = () => {
       bank_statement: (payload.bank_statement as string) || "",
       consent: Boolean(payload.consent),
     };
-  }, [application, resolvedPlans]);
+  }, [application, resolvedPlans, rebookingData]);
 
   const [paymentValues, setPaymentValues] = useState<PaymentForm>(
     () => paymentDefaults,
@@ -1241,10 +1265,42 @@ useEffect(() => {
     }
   };
 
+  // Validate referral code
+  const referralCodeToValidate = personalValues.referral_code?.trim() || null;
+  const { data: referralValidation, isLoading: isValidatingReferral } = useValidateReferralCode(
+    referralCodeToValidate || undefined
+  );
+
   const handlePersonalSubmit = async (
     event: React.FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault();
+    
+    // Validate referral code if provided
+    if (personalValues.referral_code?.trim()) {
+      if (isValidatingReferral) {
+        toast({
+          variant: "destructive",
+          title: "Validating referral code",
+          description: "Please wait while we validate your referral code.",
+        });
+        return;
+      }
+      
+      if (referralValidation && !referralValidation.is_valid) {
+        setPersonalErrors((prev) => ({
+          ...prev,
+          referral_code: "Invalid referral code. Please check and try again.",
+        }));
+        toast({
+          variant: "destructive",
+          title: "Invalid referral code",
+          description: "The referral code you entered is not valid. Please check and try again.",
+        });
+        return;
+      }
+    }
+    
     const candidate: PersonalValues = {
       ...personalValues,
       age: calculateAgeFromDob(personalValues.date_of_birth),
@@ -1268,6 +1324,18 @@ useEffect(() => {
     };
     setPersonalValues(sanitized);
     setPersonalErrors({});
+    
+    // Save validated referral code to application if valid
+    if (referralValidation?.is_valid && referralValidation.partner_id && applicationId) {
+      const validatedCode = personalValues.referral_code?.trim().toUpperCase() || null;
+      await supabase
+        .from("student_applications")
+        .update({
+          validated_referral_code: validatedCode,
+          referred_by_partner_id: referralValidation.partner_id,
+        })
+        .eq("id", applicationId);
+    }
     
     // Save to application steps (existing workflow)
     await handleStepSubmit(1, sanitized);
@@ -2418,6 +2486,63 @@ useEffect(() => {
                 {personalErrors.gender && (
                   <p className="mt-1 text-xs text-destructive">
                     {personalErrors.gender}
+                  </p>
+                )}
+              </div>
+              <div>
+                <Label htmlFor="referral_code">Partner Referral Code (optional)</Label>
+                <div className="relative">
+                  <Input
+                    id="referral_code"
+                    autoComplete="off"
+                    placeholder="Enter referral code if you were referred by a partner"
+                    value={personalValues.referral_code || ""}
+                    onChange={(event) =>
+                      handlePersonalChange("referral_code", event.target.value)
+                    }
+                    className={cn(
+                      personalValues.referral_code?.trim() &&
+                        (referralValidation?.is_valid
+                          ? "border-green-500 focus-visible:ring-green-500"
+                          : referralValidation?.is_valid === false
+                            ? "border-red-500 focus-visible:ring-red-500"
+                            : ""),
+                    )}
+                  />
+                  {personalValues.referral_code?.trim() && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      {isValidatingReferral ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      ) : referralValidation?.is_valid ? (
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      ) : referralValidation?.is_valid === false ? (
+                        <Info className="h-4 w-4 text-red-500" />
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+                {personalValues.referral_code?.trim() && referralValidation && (
+                  <p
+                    className={cn(
+                      "mt-1 text-xs",
+                      referralValidation.is_valid
+                        ? "text-green-600"
+                        : "text-destructive",
+                    )}
+                  >
+                    {referralValidation.is_valid
+                      ? `✓ Valid code - Referred by ${referralValidation.partner_name}`
+                      : "Invalid referral code. Please check and try again."}
+                  </p>
+                )}
+                {!personalValues.referral_code?.trim() && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    If you were referred by a partner, enter their referral code here
+                  </p>
+                )}
+                {personalErrors.referral_code && (
+                  <p className="mt-1 text-xs text-destructive">
+                    {personalErrors.referral_code}
                   </p>
                 )}
               </div>
@@ -3769,6 +3894,17 @@ useEffect(() => {
       hideNav={true}
     >
       <section className="space-y-8">
+        {/* Rebooking Notice */}
+        {application?.is_rebooking && rebookingData && (
+          <Alert className="border-primary/50 bg-primary/5">
+            <RotateCcw className="h-4 w-4" />
+            <AlertTitle className="font-semibold">Rebooking Application</AlertTitle>
+            <AlertDescription className="text-sm mt-1">
+              We've pre-filled your information from your previous application. Please review and update any details that may have changed.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className="rounded-3xl border border-border bg-background/60 backdrop-blur p-6 md:p-8 shadow-xl shadow-black/5">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>

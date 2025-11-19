@@ -46,4 +46,10 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.weekly-payment-report]
+verify_jwt = false
+
+[functions.create-partner-account]
+verify_jwt = true
+
+[functions.get-payment-intent-details]
 verify_jwt = true

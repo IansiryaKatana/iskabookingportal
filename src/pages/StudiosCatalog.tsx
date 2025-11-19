@@ -230,12 +230,12 @@ const StudiosCatalog = () => {
           <section className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
             {grades.map((grade) => {
               // Get availability for this grade (use first active contract if multiple)
-              const gradeAvailability = availabilityData?.find(
-                (avail) => avail.studio_grade_id === grade.id
-              ) || null;
+              const gradeAvailability = availabilityLoading
+                ? null
+                : availabilityData?.find((avail) => avail.studio_grade_id === grade.id) || null;
 
-              const availabilityTag = getAvailabilityTag(gradeAvailability);
-              const fullyBooked = isFullyBooked(gradeAvailability);
+              const availabilityTag = availabilityLoading ? null : getAvailabilityTag(gradeAvailability);
+              const fullyBooked = availabilityLoading ? false : isFullyBooked(gradeAvailability);
 
               return (
                 <article

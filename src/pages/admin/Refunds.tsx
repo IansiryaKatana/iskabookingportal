@@ -42,7 +42,7 @@ const Refunds = () => {
   const { data: refunds, isLoading: refundsLoading } = useRefunds();
 
   // Fetch payments that can be refunded
-  // Note: We'll fetch from Stripe payment intents via Edge Function since we don't have a student_payments table
+  // Fetch from Stripe payment intents via Edge Function
   const { data: payments, isLoading: paymentsLoading } = useQuery({
     queryKey: ["refundable-payments"],
     queryFn: async () => {
@@ -61,21 +61,64 @@ const Refunds = () => {
 
       if (appError) throw appError;
 
-      // For now, return applications with deposit payments
-      // In production, you'd verify payment status with Stripe API
-      return (applications || []).map((app) => ({
-        id: app.id,
-        application_id: app.id,
-        stripe_payment_intent_id: app.deposit_payment_intent_id,
-        amount: 9900, // Placeholder - would fetch from Stripe
-        payment_type: "deposit",
-        created_at: app.created_at,
-        application: {
-          id: app.id,
-          student_id: app.student_id,
-          contract: app.contract,
-        },
-      }));
+      // Fetch payment intent details from Stripe for each application
+      const paymentsWithDetails = await Promise.all(
+        (applications || []).map(async (app) => {
+          if (!app.deposit_payment_intent_id) {
+            return null;
+          }
+
+          try {
+            // Fetch payment intent details from Stripe
+            const { data: paymentDetails, error: paymentError } = await supabase.functions.invoke(
+              "get-payment-intent-details",
+              {
+                body: { payment_intent_id: app.deposit_payment_intent_id },
+              }
+            );
+
+            if (paymentError || !paymentDetails) {
+              console.warn(`Failed to fetch payment details for ${app.deposit_payment_intent_id}:`, paymentError);
+              // Return with placeholder if fetch fails
+              return {
+                id: app.id,
+                application_id: app.id,
+                stripe_payment_intent_id: app.deposit_payment_intent_id,
+                amount: 0, // Unknown amount
+                payment_type: "deposit",
+                created_at: app.created_at,
+                status: "unknown",
+                application: {
+                  id: app.id,
+                  student_id: app.student_id,
+                  contract: app.contract,
+                },
+              };
+            }
+
+            return {
+              id: app.id,
+              application_id: app.id,
+              stripe_payment_intent_id: app.deposit_payment_intent_id,
+              amount: paymentDetails.amount || 0, // Amount in pence
+              payment_type: "deposit",
+              created_at: app.created_at,
+              status: paymentDetails.status,
+              application: {
+                id: app.id,
+                student_id: app.student_id,
+                contract: app.contract,
+              },
+            };
+          } catch (error) {
+            console.error(`Error fetching payment details for ${app.deposit_payment_intent_id}:`, error);
+            return null;
+          }
+        })
+      );
+
+      // Filter out null results
+      return paymentsWithDetails.filter((p): p is NonNullable<typeof p> => p !== null);
     },
   });
 

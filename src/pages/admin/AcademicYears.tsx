@@ -8,7 +8,7 @@ import {
 } from "@/hooks/useAdminAcademicYears";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Pencil, Star } from "lucide-react";
+import { Loader2, Pencil, Star, Plus } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -26,12 +26,23 @@ import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 
-const schema = z.object({
-  name: z.string().min(4, "Enter academic year name e.g. 2026/2027"),
-  start_date: z.string().min(1, "Start date required"),
-  end_date: z.string().min(1, "End date required"),
-  is_active: z.boolean().optional(),
-});
+const schema = z
+  .object({
+    name: z.string().min(4, "Enter academic year name e.g. 2026/2027"),
+    start_date: z.string().min(1, "Start date required").regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD format"),
+    end_date: z.string().min(1, "End date required").regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD format"),
+    is_active: z.boolean().optional(),
+  })
+  .refine(
+    (data) => {
+      if (!data.start_date || !data.end_date) return true;
+      return new Date(data.start_date) < new Date(data.end_date);
+    },
+    {
+      message: "End date must be after start date",
+      path: ["end_date"],
+    }
+  );
 
 const AcademicYears = () => {
   const { data, isLoading } = useAdminAcademicYears();
@@ -112,8 +123,29 @@ const AcademicYears = () => {
     <AdminLayout
       pageTitle="Academic Years"
       subtitle="Manage academic year boundaries and activate the current cycle."
+      mobileActionButton={
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button
+              size="sm"
+              className="rounded-full uppercase tracking-wide gap-2 flex-shrink-0 h-7 px-2 text-xs"
+              onClick={() => {
+                setEditingId(null);
+                form.reset({
+                  name: "",
+                  start_date: "",
+                  end_date: "",
+                  is_active: false,
+                });
+              }}
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </DialogTrigger>
+        </Dialog>
+      }
     >
-      <div className="flex items-center justify-between mb-6">
+      <div className="hidden lg:flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-display font-black uppercase tracking-wide">
             Academic Years

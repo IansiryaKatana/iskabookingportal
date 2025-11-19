@@ -4,7 +4,7 @@ import { Loader2 } from "lucide-react";
 
 type ProtectedRouteProps = {
   children: React.ReactNode;
-  allowedRoles: Array<"student" | "staff" | "superadmin">;
+  allowedRoles: Array<"student" | "staff" | "superadmin" | "partner">;
 };
 
 const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
@@ -23,8 +23,11 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     // Redirect to appropriate login page based on route
     const isAdminRoute = location.pathname.startsWith("/admin");
     const isPortalRoute = location.pathname.startsWith("/portal");
+    const isPartnerRoute = location.pathname.startsWith("/partner");
     const redirectTo = isAdminRoute
       ? "/admin/login"
+      : isPartnerRoute
+      ? "/partner/login"
       : isPortalRoute
       ? "/portal/login"
       : "/studios";

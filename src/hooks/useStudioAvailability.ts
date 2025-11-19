@@ -7,8 +7,8 @@ export type StudioAvailability = {
   studio_grade_slug: string;
   contract_id: string | null;
   contract_name: string | null;
-  academic_year_id: string;
-  academic_year_name: string;
+  academic_year_id: string | null;
+  academic_year_name: string | null;
   total_capacity: number;
   available_count: number;
   reserved_count: number;
@@ -62,18 +62,26 @@ export const useStudioAvailability = (studioGradeId: string, contractId?: string
 
 /**
  * Get availability for all studio grades (for catalog page)
+ * Uses aggregated view that shows total availability across all contracts
  */
 export const useAllStudioAvailability = () => {
   return useQuery({
     queryKey: ["all-studio-availability"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("studio_grade_availability")
+        .from("studio_grade_availability_summary")
         .select("*")
         .order("studio_grade_name", { ascending: true });
 
       if (error) throw error;
-      return (data || []) as StudioAvailability[];
+      // Map to match StudioAvailability type (contract fields will be null)
+      return (data || []).map((item) => ({
+        ...item,
+        contract_id: null,
+        contract_name: null,
+        academic_year_id: null,
+        academic_year_name: null,
+      })) as StudioAvailability[];
     },
     staleTime: 30000, // 30 seconds
     refetchInterval: 30000, // Refresh every 30 seconds

@@ -50,8 +50,8 @@ const FullyPaidStudents = () => {
       const { data, error } = await supabase.rpc("get_fully_paid_students", {
         p_contract_id: selectedContract !== "all" ? selectedContract : null,
         p_academic_year_id: selectedYear !== "all" ? selectedYear : null,
-        p_start_date: startDate || null,
-        p_end_date: endDate || null,
+        p_start_date: startDate && startDate.trim() !== "" ? startDate : null,
+        p_end_date: endDate && endDate.trim() !== "" ? endDate : null,
       });
 
       if (error) throw error;
@@ -112,25 +112,37 @@ const FullyPaidStudents = () => {
   const totalRevenue = students?.reduce((sum, s) => sum + s.total_paid, 0) || 0;
 
   return (
-    <AdminLayout>
+    <AdminLayout
+      pageTitle="Fully Paid Students"
+      subtitle="Students who have completed all payments for their contracts"
+      mobileActionButton={
+        <Button
+          size="sm"
+          variant="outline"
+          className="rounded-full p-2 h-9 w-9 flex-shrink-0"
+          onClick={exportToCSV}
+          disabled={!students || students.length === 0}
+        >
+          <Download className="h-4 w-4" />
+        </Button>
+      }
+    >
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold">Fully Paid Students</h1>
-            <p className="text-muted-foreground mt-1">
-              Students who have completed all payments for their contracts
-            </p>
-          </div>
-          <Button onClick={exportToCSV} disabled={!students || students.length === 0}>
-            <Download className="mr-2 h-4 w-4" />
+        <div className="hidden lg:flex items-center justify-end">
+          <Button
+            onClick={exportToCSV}
+            disabled={!students || students.length === 0}
+            className="rounded-full uppercase tracking-wide gap-2"
+          >
+            <Download className="h-4 w-4" />
             Export CSV
           </Button>
         </div>
 
         {/* Summary Card */}
-        <Card>
+        <Card className="rounded-3xl border border-border/60 shadow-xl">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Summary</CardTitle>
+            <CardTitle className="text-sm font-display uppercase tracking-wide">Summary</CardTitle>
             <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -152,9 +164,9 @@ const FullyPaidStudents = () => {
         </Card>
 
         {/* Filters */}
-        <Card>
+        <Card className="rounded-3xl border border-border/60 shadow-xl">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="text-lg font-display uppercase tracking-wide flex items-center gap-2">
               <Filter className="h-5 w-5" />
               Filters
             </CardTitle>
@@ -219,9 +231,9 @@ const FullyPaidStudents = () => {
         </Card>
 
         {/* Students List */}
-        <Card>
+        <Card className="rounded-3xl border border-border/60 shadow-xl">
           <CardHeader>
-            <CardTitle>Fully Paid Students</CardTitle>
+            <CardTitle className="text-lg font-display uppercase tracking-wide">Fully Paid Students</CardTitle>
             <CardDescription>
               {students?.length || 0} student{students?.length !== 1 ? "s" : ""} found
             </CardDescription>
@@ -246,7 +258,7 @@ const FullyPaidStudents = () => {
                   >
                     <div className="flex-1 space-y-1">
                       <div className="flex items-center gap-2">
-                        <h3 className="font-semibold">
+                        <h3 className="font-display font-semibold uppercase tracking-wide">
                           {student.first_name} {student.last_name}
                         </h3>
                         <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">

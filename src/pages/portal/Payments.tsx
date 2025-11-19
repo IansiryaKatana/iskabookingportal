@@ -1,13 +1,16 @@
 import { useMemo, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, CreditCard, Calendar, CheckCircle2, Clock, AlertCircle } from "lucide-react";
+import { Loader2, CreditCard, Calendar, CheckCircle2, Clock, AlertCircle, Gift } from "lucide-react";
 import PortalLayout from "@/components/portal/PortalLayout";
 import { useStudentApplicationsList } from "@/hooks/useStudentApplications";
 import { useStudentPayments } from "@/hooks/useStudentPayments";
+import { useApplicationCashback } from "@/hooks/useCashback";
+import { usePaymentSummary } from "@/hooks/useUnifiedPayments";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isPast, isToday, isFuture } from "date-fns";
 import { Elements } from "@stripe/react-stripe-js";
@@ -410,8 +413,33 @@ const PaymentCard = ({
   getInstalmentStatus,
 }: PaymentCardProps) => {
   const { data: instalments, isLoading, refetch } = useStudentPayments(application.id);
+  const { data: cashback } = useApplicationCashback(application.id);
+  // Only fetch payment summary for confirmed applications (they have payment schedules)
+  const { data: paymentSummary } = usePaymentSummary(
+    application.status === "confirmed" ? application.id : null
+  );
   const contract = application.contract;
   const gradeName = contract?.studio_grade?.name ?? "Studio Grade";
+
+  // Calculate cashback-adjusted installments (reduce final installment)
+  const adjustedInstalments = useMemo(() => {
+    if (!instalments || instalments.length === 0) return [];
+    if (!cashback || cashback.cashback_amount <= 0) return instalments;
+
+    const sorted = [...instalments].sort((a, b) => a.sequence - b.sequence);
+    const lastIndex = sorted.length - 1;
+    const lastInstalment = sorted[lastIndex];
+
+    // Reduce final installment by cashback amount (minimum 0)
+    const adjustedAmount = Math.max(0, Number(lastInstalment.amount) - cashback.cashback_amount);
+
+    return sorted.map((inst, index) => {
+      if (index === lastIndex) {
+        return { ...inst, amount: adjustedAmount, original_amount: Number(inst.amount) };
+      }
+      return inst;
+    });
+  }, [instalments, cashback]);
 
   // Refetch when payment succeeds - but delay to prevent state reset
   useEffect(() => {
@@ -469,7 +497,55 @@ const PaymentCard = ({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {instalments.map((instalment) => {
+        {/* Cashback Alert */}
+        {cashback && cashback.cashback_amount > 0 && (
+          <Alert className="border-primary/50 bg-primary/5">
+            <Gift className="h-4 w-4" />
+            <AlertTitle className="font-semibold">Cashback Applied</AlertTitle>
+            <AlertDescription className="text-sm mt-1">
+              You have a cashback of £{cashback.cashback_amount.toLocaleString("en-GB", { minimumFractionDigits: 2 })} applied to this booking.
+              {cashback.campaign && (
+                <span className="block mt-1 text-xs text-muted-foreground">
+                  Campaign: {cashback.campaign.name}
+                </span>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Payment Summary with Cashback */}
+        {paymentSummary && (
+          <div className="rounded-2xl border border-border/60 bg-muted/30 p-4 space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Total Due:</span>
+              <span className="font-semibold">
+                £{paymentSummary.total_due.toLocaleString("en-GB", { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+            {cashback && cashback.cashback_amount > 0 && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground flex items-center gap-1">
+                  <Gift className="h-3 w-3" />
+                  Cashback:
+                </span>
+                <span className="font-semibold text-green-600">
+                  -£{cashback.cashback_amount.toLocaleString("en-GB", { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            )}
+            <div className="flex items-center justify-between text-sm pt-2 border-t border-border/60">
+              <span className="font-semibold">Remaining Balance:</span>
+              <span className="font-bold text-lg">
+                £{paymentSummary.remaining_balance.toLocaleString("en-GB", { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {adjustedInstalments.map((instalment) => {
+          const originalAmount = (instalment as any).original_amount;
+          const isLastInstalment = instalment.sequence === adjustedInstalments.length;
+          const hasCashbackDiscount = originalAmount && originalAmount > Number(instalment.amount);
           const status = getInstalmentStatus(instalment, application);
           const isSelected =
             selectedInstalment?.instalmentId === instalment.id;
@@ -499,7 +575,22 @@ const PaymentCard = ({
                     </div>
                     <div className="flex items-center gap-2">
                       <CreditCard className="h-4 w-4" />
-                      £{Number(instalment.amount).toFixed(2)}
+                      {hasCashbackDiscount ? (
+                        <span className="flex items-center gap-2">
+                          <span className="line-through text-muted-foreground/60">
+                            £{originalAmount.toFixed(2)}
+                          </span>
+                          <span className="font-semibold text-primary">
+                            £{Number(instalment.amount).toFixed(2)}
+                          </span>
+                          <Badge variant="outline" className="text-xs">
+                            <Gift className="h-3 w-3 mr-1" />
+                            Cashback
+                          </Badge>
+                        </span>
+                      ) : (
+                        <span>£{Number(instalment.amount).toFixed(2)}</span>
+                      )}
                     </div>
                   </div>
                 </div>

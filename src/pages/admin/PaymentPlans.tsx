@@ -1,10 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import {
   useAdminPaymentPlans,
   useCreatePaymentPlan,
   useUpdatePaymentPlan,
   useDeletePaymentPlan,
+  useDuplicatePaymentPlans,
+  useAllAcademicYears,
   type PaymentPlanWithInstallments,
 } from "@/hooks/useAdminPaymentPlans";
 import {
@@ -16,7 +18,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, Pencil, Trash2 } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, Copy } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -39,6 +41,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const installmentSchema = z
   .object({
@@ -107,16 +119,32 @@ const emptyInstallment: PlanFormValues["installments"][number] = {
 };
 
 const PaymentPlans = () => {
-  const { data, isLoading } = useAdminPaymentPlans();
+  const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string | null>(null);
+  const { data, isLoading } = useAdminPaymentPlans(selectedAcademicYearId);
   const createPlan = useCreatePaymentPlan();
   const updatePlan = useUpdatePaymentPlan();
   const deletePlan = useDeletePaymentPlan();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<PaymentPlanWithInstallments | null>(null);
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+  const [sourceYearId, setSourceYearId] = useState<string>("");
+  
+  const { data: allAcademicYears } = useAllAcademicYears();
+  const duplicatePlans = useDuplicatePaymentPlans();
 
-  const academicYear = data?.academicYear ?? null;
+  const academicYears = data?.academicYears ?? [];
+  const selectedAcademicYear = data?.selectedAcademicYear ?? null;
   const plans = useMemo(() => data?.plans ?? [], [data]);
+
+  // Set initial selected year when data loads
+  useEffect(() => {
+    if (!selectedAcademicYearId && selectedAcademicYear) {
+      setSelectedAcademicYearId(selectedAcademicYear.id);
+    } else if (!selectedAcademicYearId && academicYears.length > 0) {
+      setSelectedAcademicYearId(academicYears[0].id);
+    }
+  }, [selectedAcademicYearId, selectedAcademicYear, academicYears]);
 
   const form = useForm<PlanFormValues>({
     resolver: zodResolver(planSchema),
@@ -199,18 +227,18 @@ const PaymentPlans = () => {
   };
 
   const onSubmit = form.handleSubmit(async (values) => {
-    if (!academicYear) {
+    if (!selectedAcademicYear) {
       toast({
         variant: "destructive",
-        title: "No active academic year",
-        description: "Activate an academic year before managing payment plans.",
+        title: "No academic year selected",
+        description: "Select an academic year before managing payment plans.",
       });
       return;
     }
 
     const payload = {
       id: editingPlan?.id,
-      academic_year_id: academicYear.id,
+      academic_year_id: selectedAcademicYear.id,
       name: values.name,
       description: values.description ?? null,
       deposit_amount: values.deposit_amount ?? null,
@@ -247,21 +275,84 @@ const PaymentPlans = () => {
     <AdminLayout
       pageTitle="Payment Plans"
       subtitle="Manage deposit amounts and instalment schedules for the active academic year."
+      mobileActionButton={
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {selectedAcademicYear && academicYears.length > 1 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-full uppercase tracking-wide gap-2 flex-shrink-0 h-7 px-2 text-xs"
+              onClick={() => setDuplicateDialogOpen(true)}
+              disabled={!selectedAcademicYear || duplicatePlans.isPending}
+            >
+              <Copy className="h-4 w-4" />
+            </Button>
+          )}
+          <Button
+            size="sm"
+            className="rounded-full uppercase tracking-wide gap-2 flex-shrink-0 h-7 px-2 text-xs"
+            onClick={handleCreate}
+            disabled={!selectedAcademicYear}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
+      }
     >
       <Card className="rounded-3xl border border-border/60 shadow-xl">
         <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
+          <div className="flex-1">
             <CardTitle className="text-lg font-display uppercase tracking-wide">
               Instalment schedules
             </CardTitle>
-            <CardDescription>
-              Plans apply to the active academic year ({academicYear?.name ?? "none active"}). Students will choose one plan during their booking journey.
+            <CardDescription className="mt-2">
+              Plans apply to the selected academic year. Students will choose one plan during their booking journey.
             </CardDescription>
+            {academicYears.length > 1 && (
+              <div className="mt-4">
+                <label htmlFor="academic-year-select" className="text-sm font-medium mb-2 block">
+                  Academic Year
+                </label>
+                <Select
+                  value={selectedAcademicYearId ?? ""}
+                  onValueChange={(value) => setSelectedAcademicYearId(value)}
+                >
+                  <SelectTrigger id="academic-year-select" className="w-full md:w-[300px]">
+                    <SelectValue placeholder="Select academic year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {academicYears.map((year) => (
+                      <SelectItem key={year.id} value={year.id}>
+                        {year.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {academicYears.length === 1 && selectedAcademicYear && (
+              <p className="text-sm text-muted-foreground mt-2">
+                Current: <span className="font-semibold">{selectedAcademicYear.name}</span>
+              </p>
+            )}
           </div>
-          <Button onClick={handleCreate} disabled={!academicYear}>
-            <Plus className="h-4 w-4 mr-2" />
-            New plan
-          </Button>
+          <div className="hidden lg:flex items-center gap-2">
+            {selectedAcademicYear && academicYears.length > 1 && (
+              <Button
+                variant="outline"
+                onClick={() => setDuplicateDialogOpen(true)}
+                disabled={!selectedAcademicYear || duplicatePlans.isPending}
+                className="rounded-full uppercase tracking-wide gap-2"
+              >
+                <Copy className="h-4 w-4" />
+                Duplicate from year
+              </Button>
+            )}
+            <Button onClick={handleCreate} disabled={!selectedAcademicYear}>
+              <Plus className="h-4 w-4 mr-2" />
+              New plan
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {isLoading ? (
@@ -272,9 +363,9 @@ const PaymentPlans = () => {
             <div className="rounded-2xl border border-dashed border-border/60 px-6 py-10 text-center space-y-3">
               <h3 className="text-lg font-semibold">No payment plans yet</h3>
               <p className="text-sm text-muted-foreground max-w-xl mx-auto">
-                Create instalment schedules customised for {academicYear?.name ?? "the active academic year"}. Students will see these options before starting their application.
+                Create instalment schedules customised for {selectedAcademicYear?.name ?? "an academic year"}. Students will see these options before starting their application.
               </p>
-              <Button onClick={handleCreate} disabled={!academicYear}>
+              <Button onClick={handleCreate} disabled={!selectedAcademicYear}>
                 Create payment plan
               </Button>
             </div>
@@ -602,6 +693,97 @@ const PaymentPlans = () => {
           </Form>
         </DialogContent>
       </Dialog>
+
+      {/* Duplicate Payment Plans Dialog */}
+      <AlertDialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
+        <AlertDialogContent className="rounded-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-display uppercase tracking-wide">
+              Duplicate Payment Plans
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Copy all payment plans from another academic year to {selectedAcademicYear?.name}. 
+              Fixed due dates will be adjusted by adding 1 year. Offset days will remain the same.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label htmlFor="source-year" className="text-sm font-medium">
+                Copy from academic year
+              </label>
+              <Select
+                value={sourceYearId}
+                onValueChange={setSourceYearId}
+              >
+                <SelectTrigger id="source-year">
+                  <SelectValue placeholder="Select source academic year" />
+                </SelectTrigger>
+                <SelectContent>
+                  {allAcademicYears
+                    ?.filter((year) => year.id !== selectedAcademicYear?.id)
+                    .map((year) => (
+                      <SelectItem key={year.id} value={year.id}>
+                        {year.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {sourceYearId && (
+              <div className="rounded-xl bg-muted/40 p-4 space-y-2">
+                <p className="text-sm font-semibold">What will be duplicated:</p>
+                <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                  <li>All payment plans from the source year</li>
+                  <li>All installments with their amounts and types</li>
+                  <li>Fixed due dates will have 1 year added automatically</li>
+                  <li>Offset days (relative to contract start) remain unchanged</li>
+                  <li>You can edit all plans after duplication</li>
+                </ul>
+              </div>
+            )}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-full uppercase tracking-wide">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!sourceYearId || !selectedAcademicYear) return;
+                try {
+                  const result = await duplicatePlans.mutateAsync({
+                    sourceAcademicYearId: sourceYearId,
+                    targetAcademicYearId: selectedAcademicYear.id,
+                  });
+                  toast({
+                    title: "Payment plans duplicated",
+                    description: `Successfully duplicated ${result.count} payment plan${result.count !== 1 ? "s" : ""} from the source year.`,
+                  });
+                  setDuplicateDialogOpen(false);
+                  setSourceYearId("");
+                } catch (error: any) {
+                  console.error(error);
+                  toast({
+                    variant: "destructive",
+                    title: "Unable to duplicate payment plans",
+                    description: error.message || "Please try again or contact support.",
+                  });
+                }
+              }}
+              disabled={!sourceYearId || duplicatePlans.isPending}
+              className="rounded-full uppercase tracking-wide"
+            >
+              {duplicatePlans.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Duplicating...
+                </>
+              ) : (
+                "Duplicate Plans"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AdminLayout>
   );
 };

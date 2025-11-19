@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 export type RebookingCheck = {
   can_rebook: boolean;
@@ -107,7 +108,4 @@ export const useMarkAsRebooking = () => {
     },
   });
 };
-
-// Import useAuth
-import { useAuth } from "@/contexts/AuthContext";
 

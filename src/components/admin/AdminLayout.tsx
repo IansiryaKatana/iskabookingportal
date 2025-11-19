@@ -17,11 +17,17 @@ import {
   UserCog,
   Menu,
   CheckCircle2,
+  Gift,
+  Handshake,
+  DollarSign,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import clsx from "clsx";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,96 +39,182 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-const navItems = [
+type NavItem = {
+  label: string;
+  to: string;
+  icon: React.ComponentType<{ className?: string }>;
+};
+
+type NavSection = {
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  items: NavItem[];
+};
+
+const navSections: NavSection[] = [
   {
     label: "Overview",
-    to: "/admin",
     icon: LayoutDashboard,
+    items: [
+      {
+        label: "Dashboard",
+        to: "/admin",
+        icon: LayoutDashboard,
+      },
+    ],
   },
   {
-    label: "Academic Years",
-    to: "/admin/academic-years",
+    label: "Academic",
     icon: Calendar,
+    items: [
+      {
+        label: "Academic Years",
+        to: "/admin/academic-years",
+        icon: Calendar,
+      },
+      {
+        label: "Studio Grades",
+        to: "/admin/studio-grades",
+        icon: Layers,
+      },
+      {
+        label: "Studios",
+        to: "/admin/studios",
+        icon: Building2,
+      },
+    ],
   },
   {
-    label: "Studio Grades",
-    to: "/admin/studio-grades",
-    icon: Layers,
-  },
-  {
-    label: "Payment Plans",
-    to: "/admin/payment-plans",
+    label: "Finance",
     icon: CreditCard,
-  },
-  {
-    label: "Contracts",
-    to: "/admin/contracts",
-    icon: FileSpreadsheet,
-  },
-  {
-    label: "Studios",
-    to: "/admin/studios",
-    icon: Building2,
-  },
-  {
-    label: "Applications",
-    to: "/admin/applications",
-    icon: ClipboardCheck,
+    items: [
+      {
+        label: "Payment Plans",
+        to: "/admin/payment-plans",
+        icon: CreditCard,
+      },
+      {
+        label: "Contracts",
+        to: "/admin/contracts",
+        icon: FileSpreadsheet,
+      },
+      {
+        label: "Payment History",
+        to: "/admin/payment-history",
+        icon: CreditCard,
+      },
+      {
+        label: "Weekly Payments",
+        to: "/admin/weekly-payment-report",
+        icon: TrendingUp,
+      },
+      {
+        label: "Fully Paid Students",
+        to: "/admin/fully-paid-students",
+        icon: CheckCircle2,
+      },
+      {
+        label: "Financial Forecast",
+        to: "/admin/financial-forecast",
+        icon: TrendingUp,
+      },
+      {
+        label: "Refunds",
+        to: "/admin/refunds",
+        icon: CreditCard,
+      },
+    ],
   },
   {
     label: "Students",
-    to: "/admin/students",
     icon: Users,
+    items: [
+      {
+        label: "Applications",
+        to: "/admin/applications",
+        icon: ClipboardCheck,
+      },
+      {
+        label: "Students",
+        to: "/admin/students",
+        icon: Users,
+      },
+    ],
+  },
+  {
+    label: "Partners",
+    icon: Handshake,
+    items: [
+      {
+        label: "Partners",
+        to: "/admin/partners",
+        icon: Handshake,
+      },
+      {
+        label: "Partner Commissions",
+        to: "/admin/partner-commissions",
+        icon: DollarSign,
+      },
+    ],
+  },
+  {
+    label: "Promotions",
+    icon: Gift,
+    items: [
+      {
+        label: "Cashback Campaigns",
+        to: "/admin/cashback-campaigns",
+        icon: Gift,
+      },
+    ],
+  },
+  {
+    label: "Communications",
+    icon: MessageSquare,
+    items: [
+      {
+        label: "Bulk Messages",
+        to: "/admin/bulk-messages",
+        icon: MessageSquare,
+      },
+      {
+        label: "Email Templates",
+        to: "/admin/email-templates",
+        icon: Mail,
+      },
+    ],
   },
   {
     label: "Reports",
-    to: "/admin/reports",
     icon: FileText,
+    items: [
+      {
+        label: "Reports",
+        to: "/admin/reports",
+        icon: FileText,
+      },
+    ],
   },
   {
-    label: "Bulk Messages",
-    to: "/admin/bulk-messages",
-    icon: MessageSquare,
-  },
-  {
-    label: "Email Templates",
-    to: "/admin/email-templates",
-    icon: Mail,
-  },
-  {
-    label: "Financial Forecast",
-    to: "/admin/financial-forecast",
-    icon: TrendingUp,
-  },
-  {
-    label: "Payment History",
-    to: "/admin/payment-history",
-    icon: CreditCard,
-  },
-  {
-    label: "Fully Paid Students",
-    to: "/admin/fully-paid-students",
-    icon: CheckCircle2,
-  },
-  {
-    label: "Users",
-    to: "/admin/users",
-    icon: UserCog,
-  },
-  {
-    label: "Refunds",
-    to: "/admin/refunds",
-    icon: CreditCard,
-  },
-  {
-    label: "Audit Logs",
-    to: "/admin/audit-logs",
-    icon: FileText,
-  },
-  {
-    label: "Settings",
-    to: "/admin/settings",
+    label: "System",
     icon: Settings,
+    items: [
+      {
+        label: "Users",
+        to: "/admin/users",
+        icon: UserCog,
+      },
+      {
+        label: "Audit Logs",
+        to: "/admin/audit-logs",
+        icon: FileText,
+      },
+      {
+        label: "Settings",
+        to: "/admin/settings",
+        icon: Settings,
+      },
+    ],
   },
 ];
 
@@ -139,6 +231,10 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
   const { profile, signOut, loading } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [showSignOutDialog, setShowSignOutDialog] = useState(false);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const [canScroll, setCanScroll] = useState(false);
+  const navRef = useRef<HTMLElement | null>(null);
 
   const handleSignOut = async () => {
     setShowSignOutDialog(false);
@@ -148,10 +244,78 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
 
   const isActiveRoute = (path: string) => {
     if (path === "/admin") {
+      // Dashboard should only be active when exactly on /admin
       return location.pathname === "/admin";
     }
-    return location.pathname.startsWith(path);
+    // For other routes, check if pathname starts with the route
+    // But ensure it's not just matching /admin prefix
+    return location.pathname === path || location.pathname.startsWith(path + "/");
   };
+
+  // Check if any child in a section is active
+  const isSectionActive = (section: NavSection) => {
+    return section.items.some((item) => isActiveRoute(item.to));
+  };
+
+  // Initialize open sections based on active routes
+  useEffect(() => {
+    const initialOpen: Record<string, boolean> = {};
+    navSections.forEach((section) => {
+      // Open section if it has an active child
+      if (isSectionActive(section)) {
+        initialOpen[section.label] = true;
+      }
+    });
+    setOpenSections((prev) => {
+      // Only update if there are new sections to open
+      const hasChanges = Object.keys(initialOpen).some(
+        (key) => initialOpen[key] !== prev[key]
+      );
+      return hasChanges ? { ...prev, ...initialOpen } : prev;
+    });
+  }, [location.pathname]);
+
+  const toggleSection = (sectionLabel: string) => {
+    setOpenSections((prev) => ({
+      ...prev,
+      [sectionLabel]: !prev[sectionLabel],
+    }));
+  };
+
+  // Track scroll progress for navigation
+  useEffect(() => {
+    const navElement = navRef.current;
+    if (!navElement) return;
+
+    const updateScrollProgress = () => {
+      const { scrollTop, scrollHeight, clientHeight } = navElement;
+      const maxScroll = scrollHeight - clientHeight;
+      
+      if (maxScroll > 0) {
+        setCanScroll(true);
+        const progress = (scrollTop / maxScroll) * 100;
+        setScrollProgress(progress);
+      } else {
+        setCanScroll(false);
+        setScrollProgress(0);
+      }
+    };
+
+    // Initial check
+    updateScrollProgress();
+
+    // Update on scroll
+    navElement.addEventListener("scroll", updateScrollProgress);
+    
+    // Update when sections expand/collapse
+    const resizeObserver = new ResizeObserver(updateScrollProgress);
+    resizeObserver.observe(navElement);
+
+    return () => {
+      navElement.removeEventListener("scroll", updateScrollProgress);
+      resizeObserver.disconnect();
+    };
+  }, [openSections]);
 
   return (
     <div className="min-h-screen bg-muted flex flex-col lg:flex-row">
@@ -167,28 +331,106 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
           </p>
         </div>
         {/* Sidebar Nav - Scrollable if needed */}
-        <nav className="flex-1 overflow-y-auto px-4 py-6 space-y-1 min-h-0">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className={({ isActive }) =>
-                  clsx(
+        <div className="flex-1 relative min-h-0 flex flex-col">
+          {/* Scroll Progress Indicator */}
+          {canScroll && (
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-muted z-20">
+              <div
+                className="h-full bg-primary transition-all duration-150 ease-out"
+                style={{ width: `${scrollProgress}%` }}
+              />
+            </div>
+          )}
+          {/* Gradient fade at top */}
+          {canScroll && scrollProgress > 0 && (
+            <div className="absolute top-0.5 left-0 right-0 h-8 bg-gradient-to-b from-background via-background/80 to-transparent pointer-events-none z-10" />
+          )}
+          {/* Gradient fade at bottom */}
+          {canScroll && scrollProgress < 100 && (
+            <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background via-background/80 to-transparent pointer-events-none z-10" />
+          )}
+          <nav
+            ref={navRef}
+            className="flex-1 overflow-y-auto px-4 py-6 space-y-1 min-h-0 scrollbar-hide"
+          >
+          {navSections.map((section) => {
+            const SectionIcon = section.icon;
+            const isActive = isSectionActive(section);
+            const isOpen = openSections[section.label] ?? false;
+
+            // Single item sections (no collapsible needed)
+            if (section.items.length === 1) {
+              const item = section.items[0];
+              const ItemIcon = item.icon;
+              const itemIsActive = isActiveRoute(item.to);
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={clsx(
                     "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-all",
-                    isActive
+                    itemIsActive
                       ? "bg-primary text-primary-foreground shadow-lg"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                  )
-                }
+                  )}
+                >
+                  <ItemIcon className="h-4 w-4" />
+                  {item.label}
+                </NavLink>
+              );
+            }
+
+            // Multi-item sections (collapsible)
+            return (
+              <Collapsible
+                key={section.label}
+                open={isOpen}
+                onOpenChange={() => toggleSection(section.label)}
               >
-                <Icon className="h-4 w-4" />
-                {item.label}
-              </NavLink>
+                <CollapsibleTrigger
+                  className={clsx(
+                    "w-full flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-medium transition-all",
+                    isActive
+                      ? "bg-primary/10 text-foreground"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <SectionIcon className="h-4 w-4" />
+                    <span>{section.label}</span>
+                  </div>
+                  {isOpen ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-1 space-y-1 pl-4">
+                  {section.items.map((item) => {
+                    const ItemIcon = item.icon;
+                    const itemIsActive = isActiveRoute(item.to);
+                    return (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        className={clsx(
+                          "flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-all",
+                          itemIsActive
+                            ? "bg-primary text-primary-foreground shadow-md"
+                            : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                        )}
+                      >
+                        <ItemIcon className="h-3.5 w-3.5" />
+                        {item.label}
+                      </NavLink>
+                    );
+                  })}
+                </CollapsibleContent>
+              </Collapsible>
             );
           })}
-        </nav>
+          </nav>
+        </div>
         {/* Sidebar Footer with Sign Out - Fixed */}
         <div className="px-4 py-6 border-t border-border space-y-2 flex-shrink-0">
           {loading ? (
@@ -251,24 +493,82 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
           </div>
           {mobileNavOpen && (
             <nav className="px-4 py-4 border-t border-border space-y-1 bg-background max-h-[calc(100vh-80px)] overflow-y-auto">
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = isActiveRoute(item.to);
+              {navSections.map((section) => {
+                const SectionIcon = section.icon;
+                const isActive = isSectionActive(section);
+                const isOpen = openSections[section.label] ?? false;
+
+                // Single item sections
+                if (section.items.length === 1) {
+                  const item = section.items[0];
+                  const ItemIcon = item.icon;
+                  const itemIsActive = isActiveRoute(item.to);
+                  return (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      className={clsx(
+                        "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-all",
+                        itemIsActive
+                          ? "bg-primary text-primary-foreground shadow-lg"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                      )}
+                      onClick={() => setMobileNavOpen(false)}
+                    >
+                      <ItemIcon className="h-5 w-5" />
+                      {item.label}
+                    </NavLink>
+                  );
+                }
+
+                // Multi-item sections
                 return (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    className={clsx(
-                      "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-all",
-                      isActive
-                        ? "bg-primary text-primary-foreground shadow-lg"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                    )}
-                    onClick={() => setMobileNavOpen(false)}
+                  <Collapsible
+                    key={section.label}
+                    open={isOpen}
+                    onOpenChange={() => toggleSection(section.label)}
                   >
-                    <Icon className="h-5 w-5" />
-                    {item.label}
-                  </NavLink>
+                    <CollapsibleTrigger
+                      className={clsx(
+                        "w-full flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-medium transition-all",
+                        isActive
+                          ? "bg-primary/10 text-foreground"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <SectionIcon className="h-5 w-5" />
+                        <span>{section.label}</span>
+                      </div>
+                      {isOpen ? (
+                        <ChevronDown className="h-4 w-4" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4" />
+                      )}
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="mt-1 space-y-1 pl-4">
+                      {section.items.map((item) => {
+                        const ItemIcon = item.icon;
+                        const itemIsActive = isActiveRoute(item.to);
+                        return (
+                          <NavLink
+                            key={item.to}
+                            to={item.to}
+                            className={clsx(
+                              "flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-all",
+                              itemIsActive
+                                ? "bg-primary text-primary-foreground shadow-md"
+                                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                            )}
+                            onClick={() => setMobileNavOpen(false)}
+                          >
+                            <ItemIcon className="h-4 w-4" />
+                            {item.label}
+                          </NavLink>
+                        );
+                      })}
+                    </CollapsibleContent>
+                  </Collapsible>
                 );
               })}
               <div className="pt-4 mt-4 border-t border-border">

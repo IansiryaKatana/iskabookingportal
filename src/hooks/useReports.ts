@@ -16,6 +16,10 @@ export type ReportItem = {
   deposit_paid: boolean;
   deposit_payment_intent_id: string | null;
   total_contract_value: number | null;
+  cashback_amount: number | null;
+  adjusted_total: number | null;
+  partner_name: string | null;
+  commission_amount: number | null;
   created_at: string;
   contract_start: string | null;
   contract_end: string | null;
@@ -63,6 +67,8 @@ const fetchReport = async (reportType: ReportType): Promise<ReportItem[]> => {
       status,
       deposit_payment_intent_id,
       total_contract_value,
+      cashback_amount,
+      referred_by_partner_id,
       created_at,
       contract:contracts(
         name,
@@ -88,7 +94,6 @@ const fetchReport = async (reportType: ReportType): Promise<ReportItem[]> => {
   }
 
   // Fetch student profiles
-  const applicationIds = data.map((app) => app.id);
   const studentIds = [...new Set(data.map((app) => app.student_id).filter((id): id is string => Boolean(id)))];
 
   let profiles: any[] = [];
@@ -193,6 +198,36 @@ const fetchReport = async (reportType: ReportType): Promise<ReportItem[]> => {
     schedulesByApp.get(s.application_id)!.push(s);
   });
 
+  // Fetch cashback and partner referral data
+  const applicationIds = data.map((app) => app.id);
+  const { data: cashbacksData } = await supabase
+    .from("application_cashbacks")
+    .select("application_id, cashback_amount")
+    .in("application_id", applicationIds);
+
+  const { data: partnerReferralsData } = await supabase
+    .from("partner_referrals")
+    .select(`
+      application_id,
+      commission_amount,
+      partner:partners(name)
+    `)
+    .in("application_id", applicationIds);
+
+  const cashbacksMap = new Map(
+    (cashbacksData || []).map((c) => [c.application_id, c.cashback_amount])
+  );
+
+  const partnerReferralsMap = new Map(
+    (partnerReferralsData || []).map((pr) => [
+      pr.application_id,
+      {
+        partner_name: (pr.partner as any)?.name || null,
+        commission_amount: pr.commission_amount,
+      },
+    ])
+  );
+
   // Build report items
   const reportItems: ReportItem[] = data
     .map((app) => {
@@ -247,6 +282,12 @@ const fetchReport = async (reportType: ReportType): Promise<ReportItem[]> => {
         overdueAmount = outstanding;
       }
 
+      const cashbackAmount = cashbacksMap.get(app.id) || app.cashback_amount || null;
+      const adjustedTotal = app.total_contract_value 
+        ? (app.total_contract_value - (cashbackAmount || 0))
+        : null;
+      const partnerRef = partnerReferralsMap.get(app.id);
+
       return {
         id: app.id,
         application_id: app.id,
@@ -259,6 +300,10 @@ const fetchReport = async (reportType: ReportType): Promise<ReportItem[]> => {
         deposit_paid: !!app.deposit_payment_intent_id,
         deposit_payment_intent_id: app.deposit_payment_intent_id,
         total_contract_value: app.total_contract_value,
+        cashback_amount: cashbackAmount,
+        adjusted_total: adjustedTotal,
+        partner_name: partnerRef?.partner_name || null,
+        commission_amount: partnerRef?.commission_amount || null,
         created_at: app.created_at,
         contract_start: (app.contract as any)?.contract_start || null,
         contract_end: (app.contract as any)?.contract_end || null,

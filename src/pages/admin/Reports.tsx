@@ -78,6 +78,10 @@ const Reports = () => {
       "Status",
       "Deposit Paid",
       "Total Contract Value",
+      "Cashback Amount",
+      "Adjusted Total",
+      "Partner Referral",
+      "Commission Amount",
       "Assigned Studio",
       "Contract Start",
       "Contract End",
@@ -96,6 +100,10 @@ const Reports = () => {
       item.status,
       item.deposit_paid ? "Yes" : "No",
       item.total_contract_value?.toString() || "",
+      item.cashback_amount?.toString() || "0",
+      item.adjusted_total?.toString() || item.total_contract_value?.toString() || "",
+      item.partner_name || "N/A",
+      item.commission_amount?.toString() || "0",
       item.assigned_studio || "",
       item.contract_start ? format(new Date(item.contract_start), "yyyy-MM-dd") : "",
       item.contract_end ? format(new Date(item.contract_end), "yyyy-MM-dd") : "",
@@ -154,6 +162,18 @@ const Reports = () => {
     <AdminLayout
       pageTitle="Reports"
       subtitle="Generate and export reports for student bookings"
+      mobileActionButton={
+        reportData && reportData.length > 0 ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-full p-2 h-9 w-9 flex-shrink-0"
+            onClick={exportToCSV}
+          >
+            <Download className="h-4 w-4" />
+          </Button>
+        ) : undefined
+      }
     >
       <div className="space-y-6">
         {/* Report Type Selector */}
@@ -220,7 +240,7 @@ const Reports = () => {
               {reportData && reportData.length > 0 && (
                 <Button
                   onClick={exportToCSV}
-                  className="rounded-full uppercase tracking-wide gap-2"
+                  className="rounded-full uppercase tracking-wide gap-2 hidden lg:flex"
                 >
                   <Download className="h-4 w-4" />
                   Export CSV
@@ -260,7 +280,34 @@ const Reports = () => {
                               <span className="font-medium">Contract Value:</span>{" "}
                               {formatCurrency(item.total_contract_value)}
                             </div>
+                            {item.cashback_amount && item.cashback_amount > 0 && (
+                              <div>
+                                <span className="font-medium">Cashback:</span>{" "}
+                                <span className="text-green-600 font-semibold">
+                                  -{formatCurrency(item.cashback_amount)}
+                                </span>
+                              </div>
+                            )}
+                            {item.adjusted_total && (
+                              <div>
+                                <span className="font-medium">Adjusted Total:</span>{" "}
+                                <span className="font-semibold">
+                                  {formatCurrency(item.adjusted_total)}
+                                </span>
+                              </div>
+                            )}
                           </div>
+                          {item.partner_name && (
+                            <div className="text-sm text-muted-foreground mb-2">
+                              <span className="font-medium">Partner:</span>{" "}
+                              <span className="font-semibold">{item.partner_name}</span>
+                              {item.commission_amount && (
+                                <span className="ml-2 text-primary">
+                                  (Commission: {formatCurrency(item.commission_amount)})
+                                </span>
+                              )}
+                            </div>
+                          )}
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                             <div>
                               <span className="text-muted-foreground">Contract:</span>{" "}

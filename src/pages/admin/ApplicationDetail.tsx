@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useStudentApplication } from "@/hooks/useStudentApplication";
 import { useUpdateApplicationStatus } from "@/hooks/useAdminApplications";
 import { useAdminStudios } from "@/hooks/useAdminStudios";
-import { ArrowLeft, User, Mail, Phone, MapPin, Calendar, Building2, CreditCard, FileText, CheckCircle2, XCircle, Download, Send } from "lucide-react";
+import { ArrowLeft, User, Mail, Phone, MapPin, Calendar, Building2, CreditCard, FileText, CheckCircle2, XCircle, Download, Send, RotateCcw, Gift, Handshake } from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -14,10 +14,20 @@ import { useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import ManualPaymentDialog from "@/components/admin/ManualPaymentDialog";
 import { useCreateNotification } from "@/hooks/useNotifications";
+import { useApplicationCashback, useActiveCashbackCampaigns, useApplyCashback } from "@/hooks/useCashback";
+import { useApplicationPartnerReferral, usePartners, useCreatePartnerReferral } from "@/hooks/usePartners";
 
 const getStatusBadge = (status: string) => {
   const statusConfig: Record<string, { className: string; label: string }> = {
@@ -74,6 +84,20 @@ const ApplicationDetail = () => {
   const [manualPaymentOpen, setManualPaymentOpen] = useState(false);
   const [selectedStudio, setSelectedStudio] = useState<string>("");
   const [documentNotes, setDocumentNotes] = useState<Record<string, string>>({});
+  const [cashbackDialogOpen, setCashbackDialogOpen] = useState(false);
+  const [partnerDialogOpen, setPartnerDialogOpen] = useState(false);
+  const [selectedCashbackCampaign, setSelectedCashbackCampaign] = useState<string>("");
+  const [selectedPartner, setSelectedPartner] = useState<string>("");
+
+  // Cashback and Partner hooks
+  const { data: cashback } = useApplicationCashback(applicationId);
+  const { data: activeCampaigns } = useActiveCashbackCampaigns(
+    application?.is_rebooking ? "rebooking" : "new"
+  );
+  const applyCashback = useApplyCashback();
+  const { data: partnerReferral } = useApplicationPartnerReferral(applicationId);
+  const { data: partners } = usePartners(true);
+  const createPartnerReferral = useCreatePartnerReferral();
 
   // Fetch available studios for reassignment
   const { data: studios } = useAdminStudios({
@@ -325,6 +349,12 @@ const ApplicationDetail = () => {
           </Button>
           <div className="flex items-center gap-3">
             {getStatusBadge(application.status)}
+            {application.is_rebooking && (
+              <Badge className="bg-primary/10 text-primary border-primary/20 rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide flex items-center gap-1.5">
+                <RotateCcw className="h-3 w-3" />
+                Rebooking
+              </Badge>
+            )}
             <Select
               value={application.status}
               onValueChange={handleStatusChange}
@@ -347,7 +377,15 @@ const ApplicationDetail = () => {
 
         {/* Status and Select - Mobile only, shown below header */}
         <div className="lg:hidden flex flex-col sm:flex-row items-start sm:items-center gap-3">
-          <div>{getStatusBadge(application.status)}</div>
+          <div className="flex items-center gap-2">
+            {getStatusBadge(application.status)}
+            {application.is_rebooking && (
+              <Badge className="bg-primary/10 text-primary border-primary/20 rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide flex items-center gap-1.5">
+                <RotateCcw className="h-3 w-3" />
+                Rebooking
+              </Badge>
+            )}
+          </div>
           <Select
             value={application.status}
             onValueChange={handleStatusChange}
@@ -366,6 +404,38 @@ const ApplicationDetail = () => {
             </SelectContent>
           </Select>
         </div>
+
+        {/* Rebooking Information */}
+        {application.is_rebooking && (
+          <Card className="rounded-3xl border-primary/20 bg-primary/5">
+            <CardHeader>
+              <CardTitle className="text-base sm:text-lg font-display uppercase tracking-wide flex items-center gap-2">
+                <RotateCcw className="h-4 w-4 sm:h-5 sm:w-5" />
+                Rebooking Information
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              {application.previous_application_id && (
+                <div>
+                  <p className="text-muted-foreground text-xs sm:text-sm mb-1">Previous Application</p>
+                  <Button
+                    variant="link"
+                    className="p-0 h-auto text-primary font-medium"
+                    onClick={() => navigate(`/admin/applications/${application.previous_application_id}`)}
+                  >
+                    View Previous Application →
+                  </Button>
+                </div>
+              )}
+              {application.rebooking_reason && (
+                <div>
+                  <p className="text-muted-foreground text-xs sm:text-sm mb-1">Reason</p>
+                  <p className="font-medium text-sm sm:text-base">{application.rebooking_reason}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2">
           {/* Step 1: Personal Information */}
@@ -712,11 +782,90 @@ const ApplicationDetail = () => {
               </div>
               <div>
                 <p className="text-xs sm:text-sm text-muted-foreground mb-1">Total Value</p>
-                <p className="font-medium text-base sm:text-lg">{formatCurrency(application.total_contract_value)}</p>
+                <div className="space-y-1">
+                  <p className="font-medium text-base sm:text-lg">
+                    {formatCurrency(application.total_contract_value)}
+                  </p>
+                  {cashback && cashback.cashback_amount > 0 && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Gift className="h-3 w-3 text-primary" />
+                      <span className="text-muted-foreground">Cashback:</span>
+                      <span className="font-semibold text-green-600">
+                        -{formatCurrency(cashback.cashback_amount)}
+                      </span>
+                    </div>
+                  )}
+                  {cashback && cashback.cashback_amount > 0 && (
+                    <p className="text-sm font-semibold text-primary">
+                      Adjusted: {formatCurrency((application.total_contract_value || 0) - cashback.cashback_amount)}
+                    </p>
+                  )}
+                </div>
               </div>
+              
+              {/* Cashback Section */}
+              <div className="space-y-2 pt-2 border-t">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs sm:text-sm text-muted-foreground">Cashback</span>
+                  {cashback ? (
+                    <Badge className="bg-green-600 text-white">
+                      <Gift className="h-3 w-3 mr-1" />
+                      Applied
+                    </Badge>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full uppercase tracking-wide text-xs"
+                      onClick={() => setCashbackDialogOpen(true)}
+                    >
+                      <Gift className="h-3 w-3 mr-1" />
+                      Apply
+                    </Button>
+                  )}
+                </div>
+                {cashback && (
+                  <p className="text-xs text-muted-foreground">
+                    {cashback.campaign?.name} - £{cashback.cashback_amount.toFixed(2)}
+                  </p>
+                )}
+              </div>
+
+              {/* Partner Referral Section */}
+              <div className="space-y-2 pt-2 border-t">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs sm:text-sm text-muted-foreground">Partner Referral</span>
+                  {partnerReferral ? (
+                    <Badge className="bg-primary text-white">
+                      <Handshake className="h-3 w-3 mr-1" />
+                      Referred
+                    </Badge>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full uppercase tracking-wide text-xs"
+                      onClick={() => setPartnerDialogOpen(true)}
+                    >
+                      <Handshake className="h-3 w-3 mr-1" />
+                      Assign
+                    </Button>
+                  )}
+                </div>
+                {partnerReferral && (
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p>{partnerReferral.partner?.name}</p>
+                    <p>Commission: {formatCurrency(partnerReferral.commission_amount)} ({partnerReferral.commission_percentage}%)</p>
+                    <Badge variant="outline" className="text-xs">
+                      {partnerReferral.commission_status}
+                    </Badge>
+                  </div>
+                )}
+              </div>
+
               <Button
                 variant="outline"
-                className="w-full rounded-full uppercase tracking-wide gap-2"
+                className="w-full rounded-full uppercase tracking-wide gap-2 mt-4"
                 onClick={() => setManualPaymentOpen(true)}
               >
                 <CreditCard className="h-4 w-4" />
@@ -817,6 +966,124 @@ const ApplicationDetail = () => {
           applicationId={applicationId}
         />
       )}
+
+      {/* Cashback Dialog */}
+      <Dialog open={cashbackDialogOpen} onOpenChange={setCashbackDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-display uppercase tracking-wide">
+              Apply Cashback
+            </DialogTitle>
+            <DialogDescription>
+              Select a cashback campaign to apply to this application
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {activeCampaigns && activeCampaigns.length > 0 ? (
+              <Select value={selectedCashbackCampaign} onValueChange={setSelectedCashbackCampaign}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select campaign" />
+                </SelectTrigger>
+                <SelectContent>
+                  {activeCampaigns.map((campaign) => (
+                    <SelectItem key={campaign.id} value={campaign.id}>
+                      {campaign.name} - £{campaign.cashback_amount.toFixed(2)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No active cashback campaigns available for this application type.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCashbackDialogOpen(false)}
+              className="rounded-full uppercase tracking-wide"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (selectedCashbackCampaign && applicationId) {
+                  applyCashback.mutate({
+                    applicationId,
+                    campaignId: selectedCashbackCampaign,
+                  });
+                  setCashbackDialogOpen(false);
+                  setSelectedCashbackCampaign("");
+                }
+              }}
+              disabled={!selectedCashbackCampaign || applyCashback.isPending}
+              className="rounded-full uppercase tracking-wide"
+            >
+              {applyCashback.isPending ? "Applying..." : "Apply Cashback"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Partner Referral Dialog */}
+      <Dialog open={partnerDialogOpen} onOpenChange={setPartnerDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-display uppercase tracking-wide">
+              Assign Partner Referral
+            </DialogTitle>
+            <DialogDescription>
+              Select a partner who referred this application
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {partners && partners.length > 0 ? (
+              <Select value={selectedPartner} onValueChange={setSelectedPartner}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select partner" />
+                </SelectTrigger>
+                <SelectContent>
+                  {partners.map((partner) => (
+                    <SelectItem key={partner.id} value={partner.id}>
+                      {partner.name} ({partner.commission_percentage}%)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No active partners available. Create a partner first.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPartnerDialogOpen(false)}
+              className="rounded-full uppercase tracking-wide"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (selectedPartner && applicationId) {
+                  createPartnerReferral.mutate({
+                    applicationId,
+                    partnerId: selectedPartner,
+                  });
+                  setPartnerDialogOpen(false);
+                  setSelectedPartner("");
+                }
+              }}
+              disabled={!selectedPartner || createPartnerReferral.isPending}
+              className="rounded-full uppercase tracking-wide"
+            >
+              {createPartnerReferral.isPending ? "Assigning..." : "Assign Partner"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 };

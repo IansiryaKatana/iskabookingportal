@@ -1,11 +1,13 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, PlusCircle, CalendarRange, ArrowRightCircle, CreditCard, FileText, FolderOpen, CheckCircle2 } from "lucide-react";
+import { Loader2, PlusCircle, CalendarRange, ArrowRightCircle, CreditCard, FileText, FolderOpen, CheckCircle2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStudentApplicationsList } from "@/hooks/useStudentApplications";
+import { supabase } from "@/integrations/supabase/client";
 import PortalLayout from "@/components/portal/PortalLayout";
 import { format } from "date-fns";
 
@@ -27,10 +29,81 @@ const Dashboard = () => {
     isLoading,
     refetch,
   } = useStudentApplicationsList(user?.id);
+  const [rebookingContracts, setRebookingContracts] = useState<Array<{
+    contract: any;
+    canRebook: boolean;
+    message: string;
+  }>>([]);
+  const [loadingRebooking, setLoadingRebooking] = useState(false);
 
   useEffect(() => {
     refetch();
   }, [refetch]);
+
+  // Fetch available contracts for rebooking
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const fetchRebookingOpportunities = async () => {
+      setLoadingRebooking(true);
+      try {
+        // Get active contracts
+        const { data: contracts, error } = await supabase
+          .from("contracts")
+          .select(`
+            *,
+            studio_grade:studio_grades(*),
+            academic_year:academic_years(*)
+          `)
+          .eq("is_active", true)
+          .order("contract_start", { ascending: true })
+          .limit(5);
+
+        if (error) throw error;
+
+        // Check rebooking eligibility for each contract
+        const opportunities = [];
+        for (const contract of contracts || []) {
+          try {
+            const { data: rebookingCheck, error: checkError } = await supabase
+              .rpc("can_student_rebook", {
+                p_user_id: user.id,
+                p_contract_id: contract.id,
+              });
+
+            if (checkError) {
+              console.error("Rebooking check error for contract", contract.id, checkError);
+              continue;
+            }
+
+            // Only show banner if can_rebook is true AND there's a previous application
+            // (excludes first-time applications where previous_application_id is null)
+            if (rebookingCheck?.[0]?.can_rebook && rebookingCheck[0].previous_application_id) {
+              opportunities.push({
+                contract,
+                canRebook: true,
+                message: rebookingCheck[0].message,
+              });
+            }
+          } catch (err) {
+            console.error("Error checking rebooking for contract", contract.id, err);
+          }
+        }
+
+        setRebookingContracts(opportunities);
+      } catch (error) {
+        console.error("Error fetching rebooking opportunities:", error);
+        // Log more details for debugging
+        if (error instanceof Error) {
+          console.error("Error details:", error.message, error.stack);
+        }
+      } finally {
+        setLoadingRebooking(false);
+      }
+    };
+
+    fetchRebookingOpportunities();
+  }, [user?.id]);
 
   const DashboardSkeleton = () => (
     <div className="space-y-6">
@@ -89,6 +162,79 @@ const Dashboard = () => {
 
     return (
       <div className="space-y-6">
+        {/* Prominent Rebooking Banner */}
+        {loadingRebooking && (
+          <Card className="rounded-3xl border border-border/60">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-3">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">Checking rebooking opportunities...</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        
+        {!loadingRebooking && rebookingContracts.length > 0 && (
+          <Alert className="rounded-3xl border-primary/50 bg-gradient-to-r from-primary/10 to-primary/5 p-6">
+            <RotateCcw className="h-6 w-6 text-primary" />
+            <AlertTitle className="text-xl font-display uppercase tracking-wide text-primary mb-2">
+              Rebooking Available! 🎉
+            </AlertTitle>
+            <AlertDescription className="text-base mb-4">
+              You can rebook for upcoming academic years using your previous application data. 
+              Your information will be pre-filled automatically!
+            </AlertDescription>
+            <div className="flex flex-wrap gap-3 mt-4">
+              {rebookingContracts.map(({ contract, message }) => (
+                <Button
+                  key={contract.id}
+                  size="lg"
+                  className="rounded-full uppercase tracking-wide bg-primary hover:bg-primary/90 text-white shadow-lg"
+                  onClick={() => navigate(`/contracts/${contract.slug}`)}
+                >
+                  <RotateCcw className="h-5 w-5 mr-2" />
+                  Rebook for {contract.academic_year?.name || contract.name}
+                </Button>
+              ))}
+            </div>
+          </Alert>
+        )}
+
+        {/* Rebooking Opportunities Card (Secondary) */}
+        {rebookingContracts.length > 0 && (
+          <Card className="rounded-3xl border-primary/20 bg-primary/5">
+            <CardHeader>
+              <CardTitle className="text-xl font-display uppercase tracking-wide flex items-center gap-2">
+                <RotateCcw className="h-5 w-5" />
+                All Rebooking Options
+              </CardTitle>
+              <CardDescription>
+                View all available contracts for rebooking
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {rebookingContracts.map(({ contract, message }) => (
+                <Alert key={contract.id} className="border-primary/30 bg-background">
+                  <AlertTitle className="font-semibold">
+                    {contract.name}
+                  </AlertTitle>
+                  <AlertDescription className="text-sm mt-1">
+                    {contract.academic_year?.name} · {message}
+                  </AlertDescription>
+                  <Button
+                    className="mt-3 rounded-full uppercase tracking-wide"
+                    size="sm"
+                    onClick={() => navigate(`/contracts/${contract.slug}`)}
+                  >
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                    View Details
+                  </Button>
+                </Alert>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
         {applications.map((application) => {
           const contract = application.contract;
           const gradeName = contract?.studio_grade?.name ?? "Studio Grade";

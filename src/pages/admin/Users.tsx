@@ -3,7 +3,7 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Mail, User, Shield } from "lucide-react";
+import { Plus, Mail, User, Shield, AtSign } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -143,27 +143,83 @@ const Users = () => {
     },
   });
 
+  const UsersSkeleton = () => (
+    <>
+      {/* Mobile Card Skeletons */}
+      <div className="lg:hidden space-y-3">
+        {[1, 2, 3].map((i) => (
+          <Card key={i} className="rounded-3xl">
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-5 w-32" />
+                  <Skeleton className="h-4 w-48" />
+                </div>
+                <Skeleton className="h-9 w-32" />
+              </div>
+              <div className="space-y-2 pt-2 border-t">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-6 w-24" />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Desktop Table Skeleton */}
+      <Card className="hidden lg:block rounded-3xl">
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="font-semibold">Name</TableHead>
+                <TableHead className="font-semibold">Email</TableHead>
+                <TableHead className="font-semibold">Role</TableHead>
+                <TableHead className="font-semibold text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {[1, 2, 3].map((i) => (
+                <TableRow key={i}>
+                  <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                  <TableCell><Skeleton className="h-5 w-48" /></TableCell>
+                  <TableCell><Skeleton className="h-6 w-24" /></TableCell>
+                  <TableCell className="text-right"><Skeleton className="h-9 w-32 ml-auto" /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </>
+  );
+
   if (isLoading) {
     return (
       <AdminLayout pageTitle="User Management" subtitle="Manage staff and admin users">
-        <div className="space-y-4">
-          {[1, 2, 3].map((i) => (
-            <Card key={i} className="rounded-3xl">
-              <CardContent className="p-6">
-                <Skeleton className="h-6 w-48 mb-2" />
-                <Skeleton className="h-4 w-64" />
-              </CardContent>
-            </Card>
-          ))}
+        <div className="space-y-6">
+          <UsersSkeleton />
         </div>
       </AdminLayout>
     );
   }
 
   return (
-    <AdminLayout pageTitle="User Management" subtitle="Manage staff and admin users">
+    <AdminLayout 
+      pageTitle="User Management" 
+      subtitle="Manage staff and admin users"
+      mobileActionButton={
+        <Button
+          size="sm"
+          className="rounded-full uppercase tracking-wide gap-2 flex-shrink-0 h-7 px-2 text-xs"
+          onClick={() => setInviteDialogOpen(true)}
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
+      }
+    >
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="hidden lg:flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-display font-bold uppercase tracking-wide">
               Users
@@ -182,51 +238,120 @@ const Users = () => {
         </div>
 
         {users && users.length > 0 ? (
-          <Card className="rounded-3xl">
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="font-semibold">Name</TableHead>
-                    <TableHead className="font-semibold">Email</TableHead>
-                    <TableHead className="font-semibold">Role</TableHead>
-                    <TableHead className="font-semibold text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {users.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium">
-                        {user.first_name} {user.last_name}
-                      </TableCell>
-                      <TableCell>{user.email}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="uppercase">
-                          {user.role}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Select
-                          value={user.role}
-                          onValueChange={(value) =>
-                            updateRole.mutate({ userId: user.id, role: value as "staff" | "superadmin" })
-                          }
-                        >
-                          <SelectTrigger className="w-40 rounded-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="staff">Staff</SelectItem>
-                            <SelectItem value="superadmin">Superadmin</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
+          <>
+            {/* Mobile Card View */}
+            <div className="lg:hidden space-y-3">
+              {users.map((user) => {
+                const fullName = `${user.first_name || ""} ${user.last_name || ""}`.trim() || "—";
+                const email = user.email || "—";
+                const role = user.role || "staff";
+
+                return (
+                  <Card key={user.id} className="rounded-3xl border border-border/60 shadow-sm hover:shadow-md transition-shadow">
+                    <CardContent className="p-4 space-y-3">
+                      {/* Header with Name */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            <h3 className="font-semibold text-base truncate">
+                              {fullName}
+                            </h3>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Details */}
+                      <div className="space-y-2 pt-2 border-t border-border/60">
+                        <div className="flex items-center gap-2 text-sm">
+                          <AtSign className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <span className="text-muted-foreground">Email: </span>
+                            <span className="font-medium truncate block">{email}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-sm">
+                          <Shield className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <span className="text-muted-foreground">Role: </span>
+                            <Badge variant="outline" className="uppercase text-xs">
+                              {role}
+                            </Badge>
+                          </div>
+                        </div>
+
+                        {/* Role Selector */}
+                        <div className="pt-2">
+                          <Select
+                            value={role}
+                            onValueChange={(value) =>
+                              updateRole.mutate({ userId: user.id, role: value as "staff" | "superadmin" })
+                            }
+                          >
+                            <SelectTrigger className="w-full rounded-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="staff">Staff</SelectItem>
+                              <SelectItem value="superadmin">Superadmin</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+
+            {/* Desktop Table View */}
+            <Card className="hidden lg:block rounded-3xl">
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="font-semibold">Name</TableHead>
+                      <TableHead className="font-semibold">Email</TableHead>
+                      <TableHead className="font-semibold">Role</TableHead>
+                      <TableHead className="font-semibold text-right">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {users.map((user) => (
+                      <TableRow key={user.id}>
+                        <TableCell className="font-medium">
+                          {user.first_name} {user.last_name}
+                        </TableCell>
+                        <TableCell>{user.email}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="uppercase">
+                            {user.role}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Select
+                            value={user.role}
+                            onValueChange={(value) =>
+                              updateRole.mutate({ userId: user.id, role: value as "staff" | "superadmin" })
+                            }
+                          >
+                            <SelectTrigger className="w-40 rounded-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="staff">Staff</SelectItem>
+                              <SelectItem value="superadmin">Superadmin</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </>
         ) : (
           <Card className="rounded-3xl border-dashed">
             <CardHeader>

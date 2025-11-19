@@ -11,28 +11,61 @@ export type PaymentPlanWithInstallments = PaymentPlanRow & {
   installments: PaymentPlanInstallmentRow[];
 };
 
-const fetchActiveAcademicYear = async (): Promise<AcademicYearRow | null> => {
+const fetchActiveAcademicYears = async (): Promise<AcademicYearRow[]> => {
   const { data, error } = await supabase
     .from("academic_years")
     .select("*")
     .eq("is_active", true)
-    .order("start_date", { ascending: false })
-    .maybeSingle();
+    .order("start_date", { ascending: false });
 
   if (error) throw error;
-  return data ?? null;
+  return data ?? [];
 };
 
-const fetchPaymentPlans = async (): Promise<{
-  academicYear: AcademicYearRow | null;
+/**
+ * Fetch all academic years for payment plans management
+ * (allows managing plans for future years that may not be active yet)
+ */
+const fetchAllAcademicYearsForPlans = async (): Promise<AcademicYearRow[]> => {
+  const { data, error } = await supabase
+    .from("academic_years")
+    .select("*")
+    .order("start_date", { ascending: false });
+
+  if (error) throw error;
+  return data ?? [];
+};
+
+const fetchPaymentPlans = async (academicYearId?: string | null): Promise<{
+  academicYears: AcademicYearRow[];
+  selectedAcademicYear: AcademicYearRow | null;
   plans: PaymentPlanWithInstallments[];
 }> => {
-  const academicYear = await fetchActiveAcademicYear();
-  const academicYearId = academicYear?.id;
+  // Fetch all academic years for the dropdown (not just active)
+  const academicYears = await fetchAllAcademicYearsForPlans();
+  
+  // Get active years for default selection
+  const activeYears = await fetchActiveAcademicYears();
+  
+  // If no academicYearId provided, use the first active year (most recent)
+  let selectedAcademicYear: AcademicYearRow | null = null;
+  if (academicYearId) {
+    // Find the selected year in the all years list
+    selectedAcademicYear = academicYears.find(y => y.id === academicYearId) ?? null;
+  } else if (activeYears.length > 0) {
+    // Default to most recent active year
+    selectedAcademicYear = activeYears[0];
+  } else if (academicYears.length > 0) {
+    // Fallback to most recent year if no active years
+    selectedAcademicYear = academicYears[0];
+  }
 
-  if (!academicYearId) {
+  const selectedYearId = selectedAcademicYear?.id ?? academicYearId;
+
+  if (!selectedYearId) {
     return {
-      academicYear: null,
+      academicYears,
+      selectedAcademicYear: null,
       plans: [],
     };
   }
@@ -40,7 +73,7 @@ const fetchPaymentPlans = async (): Promise<{
   const { data: plans, error: plansError } = await supabase
     .from("payment_plans")
     .select("*")
-    .eq("academic_year_id", academicYearId)
+    .eq("academic_year_id", selectedYearId)
     .order("name", { ascending: true });
 
   if (plansError) throw plansError;
@@ -49,7 +82,8 @@ const fetchPaymentPlans = async (): Promise<{
 
   if (planIds.length === 0) {
     return {
-      academicYear,
+      academicYears,
+      selectedAcademicYear,
       plans: [],
     };
   }
@@ -71,15 +105,16 @@ const fetchPaymentPlans = async (): Promise<{
   }));
 
   return {
-    academicYear,
+    academicYears,
+    selectedAcademicYear,
     plans: grouped,
   };
 };
 
-export const useAdminPaymentPlans = () =>
+export const useAdminPaymentPlans = (academicYearId?: string | null) =>
   useQuery({
-    queryKey: ["admin-payment-plans"],
-    queryFn: fetchPaymentPlans,
+    queryKey: ["admin-payment-plans", academicYearId],
+    queryFn: () => fetchPaymentPlans(academicYearId),
   });
 
 type InstallmentInput = {
@@ -189,6 +224,116 @@ export const useDeletePaymentPlan = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-payment-plans"] });
     },
+  });
+};
+
+/**
+ * Fetch all academic years (not just active) for duplication source selection
+ */
+const fetchAllAcademicYears = async (): Promise<AcademicYearRow[]> => {
+  const { data, error } = await supabase
+    .from("academic_years")
+    .select("*")
+    .order("start_date", { ascending: false });
+
+  if (error) throw error;
+  return data ?? [];
+};
+
+/**
+ * Duplicate payment plans from one academic year to another
+ * Adds 1 year to fixed due dates, keeps offset days the same
+ */
+export const useDuplicatePaymentPlans = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      sourceAcademicYearId: string;
+      targetAcademicYearId: string;
+    }) => {
+      const { sourceAcademicYearId, targetAcademicYearId } = payload;
+
+      // Fetch source payment plans with installments
+      const { data: sourcePlans, error: sourceError } = await supabase
+        .from("payment_plans")
+        .select(
+          `
+          *,
+          installments:payment_plan_installments (*)
+        `,
+        )
+        .eq("academic_year_id", sourceAcademicYearId)
+        .order("name", { ascending: true });
+
+      if (sourceError) throw sourceError;
+      if (!sourcePlans || sourcePlans.length === 0) {
+        throw new Error("No payment plans found in source academic year");
+      }
+
+      // Duplicate each plan
+      for (const sourcePlan of sourcePlans) {
+        const { installments, ...planData } = sourcePlan as any;
+
+        // Create new plan for target year
+        const { data: newPlan, error: planError } = await supabase
+          .from("payment_plans")
+          .insert({
+            academic_year_id: targetAcademicYearId,
+            name: planData.name,
+            description: planData.description,
+            deposit_amount: planData.deposit_amount,
+            is_active: planData.is_active,
+          })
+          .select("*")
+          .single();
+
+        if (planError) throw planError;
+
+        // Duplicate installments, adding 1 year to fixed due dates
+        if (installments && installments.length > 0) {
+          const installmentPayload = installments.map((inst: any, index: number) => {
+            let dueDate = inst.due_date;
+            // If there's a fixed due date, add 1 year to it
+            if (dueDate) {
+              const date = new Date(dueDate);
+              date.setFullYear(date.getFullYear() + 1);
+              dueDate = date.toISOString().split("T")[0];
+            }
+
+            return {
+              payment_plan_id: newPlan.id,
+              sequence: index + 1,
+              label: inst.label,
+              due_date_offset_days: inst.due_date_offset_days, // Keep offset the same
+              due_date: dueDate, // Updated date if it was a fixed date
+              amount_type: inst.amount_type,
+              amount_value: inst.amount_value,
+            };
+          });
+
+          const { error: installmentsError } = await supabase
+            .from("payment_plan_installments")
+            .insert(installmentPayload);
+
+          if (installmentsError) throw installmentsError;
+        }
+      }
+
+      return { count: sourcePlans.length };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-payment-plans"] });
+    },
+  });
+};
+
+/**
+ * Hook to fetch all academic years for duplication source selection
+ */
+export const useAllAcademicYears = () => {
+  return useQuery({
+    queryKey: ["all-academic-years"],
+    queryFn: fetchAllAcademicYears,
   });
 };
 

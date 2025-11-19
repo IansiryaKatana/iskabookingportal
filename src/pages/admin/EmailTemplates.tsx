@@ -10,6 +10,17 @@ import {
   useDeleteEmailTemplate,
 } from "@/hooks/useEmailTemplates";
 import { Plus, Edit, Trash2, Mail, Info, Sparkles } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import {
   Dialog,
   DialogContent,
@@ -39,6 +50,29 @@ const templateTypes = [
   { value: "signature_reminder", label: "Signature Reminder" },
   { value: "custom", label: "Custom" },
 ];
+
+// Zod validation schema
+const emailTemplateSchema = z.object({
+  name: z.string().min(1, "Template name is required").max(255, "Name is too long"),
+  subject: z.string().min(1, "Email subject is required").max(500, "Subject is too long"),
+  body_html: z.string().min(1, "HTML body is required"),
+  body_text: z.string().optional(),
+  template_type: z.enum([
+    "welcome",
+    "application_received",
+    "deposit_reminder",
+    "payment_reminder",
+    "overdue_payment",
+    "application_confirmed",
+    "document_approved",
+    "document_rejected",
+    "signature_reminder",
+    "custom",
+  ]),
+  is_active: z.boolean(),
+});
+
+type EmailTemplateFormData = z.infer<typeof emailTemplateSchema>;
 
 // Available variables for each template type
 const templateVariables: Record<string, { variables: string[]; description: string }> = {
@@ -820,44 +854,32 @@ const EmailTemplates = () => {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<string | null>(null);
-  const [formData, setFormData] = useState<{
-    name: string;
-    subject: string;
-    body_html: string;
-    body_text: string;
-    template_type: string;
-    is_active: boolean;
-  }>({
-    name: "",
-    subject: "",
-    body_html: "",
-    body_text: "",
-    template_type: "custom",
-    is_active: true,
+
+  const form = useForm<EmailTemplateFormData>({
+    resolver: zodResolver(emailTemplateSchema),
+    defaultValues: {
+      name: "",
+      subject: "",
+      body_html: "",
+      body_text: "",
+      template_type: "custom",
+      is_active: true,
+    },
   });
 
   const handleLoadDefaultTemplate = () => {
-    const defaultTemplate = getDefaultTemplate(formData.template_type);
-    const templateName = templateTypes.find((t) => t.value === formData.template_type)?.label || "Template";
+    const templateType = form.watch("template_type");
+    const defaultTemplate = getDefaultTemplate(templateType);
+    const templateName = templateTypes.find((t) => t.value === templateType)?.label || "Template";
     
-    setFormData({
-      ...formData,
-      name: formData.name || `${templateName} Template`,
-      subject: defaultTemplate.subject,
-      body_html: defaultTemplate.html,
-      body_text: defaultTemplate.text,
-    });
+    form.setValue("name", form.watch("name") || `${templateName} Template`);
+    form.setValue("subject", defaultTemplate.subject);
+    form.setValue("body_html", defaultTemplate.html);
+    form.setValue("body_text", defaultTemplate.text);
     
     toast({
       title: "Template loaded",
       description: `Default ${templateName.toLowerCase()} template has been loaded.`,
-    });
-  };
-
-  const handleTemplateTypeChange = (value: string) => {
-    setFormData({
-      ...formData,
-      template_type: value as typeof formData.template_type,
     });
   };
 
@@ -866,18 +888,18 @@ const EmailTemplates = () => {
       const template = templates?.find((t) => t.id === templateId);
       if (template) {
         setEditingTemplate(templateId);
-        setFormData({
+        form.reset({
           name: template.name,
           subject: template.subject,
           body_html: template.body_html,
           body_text: template.body_text || "",
-          template_type: template.template_type,
+          template_type: template.template_type as EmailTemplateFormData["template_type"],
           is_active: template.is_active,
         });
       }
     } else {
       setEditingTemplate(null);
-      setFormData({
+      form.reset({
         name: "",
         subject: "",
         body_html: "",
@@ -889,28 +911,31 @@ const EmailTemplates = () => {
     setDialogOpen(true);
   };
 
-  const handleSubmit = async () => {
-    if (!formData.name || !formData.subject || !formData.body_html) {
-      toast({
-        title: "Validation Error",
-        description: "Please fill in all required fields.",
-        variant: "destructive",
-      });
-      return;
-    }
-
+  const handleSubmit = async (data: EmailTemplateFormData) => {
     try {
       if (editingTemplate) {
         await updateTemplate.mutateAsync({
           id: editingTemplate,
-          ...formData,
+          name: data.name,
+          subject: data.subject,
+          body_html: data.body_html,
+          body_text: data.body_text,
+          template_type: data.template_type,
+          is_active: data.is_active,
         });
         toast({
           title: "Template updated",
           description: "Email template has been updated successfully.",
         });
       } else {
-        await createTemplate.mutateAsync(formData);
+        await createTemplate.mutateAsync({
+          name: data.name,
+          subject: data.subject,
+          body_html: data.body_html,
+          body_text: data.body_text,
+          template_type: data.template_type,
+          is_active: data.is_active ?? true,
+        });
         toast({
           title: "Template created",
           description: "Email template has been created successfully.",
@@ -1084,20 +1109,31 @@ const EmailTemplates = () => {
                 : "Create a new email template for student communications."}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div>
-              <Label htmlFor="name">Template Name *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="mt-2"
-                placeholder="e.g., Welcome Email"
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 py-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Template Name *</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        placeholder="e.g., Welcome Email"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Label htmlFor="template_type">Template Type *</Label>
+              <FormField
+                control={form.control}
+                name="template_type"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="flex items-center gap-2 mb-2">
+                      <FormLabel>Template Type *</FormLabel>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -1117,10 +1153,10 @@ const EmailTemplates = () => {
                         <h4 className="font-semibold text-sm">Available Variables</h4>
                       </div>
                       <p className="text-xs text-muted-foreground mb-3">
-                        {templateVariables[formData.template_type]?.description || "Custom template variables"}
+                        {templateVariables[field.value]?.description || "Custom template variables"}
                       </p>
                       <div className="space-y-2">
-                        {(templateVariables[formData.template_type]?.variables || []).map((variable) => (
+                        {(templateVariables[field.value]?.variables || []).map((variable) => (
                           <div key={variable} className="flex items-center gap-2">
                             <code className="text-xs bg-muted px-2 py-1 rounded font-mono">
                               {`{${variable}}`}
@@ -1137,89 +1173,123 @@ const EmailTemplates = () => {
                     </div>
                   </PopoverContent>
                 </Popover>
-              </div>
-              <div className="flex gap-2">
-                <Select
-                  value={formData.template_type}
-                  onValueChange={handleTemplateTypeChange}
-                >
-                  <SelectTrigger id="template_type" className="flex-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {templateTypes.map((type) => (
-                      <SelectItem key={type.value} value={type.value}>
-                        {type.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {!editingTemplate && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleLoadDefaultTemplate}
-                    className="rounded-full uppercase tracking-wide gap-2"
-                  >
-                    <Sparkles className="h-4 w-4" />
-                    Load Template
-                  </Button>
+                    </div>
+                    <div className="flex gap-2">
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger className="flex-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {templateTypes.map((type) => (
+                            <SelectItem key={type.value} value={type.value}>
+                              {type.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {!editingTemplate && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleLoadDefaultTemplate}
+                          className="rounded-full uppercase tracking-wide gap-2"
+                        >
+                          <Sparkles className="h-4 w-4" />
+                          Load Template
+                        </Button>
+                      )}
+                    </div>
+                    <FormMessage />
+                  </FormItem>
                 )}
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="subject">Email Subject *</Label>
-              <Input
-                id="subject"
-                value={formData.subject}
-                onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                className="mt-2"
-                placeholder="e.g., Welcome to Urban Hub!"
               />
-            </div>
-            <div>
-              <Label htmlFor="body_html">Email Body (HTML) *</Label>
-              <Textarea
-                id="body_html"
-                value={formData.body_html}
-                onChange={(e) => setFormData({ ...formData, body_html: e.target.value })}
-                className="mt-2 font-mono text-sm"
-                rows={10}
-                placeholder="<html>...</html>"
+              <FormField
+                control={form.control}
+                name="subject"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email Subject *</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        placeholder="e.g., Welcome to Urban Hub!"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-            <div>
-              <Label htmlFor="body_text">Email Body (Plain Text)</Label>
-              <Textarea
-                id="body_text"
-                value={formData.body_text}
-                onChange={(e) => setFormData({ ...formData, body_text: e.target.value })}
-                className="mt-2"
-                rows={5}
-                placeholder="Plain text version of the email"
+              <FormField
+                control={form.control}
+                name="body_html"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email Body (HTML) *</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        {...field}
+                        className="font-mono text-sm"
+                        rows={10}
+                        placeholder="<html>...</html>"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="is_active">Active</Label>
-              <Switch
-                id="is_active"
-                checked={formData.is_active}
-                onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
+              <FormField
+                control={form.control}
+                name="body_text"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email Body (Plain Text)</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        {...field}
+                        rows={5}
+                        placeholder="Plain text version of the email"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)} className="rounded-full uppercase tracking-wide">
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={createTemplate.isPending || updateTemplate.isPending}
-              className="rounded-full uppercase tracking-wide"
-            >
-              {editingTemplate ? "Update" : "Create"}
-            </Button>
-          </DialogFooter>
+              <FormField
+                control={form.control}
+                name="is_active"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between rounded-lg border p-4">
+                    <FormLabel>Active</FormLabel>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setDialogOpen(false)}
+                  className="rounded-full uppercase tracking-wide"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={createTemplate.isPending || updateTemplate.isPending}
+                  className="rounded-full uppercase tracking-wide"
+                >
+                  {editingTemplate ? "Update" : "Create"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
     </AdminLayout>

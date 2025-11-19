@@ -2,9 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import {
   useAdminContracts,
+  useCreateContract,
   useUpdateContract,
   useContractPaymentPlans,
+  useDuplicateContracts,
 } from "@/hooks/useAdminContracts";
+import { useAdminAcademicYears } from "@/hooks/useAdminAcademicYears";
+import { useAdminStudioGrades } from "@/hooks/useAdminStudioGrades";
+import { useAllAcademicYears } from "@/hooks/useAdminPaymentPlans";
 import {
   Card,
   CardContent,
@@ -13,7 +18,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Pencil } from "lucide-react";
+import { Loader2, Pencil, Plus, Copy } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -30,35 +36,63 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const schema = z.object({
+  academic_year_id: z.string().min(1, "Academic year required"),
+  studio_grade_id: z.string().min(1, "Studio grade required"),
+  name: z.string().min(1, "Contract name required"),
   contract_start: z.string().min(1, "Start date required"),
   contract_end: z.string().min(1, "End date required"),
   weekly_price_override: z.coerce.number().min(1, "Weekly price required"),
   deposit_override: z.coerce.number().min(0, "Deposit cannot be negative"),
   summary: z.string().optional(),
   display_order: z.coerce.number().min(1),
+  cta_label: z.string().optional(),
 });
 
 const Contracts = () => {
   const { data, isLoading } = useAdminContracts();
-  const { data: activePlans } = useContractPaymentPlans();
+  const { data: academicYears } = useAdminAcademicYears();
+  const { data: studioGradesData } = useAdminStudioGrades();
+  const createContract = useCreateContract();
   const updateContract = useUpdateContract();
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string | null>(null);
+  const { data: activePlans } = useContractPaymentPlans(selectedAcademicYearId);
   const [selectedPlans, setSelectedPlans] = useState<
     Record<string, { selected: boolean; order: number }>
   >({});
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+  const [sourceYearId, setSourceYearId] = useState<string>("");
+  const [targetYearId, setTargetYearId] = useState<string>("");
+  
+  const { data: allAcademicYears } = useAllAcademicYears();
+  const duplicateContracts = useDuplicateContracts();
 
   const form = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
     defaultValues: {
+      academic_year_id: "",
+      studio_grade_id: "",
+      name: "",
       contract_start: "",
       contract_end: "",
       weekly_price_override: 0,
       deposit_override: 99,
       summary: "",
       display_order: 1,
+      cta_label: "",
     },
   });
 
@@ -75,26 +109,39 @@ const Contracts = () => {
   }, [data]);
 
   useEffect(() => {
-    if (!open || !editingId) return;
-    const contract = data?.find((item) => item.id === editingId);
-    if (!contract) return;
-
-    const initial: Record<string, { selected: boolean; order: number }> = {};
-    (activePlans ?? []).forEach((plan, index) => {
-      const match =
-        contract.contract_payment_plans?.find(
-          (link) => link.payment_plan_id === plan.id,
-        ) ?? null;
-      initial[plan.id] = {
-        selected: Boolean(match),
-        order:
-          typeof match?.display_order === "number"
-            ? match.display_order
-            : index + 1,
-      };
-    });
-    setSelectedPlans(initial);
-  }, [open, editingId, data, activePlans]);
+    if (!open) return;
+    
+    if (editingId) {
+      const contract = data?.find((item) => item.id === editingId);
+      if (!contract) return;
+      
+      setSelectedAcademicYearId(contract.academic_year_id);
+      
+      const initial: Record<string, { selected: boolean; order: number }> = {};
+      (activePlans ?? []).forEach((plan, index) => {
+        const match =
+          contract.contract_payment_plans?.find(
+            (link) => link.payment_plan_id === plan.id,
+          ) ?? null;
+        initial[plan.id] = {
+          selected: Boolean(match),
+          order:
+            typeof match?.display_order === "number"
+              ? match.display_order
+              : index + 1,
+        };
+      });
+      setSelectedPlans(initial);
+    } else {
+      // For create, set first academic year (prefer active, but show all)
+      const firstYear = academicYears?.find(y => y.is_active) || academicYears?.[0];
+      if (firstYear) {
+        setSelectedAcademicYearId(firstYear.id);
+        form.setValue("academic_year_id", firstYear.id);
+      }
+      setSelectedPlans({});
+    }
+  }, [open, editingId, data, activePlans, academicYears, form]);
 
   useEffect(() => {
     if (!open) {
@@ -103,10 +150,31 @@ const Contracts = () => {
     }
   }, [open]);
 
+  const handleCreate = () => {
+    const firstYear = academicYears?.find(y => y.is_active) || academicYears?.[0];
+    form.reset({
+      academic_year_id: firstYear?.id ?? "",
+      studio_grade_id: "",
+      name: "",
+      contract_start: "",
+      contract_end: "",
+      weekly_price_override: 0,
+      deposit_override: 99,
+      summary: "",
+      display_order: 1,
+      cta_label: "",
+    });
+    setEditingId(null);
+    setOpen(true);
+  };
+
   const handleEdit = (id: string) => {
     const contract = data?.find((item) => item.id === id);
     if (!contract) return;
     form.reset({
+      academic_year_id: contract.academic_year_id,
+      studio_grade_id: contract.studio_grade_id,
+      name: contract.name,
       contract_start: contract.contract_start
         ? contract.contract_start.slice(0, 10)
         : "",
@@ -117,6 +185,7 @@ const Contracts = () => {
       deposit_override: contract.deposit_override ?? 99,
       summary: contract.summary ?? "",
       display_order: contract.display_order ?? 1,
+      cta_label: contract.cta_label ?? "",
     });
     setEditingId(id);
     setOpen(true);
@@ -137,26 +206,62 @@ const Contracts = () => {
     }));
   };
 
+  // Calculate weeks from dates
+  const calculateWeeks = (start: string, end: string): number => {
+    if (!start || !end) return 0;
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return Math.ceil(diffDays / 7);
+  };
+
   const handleSubmit = form.handleSubmit(async (values) => {
-    if (!editingId) return;
     const orderedPlans = Object.entries(selectedPlans)
       .filter(([, value]) => value.selected)
       .sort((a, b) => (a[1].order ?? 0) - (b[1].order ?? 0))
       .map(([planId]) => planId);
 
+    const weeks = calculateWeeks(values.contract_start, values.contract_end);
+
     try {
-      await updateContract.mutateAsync({
-        id: editingId,
-        ...values,
-        payment_plan_ids: orderedPlans,
-      });
-      toast({ title: "Contract updated" });
+      if (editingId) {
+        await updateContract.mutateAsync({
+          id: editingId,
+          contract_start: values.contract_start,
+          contract_end: values.contract_end,
+          weekly_price_override: values.weekly_price_override,
+          deposit_override: values.deposit_override,
+          summary: values.summary ?? null,
+          display_order: values.display_order,
+          cta_label: values.cta_label ?? null,
+          payment_plan_ids: orderedPlans,
+        });
+        toast({ title: "Contract updated" });
+      } else {
+        await createContract.mutateAsync({
+          academic_year_id: values.academic_year_id,
+          studio_grade_id: values.studio_grade_id,
+          name: values.name,
+          contract_start: values.contract_start,
+          contract_end: values.contract_end,
+          weeks,
+          weekly_price_override: values.weekly_price_override,
+          deposit_override: values.deposit_override,
+          summary: values.summary ?? null,
+          display_order: values.display_order,
+          cta_label: values.cta_label ?? null,
+          is_active: true,
+          payment_plan_ids: orderedPlans,
+        });
+        toast({ title: "Contract created" });
+      }
       resetState();
     } catch (error) {
       console.error(error);
       toast({
         variant: "destructive",
-        title: "Unable to update contract",
+        title: editingId ? "Unable to update contract" : "Unable to create contract",
         description: "Please check dates and pricing.",
       });
     }
@@ -166,15 +271,84 @@ const Contracts = () => {
     <AdminLayout
       pageTitle="Contracts"
       subtitle="Manage tenancy lengths, pricing overrides and instalment plans."
+      mobileActionButton={
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {academicYears && academicYears.length > 1 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-full uppercase tracking-wide gap-2 flex-shrink-0 h-7 px-2 text-xs"
+              onClick={() => setDuplicateDialogOpen(true)}
+              disabled={duplicateContracts.isPending}
+            >
+              <Copy className="h-4 w-4" />
+            </Button>
+          )}
+          <Dialog open={open} onOpenChange={(value) => {
+            if (value) {
+              setOpen(true);
+            } else {
+              resetState();
+            }
+          }}>
+            <DialogTrigger asChild>
+              <Button
+                size="sm"
+                className="rounded-full uppercase tracking-wide gap-2 flex-shrink-0 h-7 px-2 text-xs"
+                onClick={handleCreate}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </DialogTrigger>
+          </Dialog>
+        </div>
+      }
     >
+      <div className="hidden lg:flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-2xl font-display font-black uppercase tracking-wide">
+            Contracts
+          </h2>
+          <p className="text-muted-foreground text-sm">
+            Manage tenancy contracts for studio grades across academic years.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {academicYears && academicYears.length > 1 && (
+            <Button
+              variant="outline"
+              onClick={() => setDuplicateDialogOpen(true)}
+              disabled={duplicateContracts.isPending}
+              className="rounded-full uppercase tracking-wide gap-2"
+            >
+              <Copy className="h-4 w-4" />
+              Duplicate from year
+            </Button>
+          )}
+          <Dialog open={open} onOpenChange={(value) => {
+            if (value) {
+              setOpen(true);
+            } else {
+              resetState();
+            }
+          }}>
+            <DialogTrigger asChild>
+              <Button
+                className="rounded-full uppercase tracking-wide"
+                onClick={handleCreate}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Create Contract
+              </Button>
+            </DialogTrigger>
+          </Dialog>
+        </div>
+      </div>
       <Card className="rounded-3xl border border-border/60 shadow-xl">
         <CardHeader>
           <CardTitle className="text-lg font-display uppercase tracking-wide">
             Contract catalogue
           </CardTitle>
-          <CardDescription>
-            Contracts are generated per studio grade and academic year. Update dates, weekly price, deposit override, and instalment plans here.
-          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {isLoading ? (
@@ -265,14 +439,85 @@ const Contracts = () => {
           }
         }}
       >
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-xl font-display uppercase tracking-wide">
-              Update contract
+              {editingId ? "Update contract" : "Create contract"}
             </DialogTitle>
           </DialogHeader>
           <Form {...form}>
             <form className="space-y-4" onSubmit={handleSubmit}>
+              {!editingId && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="academic_year_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Academic Year</FormLabel>
+                        <Select
+                          value={field.value}
+                          onValueChange={(value) => {
+                            field.onChange(value);
+                            setSelectedAcademicYearId(value);
+                          }}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select academic year" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {academicYears?.map((year) => (
+                              <SelectItem key={year.id} value={year.id}>
+                                {year.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="studio_grade_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Studio Grade</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select studio grade" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {studioGradesData?.grades?.map((grade) => (
+                              <SelectItem key={grade.id} value={grade.id}>
+                                {grade.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Contract Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., 45 Week Contract" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
               <div className="grid gap-4 md:grid-cols-2">
                 <FormField
                   control={form.control}
@@ -475,15 +720,15 @@ const Contracts = () => {
                 <Button
                   type="submit"
                   className="rounded-full uppercase tracking-wide"
-                  disabled={updateContract.isPending}
+                  disabled={createContract.isPending || updateContract.isPending}
                 >
-                  {updateContract.isPending ? (
+                  {(createContract.isPending || updateContract.isPending) ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving
+                      {editingId ? "Saving" : "Creating"}
                     </>
                   ) : (
-                    "Save changes"
+                    editingId ? "Save changes" : "Create contract"
                   )}
                 </Button>
               </div>
@@ -491,6 +736,122 @@ const Contracts = () => {
           </Form>
         </DialogContent>
       </Dialog>
+
+      {/* Duplicate Contracts Dialog */}
+      <AlertDialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
+        <AlertDialogContent className="rounded-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-display uppercase tracking-wide">
+              Duplicate Contracts
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Copy all contracts from one academic year to another. 
+              Contract dates will be adjusted by adding 1 year, and weeks will be recalculated automatically.
+              Payment plans will be linked by matching names from the target year.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label htmlFor="source-year" className="text-sm font-medium">
+                Copy from academic year
+              </label>
+              <Select
+                value={sourceYearId}
+                onValueChange={setSourceYearId}
+              >
+                <SelectTrigger id="source-year">
+                  <SelectValue placeholder="Select source academic year" />
+                </SelectTrigger>
+                <SelectContent>
+                  {allAcademicYears
+                    ?.filter((year) => year.id !== targetYearId)
+                    .map((year) => (
+                      <SelectItem key={year.id} value={year.id}>
+                        {year.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="target-year" className="text-sm font-medium">
+                Copy to academic year
+              </label>
+              <Select
+                value={targetYearId}
+                onValueChange={setTargetYearId}
+              >
+                <SelectTrigger id="target-year">
+                  <SelectValue placeholder="Select target academic year" />
+                </SelectTrigger>
+                <SelectContent>
+                  {allAcademicYears
+                    ?.filter((year) => year.id !== sourceYearId)
+                    .map((year) => (
+                      <SelectItem key={year.id} value={year.id}>
+                        {year.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {sourceYearId && targetYearId && (
+              <div className="rounded-xl bg-muted/40 p-4 space-y-2">
+                <p className="text-sm font-semibold">What will be duplicated:</p>
+                <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                  <li>All contracts from the source year</li>
+                  <li>Contract dates (start and end) will have 1 year added automatically</li>
+                  <li>Weeks will be recalculated from the new dates</li>
+                  <li>Pricing, summaries, and other settings will be preserved</li>
+                  <li>Payment plans will be linked by matching names from the target year</li>
+                  <li>You can edit all contracts after duplication</li>
+                </ul>
+              </div>
+            )}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-full uppercase tracking-wide">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!sourceYearId || !targetYearId) return;
+                try {
+                  const result = await duplicateContracts.mutateAsync({
+                    sourceAcademicYearId: sourceYearId,
+                    targetAcademicYearId: targetYearId,
+                  });
+                  toast({
+                    title: "Contracts duplicated",
+                    description: `Successfully duplicated ${result.count} contract${result.count !== 1 ? "s" : ""} from the source year.`,
+                  });
+                  setDuplicateDialogOpen(false);
+                  setSourceYearId("");
+                  setTargetYearId("");
+                } catch (error: any) {
+                  console.error(error);
+                  toast({
+                    variant: "destructive",
+                    title: "Unable to duplicate contracts",
+                    description: error.message || "Please try again or contact support.",
+                  });
+                }
+              }}
+              disabled={!sourceYearId || !targetYearId || duplicateContracts.isPending}
+              className="rounded-full uppercase tracking-wide"
+            >
+              {duplicateContracts.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Duplicating...
+                </>
+              ) : (
+                "Duplicate Contracts"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AdminLayout>
   );
 };

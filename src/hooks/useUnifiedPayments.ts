@@ -55,16 +55,28 @@ export const useUnifiedPayments = (applicationId: string) => {
 /**
  * Get payment summary for a student application
  */
-export const usePaymentSummary = (applicationId: string) => {
+export const usePaymentSummary = (applicationId: string | null | undefined) => {
   return useQuery({
     queryKey: ["payment-summary", applicationId],
     queryFn: async () => {
+      if (!applicationId) return null;
+
       const { data, error } = await supabase
         .rpc("get_payment_summary", { p_application_id: applicationId });
 
-      if (error) throw error;
+      if (error) {
+        // Don't throw for applications without payment schedules (draft applications)
+        // Just return null to prevent console errors
+        if (error.code === "P0001" || error.message?.includes("payment schedule")) {
+          console.warn(`Payment summary not available for application ${applicationId}:`, error.message);
+          return null;
+        }
+        throw error;
+      }
       return (data?.[0] || null) as PaymentSummary | null;
     },
+    enabled: !!applicationId,
+    retry: false, // Don't retry on error to prevent spam
   });
 };
 

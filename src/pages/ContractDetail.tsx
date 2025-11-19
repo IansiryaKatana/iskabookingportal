@@ -1,16 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Loader2, CalendarDays, CreditCard, FileText, MapPin } from "lucide-react";
+import { Loader2, CalendarDays, CreditCard, FileText, MapPin, RotateCcw } from "lucide-react";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import FloatingContactRail from "@/components/FloatingContactRail";
 import WhatsAppButton from "@/components/WhatsAppButton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useContract } from "@/hooks/useContract";
 import { useToast } from "@/hooks/use-toast";
+import { useCanRebook, useMarkAsRebooking } from "@/hooks/useRebooking";
 import { format } from "date-fns";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,6 +26,13 @@ const ContractDetail = () => {
 
   const { data: contract, isLoading, isError } = useContract(slug);
   const [creating, setCreating] = useState(false);
+  const [creatingRebooking, setCreatingRebooking] = useState(false);
+  
+  // Check if student can rebook for this contract
+  const { data: rebookingCheck, isLoading: checkingRebooking } = useCanRebook(
+    user?.id && contract?.id ? contract.id : undefined
+  );
+  const markAsRebooking = useMarkAsRebooking();
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -257,6 +267,81 @@ const ContractDetail = () => {
       });
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleRebook = async () => {
+    if (!contract || !rebookingCheck?.can_rebook || !rebookingCheck.previous_application_id) return;
+
+    if (!user) {
+      navigate("/portal/login", {
+        state: { redirect: `/contracts/${contract.slug}` },
+      });
+      return;
+    }
+
+    setCreatingRebooking(true);
+    try {
+      // Check if application already exists
+      const { data: existing, error: selectError } = await supabase
+        .from("student_applications")
+        .select("id,status")
+        .eq("student_id", user.id)
+        .eq("contract_id", contract.id)
+        .maybeSingle();
+
+      if (selectError) throw selectError;
+
+      if (existing) {
+        // If exists, mark it as rebooking
+        await markAsRebooking.mutateAsync({
+          applicationId: existing.id,
+          previousApplicationId: rebookingCheck.previous_application_id,
+          reason: `Rebooking for ${contract.name}`,
+        });
+        navigate(
+          `/portal/applications/${existing.id}/select-studio`,
+          { replace: true },
+        );
+        return;
+      }
+
+      // Create new application
+      const { data: inserted, error: insertError } = await supabase
+        .from("student_applications")
+        .insert({
+          student_id: user.id,
+          studio_grade_id: contract.studio_grade_id,
+          contract_id: contract.id,
+          status: "draft",
+          is_rebooking: true,
+          previous_application_id: rebookingCheck.previous_application_id,
+          rebooking_reason: `Rebooking for ${contract.name}`,
+        })
+        .select("id")
+        .maybeSingle();
+
+      if (insertError) throw insertError;
+      if (!inserted) throw new Error("Failed to create rebooking application");
+
+      toast({
+        title: "Rebooking started",
+        description: "Your previous application data will be used to pre-fill this form.",
+      });
+
+      navigate(
+        `/portal/applications/${inserted.id}/select-studio`,
+        { replace: true },
+      );
+    } catch (error) {
+      console.error(error);
+      toast({
+        variant: "destructive",
+        title: "Unable to proceed",
+        description: "Please try again later or contact the Urban Hub team.",
+      });
+    } finally {
+      setCreatingRebooking(false);
     }
   };
 
@@ -548,11 +633,51 @@ const ContractDetail = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Rebooking Alert */}
+              {user && rebookingCheck?.can_rebook && rebookingCheck.previous_application_id && (
+                <Alert className="border-primary/50 bg-primary/5">
+                  <RotateCcw className="h-4 w-4" />
+                  <AlertTitle className="font-semibold">Rebooking Available</AlertTitle>
+                  <AlertDescription className="text-sm mt-1">
+                    {rebookingCheck.message}
+                    {rebookingCheck.previous_contract_name && (
+                      <span className="block mt-1 text-xs text-muted-foreground">
+                        Previous: {rebookingCheck.previous_contract_name} ({rebookingCheck.previous_academic_year})
+                      </span>
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* Rebooking Button */}
+              {user && rebookingCheck?.can_rebook && rebookingCheck.previous_application_id ? (
+                <Button
+                  className="w-full rounded-full uppercase tracking-wide"
+                  size="lg"
+                  onClick={handleRebook}
+                  disabled={creatingRebooking || checkingRebooking}
+                >
+                  {creatingRebooking ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Starting rebooking
+                    </>
+                  ) : (
+                    <>
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                      Rebook for This Contract
+                    </>
+                  )}
+                </Button>
+              ) : null}
+
+              {/* Regular Booking Button */}
               <Button
                 className="w-full rounded-full uppercase tracking-wide"
                 size="lg"
                 onClick={handleEnquire}
-                disabled={creating}
+                disabled={creating || creatingRebooking}
+                variant={user && rebookingCheck?.can_rebook ? "outline" : "default"}
               >
                 {creating ? (
                   <>
@@ -564,9 +689,9 @@ const ContractDetail = () => {
                 )}
               </Button>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                When you continue, we’ll create your booking journey with the
-                details above. You can save progress at any time, upload your
-                documents securely, and pay the deposit via Stripe when ready.
+                {user && rebookingCheck?.can_rebook && rebookingCheck.previous_application_id
+                  ? "Choose to rebook and we'll pre-fill your information from your previous application, or start a new application."
+                  : "When you continue, we'll create your booking journey with the details above. You can save progress at any time, upload your documents securely, and pay the deposit via Stripe when ready."}
               </p>
             </CardContent>
           </Card>

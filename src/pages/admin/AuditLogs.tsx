@@ -135,7 +135,22 @@ const AuditLogs = () => {
   }
 
   return (
-    <AdminLayout pageTitle="Audit Logs" subtitle="View staff activity and system changes">
+    <AdminLayout
+      pageTitle="Audit Logs"
+      subtitle="View staff activity and system changes"
+      mobileActionButton={
+        logs && logs.length > 0 ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-full p-2 h-9 w-9 flex-shrink-0"
+            onClick={exportToCSV}
+          >
+            <Download className="h-4 w-4" />
+          </Button>
+        ) : undefined
+      }
+    >
       <div className="space-y-6">
         {/* Filters */}
         <Card className="rounded-3xl">
@@ -214,7 +229,7 @@ const AuditLogs = () => {
                 <Button
                   onClick={exportToCSV}
                   variant="outline"
-                  className="rounded-full uppercase tracking-wide gap-2"
+                  className="rounded-full uppercase tracking-wide gap-2 hidden lg:flex"
                 >
                   <Download className="h-4 w-4" />
                   Export CSV

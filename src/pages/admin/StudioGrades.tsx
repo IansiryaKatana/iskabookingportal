@@ -359,7 +359,7 @@ const StudioGrades = () => {
               </TabsContent>
 
               <TabsContent value="media" className="mt-6 space-y-6">
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
                   {(gradeDetail?.studio_grade_media ?? []).map((media) => (
                     <div
                       key={media.id}
@@ -372,34 +372,34 @@ const StudioGrades = () => {
                           className="h-full w-full object-cover"
                         />
                       </div>
-                      <div className="flex items-center justify-between px-4 py-3">
-                        <div className="flex items-center gap-2">
+                      <div className="flex flex-col gap-2 px-3 py-2">
+                        <div className="flex items-center justify-center">
                           {media.is_hero ? (
-                            <Badge className="bg-primary text-primary-foreground">
-                              Hero image
+                            <Badge className="bg-primary text-primary-foreground text-xs">
+                              Hero
                             </Badge>
                           ) : (
                             <Button
                               variant="outline"
                               size="sm"
-                              className="rounded-full uppercase tracking-wide"
-                          disabled={setHeroMedia.isLoading}
-                          onClick={() => {
-                            if (!gradeDetail) return;
-                            setHeroMedia.mutate({
-                              mediaId: media.id,
-                              gradeId: gradeDetail.id,
-                            });
-                          }}
+                              className="rounded-full uppercase tracking-wide text-xs h-7 px-2"
+                              disabled={setHeroMedia.isLoading}
+                              onClick={() => {
+                                if (!gradeDetail) return;
+                                setHeroMedia.mutate({
+                                  mediaId: media.id,
+                                  gradeId: gradeDetail.id,
+                                });
+                              }}
                             >
-                              Set as hero
+                              Set hero
                             </Button>
                           )}
                         </div>
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="rounded-full uppercase tracking-wide text-destructive"
+                          className="rounded-full uppercase tracking-wide text-destructive text-xs h-7 px-2 w-full"
                           disabled={deleteMedia.isLoading}
                           onClick={() => {
                             if (!gradeDetail) return;

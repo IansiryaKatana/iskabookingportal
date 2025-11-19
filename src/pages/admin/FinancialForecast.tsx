@@ -167,6 +167,18 @@ const FinancialForecast = () => {
     <AdminLayout
       pageTitle="Financial Forecast"
       subtitle="Calculate how many students you need to reach your revenue target"
+      mobileActionButton={
+        forecastResult ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-full p-2 h-9 w-9 flex-shrink-0"
+            onClick={handleExportCSV}
+          >
+            <Download className="h-4 w-4" />
+          </Button>
+        ) : undefined
+      }
     >
       <div className="space-y-6">
         {/* Input Section */}
@@ -390,7 +402,7 @@ const FinancialForecast = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="rounded-full uppercase tracking-wide gap-2"
+                  className="rounded-full uppercase tracking-wide gap-2 hidden lg:flex"
                   onClick={handleExportCSV}
                 >
                   <Download className="h-4 w-4" />

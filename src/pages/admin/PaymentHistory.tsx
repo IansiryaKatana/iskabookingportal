@@ -85,17 +85,29 @@ const PaymentHistory = () => {
   const manualCount = payments?.filter((p) => p.payment_source === "manual").length || 0;
 
   return (
-    <AdminLayout>
+    <AdminLayout
+      pageTitle="Payment History"
+      subtitle="View all payment records (Stripe and manual entries)"
+      mobileActionButton={
+        <Button
+          size="sm"
+          variant="outline"
+          className="rounded-full p-2 h-9 w-9 flex-shrink-0"
+          onClick={exportToCSV}
+          disabled={!payments || payments.length === 0}
+        >
+          <Download className="h-4 w-4" />
+        </Button>
+      }
+    >
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold">Payment History</h1>
-            <p className="text-muted-foreground mt-1">
-              View all payment records (Stripe and manual entries)
-            </p>
-          </div>
-          <Button onClick={exportToCSV} disabled={!payments || payments.length === 0}>
-            <Download className="mr-2 h-4 w-4" />
+        <div className="hidden lg:flex items-center justify-end">
+          <Button
+            onClick={exportToCSV}
+            disabled={!payments || payments.length === 0}
+            className="rounded-full uppercase tracking-wide gap-2"
+          >
+            <Download className="h-4 w-4" />
             Export CSV
           </Button>
         </div>
@@ -145,7 +157,7 @@ const PaymentHistory = () => {
         {/* Filters */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="text-lg font-display uppercase tracking-wide flex items-center gap-2">
               <Filter className="h-5 w-5" />
               Filters
             </CardTitle>
@@ -212,7 +224,7 @@ const PaymentHistory = () => {
         {/* Payment List */}
         <Card>
           <CardHeader>
-            <CardTitle>Payment Records</CardTitle>
+            <CardTitle className="text-lg font-display uppercase tracking-wide">Payment Records</CardTitle>
             <CardDescription>
               All payment transactions sorted by date (newest first)
             </CardDescription>

@@ -12,7 +12,7 @@ import type { Session, User } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 
 type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
-type Role = "student" | "staff" | "superadmin";
+type Role = "student" | "staff" | "superadmin" | "partner";
 
 type AuthContextValue = {
   user: User | null;

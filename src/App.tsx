@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import StudioGradePage from "./pages/StudioGrade";
@@ -30,6 +31,16 @@ import AdminRefunds from "./pages/admin/Refunds";
 import AdminAuditLogs from "./pages/admin/AuditLogs";
 import AdminPaymentHistory from "./pages/admin/PaymentHistory";
 import AdminFullyPaidStudents from "./pages/admin/FullyPaidStudents";
+import AdminCashbackCampaigns from "./pages/admin/CashbackCampaigns";
+import AdminPartners from "./pages/admin/Partners";
+import AdminPartnerCommissions from "./pages/admin/PartnerCommissions";
+import AdminWeeklyPaymentReport from "./pages/admin/WeeklyPaymentReport";
+import PartnerLogin from "./pages/partner/Login";
+import PartnerRegister from "./pages/partner/Register";
+import PartnerDashboard from "./pages/partner/Dashboard";
+import PartnerReferrals from "./pages/partner/Referrals";
+import PartnerCommissions from "./pages/partner/Commissions";
+import PartnerProfile from "./pages/partner/Profile";
 import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import StudentApplicationWizard from "./pages/portal/ApplicationWizard";
@@ -47,19 +58,21 @@ import PageTitle from "./components/PageTitle";
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter
-          future={{
-            v7_startTransition: true,
-            v7_relativeSplatPath: true,
-          }}
-        >
-          <PageTitle />
-          <Routes>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter
+            future={{
+              v7_startTransition: true,
+              v7_relativeSplatPath: true,
+            }}
+          >
+            <ErrorBoundary>
+              <PageTitle />
+              <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/studios" element={<StudiosCatalog />} />
             <Route path="/studios/:slug" element={<StudioGradePage />} />
@@ -285,6 +298,38 @@ const App = () => (
               }
             />
             <Route
+              path="/admin/cashback-campaigns"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                  <AdminCashbackCampaigns />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/partners"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                  <AdminPartners />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/partner-commissions"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                  <AdminPartnerCommissions />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/weekly-payment-report"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                  <AdminWeeklyPaymentReport />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/portal/applications/:applicationId"
               element={
                 <ProtectedRoute allowedRoles={["student", "superadmin"]}>
@@ -301,13 +346,51 @@ const App = () => (
               }
             />
 
+            {/* Partner Portal Routes */}
+            <Route path="/partner/login" element={<PartnerLogin />} />
+            <Route path="/partner/register" element={<PartnerRegister />} />
+            <Route
+              path="/partner"
+              element={
+                <ProtectedRoute allowedRoles={["partner", "superadmin"]}>
+                  <PartnerDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/partner/referrals"
+              element={
+                <ProtectedRoute allowedRoles={["partner", "superadmin"]}>
+                  <PartnerReferrals />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/partner/commissions"
+              element={
+                <ProtectedRoute allowedRoles={["partner", "superadmin"]}>
+                  <PartnerCommissions />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/partner/profile"
+              element={
+                <ProtectedRoute allowedRoles={["partner", "superadmin"]}>
+                  <PartnerProfile />
+                </ProtectedRoute>
+              }
+            />
+
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
-  </QueryClientProvider>
+              </Routes>
+            </ErrorBoundary>
+          </BrowserRouter>
+        </TooltipProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;
