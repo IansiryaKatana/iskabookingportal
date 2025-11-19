@@ -1,5 +1,6 @@
 -- Unified Payment History System
 -- Combines Stripe payments and manual payment entries
+-- NOTE: Requires stripe_payments table to exist (created in 20251118_create_stripe_payments_table.sql)
 
 -- View that unifies all payment records
 CREATE OR REPLACE VIEW public.unified_payment_history AS
@@ -17,16 +18,15 @@ SELECT
   NULL::UUID AS manual_entry_id,
   NULL::TEXT AS manual_entry_notes,
   NULL::UUID AS entered_by_user_id,
-  sa.user_id AS student_id,
-  pp.installment_number,
-  pp.due_date,
+  sa.student_id,
+  NULL::INTEGER AS installment_number,
+  NULL::DATE AS due_date,
   c.id AS contract_id,
   c.name AS contract_name,
   ay.id AS academic_year_id,
   ay.name AS academic_year_name
 FROM public.stripe_payments sp
 INNER JOIN public.student_applications sa ON sp.student_application_id = sa.id
-LEFT JOIN public.payment_plans pp ON sp.payment_plan_id = pp.id
 LEFT JOIN public.contracts c ON sa.contract_id = c.id
 LEFT JOIN public.academic_years ay ON c.academic_year_id = ay.id
 WHERE sp.status IN ('succeeded', 'completed')
@@ -36,30 +36,29 @@ UNION ALL
 SELECT 
   'manual' AS payment_source,
   mp.id AS payment_id,
-  mp.student_application_id,
-  mp.payment_plan_id,
+  mp.application_id AS student_application_id,
+  NULL::UUID AS payment_plan_id,
   mp.amount AS amount_paid,
-  mp.currency,
+  'GBP' AS currency,
   'completed' AS payment_status,
   NULL::TEXT AS stripe_payment_intent_id,
   mp.payment_date AS payment_date,
   mp.created_at AS updated_at,
   mp.id AS manual_entry_id,
   mp.notes AS manual_entry_notes,
-  mp.entered_by_user_id,
-  sa.user_id AS student_id,
-  pp.installment_number,
-  pp.due_date,
+  mp.recorded_by AS entered_by_user_id,
+  sa.student_id,
+  cps.sequence AS installment_number,
+  cps.due_date,
   c.id AS contract_id,
   c.name AS contract_name,
   ay.id AS academic_year_id,
   ay.name AS academic_year_name
 FROM public.manual_payments mp
-INNER JOIN public.student_applications sa ON mp.student_application_id = sa.id
-LEFT JOIN public.payment_plans pp ON mp.payment_plan_id = pp.id
+INNER JOIN public.student_applications sa ON mp.application_id = sa.id
+LEFT JOIN public.contract_payment_schedule cps ON mp.instalment_id = cps.id
 LEFT JOIN public.contracts c ON sa.contract_id = c.id
-LEFT JOIN public.academic_years ay ON c.academic_year_id = ay.id
-WHERE mp.is_active = true;
+LEFT JOIN public.academic_years ay ON c.academic_year_id = ay.id;
 
 -- Grant permissions
 GRANT SELECT ON public.unified_payment_history TO authenticated;
@@ -69,7 +68,7 @@ CREATE INDEX IF NOT EXISTS idx_unified_payments_student_date
 ON public.stripe_payments(student_application_id, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_manual_payments_student_date 
-ON public.manual_payments(student_application_id, payment_date DESC);
+ON public.manual_payments(application_id, payment_date DESC);
 
 -- Function to get payment summary for a student application
 CREATE OR REPLACE FUNCTION public.get_payment_summary(p_application_id UUID)
@@ -90,11 +89,12 @@ DECLARE
   v_payment_count INTEGER;
   v_last_payment_date TIMESTAMPTZ;
 BEGIN
-  -- Get total due from payment plans
+  -- Get total due from contract payment schedule
   SELECT COALESCE(SUM(amount), 0)
   INTO v_total_due
-  FROM public.payment_plans
-  WHERE student_application_id = p_application_id;
+  FROM public.contract_payment_schedule cps
+  INNER JOIN public.student_applications sa ON sa.contract_id = cps.contract_id
+  WHERE sa.id = p_application_id;
 
   -- Get total paid from unified history
   SELECT 

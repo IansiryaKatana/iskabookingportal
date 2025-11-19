@@ -796,21 +796,43 @@ The Urban Hub Team
   return templates[templateType] || templates.custom;
 };
 
+type EmailTemplate = {
+  id: string;
+  name: string;
+  subject: string;
+  body_html: string;
+  body_text: string | null;
+  template_type: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+  variables: string | null;
+};
+
 const EmailTemplates = () => {
   const { toast } = useToast();
-  const { data: templates, isLoading } = useEmailTemplates();
+  const { data: templatesData, isLoading } = useEmailTemplates();
+  const templates = (templatesData ?? []) as unknown as EmailTemplate[];
   const createTemplate = useCreateEmailTemplate();
   const updateTemplate = useUpdateEmailTemplate();
   const deleteTemplate = useDeleteEmailTemplate();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string;
+    subject: string;
+    body_html: string;
+    body_text: string;
+    template_type: string;
+    is_active: boolean;
+  }>({
     name: "",
     subject: "",
     body_html: "",
     body_text: "",
-    template_type: "custom" as const,
+    template_type: "custom",
     is_active: true,
   });
 
@@ -942,9 +964,21 @@ const EmailTemplates = () => {
   }
 
   return (
-    <AdminLayout pageTitle="Email Templates" subtitle="Manage email templates for student communications">
+    <AdminLayout 
+      pageTitle="Email Templates" 
+      subtitle="Manage email templates for student communications"
+      mobileActionButton={
+        <Button
+          size="sm"
+          className="rounded-full uppercase tracking-wide gap-2 flex-shrink-0 h-7 px-2 text-xs"
+          onClick={() => handleOpenDialog()}
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
+      }
+    >
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="hidden lg:flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-display font-bold uppercase tracking-wide">
               Email Templates
