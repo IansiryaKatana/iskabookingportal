@@ -22,7 +22,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Pencil } from "lucide-react";
+import { Loader2, Pencil, Star, Trash2, Eye, Upload, AlertCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -40,6 +40,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
 
 const schema = z.object({
   short_description: z.string().min(10, "Add a short description"),
@@ -52,7 +55,8 @@ const schema = z.object({
 });
 
 const StudioGrades = () => {
-  const { data, isLoading } = useAdminStudioGrades();
+  const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string | undefined>();
+  const { data, isLoading } = useAdminStudioGrades(selectedAcademicYearId);
   const updateGrade = useUpdateStudioGrade();
   const updatePrice = useUpdateStudioGradePrice();
   const uploadMedia = useUploadStudioGradeMedia();
@@ -158,8 +162,20 @@ const StudioGrades = () => {
   return (
     <AdminLayout
       pageTitle="Studio Grades"
-      subtitle="Manage grade descriptions, media, and pricing for the active academic year."
+      subtitle="Manage grade descriptions, media, and pricing for the selected academic year."
     >
+      <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <p className="text-sm text-muted-foreground">
+            Select academic year to view and edit pricing
+          </p>
+        </div>
+        <AcademicYearSelector
+          value={selectedAcademicYearId}
+          onValueChange={setSelectedAcademicYearId}
+          className="w-full sm:w-64"
+        />
+      </div>
       <Card className="rounded-3xl border border-border/60 shadow-xl">
         <CardHeader>
           <CardTitle className="text-lg font-display uppercase tracking-wide">
@@ -359,84 +375,140 @@ const StudioGrades = () => {
               </TabsContent>
 
               <TabsContent value="media" className="mt-6 space-y-6">
-                <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
-                  {(gradeDetail?.studio_grade_media ?? []).map((media) => (
-                    <div
-                      key={media.id}
-                      className="rounded-2xl border border-border/60 overflow-hidden bg-muted/40"
-                    >
-                      <div className="aspect-video bg-muted overflow-hidden">
-                        <img
-                          src={media.url}
-                          alt={media.title ?? "Studio media"}
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-2 px-3 py-2">
-                        <div className="flex items-center justify-center">
-                          {media.is_hero ? (
-                            <Badge className="bg-primary text-primary-foreground text-xs">
-                              Hero
-                            </Badge>
-                          ) : (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="rounded-full uppercase tracking-wide text-xs h-7 px-2"
-                              disabled={setHeroMedia.isLoading}
-                              onClick={() => {
-                                if (!gradeDetail) return;
-                                setHeroMedia.mutate({
-                                  mediaId: media.id,
-                                  gradeId: gradeDetail.id,
-                                });
-                              }}
-                            >
-                              Set hero
-                            </Button>
-                          )}
+                {/* Minimum 6 images warning */}
+                {gradeDetail && gradeDetail.studio_grade_media.length < 6 && (
+                  <Alert className="border-yellow-500/50 bg-yellow-500/10">
+                    <AlertCircle className="h-4 w-4 text-yellow-600" />
+                    <AlertDescription className="text-yellow-700 text-sm">
+                      Minimum 6 images required. Currently have {gradeDetail.studio_grade_media.length} image{gradeDetail.studio_grade_media.length !== 1 ? 's' : ''}.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                <TooltipProvider>
+                  <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+                    {(gradeDetail?.studio_grade_media ?? []).map((media) => (
+                      <div
+                        key={media.id}
+                        className="rounded-2xl border border-border/60 overflow-hidden bg-muted/40 group relative"
+                      >
+                        <div className="aspect-video bg-muted overflow-hidden relative">
+                          <img
+                            src={media.url}
+                            alt={media.title ?? "Studio media"}
+                            className="h-full w-full object-cover"
+                          />
+                          {/* Hover overlay with action buttons */}
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                            {media.is_hero ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge className="bg-primary text-primary-foreground text-xs pointer-events-none">
+                                    <Star className="h-3 w-3 mr-1" />
+                                    Hero
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>This is the hero image</TooltipContent>
+                              </Tooltip>
+                            ) : (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    className="rounded-full h-8 w-8 p-0"
+                                    disabled={setHeroMedia.isLoading}
+                                    onClick={() => {
+                                      if (!gradeDetail) return;
+                                      setHeroMedia.mutate({
+                                        mediaId: media.id,
+                                        gradeId: gradeDetail.id,
+                                      });
+                                    }}
+                                  >
+                                    <Star className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Set as hero image</TooltipContent>
+                              </Tooltip>
+                            )}
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  className="rounded-full h-8 w-8 p-0"
+                                  disabled={deleteMedia.isLoading}
+                                  onClick={() => {
+                                    if (!gradeDetail) return;
+                                    deleteMedia.mutate({
+                                      mediaId: media.id,
+                                      gradeId: gradeDetail.id,
+                                      url: media.url,
+                                    });
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Delete image</TooltipContent>
+                            </Tooltip>
+                          </div>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="rounded-full uppercase tracking-wide text-destructive text-xs h-7 px-2 w-full"
-                          disabled={deleteMedia.isLoading}
-                          onClick={() => {
-                            if (!gradeDetail) return;
-                            deleteMedia.mutate({
-                              mediaId: media.id,
-                              gradeId: gradeDetail.id,
-                              url: media.url,
-                            });
-                          }}
-                        >
-                          Delete
-                        </Button>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                </TooltipProvider>
 
                 <div className="rounded-2xl border border-dashed border-border/60 p-6 text-center space-y-3">
                   <p className="text-sm text-muted-foreground">
-                    Upload new gallery imagery (JPG or PNG, max 5MB). The first image
+                    Upload gallery imagery (JPG or PNG, max 5MB per file). Minimum 6 images required. The first image
                     becomes your hero unless you set another.
                   </p>
                   <div className="flex justify-center">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        if (!file || !gradeDetail || !editingSlug) return;
-                        uploadMedia.mutate({
-                          gradeId: gradeDetail.id,
-                          gradeSlug: editingSlug,
-                          file,
-                        });
-                        event.target.value = "";
-                      }}
-                    />
+                    <label className="cursor-pointer">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={async (event) => {
+                          const files = Array.from(event.target.files || []);
+                          if (!files.length || !gradeDetail || !editingSlug) return;
+                          
+                          // Upload files sequentially to avoid position conflicts
+                          for (const file of files) {
+                            try {
+                              await uploadMedia.mutateAsync({
+                                gradeId: gradeDetail.id,
+                                gradeSlug: editingSlug,
+                                file,
+                              });
+                            } catch (error) {
+                              console.error("Failed to upload file:", file.name, error);
+                              toast({
+                                variant: "destructive",
+                                title: "Upload failed",
+                                description: `Failed to upload ${file.name}. Please try again.`,
+                              });
+                            }
+                          }
+                          
+                          event.target.value = "";
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-full uppercase tracking-wide gap-2"
+                        asChild
+                      >
+                        <span>
+                          <Upload className="h-4 w-4" />
+                          Select Images
+                        </span>
+                      </Button>
+                    </label>
                   </div>
                 </div>
               </TabsContent>

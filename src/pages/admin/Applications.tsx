@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
 
 const statusLabels: Record<string, string> = {
   draft: "Draft",
@@ -80,7 +81,8 @@ const getStatusBadge = (status: string) => {
 };
 
 const Applications = () => {
-  const { data, isLoading, isError, error } = useAdminApplications();
+  const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string | undefined>();
+  const { data, isLoading, isError, error } = useAdminApplications(selectedAcademicYearId);
   const updateStatus = useUpdateApplicationStatus();
   const navigate = useNavigate();
   const [manualPaymentOpen, setManualPaymentOpen] = useState(false);
@@ -113,24 +115,33 @@ const Applications = () => {
       pageTitle="Applications"
       subtitle="Review booking journey progress, confirm documents, and move applications to completion."
     >
-      <div className="flex flex-wrap gap-3 mb-6">
-        <Button
-          variant={statusFilter === "all" ? "default" : "outline"}
-          className="rounded-full uppercase tracking-wide"
-          onClick={() => setStatusFilter("all")}
-        >
-          All applications
-        </Button>
-        {Object.keys(statusLabels).map((key) => (
+      <div className="mb-6 space-y-4">
+        <div className="flex items-center justify-start md:justify-end">
+          <AcademicYearSelector
+            value={selectedAcademicYearId}
+            onValueChange={setSelectedAcademicYearId}
+            className="w-full md:w-64"
+          />
+        </div>
+        <div className="flex flex-wrap gap-2 md:gap-3">
           <Button
-            key={key}
-            variant={statusFilter === key ? "default" : "outline"}
-            className="rounded-full uppercase tracking-wide"
-            onClick={() => setStatusFilter(key)}
+            variant={statusFilter === "all" ? "default" : "outline"}
+            className="rounded-full uppercase tracking-wide text-xs sm:text-sm"
+            onClick={() => setStatusFilter("all")}
           >
-            {statusLabels[key]}
+            All applications
           </Button>
-        ))}
+          {Object.keys(statusLabels).map((key) => (
+            <Button
+              key={key}
+              variant={statusFilter === key ? "default" : "outline"}
+              className="rounded-full uppercase tracking-wide text-xs sm:text-sm whitespace-nowrap"
+              onClick={() => setStatusFilter(key)}
+            >
+              {statusLabels[key]}
+            </Button>
+          ))}
+        </div>
       </div>
 
       <Card className="rounded-3xl border border-border/60 shadow-xl">

@@ -18,11 +18,97 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
-    const { partner_id, email, first_name, last_name } = await req.json();
+    // Verify authentication (admin only)
+    const authHeader = req.headers.get("Authorization");
+    const token = authHeader?.replace("Bearer ", "");
 
-    if (!partner_id || !email || !first_name || !last_name) {
+    if (!token) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields" }),
+        JSON.stringify({ error: "Unauthorized. Authentication required." }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabaseAdmin.auth.getUser(token);
+
+    if (userError || !user) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized. Invalid token." }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    // Check if user is admin or superadmin
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile || (profile.role !== "staff" && profile.role !== "superadmin")) {
+      return new Response(
+        JSON.stringify({ error: "Forbidden. Admin access required." }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    let requestBody;
+    try {
+      requestBody = await req.json();
+      console.log("Received request body:", JSON.stringify(requestBody));
+    } catch (parseError) {
+      console.error("Error parsing request body:", parseError);
+      return new Response(
+        JSON.stringify({ error: "Invalid request body. Expected JSON." }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    const { partner_id, email, first_name, last_name } = requestBody;
+    console.log("Extracted fields:", { partner_id, email, first_name, last_name });
+
+    // Validate required fields with detailed error messages
+    const missingFields = [];
+    if (!partner_id) missingFields.push("partner_id");
+    if (!email) missingFields.push("email");
+    if (!first_name) missingFields.push("first_name");
+    if (!last_name) missingFields.push("last_name");
+
+    if (missingFields.length > 0) {
+      const errorResponse = { 
+        error: `Missing required fields: ${missingFields.join(", ")}`,
+        received: { partner_id, email, first_name, last_name }
+      };
+      console.error("Validation failed:", errorResponse);
+      return new Response(
+        JSON.stringify(errorResponse),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid email format" }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -57,16 +143,16 @@ serve(async (req) => {
       );
     }
 
-    // Check if account already exists
+    // Check if account already exists for this partner
     const { data: existingProfile } = await supabaseAdmin
       .from("profiles")
-      .select("id")
+      .select("id, email:auth.users!inner(email)")
       .eq("partner_id", partner_id)
       .maybeSingle();
 
     if (existingProfile) {
       return new Response(
-        JSON.stringify({ error: "Partner account already exists" }),
+        JSON.stringify({ error: "Partner account already exists for this partner" }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -74,7 +160,7 @@ serve(async (req) => {
       );
     }
 
-    // Create auth user
+    // Try to create new auth user
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password: crypto.randomUUID(), // Random password, will be reset
@@ -86,6 +172,136 @@ serve(async (req) => {
       },
     });
 
+    // If user already exists, handle it
+    if (authError && (authError.message?.includes("already registered") || 
+                      authError.message?.includes("already exists") ||
+                      authError.message?.includes("User already registered"))) {
+      
+      // Find the existing user by email
+      const { data: usersList } = await supabaseAdmin.auth.admin.listUsers();
+      const existingUser = usersList?.users?.find(u => u.email === email);
+
+      if (!existingUser) {
+        return new Response(
+          JSON.stringify({ error: "An account with this email already exists, but could not be found" }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      // Check the existing user's profile
+      const { data: existingUserProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("id, role, partner_id")
+        .eq("id", existingUser.id)
+        .single();
+
+      if (existingUserProfile) {
+        // If already linked to this partner, just send password reset
+        if (existingUserProfile.partner_id === partner_id && existingUserProfile.role === "partner") {
+          // Generate password reset link
+          const { data: resetData, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
+            type: "recovery",
+            email,
+          });
+
+          if (resetError) {
+            console.warn("Failed to generate password reset link:", resetError);
+            return new Response(
+              JSON.stringify({ error: "Account exists but failed to send password reset email" }),
+              {
+                status: 500,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              },
+            );
+          }
+
+          return new Response(
+            JSON.stringify({
+              success: true,
+              user_id: existingUser.id,
+              reset_link: resetData?.properties?.action_link,
+              message: "Account already exists. Password reset email sent.",
+            }),
+            {
+              status: 200,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            },
+          );
+        }
+
+        // If linked to different partner or different role, return error
+        if (existingUserProfile.role === "partner" && existingUserProfile.partner_id !== partner_id) {
+          return new Response(
+            JSON.stringify({ error: "This email is already linked to a different partner account" }),
+            {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            },
+          );
+        }
+
+        if (existingUserProfile.role !== "partner") {
+          return new Response(
+            JSON.stringify({ error: `This email is already registered as a ${existingUserProfile.role}. Cannot convert to partner account.` }),
+            {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            },
+          );
+        }
+      } else {
+        // User exists but no profile - link them to this partner
+        const { error: linkError } = await supabaseAdmin
+          .from("profiles")
+          .upsert({
+            id: existingUser.id,
+            role: "partner",
+            partner_id: partner_id,
+            first_name,
+            last_name,
+          }, {
+            onConflict: "id"
+          });
+
+        if (linkError) {
+          return new Response(
+            JSON.stringify({ error: "Failed to link existing account to partner" }),
+            {
+              status: 500,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            },
+          );
+        }
+
+        // Generate password reset link
+        const { data: resetData, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
+          type: "recovery",
+          email,
+        });
+
+        if (resetError) {
+          console.warn("Failed to generate password reset link:", resetError);
+        }
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            user_id: existingUser.id,
+            reset_link: resetData?.properties?.action_link,
+            message: "Existing account linked to partner. Password reset email sent.",
+          }),
+          {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+    }
+
+    // If other error creating user
     if (authError || !authData.user) {
       return new Response(
         JSON.stringify({ error: authError?.message || "Failed to create user" }),
@@ -97,21 +313,28 @@ serve(async (req) => {
     }
 
     // Update profile to link to partner
+    // Use upsert in case profile doesn't exist yet (trigger might not have run)
     const { error: profileError } = await supabaseAdmin
       .from("profiles")
-      .update({
+      .upsert({
+        id: authData.user.id,
         role: "partner",
         partner_id: partner_id,
         first_name,
         last_name,
-      })
-      .eq("id", authData.user.id);
+      }, {
+        onConflict: "id"
+      });
 
     if (profileError) {
+      console.error("Profile upsert error:", profileError);
       // Clean up auth user if profile update fails
       await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
       return new Response(
-        JSON.stringify({ error: "Failed to link profile to partner" }),
+        JSON.stringify({ 
+          error: "Failed to link profile to partner",
+          details: profileError.message 
+        }),
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -142,8 +365,12 @@ serve(async (req) => {
       },
     );
   } catch (error) {
+    console.error("Unexpected error in create-partner-account:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error?.message || "An unexpected error occurred",
+        details: error?.toString()
+      }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

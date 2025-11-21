@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, ArrowRightCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
+import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
 
 const statusLabels: Record<string, string> = {
   available: "Available",
@@ -26,12 +27,14 @@ const Studios = () => {
   const [gradeFilter, setGradeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [allocationFilter, setAllocationFilter] = useState<string>("all");
+  const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string | undefined>();
 
-  const { data: gradesData } = useAdminStudioGrades();
+  const { data: gradesData } = useAdminStudioGrades(selectedAcademicYearId);
   const { data: studios, isLoading } = useAdminStudios({
     gradeId: gradeFilter === "all" ? undefined : gradeFilter,
     status: statusFilter === "all" ? undefined : statusFilter,
     allocation: allocationFilter === "all" ? undefined : allocationFilter,
+    academicYearId: selectedAcademicYearId,
   });
   const updateStudio = useUpdateStudio();
 
@@ -62,9 +65,17 @@ const Studios = () => {
       pageTitle="Studios"
       subtitle="View studio inventory, monitor reservations, and manage unit status."
     >
-      <div className="flex flex-wrap md:flex-nowrap items-center gap-4 mb-6">
+      <div className="mb-6 space-y-4">
+        <div className="flex items-center justify-start md:justify-end">
+          <AcademicYearSelector
+            value={selectedAcademicYearId}
+            onValueChange={setSelectedAcademicYearId}
+            className="w-full md:w-64"
+          />
+        </div>
+        <div className="flex flex-wrap md:flex-nowrap items-center gap-3 md:gap-4">
         <Select value={gradeFilter} onValueChange={setGradeFilter}>
-          <SelectTrigger className="w-full md:w-64 rounded-full">
+          <SelectTrigger className="w-full sm:w-48 md:w-64 rounded-full">
             <SelectValue placeholder="Filter by grade" />
           </SelectTrigger>
           <SelectContent>
@@ -77,7 +88,7 @@ const Studios = () => {
           </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full md:w-56 rounded-full">
+          <SelectTrigger className="w-full sm:w-40 md:w-56 rounded-full">
             <SelectValue placeholder="Filter by status" />
           </SelectTrigger>
           <SelectContent>
@@ -90,7 +101,7 @@ const Studios = () => {
           </SelectContent>
         </Select>
         <Select value={allocationFilter} onValueChange={setAllocationFilter}>
-          <SelectTrigger className="w-full md:w-56 rounded-full">
+          <SelectTrigger className="w-full sm:w-40 md:w-56 rounded-full">
             <SelectValue placeholder="Filter by allocation" />
           </SelectTrigger>
           <SelectContent>
@@ -100,6 +111,7 @@ const Studios = () => {
             <SelectItem value="unallocated">Unallocated</SelectItem>
           </SelectContent>
         </Select>
+        </div>
       </div>
 
       <Card className="rounded-3xl border border-border/60 shadow-xl">
@@ -142,41 +154,43 @@ const Studios = () => {
                       </p>
                     )}
                   </div>
-                  <div className="flex items-center gap-3">
-                    <Badge
-                      className={`uppercase tracking-wide rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        studio.status === "available"
-                          ? "bg-green-500 hover:bg-green-600 text-white"
-                          : studio.status === "reserved"
-                          ? "bg-yellow-500 hover:bg-yellow-600 text-white"
-                          : studio.status === "occupied"
-                          ? "bg-blue-500 hover:bg-blue-600 text-white"
-                          : studio.status === "maintenance"
-                          ? "bg-red-500 hover:bg-red-600 text-white"
-                          : "bg-gray-500 hover:bg-gray-600 text-white"
-                      }`}
-                    >
-                      {statusLabels[studio.status] ?? studio.status}
-                    </Badge>
-                    <Select
-                      onValueChange={(value) => handleStatusChange(studio.id, value)}
-                      defaultValue={studio.status}
-                    >
-                      <SelectTrigger className="w-40 rounded-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(statusLabels).map(([key, label]) => (
-                          <SelectItem key={key} value={key}>
-                            {label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+                    <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                      <Badge
+                        className={`uppercase tracking-wide rounded-full px-2.5 py-0.5 text-xs font-medium flex-shrink-0 ${
+                          studio.status === "available"
+                            ? "bg-green-500 hover:bg-green-600 text-white"
+                            : studio.status === "reserved"
+                            ? "bg-yellow-500 hover:bg-yellow-600 text-white"
+                            : studio.status === "occupied"
+                            ? "bg-blue-500 hover:bg-blue-600 text-white"
+                            : studio.status === "maintenance"
+                            ? "bg-red-500 hover:bg-red-600 text-white"
+                            : "bg-gray-500 hover:bg-gray-600 text-white"
+                        }`}
+                      >
+                        {statusLabels[studio.status] ?? studio.status}
+                      </Badge>
+                      <Select
+                        onValueChange={(value) => handleStatusChange(studio.id, value)}
+                        defaultValue={studio.status}
+                      >
+                        <SelectTrigger className="w-full sm:w-40 rounded-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(statusLabels).map(([key, label]) => (
+                            <SelectItem key={key} value={key}>
+                              {label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="rounded-full uppercase tracking-wide gap-2"
+                      className="rounded-full uppercase tracking-wide gap-2 w-full sm:w-auto"
                       onClick={() =>
                         handleStatusChange(studio.id, "available")
                       }

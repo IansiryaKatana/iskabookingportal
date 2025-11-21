@@ -1,16 +1,21 @@
 import { useEffect, useState, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Carousel,
   CarouselContent,
   CarouselItem,
+  CarouselDots,
 } from "@/components/ui/carousel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAllStudioAvailability, getAvailabilityTag, isFullyBooked } from "@/hooks/useStudioAvailability";
+import type { Database } from "@/integrations/supabase/types";
+
+type AcademicYearRow = Database["public"]["Tables"]["academic_years"]["Row"];
 
 type StudioGradeSummary = {
   id: string;
@@ -19,16 +24,91 @@ type StudioGradeSummary = {
   short_description: string | null;
   gallery: { url: string }[];
   weeklyPrice: number | null;
-  academicYear: string | null;
 };
 
 const StudiosCatalog = () => {
+  const { year } = useParams<{ year?: string }>();
+  const navigate = useNavigate();
   const [grades, setGrades] = useState<StudioGradeSummary[]>([]);
+  const [academicYears, setAcademicYears] = useState<AcademicYearRow[]>([]);
+  const [selectedYear, setSelectedYear] = useState<AcademicYearRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { data: availabilityData, isLoading: availabilityLoading } = useAllStudioAvailability();
+  
+  // Get availability for selected academic year
+  const { data: availabilityData, isLoading: availabilityLoading } = useAllStudioAvailability(
+    selectedYear?.id || undefined
+  );
 
+  // Debug: Log when selectedYear changes
   useEffect(() => {
+    if (selectedYear) {
+      console.log("Selected academic year changed:", selectedYear.name, selectedYear.id);
+    }
+  }, [selectedYear]);
+
+  // Load academic years and determine selected year
+  useEffect(() => {
+    let mounted = true;
+
+    const loadAcademicYears = async () => {
+      const { data, error: fetchError } = await supabase
+        .from("academic_years")
+        .select("*")
+        .eq("is_active", true)
+        .order("start_date", { ascending: false });
+
+      if (!mounted) return;
+
+      if (fetchError) {
+        console.error("Unable to load academic years:", fetchError);
+        return;
+      }
+
+      const years = data || [];
+      setAcademicYears(years);
+
+      // Determine selected year
+      let selected: AcademicYearRow | null = null;
+
+      if (year) {
+        // Try to find by name (format: "2025-2026" or "2025/2026")
+        const normalizedYear = year.replace(/-/g, "/");
+        selected = years.find(
+          (y) => y.name === normalizedYear || y.name === year
+        ) || null;
+      }
+
+      // If no year in URL or year not found, default to most recent future year
+      if (!selected) {
+        const now = new Date();
+        selected =
+          years.find((y) => new Date(y.start_date) > now) || years[0] || null;
+      }
+
+      setSelectedYear(selected);
+
+      // If year param doesn't match selected, update URL
+      if (selected && year !== selected.name.replace(/\//g, "-")) {
+        const urlYear = selected.name.replace(/\//g, "-");
+        navigate(`/studios/${urlYear}`, { replace: true });
+      } else if (!selected && year) {
+        // Invalid year, redirect to default
+        navigate("/studios", { replace: true });
+      }
+    };
+
+    loadAcademicYears();
+
+    return () => {
+      mounted = false;
+    };
+  }, [year, navigate]);
+
+  // Load studio grades filtered by selected academic year
+  useEffect(() => {
+    if (!selectedYear) return;
+
     let mounted = true;
 
     const loadGrades = async () => {
@@ -48,13 +128,16 @@ const StudiosCatalog = () => {
             ),
             studio_grade_prices!inner (
               weekly_price,
-              academic_year:academic_years (
+              academic_year:academic_years!inner (
+                id,
                 name
               )
             )
           `,
         )
         .eq("is_active", true)
+        .eq("studio_grade_prices.academic_year_id", selectedYear.id)
+        .eq("studio_grade_prices.is_active", true)
         .order("display_order", { ascending: true });
 
       if (!mounted) return;
@@ -92,7 +175,6 @@ const StudiosCatalog = () => {
             short_description: grade.short_description,
             gallery,
             weeklyPrice: primaryPrice?.weekly_price ?? null,
-            academicYear: primaryPrice?.academic_year?.name ?? null,
           };
         }) ?? [];
 
@@ -106,9 +188,26 @@ const StudiosCatalog = () => {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [selectedYear]);
 
-  if (loading) {
+  const handleYearChange = (yearName: string) => {
+    const urlYear = yearName.replace(/\//g, "-");
+    navigate(`/studios/${urlYear}`);
+  };
+
+  const formatYearForDisplay = (yearName: string) => {
+    // Convert "2025/2026" to "25/26" for display
+    // Extract last 2 digits of first year, then last 2 digits of second year
+    return yearName.replace(/\d{2}(\d{2})\/\d{2}(\d{2})/, "$1/$2");
+  };
+
+  const formatYearForHero = (yearName: string) => {
+    // Convert "2025/2026" to "25/26" for hero text
+    // Extract last 2 digits of first year, then last 2 digits of second year
+    return yearName.replace(/\d{2}(\d{2})\/\d{2}(\d{2})/, "$1/$2");
+  };
+
+  if (loading || !selectedYear) {
     return (
       <div className="min-h-screen bg-background">
         <Navigation />
@@ -183,7 +282,7 @@ const StudiosCatalog = () => {
       >
         <div className="container mx-auto max-w-4xl px-4 text-center text-white space-y-6 py-24">
           <p className="text-[11px] uppercase tracking-[0.5em] text-white/70">
-            Book 25/26 Academic Year
+            Book {formatYearForHero(selectedYear.name)} Academic Year
           </p>
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-display font-black uppercase leading-tight">
             Secure your
@@ -201,6 +300,29 @@ const StudiosCatalog = () => {
         </div>
       </section>
       <main className="container mx-auto px-4 pt-16 pb-20 max-w-6xl space-y-12">
+        {/* Academic Year Tabs */}
+        {academicYears.length > 0 && (
+          <div className="flex justify-center mb-8">
+            <Tabs
+              value={selectedYear?.name || ""}
+              onValueChange={handleYearChange}
+              className="w-full max-w-3xl"
+            >
+              <TabsList className="inline-flex h-12 items-center justify-center rounded-full bg-muted/50 p-1.5 gap-1.5 md:gap-2 border border-border/50 shadow-sm mx-auto w-full max-w-full overflow-x-auto">
+                {academicYears.map((ay) => (
+                  <TabsTrigger
+                    key={ay.id}
+                    value={ay.name}
+                    className="rounded-full uppercase tracking-wide text-xs md:text-sm font-semibold px-3 md:px-6 py-2 md:py-2.5 flex-shrink-0 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md transition-all hover:bg-muted/80 data-[state=inactive]:text-muted-foreground"
+                  >
+                    {formatYearForDisplay(ay.name)}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          </div>
+        )}
+
         <header className="space-y-4 text-center">
           <p className="text-xs uppercase tracking-[0.4em] text-muted-foreground">
             Discover Urban Hub
@@ -223,13 +345,13 @@ const StudiosCatalog = () => {
           <div className="rounded-3xl border border-dashed px-6 py-8 text-center">
             <p className="text-lg font-semibold uppercase tracking-wide">Studios coming soon</p>
             <p className="mt-3 text-muted-foreground">
-              We’re preparing the new catalogue. Check back shortly for the latest availability.
+              We're preparing the new catalogue for {selectedYear.name}. Check back shortly for the latest availability.
             </p>
           </div>
         ) : (
           <section className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
             {grades.map((grade) => {
-              // Get availability for this grade (use first active contract if multiple)
+              // Get availability for this grade for the selected academic year
               const gradeAvailability = availabilityLoading
                 ? null
                 : availabilityData?.find((avail) => avail.studio_grade_id === grade.id) || null;
@@ -242,7 +364,7 @@ const StudiosCatalog = () => {
                   key={grade.id}
                   className="group flex h-full flex-col overflow-hidden rounded-[28px] border border-border/40 bg-background shadow-[0_18px_40px_rgba(0,0,0,0.08)] transition-transform duration-200 hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(0,0,0,0.12)]"
                 >
-                  <div className="relative h-48 w-full overflow-hidden bg-muted/30">
+                  <div className="relative h-48 w-full overflow-hidden bg-muted/30 group/carousel">
                     {grade.gallery.length ? (
                       <Carousel
                         className="h-full w-full"
@@ -250,10 +372,16 @@ const StudiosCatalog = () => {
                         setApi={(api) => {
                           if (!api) return;
                           let raf: number;
+                          // Stagger timing: base 5000ms + index * 500ms for variation
+                          const gradeIndex = grades.findIndex(g => g.id === grade.id);
+                          const baseDelay = 5000;
+                          const staggerDelay = gradeIndex * 500;
+                          const totalDelay = baseDelay + staggerDelay;
+                          
                           const startAutoScroll = () => {
                             raf = window.setInterval(() => {
                               api.scrollNext();
-                            }, 5000);
+                            }, totalDelay);
                           };
                           const stopAutoScroll = () => {
                             window.clearInterval(raf);
@@ -262,6 +390,19 @@ const StudiosCatalog = () => {
                           api.on("pointerDown", stopAutoScroll);
                           api.on("pointerUp", startAutoScroll);
                           api.on("destroy", stopAutoScroll);
+                          
+                          // Pause on hover
+                          const carouselElement = api.containerNode();
+                          if (carouselElement) {
+                            const handleMouseEnter = () => stopAutoScroll();
+                            const handleMouseLeave = () => startAutoScroll();
+                            carouselElement.addEventListener("mouseenter", handleMouseEnter);
+                            carouselElement.addEventListener("mouseleave", handleMouseLeave);
+                            api.on("destroy", () => {
+                              carouselElement.removeEventListener("mouseenter", handleMouseEnter);
+                              carouselElement.removeEventListener("mouseleave", handleMouseLeave);
+                            });
+                          }
                         }}
                       >
                         <CarouselContent className="-ml-0">
@@ -276,16 +417,16 @@ const StudiosCatalog = () => {
                             </CarouselItem>
                           ))}
                         </CarouselContent>
+                        {grade.gallery.length > 1 && (
+                          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 opacity-0 group-hover/carousel:opacity-100 transition-opacity">
+                            <CarouselDots className="bg-black/50 backdrop-blur-sm rounded-full px-2 py-1" />
+                          </div>
+                        )}
                       </Carousel>
                     ) : (
                       <div className="flex h-full w-full items-center justify-center text-xs uppercase tracking-[0.4em] text-muted-foreground">
                         Urban Hub
                       </div>
-                    )}
-                    {grade.academicYear && (
-                      <span className="absolute left-4 bottom-4 rounded-full bg-black/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.25em] text-white">
-                        {grade.academicYear}
-                      </span>
                     )}
                     {availabilityTag && (
                       <span className={`absolute right-4 top-4 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.25em] ${availabilityTag.className}`}>
@@ -303,7 +444,7 @@ const StudiosCatalog = () => {
                       </p>
                       {gradeAvailability && (
                         <p className="mt-2 text-xs text-muted-foreground">
-                          {gradeAvailability.available_count} of {gradeAvailability.total_capacity} studios available
+                          {gradeAvailability.available_count} of {gradeAvailability.total_capacity} studios available for {formatYearForDisplay(selectedYear.name)}
                         </p>
                       )}
                     </div>
@@ -320,7 +461,9 @@ const StudiosCatalog = () => {
                           asChild
                           className="rounded-full bg-accent-yellow px-6 py-2 text-sm font-semibold uppercase tracking-[0.25em] text-black shadow-[0_12px_24px_rgba(255,204,0,0.35)] hover:bg-accent-yellow/90"
                         >
-                          <Link to={`/studios/${grade.slug}`}>Book Now</Link>
+                          <Link to={`/studios/${year || selectedYear.name.replace(/\//g, "-")}/${grade.slug}`}>
+                            Book Now
+                          </Link>
                         </Button>
                       )}
                       <div className="text-right">
@@ -345,5 +488,3 @@ const StudiosCatalog = () => {
 };
 
 export default StudiosCatalog;
-
-

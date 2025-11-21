@@ -61,28 +61,42 @@ export const useStudioAvailability = (studioGradeId: string, contractId?: string
 };
 
 /**
- * Get availability for all studio grades (for catalog page)
- * Uses aggregated view that shows total availability across all contracts
+ * Get availability for all studio grades filtered by academic year (for catalog page)
+ * Uses the academic year-specific view to show aggregated availability per grade per year
  */
-export const useAllStudioAvailability = () => {
+export const useAllStudioAvailability = (academicYearId?: string) => {
   return useQuery({
-    queryKey: ["all-studio-availability"],
+    queryKey: ["all-studio-availability", academicYearId],
     queryFn: async () => {
+      if (!academicYearId) {
+        console.warn("useAllStudioAvailability called without academicYearId");
+        return [];
+      }
+
       const { data, error } = await supabase
-        .from("studio_grade_availability_summary")
+        .from("studio_grade_availability_by_year")
         .select("*")
+        .eq("academic_year_id", academicYearId)
         .order("studio_grade_name", { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching studio availability by year:", error);
+        // If view doesn't exist, return empty array
+        if (error.code === "42P01" || error.message.includes("does not exist")) {
+          console.warn("studio_grade_availability_by_year view not found. Please run the migration.");
+          return [];
+        }
+        throw error;
+      }
+
       // Map to match StudioAvailability type (contract fields will be null)
       return (data || []).map((item) => ({
         ...item,
         contract_id: null,
         contract_name: null,
-        academic_year_id: null,
-        academic_year_name: null,
       })) as StudioAvailability[];
     },
+    enabled: !!academicYearId, // Only run query when academicYearId is provided
     staleTime: 30000, // 30 seconds
     refetchInterval: 30000, // Refresh every 30 seconds
   });

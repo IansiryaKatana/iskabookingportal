@@ -8,6 +8,8 @@ import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { formatCurrency } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
+import { useState } from "react";
 
 const quickLinks = [
   {
@@ -33,7 +35,8 @@ const quickLinks = [
 const Dashboard = () => {
   const { loading, profile } = useAuth();
   const navigate = useNavigate();
-  const { data: stats, isLoading: statsLoading } = useDashboardStats();
+  const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string | undefined>();
+  const { data: stats, isLoading: statsLoading } = useDashboardStats(selectedAcademicYearId);
   
   // Only show skeleton while auth is actually loading
   // Once loading is false, show content (even if profile is null, it will show empty state)
@@ -44,6 +47,13 @@ const Dashboard = () => {
       pageTitle="Overview"
       subtitle="Monitor performance and jump into the modules you need."
     >
+      <div className="mb-6 flex items-center justify-start md:justify-end">
+        <AcademicYearSelector
+          value={selectedAcademicYearId}
+          onValueChange={setSelectedAcademicYearId}
+          className="w-full md:w-64"
+        />
+      </div>
       {isLoading ? (
         <>
           <section className="grid gap-6 lg:grid-cols-3 mb-10">

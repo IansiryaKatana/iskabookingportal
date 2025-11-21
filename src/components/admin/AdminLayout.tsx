@@ -158,17 +158,6 @@ const navSections: NavSection[] = [
     ],
   },
   {
-    label: "Promotions",
-    icon: Gift,
-    items: [
-      {
-        label: "Cashback Campaigns",
-        to: "/admin/cashback-campaigns",
-        icon: Gift,
-      },
-    ],
-  },
-  {
     label: "Communications",
     icon: MessageSquare,
     items: [
@@ -181,6 +170,11 @@ const navSections: NavSection[] = [
         label: "Email Templates",
         to: "/admin/email-templates",
         icon: Mail,
+      },
+      {
+        label: "Cashback Campaigns",
+        to: "/admin/cashback-campaigns",
+        icon: Gift,
       },
     ],
   },

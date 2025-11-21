@@ -412,9 +412,15 @@ const ContractDetail = () => {
               <Button
                 className="rounded-full uppercase tracking-wide"
                 variant="outline"
-                onClick={() =>
-                  navigate(`/studios/${contract?.studio_grade?.slug ?? ""}`)
-                }
+                onClick={() => {
+                  const studioSlug = contract?.studio_grade?.slug ?? "";
+                  if (studioSlug && contract?.academic_year?.name) {
+                    const yearPath = contract.academic_year.name.replace(/\//g, "-");
+                    navigate(`/studios/${yearPath}/${studioSlug}`);
+                  } else if (studioSlug) {
+                    navigate(`/studios/${studioSlug}`);
+                  }
+                }}
               >
                 Back to studio grade
               </Button>

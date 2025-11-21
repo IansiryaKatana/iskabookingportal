@@ -75,6 +75,8 @@ const App = () => (
               <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/studios" element={<StudiosCatalog />} />
+            <Route path="/studios/:year" element={<StudiosCatalog />} />
+            <Route path="/studios/:year/:slug" element={<StudioGradePage />} />
             <Route path="/studios/:slug" element={<StudioGradePage />} />
             <Route path="/contracts/:slug" element={<ContractDetail />} />
             <Route path="/reference/studio-grade-static" element={<StudioGradeStatic />} />

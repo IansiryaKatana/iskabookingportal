@@ -23,8 +23,29 @@ export type AdminApplication = ApplicationRow & {
   assigned_studio: Database["public"]["Tables"]["studios"]["Row"] | null;
 };
 
-const fetchApplications = async (): Promise<AdminApplication[]> => {
-  const { data, error } = await supabase
+const fetchApplications = async (academicYearId?: string): Promise<AdminApplication[]> => {
+  // First, get contract IDs for the academic year if filtering
+  let contractIds: string[] | undefined;
+  if (academicYearId) {
+    const { data: contracts, error: contractsError } = await supabase
+      .from("contracts")
+      .select("id")
+      .eq("academic_year_id", academicYearId);
+
+    if (contractsError) {
+      console.error("Failed to fetch contracts for academic year:", contractsError);
+      throw contractsError;
+    }
+
+    contractIds = contracts?.map((c) => c.id) || [];
+    if (contractIds.length === 0) {
+      // No contracts for this academic year, return empty
+      return [];
+    }
+  }
+
+  // Build query
+  let query = supabase
     .from("student_applications")
     .select(
       `
@@ -33,12 +54,19 @@ const fetchApplications = async (): Promise<AdminApplication[]> => {
           id,
           name,
           weeks,
+          academic_year_id,
           studio_grade:studio_grades ( id, name )
         ),
         assigned_studio:studios (*)
       `,
-    )
-    .order("created_at", { ascending: false });
+    );
+
+  // Filter by contract IDs if academic year is specified
+  if (contractIds && contractIds.length > 0) {
+    query = query.in("contract_id", contractIds);
+  }
+
+  const { data, error } = await query.order("created_at", { ascending: false });
 
   if (error) {
     console.error("Failed to fetch applications:", error);
@@ -79,10 +107,10 @@ const fetchApplications = async (): Promise<AdminApplication[]> => {
   return enriched as AdminApplication[];
 };
 
-export const useAdminApplications = () =>
+export const useAdminApplications = (academicYearId?: string) =>
   useQuery({
-    queryKey: ["admin-applications"],
-    queryFn: fetchApplications,
+    queryKey: ["admin-applications", academicYearId],
+    queryFn: () => fetchApplications(academicYearId),
   });
 
 export const useUpdateApplicationStatus = () => {

@@ -11,24 +11,42 @@ export type GradeWithPricing = StudioGrade & {
   price?: StudioGradePrice | null;
 };
 
-const fetchActiveAcademicYear = async (): Promise<AcademicYear | null> => {
+const fetchActiveAcademicYear = async (academicYearId?: string): Promise<AcademicYear | null> => {
+  if (academicYearId) {
+    const { data, error } = await supabase
+      .from("academic_years")
+      .select("*")
+      .eq("id", academicYearId)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data ?? null;
+  }
+
+  // If no ID provided, get most recent future year
   const { data, error } = await supabase
     .from("academic_years")
     .select("*")
     .eq("is_active", true)
-    .order("start_date", { ascending: false })
-    .maybeSingle();
+    .order("start_date", { ascending: false });
 
   if (error) throw error;
-  return data ?? null;
+  
+  if (!data || data.length === 0) return null;
+
+  // Find most recent future year, or most recent if none are future
+  const now = new Date();
+  const futureYear = data.find((y) => new Date(y.start_date) > now);
+  return futureYear || data[0] || null;
 };
 
-const fetchStudioGrades = async (): Promise<{
+const fetchStudioGrades = async (academicYearId?: string): Promise<{
   grades: GradeWithPricing[];
   academicYear: AcademicYear | null;
 }> => {
-  const academicYear = await fetchActiveAcademicYear();
-  const academicYearId = academicYear?.id;
+  const academicYear = await fetchActiveAcademicYear(academicYearId);
+  const yearId = academicYear?.id;
 
   const { data: grades, error: gradesError } = await supabase
     .from("studio_grades")
@@ -37,7 +55,7 @@ const fetchStudioGrades = async (): Promise<{
 
   if (gradesError) throw gradesError;
 
-  if (!academicYearId) {
+  if (!yearId) {
     return {
       grades: grades ?? [],
       academicYear: null,
@@ -47,7 +65,7 @@ const fetchStudioGrades = async (): Promise<{
   const { data: prices, error: pricesError } = await supabase
     .from("studio_grade_prices")
     .select("*")
-    .eq("academic_year_id", academicYearId);
+    .eq("academic_year_id", yearId);
 
   if (pricesError) throw pricesError;
 
@@ -71,10 +89,10 @@ const fetchStudioGrades = async (): Promise<{
   };
 };
 
-export const useAdminStudioGrades = () =>
+export const useAdminStudioGrades = (academicYearId?: string) =>
   useQuery({
-    queryKey: ["admin-studio-grades"],
-    queryFn: fetchStudioGrades,
+    queryKey: ["admin-studio-grades", academicYearId],
+    queryFn: () => fetchStudioGrades(academicYearId),
   });
 
 export const useUpdateStudioGrade = () => {

@@ -15,7 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, LogIn, UserPlus, CheckCircle2, Mail } from "lucide-react";
+import { Loader2, LogIn, UserPlus, CheckCircle2, Mail, Eye, EyeOff } from "lucide-react";
 
 const loginSchema = z.object({
   email: z.string().email("Enter a valid email"),
@@ -41,6 +41,7 @@ const PortalAuth = () => {
   const [registrationSuccess, setRegistrationSuccess] = useState<{
     email: string;
   } | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const requestedMode = params.get("mode") === "register" ? "register" : "login";
@@ -49,6 +50,7 @@ const PortalAuth = () => {
 
   const switchMode = (nextMode: "login" | "register") => {
     setMode(nextMode);
+    setShowPassword(false);
     const params = new URLSearchParams(location.search);
     if (nextMode === "register") {
       params.set("mode", "register");
@@ -247,7 +249,26 @@ const PortalAuth = () => {
                       <FormItem>
                         <FormLabel>Password</FormLabel>
                         <FormControl>
-                          <Input type="password" placeholder="••••••••" {...field} />
+                          <div className="relative">
+                            <Input
+                              type={showPassword ? "text" : "password"}
+                              placeholder="••••••••"
+                              className="pr-10"
+                              {...field}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPassword(!showPassword)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                              aria-label={showPassword ? "Hide password" : "Show password"}
+                            >
+                              {showPassword ? (
+                                <EyeOff className="h-4 w-4" />
+                              ) : (
+                                <Eye className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -340,12 +361,27 @@ const PortalAuth = () => {
                       <FormItem>
                         <FormLabel>Password</FormLabel>
                         <FormControl>
-                          <Input
-                            type="password"
-                            placeholder="••••••••"
-                            autoComplete={mode === "login" ? "current-password" : "new-password"}
-                            {...field}
-                          />
+                          <div className="relative">
+                            <Input
+                              type={showPassword ? "text" : "password"}
+                              placeholder="••••••••"
+                              autoComplete={mode === "login" ? "current-password" : "new-password"}
+                              className="pr-10"
+                              {...field}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPassword(!showPassword)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                              aria-label={showPassword ? "Hide password" : "Show password"}
+                            >
+                              {showPassword ? (
+                                <EyeOff className="h-4 w-4" />
+                              ) : (
+                                <Eye className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -382,6 +418,7 @@ const PortalAuth = () => {
                         switchMode("register");
                         setError(null);
                         setRegistrationSuccess(null);
+                        setShowPassword(false);
                         registerForm.reset({
                           first_name: "",
                           last_name: "",
@@ -406,6 +443,7 @@ const PortalAuth = () => {
                         switchMode("login");
                         setError(null);
                         setRegistrationSuccess(null);
+                        setShowPassword(false);
                         loginForm.reset({
                           email: "",
                           password: "",

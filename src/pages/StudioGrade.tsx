@@ -206,7 +206,7 @@ const loadStudioGrade = async (slug: string): Promise<StudioGradeData | null> =>
 };
 
 const StudioGradePage = () => {
-  const { slug } = useParams<{ slug: string }>();
+  const { slug, year } = useParams<{ slug: string; year?: string }>();
   const navigate = useNavigate();
   const [redirecting, setRedirecting] = useState(false);
   const [redirectError, setRedirectError] = useState<string | null>(null);
@@ -245,7 +245,9 @@ const StudioGradePage = () => {
       }
 
       if (data?.slug) {
-        navigate(`/studios/${data.slug}`, { replace: true });
+        // Preserve year in URL if it exists
+        const yearPath = year ? `${year}/` : "";
+        navigate(`/studios/${yearPath}${data.slug}`, { replace: true });
       } else {
         setRedirectError("No studio grades are live yet. Please check back soon.");
         setRedirecting(false);
@@ -298,7 +300,6 @@ const StudioGradePage = () => {
     if (!grade) return [];
     return grade.studio_grade_media
       .filter((media) => media.media_type === "image")
-      .slice(0, 6)
       .map((media) => ({
         src: media.url,
         alt: media.title ?? grade.name,

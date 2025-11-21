@@ -148,18 +148,72 @@ const Partners = () => {
       firstName: string;
       lastName: string;
     }) => {
-      const { data, error } = await supabase.functions.invoke("create-partner-account", {
-        body: {
-          partner_id: partnerId,
-          email,
-          first_name: firstName,
-          last_name: lastName,
-        },
-      });
+      // Validate inputs before sending
+      if (!partnerId || !email || !firstName || !lastName) {
+        throw new Error("All fields are required");
+      }
 
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      return data;
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        throw new Error("Invalid email format");
+      }
+
+      console.log("Creating partner account with:", { partnerId, email, firstName, lastName });
+
+      // Use fetch directly to get better error handling
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 
+                          import.meta.env.SUPABASE_ANON_KEY || 
+                          import.meta.env.SUPABASE_PUBLISHABLE_KEY;
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      const authToken = session?.access_token;
+
+      try {
+        const response = await fetch(
+          `${supabaseUrl}/functions/v1/create-partner-account`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${authToken || supabaseKey}`,
+              apikey: supabaseKey,
+            },
+            body: JSON.stringify({
+              partner_id: partnerId,
+              email: email.trim(),
+              first_name: firstName.trim(),
+              last_name: lastName.trim(),
+            }),
+          }
+        );
+
+        const responseData = await response.json();
+
+        if (!response.ok) {
+          const errorMessage = responseData?.error || `Server error: ${response.status}`;
+          console.error("Edge function error:", errorMessage);
+          console.error("Full response:", responseData);
+          throw new Error(errorMessage);
+        }
+
+        if (responseData?.error) {
+          console.error("Edge function returned error:", responseData.error);
+          throw new Error(responseData.error);
+        }
+
+        return responseData;
+      } catch (fetchError: any) {
+        // If it's already an Error with a message, throw it
+        if (fetchError instanceof Error && fetchError.message) {
+          throw fetchError;
+        }
+        
+        // Otherwise, try to extract from the error
+        console.error("Fetch error:", fetchError);
+        throw new Error(fetchError?.message || "Failed to create partner account");
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["partners"] });
