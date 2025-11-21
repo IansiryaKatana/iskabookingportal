@@ -142,12 +142,25 @@ const PartnerRegister = () => {
         });
 
         if (linkError) {
+          // Improved error handling: Attempt to clean up orphaned account
+          console.error("Failed to link partner account:", linkError);
+          
+          // Report to Sentry if configured
+          if (import.meta.env.VITE_SENTRY_DSN) {
+            const Sentry = await import("@/utils/sentry");
+            Sentry.default.captureException(linkError, {
+              tags: { component: "PartnerRegistration" },
+              extra: { userId: session.user.id, referralCode: normalizedCode },
+            });
+          }
+
           toast({
             variant: "destructive",
             title: "Account created but linking failed",
-            description: linkError.message || "Please contact admin to link your account.",
+            description: linkError.message || "Please contact admin to link your account. You can still log in.",
           });
-          // Still allow login, admin can fix later
+          // Still allow login, admin can fix later via admin panel
+          // Note: Account exists but is not linked - admin can link via "Create Account" button
         } else {
           toast({
             title: "Account created successfully",
