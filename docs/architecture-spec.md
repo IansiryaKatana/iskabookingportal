@@ -268,11 +268,19 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
 ### 6.3 Partner Portal ✅ IMPLEMENTED
 
 - **Authentication**:
-  - Separate partner login page (`/partner/login`)
+  - Separate partner login page (`/partner/login`) with "Forgot password" functionality
   - Partner registration with referral code validation (`/partner/register`)
+  - Password reset page (`/partner/reset-password`) for setting initial password or resetting forgotten password
   - Real-time referral code validation during registration
   - Auto-linking of accounts to partner records via referral code
-  - Admin can create partner accounts directly (sends password reset email)
+  - Admin can create partner accounts directly (automatically sends password reset email)
+  - **Password Reset Workflow**:
+    1. Admin creates partner account via admin UI
+    2. System automatically sends password reset email using `resetPasswordForEmail()`
+    3. Partner clicks link in email → redirected to `/partner/reset-password` with token
+    4. Partner sets new password (validates token, creates session, updates password)
+    5. Partner can then log in with their password
+    6. "Forgot password" on login page allows existing partners to request new reset email
 - **Dashboard** (`/partner`):
   - Overview metrics:
     - Total referrals
@@ -324,7 +332,12 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
   - `create-contract-pdf` – PDF generation for contracts
   - `download-signed-document` – DocuSign signed document download
   - `get-email-template` – Secure email template fetching for students (bypasses RLS, validates notification ownership)
-  - `create-partner-account` – Admin function to create partner user accounts with password reset email
+  - `create-partner-account` – Admin function to create partner user accounts with automatic password reset email
+    - Creates auth user account
+    - Links profile to partner record
+    - Automatically sends password reset email using `resetPasswordForEmail()`
+    - Handles existing accounts (sends reset if already linked, returns error if linked to different partner)
+    - Redirects to `/partner/reset-password` for password setup
   - `weekly-payment-report` – Weekly payment report generation
 - **Stripe** – capture payment method, deposit, instalment payments, webhook for payment updates, refund processing.
 - **DocuSign** – agreement creation, embedded signing, status polling, signed document retrieval, envelope management.
@@ -433,9 +446,16 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
   - Auto-assignment of partner when valid code is entered
 - **Partner Authentication**:
   - Separate partner portal (`/partner/*`)
-  - Partner registration with referral code validation
-  - Admin can create partner accounts directly (sends password reset email)
-  - Auto-linking of accounts to partner records
+  - Partner registration with referral code validation (`/partner/register`)
+  - Partner login page (`/partner/login`) with "Forgot password" functionality
+  - Password reset page (`/partner/reset-password`) for setting initial password or resetting forgotten password
+  - Admin can create partner accounts directly (automatically sends password reset email via `create-partner-account` edge function)
+  - Auto-linking of accounts to partner records via referral code
+  - Password reset email handling:
+    - Uses Supabase `resetPasswordForEmail()` API
+    - Redirects to `/partner/reset-password` with token in URL hash
+    - Token validation and session management handled automatically
+    - Supports both hash fragments and query parameters for email client compatibility
 - **Partner Dashboard**:
   - Overview metrics (total referrals, confirmed applications, commissions)
   - Recent referrals list
