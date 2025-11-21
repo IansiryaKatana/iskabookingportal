@@ -25,66 +25,85 @@ const PartnerResetPassword = () => {
   useEffect(() => {
     // Check if we have a valid reset token in the URL
     const checkToken = async () => {
-      // Supabase password reset tokens come in the URL hash
-      // Format: #access_token=...&type=recovery&...
-      const hash = window.location.hash;
+      // Supabase automatically handles password reset tokens in the URL hash
+      // We need to check if there's a session after Supabase processes the hash
       
-      if (hash && hash.includes("type=recovery")) {
-        // Extract token from hash and set session
+      // First, check if there's a hash with recovery token
+      const hash = window.location.hash;
+      const hasRecoveryToken = hash && hash.includes("type=recovery");
+      
+      // Also check query params (some email clients strip hash)
+      const queryType = searchParams.get("type");
+      const hasQueryToken = queryType === "recovery";
+      
+      if (!hasRecoveryToken && !hasQueryToken) {
+        setError("Invalid or missing password reset token. Please request a new password reset link.");
+        setIsValidating(false);
+        return;
+      }
+
+      // Wait a moment for Supabase to process the hash automatically
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Check if Supabase has automatically set a session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (session && !sessionError) {
+        // Session exists - token is valid
+        setIsValidToken(true);
+        setIsValidating(false);
+        return;
+      }
+
+      // If no session, try to manually extract and set it
+      if (hasRecoveryToken) {
         try {
           const hashParams = new URLSearchParams(hash.substring(1));
           const accessToken = hashParams.get("access_token");
           const refreshToken = hashParams.get("refresh_token");
           
           if (accessToken && refreshToken) {
-            // Set the session so Supabase knows we're authenticated for password reset
-            const { error: sessionError } = await supabase.auth.setSession({
+            const { error: setSessionError } = await supabase.auth.setSession({
               access_token: accessToken,
               refresh_token: refreshToken,
             });
             
-            if (sessionError) {
-              setError("Invalid or expired reset token. Please request a new password reset link.");
+            if (!setSessionError) {
+              setIsValidToken(true);
               setIsValidating(false);
               return;
             }
-            
-            setIsValidToken(true);
-            setIsValidating(false);
-            return;
           }
         } catch (err) {
           console.error("Error parsing reset token:", err);
         }
       }
-      
-      // Check query params as fallback (some email clients strip hash)
-      const accessToken = searchParams.get("access_token");
-      const refreshToken = searchParams.get("refresh_token");
-      const type = searchParams.get("type");
-      
-      if (accessToken && refreshToken && type === "recovery") {
+
+      // Try query params
+      if (hasQueryToken) {
         try {
-          const { error: sessionError } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          });
+          const accessToken = searchParams.get("access_token");
+          const refreshToken = searchParams.get("refresh_token");
           
-          if (sessionError) {
-            setError("Invalid or expired reset token. Please request a new password reset link.");
-            setIsValidating(false);
-            return;
+          if (accessToken && refreshToken) {
+            const { error: setSessionError } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+            
+            if (!setSessionError) {
+              setIsValidToken(true);
+              setIsValidating(false);
+              return;
+            }
           }
-          
-          setIsValidToken(true);
-          setIsValidating(false);
-          return;
         } catch (err) {
-          console.error("Error setting session:", err);
+          console.error("Error setting session from query params:", err);
         }
       }
       
-      setError("Invalid or missing password reset token. Please request a new password reset link.");
+      // If we get here, token is invalid or expired
+      setError("Invalid or expired reset token. Please request a new password reset link.");
       setIsValidating(false);
     };
 
