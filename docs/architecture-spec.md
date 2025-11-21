@@ -684,7 +684,43 @@ See `COMPREHENSIVE_SYSTEM_ANALYSIS.md` for complete system assessment and gap an
 - Returns signed URLs for immediate access
 - See `supabase/functions/download-signed-document/index.ts`
 
-### 14.3 Settings Page Integrations
+### 14.3 Partner Password Reset System
+- **Status:** ✅ Implemented & Deployed (2025-11-20)
+- **Features:**
+  - Password reset page at `/partner/reset-password`
+  - Automatic password reset email sending when admin creates partner accounts
+  - Token handling for Supabase hash fragments and query parameters
+  - "Forgot password" functionality on partner login page
+  - Complete workflow: Account creation → Email sent → Password set → Login
+- **Technical Details:**
+  - Uses Supabase `resetPasswordForEmail()` API
+  - Handles URL hash fragments (`#access_token=...&type=recovery`)
+  - Falls back to query parameters for email client compatibility
+  - Automatic session management after token validation
+  - Production URL configuration via `PORTAL_URL` secret
+- **Files:**
+  - `src/pages/partner/ResetPassword.tsx` - Password reset page
+  - `supabase/functions/create-partner-account/index.ts` - Updated to send emails automatically
+  - `src/pages/partner/Login.tsx` - Added "Forgot password" link
+  - `src/App.tsx` - Added route for reset password page
+
+### 14.4 Production URL Configuration
+- **Status:** ✅ Implemented & Deployed (2025-11-20)
+- **Configuration:**
+  - Supabase Auth Site URL: Set to production domain (`https://iskabookingportal.netlify.app`)
+  - Supabase Edge Function Secrets:
+    - `PORTAL_URL` - Production frontend URL (used in email links)
+    - `DOCUSIGN_SIGNING_RETURN_URL` - DocuSign return URL
+    - `RESEND_FROM_EMAIL` - Email sender address
+  - Netlify Environment Variables: Frontend environment variables configured
+  - Email links now use production URLs instead of localhost
+- **Files:**
+  - `supabase/functions/send-bulk-message/index.ts` - Updated to use `PORTAL_URL` secret
+  - `supabase/functions/docusign-recipient-view/index.ts` - Updated default return URL
+  - `PRODUCTION_URL_CONFIGURATION.md` - Complete configuration guide
+  - `PRODUCTION_SUPABASE_SECRETS.md` - All secrets documentation
+
+### 14.5 Settings Page Integrations
 - **Status:** ✅ Implemented & Deployed
 - Real-time connection status for:
   - Stripe (payment processing)
