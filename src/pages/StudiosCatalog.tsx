@@ -308,12 +308,12 @@ const StudiosCatalog = () => {
               onValueChange={handleYearChange}
               className="w-full max-w-3xl"
             >
-              <TabsList className="inline-flex h-12 items-center justify-center rounded-full bg-muted/50 p-1.5 gap-1.5 md:gap-2 border border-border/50 shadow-sm mx-auto w-full max-w-full overflow-x-auto">
+              <TabsList className="inline-flex h-12 items-center justify-center rounded-full bg-muted/50 p-1.5 gap-1.5 md:gap-2 border border-border/50 shadow-sm mx-auto w-full max-w-full overflow-x-auto scrollbar-hide snap-x snap-mandatory">
                 {academicYears.map((ay) => (
                   <TabsTrigger
                     key={ay.id}
                     value={ay.name}
-                    className="rounded-full uppercase tracking-wide text-xs md:text-sm font-semibold px-3 md:px-6 py-2 md:py-2.5 flex-shrink-0 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md transition-all hover:bg-muted/80 data-[state=inactive]:text-muted-foreground"
+                    className="rounded-full uppercase tracking-wide text-xs md:text-sm font-semibold px-3 md:px-6 py-2 md:py-2.5 flex-shrink-0 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md transition-all hover:bg-muted/80 data-[state=inactive]:text-muted-foreground snap-start"
                   >
                     {formatYearForDisplay(ay.name)}
                   </TabsTrigger>

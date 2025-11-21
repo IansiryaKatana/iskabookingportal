@@ -5,10 +5,13 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
-import { CheckCircle2, XCircle, Loader2, RefreshCw, ExternalLink } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, RefreshCw, ExternalLink, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { logActivity } from "@/utils/auditLog";
 
 type IntegrationStatus = {
   stripe: { connected: boolean; account?: string; error?: string };
@@ -18,9 +21,11 @@ type IntegrationStatus = {
 
 const Settings = () => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [socialMediaSettings, setSocialMediaSettings] = useState<Record<string, { url: string; is_enabled: boolean }>>({});
 
   const checkIntegrations = async () => {
     try {
@@ -42,6 +47,86 @@ const Settings = () => {
       setIsLoading(false);
       setIsRefreshing(false);
     }
+  };
+
+  // Fetch social media settings
+  const { data: socialMediaData, isLoading: isLoadingSocial } = useQuery({
+    queryKey: ["social-media-settings"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("social_media_settings")
+        .select("platform, url, is_enabled, display_order")
+        .order("display_order", { ascending: true });
+
+      if (error) throw error;
+
+      const settingsMap: Record<string, { url: string; is_enabled: boolean }> = {};
+      (data || []).forEach((item) => {
+        settingsMap[item.platform] = {
+          url: item.url || "",
+          is_enabled: item.is_enabled,
+        };
+      });
+
+      return settingsMap;
+    },
+  });
+
+  useEffect(() => {
+    if (socialMediaData) {
+      setSocialMediaSettings(socialMediaData);
+    }
+  }, [socialMediaData]);
+
+  // Update social media settings mutation
+  const updateSocialMedia = useMutation({
+    mutationFn: async (updates: Record<string, { url: string; is_enabled: boolean }>) => {
+      const updatePromises = Object.entries(updates).map(async ([platform, { url, is_enabled }]) => {
+        const { error } = await supabase
+          .from("social_media_settings")
+          .update({ url, is_enabled })
+          .eq("platform", platform);
+
+        if (error) throw error;
+      });
+
+      await Promise.all(updatePromises);
+
+      // Log activity
+      await logActivity({
+        action: "update",
+        entityType: "social_media_settings",
+        payload: { platforms: Object.keys(updates) },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["social-media-settings"] });
+      toast({
+        title: "Social media settings updated",
+        description: "Your social media URLs have been saved successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update social media settings",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSocialMediaChange = (platform: string, field: "url" | "is_enabled", value: string | boolean) => {
+    setSocialMediaSettings((prev) => ({
+      ...prev,
+      [platform]: {
+        ...prev[platform],
+        [field]: value,
+      },
+    }));
+  };
+
+  const handleSaveSocialMedia = () => {
+    updateSocialMedia.mutate(socialMediaSettings);
   };
 
   useEffect(() => {
@@ -75,7 +160,68 @@ const Settings = () => {
       pageTitle="Settings"
       subtitle="Manage platform preferences, notifications, and integrations."
     >
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="space-y-6">
+        {/* Social Media Settings */}
+        <Card className="rounded-3xl">
+          <CardHeader>
+            <CardTitle className="text-base md:text-lg font-semibold">
+              Social Media Links
+            </CardTitle>
+            <CardDescription className="text-xs md:text-sm">
+              Manage your social media profile URLs displayed throughout the site.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {isLoadingSocial ? (
+              <div className="space-y-4">
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-20 w-full" />
+              </div>
+            ) : (
+              <>
+                {["instagram", "tiktok", "linkedin", "facebook", "whatsapp"].map((platform) => (
+                  <div key={platform} className="space-y-2 border-b pb-4 last:border-0 last:pb-0">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm md:text-base font-medium capitalize">{platform}</Label>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={socialMediaSettings[platform]?.is_enabled || false}
+                          onCheckedChange={(checked) =>
+                            handleSocialMediaChange(platform, "is_enabled", checked)
+                          }
+                        />
+                        <span className="text-xs md:text-sm text-muted-foreground">
+                          {socialMediaSettings[platform]?.is_enabled ? "Enabled" : "Disabled"}
+                        </span>
+                      </div>
+                    </div>
+                    <Input
+                      type="url"
+                      placeholder={`https://www.${platform === "whatsapp" ? "wa.me" : platform}.com/...`}
+                      value={socialMediaSettings[platform]?.url || ""}
+                      onChange={(e) => handleSocialMediaChange(platform, "url", e.target.value)}
+                      disabled={!socialMediaSettings[platform]?.is_enabled}
+                      className="w-full text-sm md:text-base"
+                    />
+                  </div>
+                ))}
+                <div className="pt-4">
+                  <Button
+                    onClick={handleSaveSocialMedia}
+                    disabled={updateSocialMedia.isPending}
+                    className="rounded-full uppercase tracking-wide gap-2 text-xs md:text-sm"
+                  >
+                    <Save className="h-3 w-3 md:h-4 md:w-4" />
+                    {updateSocialMedia.isPending ? "Saving..." : "Save Changes"}
+                  </Button>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <div className="grid gap-6 lg:grid-cols-2">
         <Card className="rounded-3xl">
           <CardHeader>
             <CardTitle className="text-lg font-semibold">
@@ -240,6 +386,7 @@ const Settings = () => {
             )}
           </CardContent>
         </Card>
+        </div>
       </div>
     </AdminLayout>
   );

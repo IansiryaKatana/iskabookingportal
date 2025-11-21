@@ -223,18 +223,18 @@ const BulkMessages = () => {
             {messages.map((message) => (
               <Card key={message.id} className="rounded-3xl">
                 <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="text-lg font-display uppercase tracking-wide flex items-center gap-2">
-                        <Mail className="h-4 w-4" />
-                        {message.title}
-                      </CardTitle>
-                      <CardDescription className="mt-2">{message.message}</CardDescription>
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
+                    <CardTitle className="text-lg font-display uppercase tracking-wide flex items-center gap-2 flex-1">
+                      <Mail className="h-4 w-4 flex-shrink-0" />
+                      <span className="break-words">{message.title}</span>
+                    </CardTitle>
+                    <div className="flex-shrink-0">
+                      {getStatusBadge(message.status)}
                     </div>
-                    {getStatusBadge(message.status)}
                   </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="pt-0">
+                  <p className="text-sm text-muted-foreground mb-4 break-words">{message.message}</p>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                     <div>
                       <p className="text-muted-foreground">Recipients</p>

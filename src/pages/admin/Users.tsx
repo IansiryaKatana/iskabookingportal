@@ -3,7 +3,7 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Mail, User, Shield, AtSign } from "lucide-react";
+import { Plus, Mail, User, Shield, AtSign, MoreVertical, Pencil, Trash2, Eye } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -12,6 +12,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -27,6 +44,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { logActivity } from "@/utils/auditLog";
 
 const Users = () => {
   const { toast } = useToast();
@@ -34,6 +52,12 @@ const Users = () => {
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"staff" | "superadmin">("staff");
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<{ id: string; first_name: string; last_name: string; email: string; role: string } | null>(null);
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
+  const [editRole, setEditRole] = useState<"staff" | "superadmin">("staff");
 
   // Fetch all users with profiles
   const { data: users, isLoading } = useQuery({
@@ -54,12 +78,33 @@ const Users = () => {
 
       if (profileIds.length > 0) {
         try {
-          const { data: emails, error: emailError } = await supabase.functions.invoke("get-user-emails", {
+          const { data, error: emailError } = await supabase.functions.invoke("get-user-emails", {
             body: { userIds: profileIds },
           });
 
-          if (!emailError && emails) {
-            emailMap = emails;
+          if (!emailError && data?.emails) {
+            emailMap = data.emails;
+          } else if (emailError) {
+            console.warn("Could not fetch user emails via edge function:", emailError);
+            // Fallback: try direct admin API calls
+            const emailPromises = profileIds.map(async (userId) => {
+              try {
+                const { data: user, error } = await supabase.auth.admin.getUserById(userId);
+                if (!error && user?.user?.email) {
+                  return { userId, email: user.user.email };
+                }
+                return null;
+              } catch (err) {
+                return null;
+              }
+            });
+
+            const emailResults = await Promise.all(emailPromises);
+            emailResults.forEach((result) => {
+              if (result) {
+                emailMap[result.userId] = result.email;
+              }
+            });
           }
         } catch (err) {
           console.warn("Could not fetch user emails:", err);
@@ -96,6 +141,14 @@ const Users = () => {
         }
       }
 
+      // Log activity
+      await logActivity({
+        action: "create",
+        entityType: "user",
+        entityId: data.user?.id,
+        payload: { email, role },
+      });
+
       return data;
     },
     onSuccess: () => {
@@ -126,6 +179,14 @@ const Users = () => {
         .eq("id", userId);
 
       if (error) throw error;
+
+      // Log activity
+      await logActivity({
+        action: "update",
+        entityType: "user",
+        entityId: userId,
+        payload: { role },
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
@@ -142,6 +203,104 @@ const Users = () => {
       });
     },
   });
+
+  // Update user mutation
+  const updateUser = useMutation({
+    mutationFn: async ({ userId, firstName, lastName, role }: { userId: string; firstName: string; lastName: string; role: "staff" | "superadmin" }) => {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ 
+          first_name: firstName,
+          last_name: lastName,
+          role 
+        })
+        .eq("id", userId);
+
+      if (error) throw error;
+
+      // Log activity
+      await logActivity({
+        action: "update",
+        entityType: "user",
+        entityId: userId,
+        payload: { first_name: firstName, last_name: lastName, role },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      toast({
+        title: "User updated",
+        description: "User information has been updated successfully.",
+      });
+      setEditDialogOpen(false);
+      setSelectedUser(null);
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update user",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete user mutation
+  const deleteUser = useMutation({
+    mutationFn: async (userId: string) => {
+      // Get user email before deletion for logging
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("first_name, last_name, role")
+        .eq("id", userId)
+        .single();
+
+      // Delete user from auth (this will cascade delete profile)
+      const { error } = await supabase.auth.admin.deleteUser(userId);
+
+      if (error) throw error;
+
+      // Log activity
+      await logActivity({
+        action: "delete",
+        entityType: "user",
+        entityId: userId,
+        payload: { 
+          first_name: profile?.first_name,
+          last_name: profile?.last_name,
+          role: profile?.role 
+        },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      toast({
+        title: "User deleted",
+        description: "User has been deleted successfully.",
+      });
+      setDeleteDialogOpen(false);
+      setSelectedUser(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete user",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleEdit = (user: typeof users[0]) => {
+    setSelectedUser(user);
+    setEditFirstName(user.first_name || "");
+    setEditLastName(user.last_name || "");
+    setEditRole((user.role as "staff" | "superadmin") || "staff");
+    setEditDialogOpen(true);
+  };
+
+  const handleDelete = (user: typeof users[0]) => {
+    setSelectedUser(user);
+    setDeleteDialogOpen(true);
+  };
 
   const UsersSkeleton = () => (
     <>
@@ -265,16 +424,16 @@ const Users = () => {
                       <div className="space-y-2 pt-2 border-t border-border/60">
                         <div className="flex items-center gap-2 text-sm">
                           <AtSign className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <span className="text-muted-foreground">Email: </span>
-                            <span className="font-medium truncate block">{email}</span>
+                          <div className="flex-1 min-w-0 flex items-center gap-2">
+                            <span className="text-muted-foreground">Email:</span>
+                            <span className="font-medium truncate">{email}</span>
                           </div>
                         </div>
 
                         <div className="flex items-center gap-2 text-sm">
                           <Shield className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <span className="text-muted-foreground">Role: </span>
+                          <div className="flex-1 min-w-0 flex items-center gap-2">
+                            <span className="text-muted-foreground">Role:</span>
                             <Badge variant="outline" className="uppercase text-xs">
                               {role}
                             </Badge>
@@ -282,7 +441,7 @@ const Users = () => {
                         </div>
 
                         {/* Role Selector */}
-                        <div className="pt-2">
+                        <div className="pt-2 space-y-2">
                           <Select
                             value={role}
                             onValueChange={(value) =>
@@ -297,6 +456,26 @@ const Users = () => {
                               <SelectItem value="superadmin">Superadmin</SelectItem>
                             </SelectContent>
                           </Select>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1 rounded-full uppercase tracking-wide text-xs"
+                              onClick={() => handleEdit(user)}
+                            >
+                              <Pencil className="h-3 w-3 mr-1" />
+                              Edit
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1 rounded-full uppercase tracking-wide text-xs text-destructive hover:text-destructive"
+                              onClick={() => handleDelete(user)}
+                            >
+                              <Trash2 className="h-3 w-3 mr-1" />
+                              Delete
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </CardContent>
@@ -330,20 +509,44 @@ const Users = () => {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Select
-                            value={user.role}
-                            onValueChange={(value) =>
-                              updateRole.mutate({ userId: user.id, role: value as "staff" | "superadmin" })
-                            }
-                          >
-                            <SelectTrigger className="w-40 rounded-full">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="staff">Staff</SelectItem>
-                              <SelectItem value="superadmin">Superadmin</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <div className="flex items-center justify-end gap-2">
+                            <Select
+                              value={user.role}
+                              onValueChange={(value) =>
+                                updateRole.mutate({ userId: user.id, role: value as "staff" | "superadmin" })
+                              }
+                            >
+                              <SelectTrigger className="w-40 rounded-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="staff">Staff</SelectItem>
+                                <SelectItem value="superadmin">Superadmin</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
+                                  <MoreVertical className="h-4 w-4" />
+                                  <span className="sr-only">Open menu</span>
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="rounded-2xl">
+                                <DropdownMenuItem onClick={() => handleEdit(user)} className="cursor-pointer">
+                                  <Pencil className="mr-2 h-4 w-4" />
+                                  Edit User
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem 
+                                  onClick={() => handleDelete(user)} 
+                                  className="cursor-pointer text-destructive focus:text-destructive"
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete User
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -424,6 +627,104 @@ const Users = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit User Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px] rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-display uppercase tracking-wide">
+              Edit User
+            </DialogTitle>
+            <DialogDescription>
+              Update user information and role.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="edit-first-name">First Name</Label>
+              <Input
+                id="edit-first-name"
+                value={editFirstName}
+                onChange={(e) => setEditFirstName(e.target.value)}
+                className="mt-2"
+                placeholder="John"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-last-name">Last Name</Label>
+              <Input
+                id="edit-last-name"
+                value={editLastName}
+                onChange={(e) => setEditLastName(e.target.value)}
+                className="mt-2"
+                placeholder="Doe"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-role">Role *</Label>
+              <Select value={editRole} onValueChange={(value) => setEditRole(value as "staff" | "superadmin")}>
+                <SelectTrigger id="edit-role" className="mt-2">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="staff">Staff</SelectItem>
+                  <SelectItem value="superadmin">Superadmin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)} className="rounded-full uppercase tracking-wide">
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (selectedUser) {
+                  updateUser.mutate({
+                    userId: selectedUser.id,
+                    firstName: editFirstName,
+                    lastName: editLastName,
+                    role: editRole,
+                  });
+                }
+              }}
+              disabled={!editFirstName || !editLastName || updateUser.isPending}
+              className="rounded-full uppercase tracking-wide"
+            >
+              {updateUser.isPending ? "Updating..." : "Update User"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete User Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent className="rounded-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-display uppercase tracking-wide">
+              Delete User
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {selectedUser ? `${selectedUser.first_name} ${selectedUser.last_name}` : "this user"}? 
+              This action cannot be undone and will permanently remove the user from the system.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-full uppercase tracking-wide">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (selectedUser) {
+                  deleteUser.mutate(selectedUser.id);
+                }
+              }}
+              disabled={deleteUser.isPending}
+              className="rounded-full uppercase tracking-wide bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteUser.isPending ? "Deleting..." : "Delete User"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AdminLayout>
   );
 };

@@ -275,7 +275,7 @@ const AuditLogs = () => {
                       </TableCell>
                       <TableCell>
                         <p className="text-sm text-muted-foreground max-w-md truncate">
-                          {log.details ? JSON.stringify(log.details) : "—"}
+                          {log.payload ? JSON.stringify(log.payload) : "—"}
                         </p>
                       </TableCell>
                     </TableRow>

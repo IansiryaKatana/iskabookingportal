@@ -1,8 +1,52 @@
-import { Instagram, Linkedin, MessageCircle } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import { FaInstagram, FaTiktok, FaLinkedin, FaFacebook, FaWhatsapp } from "react-icons/fa";
 import logo from "@/assets/urban-hub-logo.webp";
 
+const platformConfig: Record<string, { icon: React.ReactNode }> = {
+  instagram: { icon: <FaInstagram className="h-5 w-5" /> },
+  tiktok: { icon: <FaTiktok className="h-5 w-5" /> },
+  linkedin: { icon: <FaLinkedin className="h-5 w-5" /> },
+  facebook: { icon: <FaFacebook className="h-5 w-5" /> },
+  whatsapp: { icon: <FaWhatsapp className="h-5 w-5" /> },
+};
+
 const Footer = () => {
+  const [socials, setSocials] = useState<Array<{ name: string; url: string; icon: React.ReactNode }>>([]);
+
+  useEffect(() => {
+    const fetchSocials = async () => {
+      const { data, error } = await supabase
+        .from("social_media_settings")
+        .select("platform, url, is_enabled")
+        .eq("is_enabled", true)
+        .order("display_order", { ascending: true });
+
+      if (error) {
+        console.error("Error fetching social media settings:", error);
+        return;
+      }
+
+      const enabledSocials = (data || [])
+        .filter((item) => item.url)
+        .map((item) => {
+          const config = platformConfig[item.platform];
+          if (!config) return null;
+          return {
+            name: item.platform.charAt(0).toUpperCase() + item.platform.slice(1),
+            url: item.url || "#",
+            icon: config.icon,
+          };
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null);
+
+      setSocials(enabledSocials);
+    };
+
+    fetchSocials();
+  }, []);
+
   return (
     <footer style={{ backgroundColor: 'hsl(0 0% 0%)' }} className="text-white py-12 md:py-16">
       <div className="container mx-auto px-4 max-w-7xl">
@@ -15,36 +59,19 @@ const Footer = () => {
               Premium student accommodation designed for modern living and academic success.
             </p>
             <div className="flex gap-3">
-              <Button
-                size="icon"
-                variant="outline"
-                className="bg-white/10 border-white/20 hover:bg-primary hover:border-primary"
-                asChild
-              >
-                <a href="#" aria-label="Instagram">
-                  <Instagram className="h-5 w-5" />
-                </a>
-              </Button>
-              <Button
-                size="icon"
-                variant="outline"
-                className="bg-white/10 border-white/20 hover:bg-primary hover:border-primary"
-                asChild
-              >
-                <a href="#" aria-label="LinkedIn">
-                  <Linkedin className="h-5 w-5" />
-                </a>
-              </Button>
-              <Button
-                size="icon"
-                variant="outline"
-                className="bg-white/10 border-white/20 hover:bg-accent hover:border-accent"
-                asChild
-              >
-                <a href="#" aria-label="Message us">
-                  <MessageCircle className="h-5 w-5" />
-                </a>
-              </Button>
+              {socials.map((social) => (
+                <Button
+                  key={social.name}
+                  size="icon"
+                  variant="outline"
+                  className="bg-white/10 border-white/20 hover:bg-primary hover:border-primary"
+                  asChild
+                >
+                  <a href={social.url} target="_blank" rel="noopener noreferrer" aria-label={social.name}>
+                    {social.icon}
+                  </a>
+                </Button>
+              ))}
             </div>
           </div>
 
