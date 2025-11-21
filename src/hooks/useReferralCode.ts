@@ -27,6 +27,7 @@ export const useValidateReferralCode = (code: string | null | undefined) => {
 
       if (error) {
         console.error("Error validating referral code:", error);
+        console.error("Error details:", JSON.stringify(error, null, 2));
         return {
           is_valid: false,
           partner_id: null,
