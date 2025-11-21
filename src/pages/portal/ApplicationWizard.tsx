@@ -3905,32 +3905,35 @@ useEffect(() => {
           </Alert>
         )}
 
-        <div className="rounded-3xl border border-border bg-background/60 backdrop-blur p-6 md:p-8 shadow-xl shadow-black/5">
+        <div className="rounded-3xl border-2 border-primary/20 bg-primary text-primary-foreground p-6 md:p-8 shadow-xl shadow-primary/20">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-                Application
-              </p>
-              <h2 className="text-3xl font-display font-black uppercase tracking-wide">
+            <div className="space-y-2">
+              {application.contract_id && (
+                <h1 className="text-2xl md:text-3xl font-display font-black uppercase tracking-wide text-primary-foreground">
+                  {steps[currentStep - 1]?.title || "Personal Information"}
+                </h1>
+              )}
+              <h2 className="text-xl md:text-2xl font-display font-bold uppercase tracking-wide text-primary-foreground/90">
                 {application.contract_id
                   ? `Step ${currentStep} of ${steps.length}`
                   : "Complete the journey"}
               </h2>
             </div>
             <div className="flex items-center gap-3">
-              <div className={`w-48 ${allSignaturesCompleted ? '[&>*]:!bg-green-600' : ''}`}>
+              <div className={`w-48 ${allSignaturesCompleted ? '[&>*]:!bg-green-600' : '[&>*]:bg-primary-foreground/30'}`}>
                 <Progress 
-                  value={progress} 
+                  value={progress}
+                  className="h-2"
                 />
               </div>
               <span className={`text-sm font-semibold uppercase tracking-wide ${
-                allSignaturesCompleted ? 'text-green-600' : ''
+                allSignaturesCompleted ? 'text-green-200' : 'text-primary-foreground'
               }`}>
                 {Math.round(progress)}%
               </span>
             </div>
           </div>
-          <div className="flex flex-wrap gap-4 mt-6">
+          <div className="flex flex-wrap gap-3 md:gap-4 mt-6">
             {steps.map((step) => {
               const isActive = step.number === currentStep;
               const isComplete = application.student_application_steps.some(
@@ -3942,29 +3945,22 @@ useEffect(() => {
                   key={step.number}
                   type="button"
                   onClick={() => setCurrentStep(step.number)}
-                  className="flex items-center gap-2 text-left"
+                  className={`px-4 py-2 rounded-full text-sm font-semibold uppercase tracking-wide transition-all hover:opacity-80 ${
+                    isActive
+                      ? "bg-primary-foreground text-primary shadow-lg scale-105"
+                      : isComplete
+                      ? "bg-primary-foreground/20 text-primary-foreground border-2 border-primary-foreground/40"
+                      : "bg-primary-foreground/10 text-primary-foreground/70 border-2 border-primary-foreground/30"
+                  }`}
                 >
-                  <span
-                    className={`flex h-8 w-8 items-center justify-center rounded-full border text-sm font-semibold ${
-                      isActive
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : isComplete
-                        ? "border-primary/40 bg-primary/10 text-primary"
-                        : "border-border text-muted-foreground"
-                    }`}
-                  >
-                    {isComplete ? <CheckCircle2 className="h-4 w-4" /> : step.number}
-                  </span>
-                  <span className="text-sm uppercase tracking-wide">
-                    {step.title}
-                  </span>
+                  Step {String(step.number).padStart(2, '0')}
                 </button>
               );
             })}
           </div>
         </div>
 
-        <div className="rounded-3xl border border-border bg-background/80 backdrop-blur p-6 md:p-8 shadow-2xl shadow-black/10">
+        <div className="rounded-3xl border-2 border-primary/10 bg-background/95 backdrop-blur p-6 md:p-8 shadow-2xl shadow-primary/5">
           {renderStep()}
         </div>
       </section>

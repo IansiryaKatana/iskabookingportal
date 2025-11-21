@@ -336,7 +336,9 @@ serve(async (req) => {
               ? new Date(application.contracts.end_date).toLocaleDateString()
               : "TBA";
             const applicationId = application?.id || "";
-            const portalUrl = `${Deno.env.get("SUPABASE_URL")?.replace("/rest/v1", "") || ""}/portal`;
+            // Use PORTAL_URL secret if available, otherwise construct from SUPABASE_URL
+            const portalUrl = Deno.env.get("PORTAL_URL") || 
+              `${Deno.env.get("SUPABASE_URL")?.replace("/rest/v1", "") || "https://iskabookingportal.netlify.app"}/portal`;
 
             // Replace all template variables
             const replacements: Record<string, string> = {
@@ -374,7 +376,11 @@ serve(async (req) => {
               studentId
             );
             // Replace logo URL placeholder with actual logo URL
-            const logoUrl = `${Deno.env.get("SUPABASE_URL")?.replace("/rest/v1", "") || ""}/storage/v1/object/public/studio-media/favicon.png`;
+            // Use PORTAL_URL for logo URL, fallback to SUPABASE_URL
+            const baseUrl = Deno.env.get("PORTAL_URL")?.replace("/portal", "") || 
+              Deno.env.get("SUPABASE_URL")?.replace("/rest/v1", "") || 
+              "https://iskabookingportal.netlify.app";
+            const logoUrl = `${baseUrl}/storage/v1/object/public/studio-media/favicon.png`;
             emailBodyHtml = emailBodyHtml.replace(/{logo_url}/g, logoUrl);
             
             const emailBodyText = replaceVariables(

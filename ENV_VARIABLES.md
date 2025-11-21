@@ -25,6 +25,18 @@ These are set as Supabase Edge Function secrets, not in `.env` files.
 - `SUPABASE_URL` - Your Supabase project URL
 - `SUPABASE_SERVICE_ROLE_KEY` - Service role key (NEVER expose in frontend)
 
+### Supabase Database Connection (Optional - For Scripts/Backups Only)
+- `SUPABASE_DB_URL` - Direct PostgreSQL connection string
+  - **Format:** `postgresql://postgres.[PROJECT_REF]:[PASSWORD]@[HOST]:5432/postgres`
+  - **Where to find:** Supabase Dashboard → Project Settings → Database → Connection string
+  - **Example:** `postgresql://postgres.pzptocwdaqpczexlbajr:password@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres`
+  - **Only needed for:** Database backups (`pg_dump`), direct SQL scripts, migration tools
+  - **NOT needed for:** Normal app usage (use `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` instead)
+
+- `SUPABASE_DB_PASSWORD` - Database password (alternative to full URL)
+  - **Where to find:** Supabase Dashboard → Project Settings → Database → Reset database password
+  - **Used by:** `scripts/run-sql.mjs` to construct connection string
+
 ### Stripe
 - `STRIPE_SECRET_KEY` - Stripe secret key (starts with `sk_`)
 - `STRIPE_WEBHOOK_SECRET` - Webhook signing secret (starts with `whsec_`)
