@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -136,14 +137,37 @@ const PartnerLogin = () => {
             </Button>
           </form>
 
-          <div className="mt-6 text-sm text-muted-foreground text-center">
-            Don't have an account?{" "}
-            <button
-              className="font-semibold text-primary hover:underline"
-              onClick={() => navigate("/partner/register")}
-            >
-              Register here
-            </button>
+          <div className="mt-6 space-y-2 text-sm text-muted-foreground text-center">
+            <div>
+              Don't have an account?{" "}
+              <button
+                className="font-semibold text-primary hover:underline"
+                onClick={() => navigate("/partner/register")}
+              >
+                Register here
+              </button>
+            </div>
+            <div>
+              Forgot your password?{" "}
+              <button
+                className="font-semibold text-primary hover:underline"
+                onClick={() => {
+                  // Trigger password reset email
+                  const email = prompt("Enter your email address to reset your password:");
+                  if (email) {
+                    supabase.auth.resetPasswordForEmail(email, {
+                      redirectTo: `${window.location.origin}/partner/reset-password`,
+                    }).then(() => {
+                      alert("Password reset email sent! Check your inbox.");
+                    }).catch((error) => {
+                      alert(`Error: ${error.message}`);
+                    });
+                  }
+                }}
+              >
+                Reset password
+              </button>
+            </div>
           </div>
         </CardContent>
       </Card>

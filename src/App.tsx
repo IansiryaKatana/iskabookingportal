@@ -37,6 +37,7 @@ import AdminPartnerCommissions from "./pages/admin/PartnerCommissions";
 import AdminWeeklyPaymentReport from "./pages/admin/WeeklyPaymentReport";
 import PartnerLogin from "./pages/partner/Login";
 import PartnerRegister from "./pages/partner/Register";
+import PartnerResetPassword from "./pages/partner/ResetPassword";
 import PartnerDashboard from "./pages/partner/Dashboard";
 import PartnerReferrals from "./pages/partner/Referrals";
 import PartnerCommissions from "./pages/partner/Commissions";
@@ -351,6 +352,7 @@ const App = () => (
             {/* Partner Portal Routes */}
             <Route path="/partner/login" element={<PartnerLogin />} />
             <Route path="/partner/register" element={<PartnerRegister />} />
+            <Route path="/partner/reset-password" element={<PartnerResetPassword />} />
             <Route
               path="/partner"
               element={

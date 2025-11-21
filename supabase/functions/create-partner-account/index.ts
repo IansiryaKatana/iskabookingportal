@@ -201,14 +201,14 @@ serve(async (req) => {
       if (existingUserProfile) {
         // If already linked to this partner, just send password reset
         if (existingUserProfile.partner_id === partner_id && existingUserProfile.role === "partner") {
-          // Generate password reset link
-          const { data: resetData, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
-            type: "recovery",
-            email,
+          // Send password reset email (this actually sends the email)
+          const portalUrl = Deno.env.get("PORTAL_URL") || "https://iskabookingportal.netlify.app";
+          const { error: resetError } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
+            redirectTo: `${portalUrl}/partner/reset-password`,
           });
 
           if (resetError) {
-            console.warn("Failed to generate password reset link:", resetError);
+            console.warn("Failed to send password reset email:", resetError);
             return new Response(
               JSON.stringify({ error: "Account exists but failed to send password reset email" }),
               {
@@ -222,7 +222,6 @@ serve(async (req) => {
             JSON.stringify({
               success: true,
               user_id: existingUser.id,
-              reset_link: resetData?.properties?.action_link,
               message: "Account already exists. Password reset email sent.",
             }),
             {
@@ -276,21 +275,20 @@ serve(async (req) => {
           );
         }
 
-        // Generate password reset link
-        const { data: resetData, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
-          type: "recovery",
-          email,
+        // Send password reset email (this actually sends the email)
+        const portalUrl = Deno.env.get("PORTAL_URL") || "https://iskabookingportal.netlify.app";
+        const { error: resetError } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
+          redirectTo: `${portalUrl}/partner/reset-password`,
         });
 
         if (resetError) {
-          console.warn("Failed to generate password reset link:", resetError);
+          console.warn("Failed to send password reset email:", resetError);
         }
 
         return new Response(
           JSON.stringify({
             success: true,
             user_id: existingUser.id,
-            reset_link: resetData?.properties?.action_link,
             message: "Existing account linked to partner. Password reset email sent.",
           }),
           {
@@ -342,22 +340,25 @@ serve(async (req) => {
       );
     }
 
-    // Generate password reset link
-    const { data: resetData, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
-      type: "recovery",
-      email,
+    // Send password reset email (this actually sends the email)
+    const portalUrl = Deno.env.get("PORTAL_URL") || "https://iskabookingportal.netlify.app";
+    const { error: resetError } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
+      redirectTo: `${portalUrl}/partner/reset-password`,
     });
 
     if (resetError) {
-      console.warn("Failed to generate password reset link:", resetError);
+      console.warn("Failed to send password reset email:", resetError);
       // Don't fail the whole operation, account is created
+      // Log the error but still return success since account was created
     }
 
     return new Response(
       JSON.stringify({
         success: true,
         user_id: authData.user.id,
-        reset_link: resetData?.properties?.action_link,
+        message: resetError 
+          ? "Account created but password reset email failed. Please use 'Reset Password' from Supabase Dashboard."
+          : "Account created. Password reset email sent.",
       }),
       {
         status: 200,
