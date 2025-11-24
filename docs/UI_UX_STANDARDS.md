@@ -187,6 +187,57 @@ When reviewing code:
 3. Ensure typography uses standard heading styles
 4. Confirm spacing follows standard patterns
 
+## Academic Year Tabs
+
+### Standard Design Pattern
+
+Academic year selection tabs use a red-themed segmented control design:
+
+**Container:**
+- Background: `bg-primary/60` (lighter red)
+- Shape: `rounded-full`
+- Height: `h-12`
+- Padding: `p-1.5`
+- Gap: `gap-1.5 md:gap-2`
+- Width: `w-auto` (fits content, not full width)
+
+**Active Tab:**
+- Background: `bg-primary` (darker red - full primary color)
+- Text: `text-white`
+- Shadow: `shadow-md`
+- Classes: `data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md`
+
+**Inactive Tab:**
+- Background: `bg-transparent` (shows lighter container background)
+- Text: `text-white/90`
+- Hover: `hover:bg-primary/40`
+- Classes: `data-[state=inactive]:bg-transparent data-[state=inactive]:text-white/90`
+
+**Text Format:**
+- Display full year format: "2026/2027" (not abbreviated "26/27")
+- Font: `font-semibold`
+- Size: `text-xs md:text-sm`
+- Tracking: `uppercase tracking-wide`
+
+**Example Implementation:**
+```tsx
+<TabsList className="inline-flex h-12 items-center justify-center rounded-full bg-primary/60 p-1.5 gap-1.5 md:gap-2 shadow-sm">
+  <TabsTrigger
+    value={year.name}
+    className="rounded-full uppercase tracking-wide text-xs md:text-sm font-semibold px-4 md:px-6 py-2 md:py-2.5 flex-shrink-0 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md transition-all data-[state=inactive]:bg-transparent data-[state=inactive]:text-white/90 hover:data-[state=inactive]:bg-primary/40"
+  >
+    {year.name}
+  </TabsTrigger>
+</TabsList>
+```
+
+**Visual Result:**
+- Red container with lighter red background
+- Active tab: darker red with shadow (stands out)
+- Inactive tab: transparent (shows lighter container background)
+- Both tabs have white text for contrast
+- Compact width (fits content, not full width)
+
 ## Updates
 
 If you need to update a standard:

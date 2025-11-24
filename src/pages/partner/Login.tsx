@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Mail, LogIn, Eye, EyeOff } from "lucide-react";
+import { useBrandingSetting } from "@/hooks/useBranding";
 
 const PartnerLogin = () => {
   const { signIn, loading, user, profile } = useAuth();
@@ -14,6 +15,8 @@ const PartnerLogin = () => {
   const location = useLocation();
   const redirectPath =
     (location.state as { from?: string })?.from ?? "/partner";
+  const faviconPath = useBrandingSetting("favicon_path");
+  const faviconUrl = faviconPath || "/favicon.png";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -54,7 +57,7 @@ const PartnerLogin = () => {
       <Card className="w-full max-w-lg rounded-3xl shadow-xl border border-border/50 bg-background">
         <CardHeader className="space-y-3 text-center">
           <div className="mx-auto h-12 w-12 flex items-center justify-center">
-            <img src="/favicon.png" alt="Urban Hub" className="h-12 w-12" />
+            <img src={faviconUrl} alt="Urban Hub" className="h-12 w-12" />
           </div>
           <CardTitle className="text-2xl font-display font-black uppercase tracking-wide">
             Partner Portal

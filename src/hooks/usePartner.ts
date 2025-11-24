@@ -61,13 +61,38 @@ export const usePartnerReferrals = () => {
   return useQuery<PartnerReferralSummary[]>({
     queryKey: ["partner-referrals", partnerId],
     queryFn: async () => {
-      if (!partnerId) return [];
+      if (!partnerId) {
+        console.warn("[usePartnerReferrals] No partner_id found in profile", {
+          profileId: profile?.id,
+          profileRole: profile?.role,
+          partnerId: profile?.partner_id,
+        });
+        return [];
+      }
+
+      console.log("[usePartnerReferrals] Fetching referrals for partner", partnerId);
 
       const { data, error } = await supabase.rpc("get_partner_referral_payment_summary", {
         p_partner_id: partnerId,
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("[usePartnerReferrals] Error fetching referrals", {
+          error,
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        });
+        throw error;
+      }
+
+      console.log("[usePartnerReferrals] Received referrals", {
+        count: data?.length || 0,
+        partnerId,
+        referrals: data,
+      });
+
       return (data || []) as PartnerReferralSummary[];
     },
     enabled: !!partnerId,

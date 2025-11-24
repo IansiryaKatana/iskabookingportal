@@ -34,19 +34,29 @@ export async function logActivity(params: AuditLogParams): Promise<void> {
       return;
     }
 
-    // Insert audit log
-    const { error: logError } = await supabase
-      .from("staff_activity_logs")
-      .insert({
-        staff_id: user.id,
-        action: params.action,
-        entity_type: params.entityType || null,
-        entity_id: params.entityId || null,
-        payload: params.payload || null,
-      });
+    // Try using the database function first (if it exists), otherwise fall back to direct insert
+    const { error: functionError } = await supabase.rpc('log_staff_activity', {
+      p_action: params.action,
+      p_entity_type: params.entityType || null,
+      p_entity_id: params.entityId || null,
+      p_payload: params.payload || null,
+    });
 
-    if (logError) {
-      console.error("Failed to log activity:", logError);
+    if (functionError) {
+      // Fall back to direct insert if function doesn't exist or fails
+      const { error: logError } = await supabase
+        .from("staff_activity_logs")
+        .insert({
+          staff_id: user.id,
+          action: params.action,
+          entity_type: params.entityType || null,
+          entity_id: params.entityId || null,
+          payload: params.payload || null,
+        });
+
+      if (logError) {
+        console.error("Failed to log activity:", logError);
+      }
     }
   } catch (error) {
     console.error("Error in logActivity:", error);

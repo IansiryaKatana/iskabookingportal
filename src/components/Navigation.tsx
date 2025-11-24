@@ -4,6 +4,7 @@ import { ChevronDown, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
+import { useBrandingSetting, useNavigationItems } from "@/hooks/useBranding";
 import logo from "@/assets/urban-hub-logo.webp";
 import {
   DropdownMenu,
@@ -17,6 +18,9 @@ const Navigation = () => {
   const { user, profile, role, signOut } = useAuth();
   const [isScrolled, setIsScrolled] = useState(false);
   const navigate = useNavigate();
+  const logoPath = useBrandingSetting("logo_path");
+  const { data: navItems } = useNavigationItems("header");
+  const logoUrl = logoPath || logo;
 
   const initials = (() => {
     const first = profile?.first_name?.[0];
@@ -126,15 +130,21 @@ const Navigation = () => {
       <nav className="container mx-auto px-4 py-3 md:py-4">
         <div className="flex items-center justify-between">
           <div className="hidden lg:flex items-center gap-6 flex-1">
-            <a href="#" className="text-sm font-medium text-white hover:bg-accent-yellow hover:text-black transition-colors px-3 py-2 rounded">HOME</a>
-            <a href="#" className="text-sm font-medium text-white hover:bg-accent-yellow hover:text-black transition-colors px-3 py-2 rounded">ABOUT</a>
-            <a href="#" className="text-sm font-medium text-white hover:bg-accent-yellow hover:text-black transition-colors px-3 py-2 rounded">FAQ</a>
-            <a href="#" className="text-sm font-medium text-white hover:bg-accent-yellow hover:text-black transition-colors px-3 py-2 rounded">BLOG</a>
-            <a href="#" className="text-sm font-medium text-white hover:bg-accent-yellow hover:text-black transition-colors px-3 py-2 rounded">CONTACT</a>
+            {navItems?.map((item) => (
+              <a
+                key={item.id}
+                href={item.url}
+                target={item.opens_in_new_tab ? "_blank" : undefined}
+                rel={item.opens_in_new_tab ? "noopener noreferrer" : undefined}
+                className="text-sm font-medium text-white hover:bg-accent-yellow hover:text-black transition-colors px-3 py-2 rounded"
+              >
+                {item.title}
+              </a>
+            ))}
           </div>
           
           <a href="/" className="flex items-center lg:absolute lg:left-1/2 lg:transform lg:-translate-x-1/2">
-            <img src={logo} alt="Urban Hub" className="h-8 md:h-12" />
+            <img src={logoUrl} alt="Urban Hub" className="h-8 md:h-12" />
           </a>
 
           <div className="hidden xl:flex items-center gap-2">

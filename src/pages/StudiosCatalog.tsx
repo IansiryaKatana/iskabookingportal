@@ -196,9 +196,8 @@ const StudiosCatalog = () => {
   };
 
   const formatYearForDisplay = (yearName: string) => {
-    // Convert "2025/2026" to "25/26" for display
-    // Extract last 2 digits of first year, then last 2 digits of second year
-    return yearName.replace(/\d{2}(\d{2})\/\d{2}(\d{2})/, "$1/$2");
+    // Keep full year format "2025/2026" for display
+    return yearName;
   };
 
   const formatYearForHero = (yearName: string) => {
@@ -306,14 +305,14 @@ const StudiosCatalog = () => {
             <Tabs
               value={selectedYear?.name || ""}
               onValueChange={handleYearChange}
-              className="w-full max-w-3xl"
+              className="w-auto"
             >
-              <TabsList className="inline-flex h-12 items-center justify-center rounded-full bg-muted/50 p-1.5 gap-1.5 md:gap-2 border border-border/50 shadow-sm mx-auto w-full max-w-full overflow-x-auto scrollbar-hide snap-x snap-mandatory">
+              <TabsList className="inline-flex h-12 items-center justify-center rounded-full bg-primary/60 p-1.5 gap-1.5 md:gap-2 shadow-sm">
                 {academicYears.map((ay) => (
                   <TabsTrigger
                     key={ay.id}
                     value={ay.name}
-                    className="rounded-full uppercase tracking-wide text-xs md:text-sm font-semibold px-3 md:px-6 py-2 md:py-2.5 flex-shrink-0 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md transition-all hover:bg-muted/80 data-[state=inactive]:text-muted-foreground snap-start"
+                    className="rounded-full uppercase tracking-wide text-xs md:text-sm font-semibold px-4 md:px-6 py-2 md:py-2.5 flex-shrink-0 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md transition-all data-[state=inactive]:bg-transparent data-[state=inactive]:text-white/90 hover:data-[state=inactive]:bg-primary/40"
                   >
                     {formatYearForDisplay(ay.name)}
                   </TabsTrigger>

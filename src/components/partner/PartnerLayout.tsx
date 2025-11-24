@@ -46,6 +46,7 @@ type PartnerLayoutProps = {
   onBack?: () => void;
   backLabel?: string;
   hideNav?: boolean;
+  actionButton?: React.ReactNode;
 };
 
 const PartnerLayout = ({
@@ -55,6 +56,7 @@ const PartnerLayout = ({
   onBack,
   backLabel = "Back",
   hideNav = false,
+  actionButton,
 }: PartnerLayoutProps) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -151,7 +153,7 @@ const PartnerLayout = ({
           <div className="lg:hidden">
             <header className="border-b border-border/50 bg-background/80 backdrop-blur sticky top-0 z-20">
               <div className="px-4 py-3 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
                   {onBack && (
                     <Button
                       variant="outline"
@@ -163,21 +165,24 @@ const PartnerLayout = ({
                       {backLabel}
                     </Button>
                   )}
-                  <div>
-                    <h1 className="text-lg font-display font-black uppercase tracking-wide">
+                  <div className="flex-1 min-w-0">
+                    <h1 className="text-lg font-display font-black uppercase tracking-wide truncate">
                       {title || "Partner Portal"}
                     </h1>
-                    {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+                    {subtitle && <p className="text-xs text-muted-foreground truncate">{subtitle}</p>}
                   </div>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="rounded-full uppercase tracking-wide"
-                  onClick={() => setMobileNavOpen(!mobileNavOpen)}
-                >
-                  Menu
-                </Button>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {actionButton}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-full uppercase tracking-wide"
+                    onClick={() => setMobileNavOpen(!mobileNavOpen)}
+                  >
+                    Menu
+                  </Button>
+                </div>
               </div>
               {mobileNavOpen && (
                 <nav className="px-4 py-4 border-t border-border/50 space-y-1 bg-background">

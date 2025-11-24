@@ -42,12 +42,16 @@ Deliver a data-driven accommodation booking experience where every studio-grade 
 - `bulk_messages` – bulk message tracking and history.
 - `refunds` – refund processing and audit trail.
 - `financial_forecasts` – revenue forecasting calculations.
+- `branding_settings` – branding assets paths and text content (logo, favicon, contact info, footer text).
+- `navigation_items` – navigation items for header and footer with ordering and active status.
+- `opening_hours` – structured opening hours for each day of the week.
 
 ### 3.2 Storage Buckets
 
 - `studio-media/{studio_grade_slug}/{uuid}` – public via signed URLs.
 - `documents/{student_id}/{application_id}/{type}/{uuid}` – private.
 - `contracts/{application_id}/signed-{timestamp}.pdf` – private.
+- `branding/` – branding assets (logo, favicon) – public read access.
 
 ### 3.3 Roles & RLS
 
@@ -431,7 +435,16 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
 - **Touch-Friendly**: Optimized button sizes and spacing
 - **Mobile Forms**: Bottom-sheet dialogs, zero bottom margin
 
-### 9.8 Additional Features
+### 9.8 Academic Year Tabs UI Pattern
+- **Design**: Red-themed segmented control with compact width
+- **Container**: Lighter red background (`bg-primary/60`), rounded-full, auto width
+- **Active State**: Darker red (`bg-primary`) with shadow for visual prominence
+- **Inactive State**: Transparent background showing container color
+- **Text Format**: Full year format "2026/2027" (not abbreviated)
+- **Location**: Studio catalog page for academic year selection
+- **Reference**: See `docs/UI_UX_STANDARDS.md` for detailed implementation
+
+### 9.9 Additional Features
 - **Skeleton Loaders**: Component-specific loaders on all pages
 - **Color-Coded Badges**: Status indicators throughout the system
 - **Studio Roster Filters**: Allocation and status filtering

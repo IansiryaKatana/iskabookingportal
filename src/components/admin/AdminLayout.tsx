@@ -22,6 +22,7 @@ import {
   DollarSign,
   ChevronDown,
   ChevronRight,
+  Image,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -207,6 +208,11 @@ const navSections: NavSection[] = [
         label: "Settings",
         to: "/admin/settings",
         icon: Settings,
+      },
+      {
+        label: "Branding",
+        to: "/admin/branding",
+        icon: Image,
       },
     ],
   },

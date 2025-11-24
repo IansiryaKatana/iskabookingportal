@@ -1,0 +1,63 @@
+-- Fix ambiguous payment_status column reference - FINAL VERSION
+-- The issue is that payment_status exists in the RETURN TABLE definition
+-- and also in the get_payment_summary function return
+-- We need to fully qualify all column references
+
+CREATE OR REPLACE FUNCTION public.get_partner_referral_payment_summary(p_partner_id UUID)
+RETURNS TABLE (
+  application_id UUID,
+  student_first_name TEXT,
+  student_last_name TEXT,
+  contract_name TEXT,
+  academic_year_name TEXT,
+  total_contract_value NUMERIC,
+  total_paid NUMERIC,
+  remaining_balance NUMERIC,
+  payment_status TEXT,
+  commission_amount NUMERIC,
+  commission_status TEXT,
+  last_payment_date TIMESTAMPTZ
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    sa.id AS application_id,
+    COALESCE(p.first_name, '') AS student_first_name,
+    COALESCE(p.last_name, '') AS student_last_name,
+    COALESCE(c.name, '') AS contract_name,
+    COALESCE(ay.name, '') AS academic_year_name,
+    COALESCE(pr.total_contract_value, 0) AS total_contract_value,
+    COALESCE(ps.total_paid, 0) AS total_paid,
+    COALESCE(ps.remaining_balance, COALESCE(pr.total_contract_value, 0)) AS remaining_balance,
+    COALESCE(ps.payment_status_text, 'unpaid') AS payment_status,
+    COALESCE(pr.commission_amount, 0) AS commission_amount,
+    COALESCE(pr.commission_status, 'pending') AS commission_status,
+    ps.last_payment_date
+  FROM public.partner_referrals pr
+  INNER JOIN public.student_applications sa ON pr.application_id = sa.id
+  INNER JOIN public.profiles p ON sa.student_id = p.id
+  LEFT JOIN public.contracts c ON sa.contract_id = c.id
+  LEFT JOIN public.academic_years ay ON c.academic_year_id = ay.id
+  LEFT JOIN LATERAL (
+    SELECT 
+      gps.total_paid,
+      gps.remaining_balance,
+      gps.payment_status::TEXT AS payment_status_text,
+      gps.last_payment_date
+    FROM public.get_payment_summary(sa.id) gps
+  ) ps ON true
+  WHERE pr.partner_id = p_partner_id
+  ORDER BY sa.created_at DESC;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_partner_referral_payment_summary(UUID) TO authenticated, anon;
+
+COMMENT ON FUNCTION public.get_partner_referral_payment_summary(UUID) IS 
+  'Returns payment summary for all referrals by a partner. Uses SECURITY DEFINER to bypass RLS.';
+

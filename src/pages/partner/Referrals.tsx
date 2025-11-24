@@ -15,7 +15,8 @@ const PartnerReferrals = () => {
     if (!referrals || referrals.length === 0) return;
 
     const headers = [
-      "Student Name",
+      "Full Name",
+      "Application ID",
       "Contract",
       "Academic Year",
       "Contract Value",
@@ -29,6 +30,7 @@ const PartnerReferrals = () => {
 
     const rows = referrals.map((r) => [
       `${r.student_first_name} ${r.student_last_name}`,
+      r.application_id,
       r.contract_name,
       r.academic_year_name,
       formatCurrency(Number(r.total_contract_value)),
@@ -83,9 +85,24 @@ const PartnerReferrals = () => {
   };
 
   return (
-    <PartnerLayout title="My Referrals" subtitle="Track all students you've referred and their payment status">
+    <PartnerLayout 
+      title="My Referrals" 
+      subtitle="Track all students you've referred and their payment status"
+      actionButton={
+        referrals && referrals.length > 0 ? (
+          <Button
+            onClick={exportToCSV}
+            size="sm"
+            className="rounded-full uppercase tracking-wide gap-2 bg-red-600 hover:bg-red-700 text-white"
+          >
+            <Download className="h-4 w-4" />
+            <span className="hidden sm:inline">Export CSV</span>
+          </Button>
+        ) : undefined
+      }
+    >
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="hidden md:flex md:items-center md:justify-between">
           <div>
             <h2 className="text-2xl font-display uppercase tracking-wide">My Referrals</h2>
             <p className="text-muted-foreground text-sm mt-1">
@@ -95,7 +112,7 @@ const PartnerReferrals = () => {
           {referrals && referrals.length > 0 && (
             <Button
               onClick={exportToCSV}
-              className="rounded-full uppercase tracking-wide gap-2"
+              className="rounded-full uppercase tracking-wide gap-2 bg-red-600 hover:bg-red-700 text-white"
             >
               <Download className="h-4 w-4" />
               Export CSV
@@ -117,9 +134,22 @@ const PartnerReferrals = () => {
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div className="flex-1 space-y-3">
                       <div>
-                        <h3 className="text-lg font-semibold">
-                          {referral.student_first_name} {referral.student_last_name}
-                        </h3>
+                        <div className="flex flex-col md:flex-row md:items-center md:gap-4 gap-2 mb-2">
+                          <div>
+                            <p className="text-xs text-muted-foreground uppercase tracking-wide">Full Name</p>
+                            <h3 className="text-lg font-semibold">
+                              {referral.student_first_name || referral.student_last_name
+                                ? `${referral.student_first_name || ''} ${referral.student_last_name || ''}`.trim()
+                                : 'Name not available'}
+                            </h3>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground uppercase tracking-wide">Application ID</p>
+                            <p className="text-sm font-mono font-medium text-primary">
+                              {referral.application_id}
+                            </p>
+                          </div>
+                        </div>
                         <p className="text-sm text-muted-foreground">
                           {referral.contract_name} • {referral.academic_year_name}
                         </p>

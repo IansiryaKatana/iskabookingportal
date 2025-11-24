@@ -14,6 +14,7 @@ import AdminDashboard from "./pages/admin/Dashboard";
 import AdminLogin from "./pages/admin/Login";
 import AdminContracts from "./pages/admin/Contracts";
 import AdminSettings from "./pages/admin/Settings";
+import AdminBranding from "./pages/admin/Branding";
 import AdminAcademicYears from "./pages/admin/AcademicYears";
 import AdminStudioGrades from "./pages/admin/StudioGrades";
 import AdminStudios from "./pages/admin/Studios";
@@ -55,6 +56,7 @@ import PortalDocuments from "./pages/portal/Documents";
 import PortalProfile from "./pages/portal/Profile";
 import PortalNotifications from "./pages/portal/Notifications";
 import PageTitle from "./components/PageTitle";
+import FaviconUpdater from "./components/FaviconUpdater";
 
 const queryClient = new QueryClient();
 
@@ -73,6 +75,7 @@ const App = () => (
           >
             <ErrorBoundary>
               <PageTitle />
+              <FaviconUpdater />
               <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/studios" element={<StudiosCatalog />} />
@@ -273,6 +276,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
                   <AdminSettings />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/branding"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                  <AdminBranding />
                 </ProtectedRoute>
               }
             />
