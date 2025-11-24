@@ -105,6 +105,31 @@ const upsertStep = async (payload: {
     .maybeSingle();
 
   if (error) throw error;
+
+  // Update application status based on step completion
+  // Step 1: Keep as draft (already created with draft status)
+  // Step 4: Move to awaiting_deposit
+  if (isComplete) {
+    let newStatus: string | null = null;
+    if (stepNumber === 4) {
+      newStatus = "awaiting_deposit";
+    }
+    // Note: Step 5 completion moves to awaiting_signature (handled elsewhere)
+    // Step 6 completion moves to awaiting_verification (handled elsewhere)
+
+    if (newStatus) {
+      const { error: statusError } = await supabase
+        .from("student_applications")
+        .update({ status: newStatus })
+        .eq("id", applicationId);
+
+      if (statusError) {
+        console.error("Failed to update application status:", statusError);
+        // Don't throw - step save succeeded, status update is secondary
+      }
+    }
+  }
+
   return result;
 };
 
@@ -134,6 +159,10 @@ export const useSaveApplicationStep = (applicationId: string) => {
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["student-application", applicationId],
+      });
+      // Also invalidate admin applications so they see updates immediately
+      queryClient.invalidateQueries({
+        queryKey: ["admin-applications"],
       });
     },
   });

@@ -89,6 +89,34 @@ const fetchApplications = async (academicYearId?: string): Promise<AdminApplicat
     console.warn("Failed to fetch student profiles:", profilesError);
   }
 
+  // Try to get student names from step 1 if profile doesn't have them
+  const applicationsWithoutNames = data.filter(
+    (app) => !profiles?.find((p) => p.id === app.student_id && (p.first_name || p.last_name))
+  );
+  
+  if (applicationsWithoutNames.length > 0) {
+    const appIds = applicationsWithoutNames.map((app) => app.id);
+    const { data: steps } = await supabase
+      .from("student_application_steps")
+      .select("application_id, payload")
+      .eq("step_number", 1)
+      .in("application_id", appIds);
+    
+    if (steps) {
+      steps.forEach((step) => {
+        const app = applicationsWithoutNames.find((a) => a.id === step.application_id);
+        if (app) {
+          const payload = step.payload as any;
+          const profile = profiles?.find((p) => p.id === app.student_id);
+          if (profile && !profile.first_name && !profile.last_name) {
+            profile.first_name = payload.first_name || undefined;
+            profile.last_name = payload.last_name || undefined;
+          }
+        }
+      });
+    }
+  }
+
   const profilesMap = new Map(
     (profiles ?? []).map((p) => [p.id, { id: p.id, first_name: p.first_name, last_name: p.last_name }]),
   );

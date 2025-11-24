@@ -66,7 +66,7 @@ type StudioGradeData = StudioGradeRow & {
   contracts: StudioContract[];
 };
 
-const loadStudioGrade = async (slug: string): Promise<StudioGradeData | null> => {
+const loadStudioGrade = async (slug: string, academicYearName?: string): Promise<StudioGradeData | null> => {
   const { data: grade, error: gradeError } = await supabase
     .from("studio_grades")
     .select("*")
@@ -83,6 +83,23 @@ const loadStudioGrade = async (slug: string): Promise<StudioGradeData | null> =>
   }
 
   const gradeId = grade.id;
+
+  // If academic year is specified, get its ID to filter contracts
+  let academicYearId: string | undefined;
+  if (academicYearName) {
+    // Normalize year format (handle both "2026-2027" and "2026/2027")
+    const normalizedYear = academicYearName.replace(/-/g, "/");
+    const { data: yearData } = await supabase
+      .from("academic_years")
+      .select("id")
+      .eq("name", normalizedYear)
+      .eq("is_active", true)
+      .maybeSingle();
+    
+    if (yearData) {
+      academicYearId = yearData.id;
+    }
+  }
 
   const [
     mediaRes,
@@ -104,21 +121,29 @@ const loadStudioGrade = async (slug: string): Promise<StudioGradeData | null> =>
       .from("studio_grade_prices")
       .select("*")
       .eq("studio_grade_id", gradeId),
-    supabase
-      .from("contracts")
-      .select(
-        `*,
-         academic_year:academic_years(*),
-         contract_payment_plans:contract_payment_plans(
-            *,
-            payment_plan:payment_plans(*, payment_plan_installments(*))
-         ),
-         contract_payment_schedule(*)
-        `,
-      )
-      .eq("studio_grade_id", gradeId)
-      .eq("is_active", true)
-      .order("display_order", { ascending: true }),
+    (() => {
+      let contractsQuery = supabase
+        .from("contracts")
+        .select(
+          `*,
+           academic_year:academic_years(*),
+           contract_payment_plans:contract_payment_plans(
+              *,
+              payment_plan:payment_plans(*, payment_plan_installments(*))
+           ),
+           contract_payment_schedule(*)
+          `,
+        )
+        .eq("studio_grade_id", gradeId)
+        .eq("is_active", true);
+      
+      // Filter by academic year if specified
+      if (academicYearId) {
+        contractsQuery = contractsQuery.eq("academic_year_id", academicYearId);
+      }
+      
+      return contractsQuery.order("display_order", { ascending: true });
+    })(),
     supabase
       .from("studio_grade_banners")
       .select("*")
@@ -269,7 +294,8 @@ const StudioGradePage = () => {
       setLoading(true);
       setLoadError(null);
       try {
-        const result = await loadStudioGrade(slug);
+        // Pass the year parameter to filter contracts by academic year
+        const result = await loadStudioGrade(slug, year || undefined);
         if (!cancelled) {
           setGrade(result);
           if (!result) {
@@ -294,7 +320,7 @@ const StudioGradePage = () => {
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [slug, year]);
 
   const galleryImages = useMemo(() => {
     if (!grade) return [];
