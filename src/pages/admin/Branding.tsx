@@ -29,16 +29,43 @@ const Branding = () => {
   const queryClient = useQueryClient();
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
+  const [uploadingHeroImage, setUploadingHeroImage] = useState(false);
   const [deleteNavItemId, setDeleteNavItemId] = useState<string | null>(null);
 
   const { data: settings, isLoading: settingsLoading } = useBrandingSettings();
-  const { data: headerNavItems, isLoading: headerNavLoading } = useNavigationItems("header");
-  const { data: footerNavItems, isLoading: footerNavLoading } = useNavigationItems("footer");
+  // For admin, we need all items (active and inactive), so we'll fetch directly
+  const { data: headerNavItems, isLoading: headerNavLoading } = useQuery({
+    queryKey: ["navigation-items", "header", "admin"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("navigation_items")
+        .select("*")
+        .eq("location", "header")
+        .order("display_order", { ascending: true });
+
+      if (error) throw error;
+      return (data || []) as NavigationItem[];
+    },
+  });
+  const { data: footerNavItems, isLoading: footerNavLoading } = useQuery({
+    queryKey: ["navigation-items", "footer", "admin"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("navigation_items")
+        .select("*")
+        .eq("location", "footer")
+        .order("display_order", { ascending: true });
+
+      if (error) throw error;
+      return (data || []) as NavigationItem[];
+    },
+  });
   const { data: openingHours, isLoading: hoursLoading } = useOpeningHours();
 
   // Form states
   const [logoPath, setLogoPath] = useState("");
   const [faviconPath, setFaviconPath] = useState("");
+  const [heroImagePath, setHeroImagePath] = useState("");
   const [footerDescription, setFooterDescription] = useState("");
   const [footerCopyright, setFooterCopyright] = useState("");
   const [contactPhone, setContactPhone] = useState("");
@@ -61,6 +88,7 @@ const Branding = () => {
     if (settings) {
       setLogoPath(settings.logo_path || "");
       setFaviconPath(settings.favicon_path || "");
+      setHeroImagePath(settings.studio_catalog_hero_image || "");
       setFooterDescription(settings.footer_description || "");
       setFooterCopyright(settings.footer_copyright_text || "");
       setContactPhone(settings.contact_phone || "");
@@ -139,7 +167,7 @@ const Branding = () => {
         description: "Logo has been successfully uploaded.",
       });
 
-      await logActivity("branding_updated", { type: "logo_upload" });
+      await logActivity({ action: "branding_updated", payload: { type: "logo_upload" } });
     } catch (error: any) {
       console.error("Logo upload error:", error);
       toast({
@@ -149,6 +177,74 @@ const Branding = () => {
       });
     } finally {
       setUploadingLogo(false);
+    }
+  };
+
+  // Upload hero image
+  const handleHeroImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast({
+        variant: "destructive",
+        title: "Invalid file type",
+        description: "Please upload an image file.",
+      });
+      return;
+    }
+
+    setUploadingHeroImage(true);
+    try {
+      const extension = file.name.split(".").pop() ?? "webp";
+      const path = `studio-catalog-hero.${extension}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("branding")
+        .upload(path, file, {
+          cacheControl: "3600",
+          upsert: true,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase.storage
+        .from("branding")
+        .getPublicUrl(path);
+
+      const publicUrl = publicUrlData.publicUrl;
+
+      // Update branding_settings
+      const { error: updateError } = await supabase
+        .from("branding_settings")
+        .upsert({
+          setting_key: "studio_catalog_hero_image",
+          setting_value: publicUrl,
+          setting_type: "url",
+        }, {
+          onConflict: "setting_key",
+        });
+
+      if (updateError) throw updateError;
+
+      await queryClient.invalidateQueries({ queryKey: ["branding-settings"] });
+      setHeroImagePath(publicUrl);
+
+      toast({
+        title: "Hero image uploaded",
+        description: "Studio catalog hero image has been successfully uploaded.",
+      });
+
+      await logActivity({ action: "branding_updated", payload: { type: "hero_image_upload" } });
+    } catch (error: any) {
+      console.error("Hero image upload error:", error);
+      toast({
+        variant: "destructive",
+        title: "Upload failed",
+        description: error.message || "Failed to upload hero image. Please try again.",
+      });
+    } finally {
+      setUploadingHeroImage(false);
     }
   };
 
@@ -207,7 +303,7 @@ const Branding = () => {
         description: "Favicon has been successfully uploaded.",
       });
 
-      await logActivity("branding_updated", { type: "favicon_upload" });
+      await logActivity({ action: "branding_updated", payload: { type: "favicon_upload" } });
     } catch (error: any) {
       console.error("Favicon upload error:", error);
       toast({
@@ -226,6 +322,7 @@ const Branding = () => {
       const updates = [
         { setting_key: "logo_path", setting_value: logoPath, setting_type: "url" },
         { setting_key: "favicon_path", setting_value: faviconPath, setting_type: "url" },
+        { setting_key: "studio_catalog_hero_image", setting_value: heroImagePath, setting_type: "url" },
         { setting_key: "footer_description", setting_value: footerDescription, setting_type: "text" },
         { setting_key: "footer_copyright_text", setting_value: footerCopyright, setting_type: "text" },
         { setting_key: "contact_phone", setting_value: contactPhone, setting_type: "text" },
@@ -248,7 +345,7 @@ const Branding = () => {
         title: "Settings saved",
         description: "Branding settings have been updated.",
       });
-      await logActivity("branding_updated", { type: "settings" });
+      await logActivity({ action: "branding_updated", payload: { type: "settings" } });
     },
     onError: (error: any) => {
       toast({
@@ -261,31 +358,121 @@ const Branding = () => {
 
   // Save navigation items
   const saveNavItemsMutation = useMutation({
-    mutationFn: async (items: NavigationItem[], location: "header" | "footer") => {
-      const { error } = await supabase
-        .from("navigation_items")
-        .upsert(
-          items.map((item) => ({
-            id: item.id,
-            title: item.title,
-            url: item.url,
-            display_order: item.display_order,
-            is_active: item.is_active,
-            location,
-            opens_in_new_tab: item.opens_in_new_tab,
-          })),
-          { onConflict: "id" }
-        );
+    mutationFn: async (payload: [NavigationItem[], "header" | "footer"]) => {
+      const [items, location] = payload;
+      // Get the original items from the database to determine which are new vs existing
+      const originalItems = location === "header" ? headerNavItems : footerNavItems;
+      const originalItemIds = new Set((originalItems || []).map(item => item.id));
 
-      if (error) throw error;
+      // Filter out completely empty items (new items that haven't been filled) and validate
+      const incompleteItems: string[] = [];
+      const validItems: NavigationItem[] = [];
+
+      for (const item of items) {
+        const title = (item.title || "").trim();
+        const url = (item.url || "").trim();
+
+        console.log("Processing item:", { 
+          id: item.id, 
+          title: `"${title}"`, 
+          titleLength: title.length,
+          url: `"${url}"`, 
+          urlLength: url.length,
+          isActive: item.is_active 
+        });
+
+        // Skip completely empty items (new items that haven't been filled in yet)
+        // An item is considered empty if both title and URL are empty or just "#"
+        const isEmpty = title.length === 0 && (url.length === 0 || url === "#");
+        if (isEmpty) {
+          console.log("Skipping empty item:", item.id);
+          continue;
+        }
+
+        // Validate that items with data have a title (URL can be "#" as placeholder)
+        if (title.length === 0) {
+          incompleteItems.push(`Item with URL "${url || 'empty'}" is missing a title`);
+          console.log("Item missing title:", item.id);
+          continue;
+        }
+
+        // URL can be "#" as a placeholder, so we only require title
+        // Item is valid - include it regardless of active status
+        console.log("Adding valid item:", item.id, title);
+        validItems.push(item);
+      }
+
+      // If there are incomplete items, show a helpful error
+      if (incompleteItems.length > 0) {
+        throw new Error(
+          `Please complete all navigation items:\n${incompleteItems.join('\n')}`
+        );
+      }
+
+      // If no valid items to save, inform the user
+      if (validItems.length === 0) {
+        console.error("No valid items to save. Input items:", JSON.stringify(items, null, 2));
+        console.error("Incomplete items:", incompleteItems);
+        console.error("Valid items count:", validItems.length);
+        throw new Error("No valid navigation items to save. Please add at least one item with a title.");
+      }
+
+      // Separate items into updates (existing) and inserts (new)
+      const itemsToUpdate: any[] = [];
+      const itemsToInsert: any[] = [];
+
+      for (const item of validItems) {
+        const payload: any = {
+          title: item.title.trim(),
+          url: item.url.trim(),
+          display_order: item.display_order,
+          is_active: item.is_active,
+          location,
+          opens_in_new_tab: item.opens_in_new_tab,
+        };
+
+        // If item exists in original data, it's an update (include id)
+        if (originalItemIds.has(item.id)) {
+          payload.id = item.id;
+          itemsToUpdate.push(payload);
+        } else {
+          // New item - don't include id, let database generate it
+          itemsToInsert.push(payload);
+        }
+      }
+
+      // Perform updates and inserts
+      const errors: any[] = [];
+
+      if (itemsToUpdate.length > 0) {
+        const { error: updateError } = await supabase
+          .from("navigation_items")
+          .upsert(itemsToUpdate, { onConflict: "id" });
+        if (updateError) errors.push(updateError);
+      }
+
+      if (itemsToInsert.length > 0) {
+        const { error: insertError } = await supabase
+          .from("navigation_items")
+          .insert(itemsToInsert);
+        if (insertError) errors.push(insertError);
+      }
+
+      if (errors.length > 0) {
+        console.error("Navigation items save errors:", errors);
+        throw errors[0];
+      }
     },
     onSuccess: async (_, variables) => {
-      await queryClient.invalidateQueries({ queryKey: ["navigation-items", variables[1]] });
+      const location = variables[1];
+      // Invalidate both public and admin queries
+      await queryClient.invalidateQueries({ queryKey: ["navigation-items", location] });
+      await queryClient.invalidateQueries({ queryKey: ["navigation-items", location, "admin"] });
       toast({
         title: "Navigation updated",
-        description: `${variables[1]} navigation items have been saved.`,
+        description: `${location} navigation items have been saved.`,
       });
-      await logActivity("branding_updated", { type: `navigation_${variables[1]}` });
+      await logActivity({ action: "branding_updated", payload: { type: `navigation_${location}` } });
     },
     onError: (error: any) => {
       toast({
@@ -322,7 +509,7 @@ const Branding = () => {
         title: "Opening hours saved",
         description: "Opening hours have been updated.",
       });
-      await logActivity("branding_updated", { type: "opening_hours" });
+      await logActivity({ action: "branding_updated", payload: { type: "opening_hours" } });
     },
     onError: (error: any) => {
       toast({
@@ -374,12 +561,16 @@ const Branding = () => {
     setFooterNavItemsState(footerNavItemsState.filter((item) => item.id !== deleteNavItemId));
     setDeleteNavItemId(null);
 
-    await queryClient.invalidateQueries({ queryKey: ["navigation-items"] });
+    // Invalidate both public and admin queries for both locations
+    await queryClient.invalidateQueries({ queryKey: ["navigation-items", "header"] });
+    await queryClient.invalidateQueries({ queryKey: ["navigation-items", "header", "admin"] });
+    await queryClient.invalidateQueries({ queryKey: ["navigation-items", "footer"] });
+    await queryClient.invalidateQueries({ queryKey: ["navigation-items", "footer", "admin"] });
     toast({
       title: "Item deleted",
       description: "Navigation item has been removed.",
     });
-    await logActivity("branding_updated", { type: "navigation_delete" });
+    await logActivity({ action: "branding_updated", payload: { type: "navigation_delete" } });
   };
 
   if (settingsLoading || headerNavLoading || footerNavLoading || hoursLoading) {
@@ -462,6 +653,34 @@ const Branding = () => {
                   Recommended: PNG or ICO, 32x32 or 64x64 pixels, max 500KB
                 </p>
               </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Studio Catalog Hero Image</Label>
+              <div className="flex flex-col md:flex-row items-start md:items-center gap-3 md:gap-4">
+                {heroImagePath && (
+                  <div className="relative h-32 md:h-48 w-full md:w-auto md:min-w-[200px] border rounded-lg overflow-hidden flex-shrink-0">
+                    <img
+                      src={heroImagePath}
+                      alt="Hero Image"
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                )}
+                <div className="flex-1 w-full">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleHeroImageUpload}
+                    disabled={uploadingHeroImage}
+                    className="cursor-pointer rounded-xl text-xs md:text-sm"
+                  />
+                </div>
+                {uploadingHeroImage && <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Recommended: WebP or JPG, landscape orientation, 1920x1080 or higher, max 5MB
+              </p>
             </div>
           </CardContent>
         </Card>

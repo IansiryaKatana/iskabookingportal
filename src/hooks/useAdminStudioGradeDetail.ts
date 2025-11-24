@@ -129,28 +129,49 @@ export const useSetHeroStudioMedia = () => {
     mutationFn: async (payload: { mediaId: string; gradeId: string }) => {
       const { mediaId, gradeId } = payload;
 
+      // First, reset all hero flags for this grade
       const { error: resetError } = await supabase
         .from("studio_grade_media")
         .update({ is_hero: false })
-        .eq("studio_grade_id", gradeId);
+        .eq("studio_grade_id", gradeId)
+        .eq("media_type", "image"); // Only reset image types
 
-      if (resetError) throw resetError;
+      if (resetError) {
+        console.error("Error resetting hero flags:", resetError);
+        throw resetError;
+      }
 
+      // Then, set the selected image as hero
       const { data, error } = await supabase
         .from("studio_grade_media")
         .update({ is_hero: true })
         .eq("id", mediaId)
+        .eq("media_type", "image") // Ensure it's an image
         .select("*")
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error setting hero image:", error);
+        throw error;
+      }
+      
       return data;
     },
     onSuccess: (_data, variables) => {
+      // Invalidate admin queries
       queryClient.invalidateQueries({
         queryKey: ["admin-studio-grade-detail", variables.gradeId],
       });
       queryClient.invalidateQueries({ queryKey: ["admin-studio-grades"] });
+      
+      // Also invalidate any public studio grade queries if they exist
+      // This ensures the public page refreshes when hero is changed
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          return query.queryKey[0] === "studio-grade" || 
+                 (Array.isArray(query.queryKey) && query.queryKey.includes("studio-grade"));
+        },
+      });
     },
   });
 };

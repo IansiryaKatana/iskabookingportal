@@ -42,7 +42,13 @@ export async function logActivity(params: AuditLogParams): Promise<void> {
       p_payload: params.payload || null,
     });
 
+    // If function doesn't exist (404) or fails, fall back to direct insert
     if (functionError) {
+      // Only log non-404 errors (404 means function doesn't exist, which is fine)
+      if (functionError.code !== 'P0001' && functionError.message !== 'function log_staff_activity() does not exist') {
+        console.warn("RPC function error, falling back to direct insert:", functionError);
+      }
+
       // Fall back to direct insert if function doesn't exist or fails
       const { error: logError } = await supabase
         .from("staff_activity_logs")

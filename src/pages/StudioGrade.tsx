@@ -308,14 +308,22 @@ const StudioGradePage = () => {
 
   const heroImage = useMemo(() => {
     if (!grade) return null;
-    const heroMedia =
-      grade.studio_grade_media.find(
-        (media) => media.media_type === "image" && media.is_hero,
-      ) ??
-      grade.studio_grade_media.find(
-        (media) => media.media_type === "image" && media.position === 0,
-      );
-    return heroMedia?.url ?? galleryImages[0]?.src ?? null;
+    // First, try to find an image explicitly marked as hero
+    const heroMedia = grade.studio_grade_media.find(
+      (media) => media.media_type === "image" && media.is_hero === true,
+    );
+    
+    // If a hero is explicitly set, use it
+    if (heroMedia) {
+      return heroMedia.url;
+    }
+    
+    // Only fallback to first image if no hero is explicitly set
+    // This ensures that when a hero is set, it's always used
+    const firstImage = grade.studio_grade_media.find(
+      (media) => media.media_type === "image",
+    );
+    return firstImage?.url ?? galleryImages[0]?.src ?? null;
   }, [grade, galleryImages]);
 
   const videoUrl = useMemo(() => {

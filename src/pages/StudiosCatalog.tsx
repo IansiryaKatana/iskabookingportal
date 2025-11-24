@@ -3,6 +3,7 @@ import { Link, useParams, useNavigate } from "react-router-dom";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import { supabase } from "@/integrations/supabase/client";
+import { useBrandingSetting } from "@/hooks/useBranding";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -34,6 +35,7 @@ const StudiosCatalog = () => {
   const [selectedYear, setSelectedYear] = useState<AcademicYearRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const heroImagePath = useBrandingSetting("studio_catalog_hero_image");
   
   // Get availability for selected academic year
   const { data: availabilityData, isLoading: availabilityLoading } = useAllStudioAvailability(
@@ -273,8 +275,9 @@ const StudiosCatalog = () => {
         className="relative flex items-center justify-center"
         style={{
           minHeight: "65vh",
-          backgroundImage:
-            "linear-gradient(180deg, rgba(5, 6, 9, 0.7) 0%, rgba(5, 6, 9, 0.35) 65%, rgba(5, 6, 9, 0.7) 100%), url('https://urbanhub.uk/wp-content/uploads/2025/05/URBAN-HUB-OUTSIDE-A-3-of-1-scaled-1.webp')",
+          backgroundImage: heroImagePath
+            ? `linear-gradient(180deg, rgba(5, 6, 9, 0.7) 0%, rgba(5, 6, 9, 0.35) 65%, rgba(5, 6, 9, 0.7) 100%), url('${heroImagePath}')`
+            : "linear-gradient(180deg, rgba(5, 6, 9, 0.7) 0%, rgba(5, 6, 9, 0.35) 65%, rgba(5, 6, 9, 0.7) 100%), url('https://urbanhub.uk/wp-content/uploads/2025/05/URBAN-HUB-OUTSIDE-A-3-of-1-scaled-1.webp')",
           backgroundSize: "cover",
           backgroundPosition: "center",
         }}

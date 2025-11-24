@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ChevronDown, Menu } from "lucide-react";
+import { ChevronDown, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
@@ -13,10 +13,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 
 const Navigation = () => {
   const { user, profile, role, signOut } = useAuth();
   const [isScrolled, setIsScrolled] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
   const logoPath = useBrandingSetting("logo_path");
   const { data: navItems } = useNavigationItems("header");
@@ -65,7 +73,7 @@ const Navigation = () => {
           size="sm"
           className={`font-medium text-xs gap-2 ${buttonClasses ?? ""}`}
         >
-          <span>{accountButtonLabel}</span>
+          <span className="hidden md:inline">{accountButtonLabel}</span>
           {user ? (
             <Avatar className="h-8 w-8 bg-primary/10 text-primary rounded-md">
               <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold uppercase rounded-md">
@@ -151,8 +159,8 @@ const Navigation = () => {
             <Button asChild variant="default" size="sm" className="font-medium text-xs">
               <Link to="/studios">Discover Our Studios</Link>
             </Button>
-            <Button variant="outline" size="sm" className="font-medium text-xs">
-              BOOK VIEWING
+            <Button asChild variant="outline" size="sm" className="font-medium text-xs bg-accent-yellow text-black hover:bg-accent-yellow/90 border-accent-yellow">
+              <Link to="/studios">Book Viewing</Link>
             </Button>
             {renderAccountMenu()}
           </div>
@@ -162,9 +170,42 @@ const Navigation = () => {
               <Link to="/studios">Discover</Link>
             </Button>
             {renderAccountMenu("px-3")}
-            <Button variant="ghost" size="icon" className="text-white hover:bg-accent-yellow hover:text-black">
-              <Menu className="h-5 w-5" />
-            </Button>
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="text-white hover:bg-accent-yellow hover:text-black">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-[300px] sm:w-[400px] bg-background">
+                <SheetHeader>
+                  <SheetTitle className="text-left">Menu</SheetTitle>
+                </SheetHeader>
+                <nav className="flex flex-col gap-4 mt-6">
+                  {navItems?.map((item) => (
+                    <a
+                      key={item.id}
+                      href={item.url}
+                      target={item.opens_in_new_tab ? "_blank" : undefined}
+                      rel={item.opens_in_new_tab ? "noopener noreferrer" : undefined}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="text-base font-medium hover:text-primary transition-colors py-2"
+                    >
+                      {item.title}
+                    </a>
+                  ))}
+                  <div className="pt-2">
+                    <Button 
+                      asChild 
+                      size="sm" 
+                      className="w-full font-medium text-xs bg-accent-yellow text-black hover:bg-accent-yellow/90"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <Link to="/studios">Book Viewing</Link>
+                    </Button>
+                  </div>
+                </nav>
+              </SheetContent>
+            </Sheet>
           </div>
         </div>
       </nav>
