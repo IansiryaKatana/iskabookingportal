@@ -4,6 +4,7 @@
 
 -- View that unifies all payment records
 CREATE OR REPLACE VIEW public.unified_payment_history AS
+-- Stripe payments from stripe_payments table
 SELECT 
   'stripe' AS payment_source,
   sp.id AS payment_id,
@@ -30,6 +31,45 @@ INNER JOIN public.student_applications sa ON sp.student_application_id = sa.id
 LEFT JOIN public.contracts c ON sa.contract_id = c.id
 LEFT JOIN public.academic_years ay ON c.academic_year_id = ay.id
 WHERE sp.status IN ('succeeded', 'completed')
+
+UNION ALL
+
+-- Deposits from student_applications that aren't in stripe_payments yet (backward compatibility)
+SELECT 
+  'stripe' AS payment_source,
+  gen_random_uuid() AS payment_id,
+  sa.id AS student_application_id,
+  NULL::UUID AS payment_plan_id,
+  COALESCE(
+    c.deposit_override,
+    pp.deposit_amount,
+    0
+  )::NUMERIC(10,2) AS amount_paid,
+  'GBP' AS currency,
+  'succeeded' AS payment_status,
+  sa.deposit_payment_intent_id AS stripe_payment_intent_id,
+  COALESCE(sa.submitted_at, sa.created_at) AS payment_date,
+  sa.updated_at,
+  NULL::UUID AS manual_entry_id,
+  NULL::TEXT AS manual_entry_notes,
+  NULL::UUID AS entered_by_user_id,
+  sa.student_id,
+  NULL::INTEGER AS installment_number,
+  NULL::DATE AS due_date,
+  c.id AS contract_id,
+  c.name AS contract_name,
+  ay.id AS academic_year_id,
+  ay.name AS academic_year_name
+FROM public.student_applications sa
+LEFT JOIN public.contracts c ON sa.contract_id = c.id
+LEFT JOIN public.payment_plans pp ON c.payment_plan_id = pp.id
+LEFT JOIN public.academic_years ay ON c.academic_year_id = ay.id
+WHERE sa.deposit_payment_intent_id IS NOT NULL
+  AND sa.deposit_payment_intent_id NOT LIKE 'manual-%'
+  AND NOT EXISTS (
+    SELECT 1 FROM public.stripe_payments sp2
+    WHERE sp2.stripe_payment_intent_id = sa.deposit_payment_intent_id
+  )
 
 UNION ALL
 

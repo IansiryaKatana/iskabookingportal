@@ -4,12 +4,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { useReport, type ReportType } from "@/hooks/useReports";
+import { useReport, useOccupancyReport, type ReportType } from "@/hooks/useReports";
 import { Download, FileText, AlertCircle, CreditCard, Users, Building2 } from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 const reportTypes: Array<{ value: ReportType; label: string; icon: typeof FileText; description: string }> = [
   {
@@ -44,10 +47,79 @@ const reportTypes: Array<{ value: ReportType; label: string; icon: typeof FileTe
   },
 ];
 
+const OccupancyDetailsCollapsible = ({
+  gradeName,
+  details,
+}: {
+  gradeName: string;
+  details: Array<{
+    studio_id: string;
+    studio_number: string;
+    student_name: string;
+    student_email: string;
+    contract_name: string;
+    contract_start: string | null;
+    contract_end: string | null;
+    application_id: string;
+  }>;
+}) => {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger asChild>
+        <Button variant="ghost" className="w-full justify-between">
+          <span>View Occupied Studios ({details.length})</span>
+          {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="mt-4 space-y-2 border-t pt-4">
+          {details.map((detail) => (
+            <Card key={detail.studio_id} className="rounded-xl">
+              <CardContent className="p-4">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="font-bold">Studio {detail.studio_number}</span>
+                      <Badge variant="outline" className="uppercase">Occupied</Badge>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-muted-foreground">
+                      <div>
+                        <span className="font-medium">Student:</span> {detail.student_name}
+                      </div>
+                      <div>
+                        <span className="font-medium">Email:</span> {detail.student_email}
+                      </div>
+                      <div>
+                        <span className="font-medium">Contract:</span> {detail.contract_name}
+                      </div>
+                      <div>
+                        <span className="font-medium">Period:</span>{" "}
+                        {detail.contract_start && detail.contract_end
+                          ? `${format(new Date(detail.contract_start), "MMM d, yyyy")} - ${format(new Date(detail.contract_end), "MMM d, yyyy")}`
+                          : "—"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+};
+
 const Reports = () => {
   const { toast } = useToast();
   const [selectedReport, setSelectedReport] = useState<ReportType>("awaiting_signatures");
+  const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string | undefined>();
   const { data: reportData, isLoading } = useReport(selectedReport);
+  const { data: occupancyReport, isLoading: isLoadingOccupancy } = useOccupancyReport(
+    selectedReport === "occupancy" ? selectedAcademicYearId : undefined
+  );
 
   const formatCurrency = (amount: number | null) => {
     if (!amount) return "—";
@@ -60,6 +132,99 @@ const Reports = () => {
   };
 
   const exportToCSV = () => {
+    if (selectedReport === "occupancy") {
+      if (!occupancyReport || occupancyReport.by_grade.length === 0) {
+        toast({
+          title: "No data to export",
+          description: "There is no occupancy data available for this report.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Export occupancy report
+      const headers = [
+        "Academic Year",
+        "Studio Grade",
+        "Total Studios",
+        "Occupied",
+        "Available",
+        "Reserved",
+        "Maintenance",
+        "Occupancy %",
+        "Studio Number",
+        "Student Name",
+        "Student Email",
+        "Contract",
+        "Contract Start",
+        "Contract End",
+      ];
+
+      const rows: string[][] = [];
+      occupancyReport.by_grade.forEach((grade) => {
+        if (grade.occupied_details.length > 0) {
+          grade.occupied_details.forEach((detail) => {
+            rows.push([
+              occupancyReport.academic_year_name || "All Years",
+              grade.studio_grade_name,
+              grade.total_studios.toString(),
+              grade.occupied_studios.toString(),
+              grade.available_studios.toString(),
+              grade.reserved_studios.toString(),
+              grade.maintenance_studios.toString(),
+              grade.occupancy_percentage.toString(),
+              detail.studio_number,
+              detail.student_name,
+              detail.student_email,
+              detail.contract_name,
+              detail.contract_start ? format(new Date(detail.contract_start), "yyyy-MM-dd") : "",
+              detail.contract_end ? format(new Date(detail.contract_end), "yyyy-MM-dd") : "",
+            ]);
+          });
+        } else {
+          // Add summary row even if no occupied studios
+          rows.push([
+            occupancyReport.academic_year_name || "All Years",
+            grade.studio_grade_name,
+            grade.total_studios.toString(),
+            grade.occupied_studios.toString(),
+            grade.available_studios.toString(),
+            grade.reserved_studios.toString(),
+            grade.maintenance_studios.toString(),
+            grade.occupancy_percentage.toString(),
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+          ]);
+        }
+      });
+
+      const csvContent = [
+        headers.join(","),
+        ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
+      ].join("\n");
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", `occupancy_report_${format(new Date(), "yyyy-MM-dd")}.csv`);
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast({
+        title: "Report exported",
+        description: `Successfully exported occupancy report to CSV.`,
+      });
+      return;
+    }
+
+    // Regular reports export
     if (!reportData || reportData.length === 0) {
       toast({
         title: "No data to export",
@@ -163,7 +328,8 @@ const Reports = () => {
       pageTitle="Reports"
       subtitle="Generate and export reports for student bookings"
       mobileActionButton={
-        reportData && reportData.length > 0 ? (
+        ((selectedReport === "occupancy" && occupancyReport && occupancyReport.by_grade.length > 0) ||
+          (selectedReport !== "occupancy" && reportData && reportData.length > 0)) ? (
           <Button
             size="sm"
             variant="outline"
@@ -179,7 +345,7 @@ const Reports = () => {
         {/* Report Type Selector */}
         <Card className="rounded-3xl">
           <CardHeader>
-            <CardTitle className="text-xl font-display uppercase tracking-wide">
+            <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide">
               Select Report Type
             </CardTitle>
             <CardDescription>Choose a report to view and export</CardDescription>
@@ -216,6 +382,20 @@ const Reports = () => {
                   </div>
                 </div>
               )}
+              {selectedReport === "occupancy" && (
+                <div className="mt-4">
+                  <Label htmlFor="academic-year">Academic Year (Optional)</Label>
+                  <div className="mt-2">
+                    <AcademicYearSelector
+                      value={selectedAcademicYearId}
+                      onValueChange={(id) => setSelectedAcademicYearId(id)}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Leave empty to view all academic years
+                  </p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -225,19 +405,26 @@ const Reports = () => {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-xl font-display uppercase tracking-wide flex items-center gap-2">
-                  <Icon className="h-5 w-5" />
+                <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide flex items-center gap-2">
+                  <Icon className="h-4 w-4 md:h-5 md:w-5" />
                   {currentReport?.label}
                 </CardTitle>
                 <CardDescription className="mt-1">
-                  {isLoading
-                    ? "Loading report data..."
-                    : reportData
-                      ? `${reportData.length} record${reportData.length !== 1 ? "s" : ""} found`
-                      : "No data available"}
+                  {selectedReport === "occupancy"
+                    ? isLoadingOccupancy
+                      ? "Loading occupancy data..."
+                      : occupancyReport
+                        ? `${occupancyReport.total_studios} studios, ${occupancyReport.total_occupied} occupied (${occupancyReport.overall_occupancy_percentage}%)`
+                        : "No occupancy data available"
+                    : isLoading
+                      ? "Loading report data..."
+                      : reportData
+                        ? `${reportData.length} record${reportData.length !== 1 ? "s" : ""} found`
+                        : "No data available"}
                 </CardDescription>
               </div>
-              {reportData && reportData.length > 0 && (
+              {((selectedReport === "occupancy" && occupancyReport && occupancyReport.by_grade.length > 0) ||
+                (selectedReport !== "occupancy" && reportData && reportData.length > 0)) && (
                 <Button
                   onClick={exportToCSV}
                   className="rounded-full uppercase tracking-wide gap-2 hidden lg:flex"
@@ -249,7 +436,112 @@ const Reports = () => {
             </div>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
+            {selectedReport === "occupancy" ? (
+              isLoadingOccupancy ? (
+                <ReportSkeleton />
+              ) : occupancyReport ? (
+                <div className="space-y-6">
+                  {/* Overall Summary */}
+                  <Card className="rounded-2xl bg-primary/5">
+                    <CardHeader>
+                      <CardTitle className="text-base md:text-lg font-display font-bold uppercase">
+                        Overall Occupancy Summary
+                        {occupancyReport.academic_year_name && (
+                          <span className="text-sm md:text-base font-normal normal-case ml-2">
+                            ({occupancyReport.academic_year_name})
+                          </span>
+                        )}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Total Studios</p>
+                          <p className="text-xl md:text-2xl font-bold">{occupancyReport.total_studios}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Occupied</p>
+                          <p className="text-xl md:text-2xl font-bold text-primary">{occupancyReport.total_occupied}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Available</p>
+                          <p className="text-xl md:text-2xl font-bold text-green-600">{occupancyReport.total_available}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Reserved</p>
+                          <p className="text-xl md:text-2xl font-bold text-yellow-600">{occupancyReport.total_reserved}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Occupancy %</p>
+                          <p className="text-xl md:text-2xl font-bold">{occupancyReport.overall_occupancy_percentage}%</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* By Studio Grade */}
+                  <div className="space-y-4">
+                    <h3 className="text-base md:text-lg font-bold">By Studio Grade</h3>
+                    {occupancyReport.by_grade.map((grade) => (
+                      <Card key={grade.studio_grade_id} className="rounded-2xl">
+                        <CardHeader>
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="text-base md:text-lg font-display font-bold uppercase">
+                              {grade.studio_grade_name}
+                            </CardTitle>
+                            <Badge variant="outline" className="text-sm md:text-lg px-3 py-1">
+                              {grade.occupancy_percentage}% Occupied
+                            </Badge>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+                            <div>
+                              <p className="text-sm text-muted-foreground">Total</p>
+                              <p className="text-lg md:text-xl font-bold">{grade.total_studios}</p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-muted-foreground">Occupied</p>
+                              <p className="text-lg md:text-xl font-bold text-primary">{grade.occupied_studios}</p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-muted-foreground">Available</p>
+                              <p className="text-lg md:text-xl font-bold text-green-600">{grade.available_studios}</p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-muted-foreground">Reserved</p>
+                              <p className="text-lg md:text-xl font-bold text-yellow-600">{grade.reserved_studios}</p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-muted-foreground">Maintenance</p>
+                              <p className="text-lg md:text-xl font-bold text-gray-600">{grade.maintenance_studios}</p>
+                            </div>
+                          </div>
+
+                          {grade.occupied_details.length > 0 && (
+                            <OccupancyDetailsCollapsible
+                              gradeName={grade.studio_grade_name}
+                              details={grade.occupied_details}
+                            />
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <Card className="rounded-3xl border-dashed">
+                  <CardHeader>
+                    <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide">
+                      No Occupancy Data Found
+                    </CardTitle>
+                    <CardDescription>
+                      There is no occupancy data available for the selected academic year.
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              )
+            ) : isLoading ? (
               <ReportSkeleton />
             ) : reportData && reportData.length > 0 ? (
               <div className="space-y-4">
@@ -259,7 +551,7 @@ const Reports = () => {
                       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                         <div className="flex-1 space-y-2">
                           <div className="flex items-center gap-3">
-                            <h3 className="text-lg font-semibold">{item.student_name}</h3>
+                            <h3 className="text-base md:text-lg font-bold">{item.student_name}</h3>
                             <Badge variant="outline" className="uppercase">
                               {item.status}
                             </Badge>
@@ -283,7 +575,7 @@ const Reports = () => {
                             {item.cashback_amount && item.cashback_amount > 0 && (
                               <div>
                                 <span className="font-medium">Cashback:</span>{" "}
-                                <span className="text-green-600 font-semibold">
+                                <span className="text-green-600 font-bold">
                                   -{formatCurrency(item.cashback_amount)}
                                 </span>
                               </div>
@@ -291,7 +583,7 @@ const Reports = () => {
                             {item.adjusted_total && (
                               <div>
                                 <span className="font-medium">Adjusted Total:</span>{" "}
-                                <span className="font-semibold">
+                                <span className="font-bold">
                                   {formatCurrency(item.adjusted_total)}
                                 </span>
                               </div>
@@ -300,7 +592,7 @@ const Reports = () => {
                           {item.partner_name && (
                             <div className="text-sm text-muted-foreground mb-2">
                               <span className="font-medium">Partner:</span>{" "}
-                              <span className="font-semibold">{item.partner_name}</span>
+                              <span className="font-bold">{item.partner_name}</span>
                               {item.commission_amount && (
                                 <span className="ml-2 text-primary">
                                   (Commission: {formatCurrency(item.commission_amount)})
@@ -327,7 +619,7 @@ const Reports = () => {
                           {(selectedReport === "overdue_payments" || selectedReport === "debtors") &&
                             item.overdue_amount && (
                               <div className="flex items-center gap-4 text-sm">
-                                <div className="text-destructive font-semibold">
+                                <div className="text-destructive font-bold">
                                   Overdue: {formatCurrency(item.overdue_amount)}
                                 </div>
                                 {item.overdue_days && (
@@ -346,7 +638,7 @@ const Reports = () => {
             ) : (
               <Card className="rounded-3xl border-dashed">
                 <CardHeader>
-                  <CardTitle className="text-xl font-display uppercase tracking-wide">
+                  <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide">
                     No Records Found
                   </CardTitle>
                   <CardDescription>

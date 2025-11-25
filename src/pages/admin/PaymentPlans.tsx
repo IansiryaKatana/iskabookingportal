@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import AdminLayout from "@/components/admin/AdminLayout";
 import {
   useAdminPaymentPlans,
@@ -18,7 +19,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, Pencil, Trash2, Copy } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, Copy, Info } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -308,6 +309,24 @@ const PaymentPlans = () => {
             <CardDescription className="mt-2">
               Plans apply to the selected academic year. Students will choose one plan during their booking journey.
             </CardDescription>
+            <div className="mt-4 rounded-2xl border border-blue-500/30 bg-blue-500/5 p-4 flex items-start gap-3">
+              <Info className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                  Important: Associate Plans with Contracts
+                </p>
+                <p className="text-xs text-blue-800 dark:text-blue-200">
+                  After creating a payment plan, you must associate it with contracts in the{" "}
+                  <Link 
+                    to="/admin/contracts" 
+                    className="underline font-semibold hover:text-blue-600"
+                  >
+                    Contracts
+                  </Link>{" "}
+                  page. Plans will only appear to students if they are linked to a contract.
+                </p>
+              </div>
+            </div>
             {academicYears.length > 1 && (
               <div className="mt-4">
                 <label htmlFor="academic-year-select" className="text-sm font-medium mb-2 block">

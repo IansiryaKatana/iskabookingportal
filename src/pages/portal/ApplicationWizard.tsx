@@ -1203,8 +1203,30 @@ useEffect(() => {
 
   const hasPlanOptions =
     resolvedPlans.length > 0 || Boolean(application?.selected_payment_plan_id);
-  const requiresGuarantor = hasPlanOptions;
-  const requiresWitness = !requiresGuarantor;
+  
+  // Check if selected plan is "Pay in Full" (1 installment with 100% percentage)
+  const isPayInFullPlan = useMemo(() => {
+    // Check currently selected plan in UI
+    const planIdToCheck = selectedPlanId || application?.selected_payment_plan_id;
+    if (!planIdToCheck || !resolvedPlans.length) return false;
+    
+    const selectedPlan = resolvedPlans.find(p => p.planId === planIdToCheck);
+    if (!selectedPlan?.plan?.payment_plan_installments) return false;
+    
+    const installments = selectedPlan.plan.payment_plan_installments
+      .slice()
+      .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
+    
+    // Pay in Full = exactly 1 installment with 100% percentage
+    return installments.length === 1 && 
+           installments[0].amount_type === 'percentage' && 
+           installments[0].amount_value === 100;
+  }, [selectedPlanId, application?.selected_payment_plan_id, resolvedPlans]);
+  
+  // Require guarantor only if there are payment plan options AND it's not a "Pay in Full" plan
+  const requiresGuarantor = hasPlanOptions && !isPayInFullPlan;
+  // Witness is now optional for all cases, not just when paying in full
+  // const requiresWitness = !requiresGuarantor; // Removed - witness is always optional
 
   useEffect(() => {
     let mounted = true;
@@ -1569,15 +1591,8 @@ useEffect(() => {
         }
       });
     } else {
-      const witnessFields: Array<[keyof PaymentForm, string]> = [
-        ["witness_name", "Witness name is required"],
-        ["witness_email", "Witness email is required"],
-      ];
-      witnessFields.forEach(([field, message]) => {
-        if (!hasMeaningfulValue(sanitized[field])) {
-          conditionalErrors[field] = message;
-        }
-      });
+      // Witness is now optional - no validation required
+      // If witness details are provided, they will be used; if not, tenancy will go directly to guarantor
     }
 
     if (Object.keys(conditionalErrors).length) {
@@ -3161,7 +3176,8 @@ useEffect(() => {
                 </Tabs>
               ) : (
                 <div className="rounded-2xl border border-dashed border-border/60 px-4 py-3 text-sm text-muted-foreground">
-                  You’ve selected to pay in full. We’ll send your tenancy agreement for you and your witness once the deposit is confirmed.
+                  You've selected to pay in full. We'll send your tenancy agreement once the deposit is confirmed.
+                  {paymentValues.witness_name && paymentValues.witness_email && " Your witness will also receive a copy to view."}
                 </div>
               )}
               {paymentErrors.selected_plan_id && (
@@ -3276,26 +3292,29 @@ useEffect(() => {
               </Card>
             )}
 
-            {requiresWitness && (
-              <Card className="rounded-3xl border-dashed">
-                <CardHeader>
-                  <CardTitle className="text-lg font-semibold">
-                    Witness Details
-                  </CardTitle>
-                  <CardDescription>
-                    Provide an independent adult witness who will co-sign your
-                    tenancy agreement when paying in full.
-                  </CardDescription>
-                </CardHeader>
+            {/* Witness fields - optional for all payment plans */}
+            <Card className="rounded-3xl border-dashed">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold">
+                  Witness Details (Optional)
+                </CardTitle>
+                <CardDescription>
+                  Optionally provide an independent adult witness who will view your tenancy agreement. 
+                  {requiresGuarantor 
+                    ? " If provided, the witness will view the agreement before the guarantor signs."
+                    : " If provided, the witness will view the agreement after you sign."}
+                </CardDescription>
+              </CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-2">
                   <div>
-                    <Label htmlFor="witness_name">Full Name</Label>
+                    <Label htmlFor="witness_name">Full Name (Optional)</Label>
                     <Input
                       id="witness_name"
                       value={paymentValues.witness_name}
                       onChange={(event) =>
                         handlePaymentChange("witness_name", event.target.value)
                       }
+                      placeholder="Leave blank if not providing a witness"
                     />
                     {paymentErrors.witness_name && (
                       <p className="mt-1 text-xs text-destructive">
@@ -3304,7 +3323,7 @@ useEffect(() => {
                     )}
                   </div>
                   <div>
-                    <Label htmlFor="witness_email">Email Address</Label>
+                    <Label htmlFor="witness_email">Email Address (Optional)</Label>
                     <Input
                       id="witness_email"
                       type="email"
@@ -3312,6 +3331,7 @@ useEffect(() => {
                       onChange={(event) =>
                         handlePaymentChange("witness_email", event.target.value)
                       }
+                      placeholder="Leave blank if not providing a witness"
                     />
                     {paymentErrors.witness_email && (
                       <p className="mt-1 text-xs text-destructive">
@@ -3320,13 +3340,14 @@ useEffect(() => {
                     )}
                   </div>
                   <div>
-                    <Label htmlFor="witness_phone">Phone Number (optional)</Label>
+                    <Label htmlFor="witness_phone">Phone Number (Optional)</Label>
                     <Input
                       id="witness_phone"
                       value={paymentValues.witness_phone}
                       onChange={(event) =>
                         handlePaymentChange("witness_phone", event.target.value)
                       }
+                      placeholder="Leave blank if not providing a witness"
                     />
                     {paymentErrors.witness_phone && (
                       <p className="mt-1 text-xs text-destructive">
@@ -3336,7 +3357,6 @@ useEffect(() => {
                   </div>
                 </CardContent>
               </Card>
-            )}
 
             {requiresGuarantor && (
               <div className="grid gap-4 md:grid-cols-3">
@@ -3599,10 +3619,10 @@ useEffect(() => {
                     Pay your deposit first to unlock the signing session.
                   </p>
                 )}
-                {requiresWitness && (
+                {paymentValues.witness_name && paymentValues.witness_email && (
                   <p className="text-sm text-muted-foreground">
-                    We’ve emailed your witness ({paymentValues.witness_email || "—"}) to
-                    sign after you finish your portion.
+                    We've emailed your witness ({paymentValues.witness_email}) to
+                    view your tenancy agreement after you finish your portion.
                   </p>
                 )}
               </CardContent>
@@ -3664,8 +3684,10 @@ useEffect(() => {
                   it multiple times if you need to pause.
                 </p>
                 <p>
-                  2) Your witness (or guarantor) signs via the emails we sent. If they
-                  can’t find it, use the Refresh button below after we resend.
+                  2) {paymentValues.witness_name && paymentValues.witness_email 
+                    ? "Your witness views, then " 
+                    : ""}{requiresGuarantor ? "Your guarantor signs" : "Once you've signed"} via the emails we sent. If they
+                  can't find it, use the Refresh button below after we resend.
                 </p>
                 <p>
                   3) Once all parties sign, your application automatically moves to

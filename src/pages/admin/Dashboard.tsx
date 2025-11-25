@@ -118,7 +118,7 @@ const Dashboard = () => {
           <section className="grid gap-6 lg:grid-cols-3 mb-10">
             <Card className="bg-primary text-primary-foreground rounded-3xl shadow-lg border border-border/60">
               <CardHeader>
-                <CardTitle className="text-xl font-display uppercase tracking-wide">
+                <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide">
                   Occupancy Overview
                 </CardTitle>
                 <CardDescription className="text-primary-foreground/80">
@@ -132,7 +132,7 @@ const Dashboard = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-4xl font-bold font-display tracking-tight">
+                <p className="text-2xl md:text-4xl font-bold font-display tracking-tight">
                   {stats?.occupancy.percentage ?? 0}%
                 </p>
                 <p className="text-xs uppercase tracking-[0.3em] text-primary-foreground/80 mt-2">
@@ -146,8 +146,8 @@ const Dashboard = () => {
             </Card>
             <Card className="rounded-3xl shadow-md border border-border/60">
               <CardHeader>
-                <CardTitle className="text-xl font-display uppercase tracking-wide flex items-center gap-2">
-                  <Calendar className="h-5 w-5" />
+                <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide flex items-center gap-2">
+                  <Calendar className="h-4 w-4 md:h-5 md:w-5" />
                   Upcoming Instalments
                 </CardTitle>
                 <CardDescription>
@@ -181,8 +181,8 @@ const Dashboard = () => {
             </Card>
             <Card className="rounded-3xl shadow-md border border-border/60">
               <CardHeader>
-                <CardTitle className="text-xl font-display uppercase tracking-wide flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5" />
+                <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 md:h-5 md:w-5" />
                   Pending Verifications
                 </CardTitle>
                 <CardDescription>
@@ -289,7 +289,7 @@ const Dashboard = () => {
               {quickLinks.map((item) => (
                 <Card key={item.title} className="rounded-3xl shadow-sm">
                   <CardHeader>
-                    <CardTitle className="text-lg font-semibold">
+                    <CardTitle className="text-base md:text-lg font-bold">
                       {item.title}
                     </CardTitle>
                   </CardHeader>

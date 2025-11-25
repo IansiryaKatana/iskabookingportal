@@ -80,6 +80,31 @@ serve(async (req) => {
             console.error("Failed to update application after deposit:", error);
           }
 
+          // Also create a record in stripe_payments table
+          if (!error) {
+            const { error: paymentError } = await supabaseAdmin
+              .from("stripe_payments")
+              .insert({
+                student_application_id: applicationId,
+                stripe_payment_intent_id: paymentIntent.id,
+                amount: paymentIntent.amount / 100, // Convert from cents
+                currency: paymentIntent.currency.toUpperCase(),
+                status: "succeeded",
+                payment_type: "deposit",
+                metadata: {
+                  application_id: applicationId,
+                  student_id: paymentIntent.metadata?.student_id,
+                },
+              })
+              .select()
+              .single();
+
+            if (paymentError) {
+              console.error("Failed to create stripe_payments record:", paymentError);
+              // Don't fail the webhook if this fails, but log it
+            }
+          }
+
           if (!error) {
             const customerId =
               typeof paymentIntent.customer === "string"

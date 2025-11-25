@@ -597,7 +597,7 @@ const Branding = () => {
         {/* Logo & Favicon */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base md:text-lg font-display uppercase tracking-wide">Brand Assets</CardTitle>
+            <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">Brand Assets</CardTitle>
             <CardDescription className="text-xs md:text-sm">Upload your logo and favicon</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -688,7 +688,7 @@ const Branding = () => {
         {/* Contact Information */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base md:text-lg font-display uppercase tracking-wide">Contact Information</CardTitle>
+            <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">Contact Information</CardTitle>
             <CardDescription className="text-xs md:text-sm">Update contact details displayed in the footer</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -779,7 +779,7 @@ const Branding = () => {
         {/* Header Navigation */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base md:text-lg font-display uppercase tracking-wide">Header Navigation</CardTitle>
+            <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">Header Navigation</CardTitle>
             <CardDescription className="text-xs md:text-sm">Manage navigation items in the header menu</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -869,7 +869,7 @@ const Branding = () => {
         {/* Footer Navigation */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base md:text-lg font-display uppercase tracking-wide">Footer Quick Links</CardTitle>
+            <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">Footer Quick Links</CardTitle>
             <CardDescription className="text-xs md:text-sm">Manage quick links in the footer</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -959,7 +959,7 @@ const Branding = () => {
         {/* Opening Hours */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base md:text-lg font-display uppercase tracking-wide">Opening Hours</CardTitle>
+            <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">Opening Hours</CardTitle>
             <CardDescription className="text-xs md:text-sm">Set opening hours for each day of the week. Use bulk edit to set multiple days at once.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -967,7 +967,7 @@ const Branding = () => {
             <div className="p-4 border rounded-xl bg-muted/40 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
-                  <h3 className="text-sm font-display font-semibold uppercase tracking-wide mb-2">Bulk Edit</h3>
+                  <h3 className="text-sm font-display font-bold uppercase tracking-wide mb-2">Bulk Edit</h3>
                   <p className="text-xs text-muted-foreground">Select multiple days and apply the same hours</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -1117,7 +1117,7 @@ const Branding = () => {
 
             {/* Individual Day Editing - Compact View */}
             <div className="space-y-2">
-              <h3 className="text-sm font-display font-semibold uppercase tracking-wide">Individual Days</h3>
+              <h3 className="text-sm font-display font-bold uppercase tracking-wide">Individual Days</h3>
               <div className="grid grid-cols-1 gap-2">
                 {openingHoursState.map((hour, index) => (
                   <div key={hour.id} className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 p-2 sm:p-3 border rounded-lg">
@@ -1213,7 +1213,7 @@ const Branding = () => {
         {/* Footer Content */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base md:text-lg font-display uppercase tracking-wide">Footer Content</CardTitle>
+            <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">Footer Content</CardTitle>
             <CardDescription className="text-xs md:text-sm">Manage footer description and copyright text</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

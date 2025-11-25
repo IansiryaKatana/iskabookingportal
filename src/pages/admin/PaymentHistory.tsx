@@ -1,7 +1,8 @@
-import { useState } from "react";
-import { useAllPayments } from "@/hooks/useUnifiedPayments";
+import { useState, useMemo } from "react";
+import { useAllPayments, type UnifiedPayment } from "@/hooks/useUnifiedPayments";
 import { useAdminContracts } from "@/hooks/useAdminContracts";
 import { useAdminAcademicYears } from "@/hooks/useAdminAcademicYears";
+import { useBrandingSettings } from "@/hooks/useBranding";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,17 +11,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Download, Calendar, Filter } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Download, Calendar, Filter, FileText } from "lucide-react";
 import { format } from "date-fns";
+import { generateInvoicePDF } from "@/utils/invoicePdfGenerator";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const PaymentHistory = () => {
+  const { toast } = useToast();
   const [selectedContract, setSelectedContract] = useState<string>("all");
   const [selectedYear, setSelectedYear] = useState<string>("all");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+  const [selectedPayments, setSelectedPayments] = useState<Set<string>>(new Set());
+  const [isGeneratingInvoices, setIsGeneratingInvoices] = useState(false);
 
   const { data: contracts } = useAdminContracts();
   const { data: academicYears } = useAdminAcademicYears();
+  const { data: branding } = useBrandingSettings();
 
   const filters = {
     contractId: selectedContract !== "all" ? selectedContract : undefined,
@@ -84,6 +93,175 @@ const PaymentHistory = () => {
   const stripeCount = payments?.filter((p) => p.payment_source === "stripe").length || 0;
   const manualCount = payments?.filter((p) => p.payment_source === "manual").length || 0;
 
+  // Fetch student info on demand
+  const fetchStudentInfo = async (studentId: string, applicationId: string) => {
+    // Get profile
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("first_name, last_name, phone")
+      .eq("id", studentId)
+      .single();
+
+    // Get email
+    const { data: emailsData } = await supabase.functions.invoke("get-user-emails", {
+      body: { userIds: [studentId] },
+    });
+    const email = emailsData?.emails?.[studentId] || "";
+
+    // Get address from application step 2
+    let address = null;
+    const { data: step2 } = await supabase
+      .from("student_application_steps")
+      .select("payload")
+      .eq("application_id", applicationId)
+      .eq("step_number", 2)
+      .single();
+
+    if (step2?.payload) {
+      address = {
+        line1: step2.payload.address_line1,
+        line2: step2.payload.address_line2,
+        city: step2.payload.town,
+        postcode: step2.payload.postcode,
+      };
+    }
+
+    const name = profile
+      ? `${profile.first_name || ""} ${profile.last_name || ""}`.trim() || email.split("@")[0] || "Student"
+      : email.split("@")[0] || "Student";
+
+    return {
+      name,
+      email,
+      phone: profile?.phone || null,
+      address,
+    };
+  };
+
+  const handleDownloadInvoice = async (payment: UnifiedPayment) => {
+    try {
+      const studentInfo = await fetchStudentInfo(payment.student_id, payment.student_application_id);
+
+      const invoiceNumber = `INV-${payment.payment_id.slice(0, 8).toUpperCase()}-${format(new Date(payment.payment_date), "yyyyMMdd")}`;
+
+      await generateInvoicePDF({
+        payment,
+        studentName: studentInfo.name,
+        studentEmail: studentInfo.email,
+        studentPhone: studentInfo.phone,
+        studentAddress: studentInfo.address,
+        invoiceNumber,
+        branding: {
+          companyName: branding?.company_name,
+          contactPhone: branding?.contact_phone,
+          contactEmail: branding?.contact_email,
+          contactAddress1: branding?.contact_address_line1,
+          contactAddress2: branding?.contact_address_line2,
+          contactAddress3: branding?.contact_address_line3,
+          vatNumber: branding?.vat_number,
+          companyNumber: branding?.company_number,
+        },
+      });
+
+      toast({
+        title: "Invoice downloaded",
+        description: "Invoice PDF has been generated and downloaded.",
+      });
+    } catch (error) {
+      console.error("Error generating invoice:", error);
+      toast({
+        title: "Error",
+        description: "Failed to generate invoice. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleBulkDownloadInvoices = async () => {
+    if (selectedPayments.size === 0) {
+      toast({
+        title: "No invoices selected",
+        description: "Please select at least one payment to download invoices.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGeneratingInvoices(true);
+    try {
+      const selectedPaymentList = payments?.filter((p) =>
+        selectedPayments.has(`${p.payment_source}-${p.payment_id}`)
+      ) || [];
+
+      for (const payment of selectedPaymentList) {
+        try {
+          const studentInfo = await fetchStudentInfo(payment.student_id, payment.student_application_id);
+
+          const invoiceNumber = `INV-${payment.payment_id.slice(0, 8).toUpperCase()}-${format(new Date(payment.payment_date), "yyyyMMdd")}`;
+
+          await generateInvoicePDF({
+            payment,
+            studentName: studentInfo.name,
+            studentEmail: studentInfo.email,
+            studentPhone: studentInfo.phone,
+            studentAddress: studentInfo.address,
+            invoiceNumber,
+            branding: {
+              companyName: branding?.company_name,
+              contactPhone: branding?.contact_phone,
+              contactEmail: branding?.contact_email,
+              contactAddress1: branding?.contact_address_line1,
+              contactAddress2: branding?.contact_address_line2,
+              contactAddress3: branding?.contact_address_line3,
+              vatNumber: branding?.vat_number,
+              companyNumber: branding?.company_number,
+            },
+          });
+
+          // Small delay between downloads to prevent browser blocking
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        } catch (error) {
+          console.error(`Error generating invoice for payment ${payment.payment_id}:`, error);
+          // Continue with next invoice even if one fails
+        }
+      }
+
+      toast({
+        title: "Invoices downloaded",
+        description: `Successfully downloaded ${selectedPaymentList.length} invoice(s).`,
+      });
+      setSelectedPayments(new Set());
+    } catch (error) {
+      console.error("Error generating invoices:", error);
+      toast({
+        title: "Error",
+        description: "Failed to generate some invoices. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingInvoices(false);
+    }
+  };
+
+  const togglePaymentSelection = (paymentKey: string) => {
+    const newSelection = new Set(selectedPayments);
+    if (newSelection.has(paymentKey)) {
+      newSelection.delete(paymentKey);
+    } else {
+      newSelection.add(paymentKey);
+    }
+    setSelectedPayments(newSelection);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedPayments.size === (payments?.length || 0)) {
+      setSelectedPayments(new Set());
+    } else {
+      const allKeys = new Set(payments?.map((p) => `${p.payment_source}-${p.payment_id}`) || []);
+      setSelectedPayments(allKeys);
+    }
+  };
+
   return (
     <AdminLayout
       pageTitle="Payment History"
@@ -120,7 +298,7 @@ const PaymentHistory = () => {
               <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">£{totalAmount.toLocaleString("en-GB", { minimumFractionDigits: 2 })}</div>
+              <div className="text-xl md:text-2xl font-bold">£{totalAmount.toLocaleString("en-GB", { minimumFractionDigits: 2 })}</div>
               <p className="text-xs text-muted-foreground mt-1">
                 {payments?.length || 0} payment{payments?.length !== 1 ? "s" : ""}
               </p>
@@ -133,7 +311,7 @@ const PaymentHistory = () => {
               <Badge variant="outline">Stripe</Badge>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stripeCount}</div>
+              <div className="text-xl md:text-2xl font-bold">{stripeCount}</div>
               <p className="text-xs text-muted-foreground mt-1">
                 {stripeCount > 0 ? `£${payments?.filter((p) => p.payment_source === "stripe").reduce((sum, p) => sum + p.amount_paid, 0).toLocaleString("en-GB", { minimumFractionDigits: 2 })}` : "No payments"}
               </p>
@@ -146,7 +324,7 @@ const PaymentHistory = () => {
               <Badge variant="outline">Manual</Badge>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{manualCount}</div>
+              <div className="text-xl md:text-2xl font-bold">{manualCount}</div>
               <p className="text-xs text-muted-foreground mt-1">
                 {manualCount > 0 ? `£${payments?.filter((p) => p.payment_source === "manual").reduce((sum, p) => sum + p.amount_paid, 0).toLocaleString("en-GB", { minimumFractionDigits: 2 })}` : "No entries"}
               </p>
@@ -157,8 +335,8 @@ const PaymentHistory = () => {
         {/* Filters */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg font-display uppercase tracking-wide flex items-center gap-2">
-              <Filter className="h-5 w-5" />
+            <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide flex items-center gap-2">
+              <Filter className="h-4 w-4 md:h-5 md:w-5" />
               Filters
             </CardTitle>
           </CardHeader>
@@ -224,10 +402,37 @@ const PaymentHistory = () => {
         {/* Payment List */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg font-display uppercase tracking-wide">Payment Records</CardTitle>
-            <CardDescription>
-              All payment transactions sorted by date (newest first)
-            </CardDescription>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">Payment Records</CardTitle>
+                <CardDescription>
+                  All payment transactions sorted by date (newest first)
+                </CardDescription>
+              </div>
+              {payments && payments.length > 0 && (
+                <div className="flex items-center gap-2">
+                  {selectedPayments.size > 0 && (
+                    <Button
+                      onClick={handleBulkDownloadInvoices}
+                      disabled={isGeneratingInvoices}
+                      variant="outline"
+                      className="rounded-full uppercase tracking-wide gap-2"
+                    >
+                      <Download className="h-4 w-4" />
+                      Download {selectedPayments.size} Invoice{selectedPayments.size !== 1 ? "s" : ""}
+                    </Button>
+                  )}
+                  <Button
+                    onClick={toggleSelectAll}
+                    variant="ghost"
+                    size="sm"
+                    className="rounded-full"
+                  >
+                    {selectedPayments.size === payments.length ? "Deselect All" : "Select All"}
+                  </Button>
+                </div>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -242,38 +447,73 @@ const PaymentHistory = () => {
               </div>
             ) : (
               <div className="space-y-4">
-                {payments.map((payment) => (
-                  <div
-                    key={`${payment.payment_source}-${payment.payment_id}`}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 border rounded-lg"
-                  >
-                    <div className="flex-1 space-y-1">
+                {payments.map((payment) => {
+                  const paymentKey = `${payment.payment_source}-${payment.payment_id}`;
+                  const isSelected = selectedPayments.has(paymentKey);
+                  return (
+                    <div
+                      key={paymentKey}
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 border rounded-lg ${
+                        isSelected ? "bg-primary/5 border-primary" : ""
+                      }`}
+                    >
+                      <div className="flex items-start gap-3 flex-1">
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => togglePaymentSelection(paymentKey)}
+                          className="mt-1"
+                        />
+                        <div className="flex-1 space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Badge variant={payment.payment_source === "stripe" ? "default" : "secondary"}>
+                              {payment.payment_source === "stripe" ? "Stripe" : "Manual"}
+                            </Badge>
+                            <span className="text-sm font-medium">
+                              £{payment.amount_paid.toLocaleString("en-GB", { minimumFractionDigits: 2 })}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {format(new Date(payment.payment_date), "MMM dd, yyyy HH:mm")}
+                            </span>
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            <span>{payment.contract_name}</span>
+                            {payment.installment_number && (
+                              <span className="ml-2">• Installment #{payment.installment_number}</span>
+                            )}
+                          </div>
+                          {payment.manual_entry_notes && (
+                            <p className="text-xs text-muted-foreground italic">{payment.manual_entry_notes}</p>
+                          )}
+                        </div>
+                      </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant={payment.payment_source === "stripe" ? "default" : "secondary"}>
-                          {payment.payment_source === "stripe" ? "Stripe" : "Manual"}
+                        <Badge
+                          variant={
+                            payment.payment_status === "succeeded" || payment.payment_status === "completed"
+                              ? "default"
+                              : "outline"
+                          }
+                          className={
+                            payment.payment_status === "succeeded" || payment.payment_status === "completed"
+                              ? "bg-green-600 hover:bg-green-700 text-white"
+                              : ""
+                          }
+                        >
+                          {payment.payment_status}
                         </Badge>
-                        <span className="text-sm font-medium">
-                          £{payment.amount_paid.toLocaleString("en-GB", { minimumFractionDigits: 2 })}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {format(new Date(payment.payment_date), "MMM dd, yyyy HH:mm")}
-                        </span>
+                        <Button
+                          onClick={() => handleDownloadInvoice(payment)}
+                          variant="ghost"
+                          size="sm"
+                          className="rounded-full gap-2"
+                        >
+                          <FileText className="h-4 w-4" />
+                          <span className="hidden sm:inline">Invoice</span>
+                        </Button>
                       </div>
-                      <div className="text-sm text-muted-foreground">
-                        <span>{payment.contract_name}</span>
-                        {payment.installment_number && (
-                          <span className="ml-2">• Installment #{payment.installment_number}</span>
-                        )}
-                      </div>
-                      {payment.manual_entry_notes && (
-                        <p className="text-xs text-muted-foreground italic">{payment.manual_entry_notes}</p>
-                      )}
                     </div>
-                    <div className="text-right">
-                      <Badge variant="outline">{payment.payment_status}</Badge>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>

@@ -459,7 +459,7 @@ const ContractDetail = () => {
       </section>
 
       <main className="container mx-auto px-4 max-w-5xl py-12 space-y-10">
-        <div className="grid gap-6 md:grid-cols-[2fr,1fr]">
+        <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
           <Card className="rounded-3xl shadow-xl border border-border/60">
             <CardHeader>
               <CardTitle className="text-xl font-display uppercase tracking-wide flex items-center gap-2">
@@ -526,28 +526,29 @@ const ContractDetail = () => {
                     onValueChange={(value) => setActivePlanId(value)}
                     className="w-full"
                   >
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div className="flex flex-col gap-3">
                       <h3 className="text-sm uppercase tracking-[0.3em] text-muted-foreground">
                         Payment schedule
                       </h3>
                       {resolvedPlanOptions.length > 1 && (
-                        <TabsList className="bg-muted/60 rounded-full p-1 flex gap-1">
+                        <TabsList className="bg-muted/60 rounded-full p-1 flex gap-1 flex-wrap w-full">
                           {resolvedPlanOptions.map((plan) => (
                             <TabsTrigger
                               key={plan.id}
                               value={plan.payment_plan_id ?? plan.id}
-                              className="rounded-full px-4 py-1 text-xs uppercase tracking-wide data-[state=active]:bg-background"
+                              className="rounded-full px-3 py-1 text-xs uppercase tracking-wide data-[state=active]:bg-background flex-1 min-w-0"
                             >
-                              {plan.payment_plan?.name ?? "Plan"}
+                              <span className="truncate">{plan.payment_plan?.name ?? "Plan"}</span>
                             </TabsTrigger>
                           ))}
                         </TabsList>
                       )}
                     </div>
                     {resolvedPlanOptions.map((plan) => {
+                      const installments = plan.payment_plan?.payment_plan_installments ?? [];
                       const schedule =
-                        plan.payment_plan?.payment_plan_installments
-                          ?.slice()
+                        installments
+                          .slice()
                           .sort(
                             (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0),
                           )
@@ -588,17 +589,17 @@ const ContractDetail = () => {
                                 {plan.payment_plan.description}
                               </p>
                             )}
-                            <div className="grid gap-3">
-                              {schedule.length ? (
+                            <div className="space-y-3">
+                              {schedule.length > 0 ? (
                                 schedule.map((item, index) => (
                                   <div
                                     key={item.id ?? index}
-                                    className="rounded-2xl border border-border/60 bg-muted/20 px-4 py-3 flex items-center justify-between"
+                                    className="rounded-2xl border border-border/60 bg-muted/20 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
                                   >
                                     <span className="text-sm font-medium tracking-wide uppercase">
                                       {item.label}
                                     </span>
-                                    <div className="text-right">
+                                    <div className="text-left sm:text-right">
                                       <p className="text-sm font-semibold">
                                         {item.amountLabel}
                                       </p>
@@ -628,26 +629,18 @@ const ContractDetail = () => {
             </CardContent>
           </Card>
 
-          <Card className="rounded-3xl border border-border/60 shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-xl font-display uppercase tracking-wide">
-                Secure this contract
-              </CardTitle>
-              <CardDescription>
-                Log in or create an account to begin your booking journey and
-                reserve a studio.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          <Card className="rounded-3xl border border-border/60 shadow-lg overflow-hidden">
+            {/* Red Top Section with Button */}
+            <div className="bg-primary text-white p-6 space-y-4">
               {/* Rebooking Alert */}
               {user && rebookingCheck?.can_rebook && rebookingCheck.previous_application_id && (
-                <Alert className="border-primary/50 bg-primary/5">
-                  <RotateCcw className="h-4 w-4" />
-                  <AlertTitle className="font-semibold">Rebooking Available</AlertTitle>
-                  <AlertDescription className="text-sm mt-1">
+                <Alert className="border-white/30 bg-white/10 text-white">
+                  <RotateCcw className="h-4 w-4 text-white" />
+                  <AlertTitle className="font-semibold text-white">Rebooking Available</AlertTitle>
+                  <AlertDescription className="text-sm mt-1 text-white/90">
                     {rebookingCheck.message}
                     {rebookingCheck.previous_contract_name && (
-                      <span className="block mt-1 text-xs text-muted-foreground">
+                      <span className="block mt-1 text-xs text-white/70">
                         Previous: {rebookingCheck.previous_contract_name} ({rebookingCheck.previous_academic_year})
                       </span>
                     )}
@@ -658,7 +651,7 @@ const ContractDetail = () => {
               {/* Rebooking Button */}
               {user && rebookingCheck?.can_rebook && rebookingCheck.previous_application_id ? (
                 <Button
-                  className="w-full rounded-full uppercase tracking-wide"
+                  className="w-full rounded-full uppercase tracking-wide bg-white text-primary hover:bg-white/90"
                   size="lg"
                   onClick={handleRebook}
                   disabled={creatingRebooking || checkingRebooking}
@@ -679,11 +672,10 @@ const ContractDetail = () => {
 
               {/* Regular Booking Button */}
               <Button
-                className="w-full rounded-full uppercase tracking-wide"
+                className="w-full rounded-full uppercase tracking-wide bg-white text-primary hover:bg-white/90"
                 size="lg"
                 onClick={handleEnquire}
                 disabled={creating || creatingRebooking}
-                variant={user && rebookingCheck?.can_rebook ? "outline" : "default"}
               >
                 {creating ? (
                   <>
@@ -694,52 +686,54 @@ const ContractDetail = () => {
                   "Start Booking Journey"
                 )}
               </Button>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                {user && rebookingCheck?.can_rebook && rebookingCheck.previous_application_id
-                  ? "Choose to rebook and we'll pre-fill your information from your previous application, or start a new application."
-                  : "When you continue, we'll create your booking journey with the details above. You can save progress at any time, upload your documents securely, and pay the deposit via Stripe when ready."}
-              </p>
+            </div>
+
+            <CardContent className="space-y-6 pt-6">
+              <div className="space-y-4">
+                <div>
+                  <CardTitle className="text-lg font-display uppercase tracking-wide mb-2">
+                    Secure this contract
+                  </CardTitle>
+                  <CardDescription className="text-sm leading-relaxed">
+                    Log in or create an account to begin your booking journey and reserve a studio.
+                  </CardDescription>
+                </div>
+
+                <div className="space-y-4 pt-4">
+                  <h3 className="text-sm uppercase tracking-[0.3em] text-muted-foreground font-semibold">
+                    Your booking steps
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="rounded-2xl bg-muted/30 border border-border/50 p-4">
+                      <p className="font-semibold uppercase tracking-wide text-sm mb-2">
+                        Complete Your Booking Profile
+                      </p>
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        Enter your personal, academic, and guarantor details. Upload required documents with drag-and-drop simplicity.
+                      </p>
+                    </div>
+                    <div className="rounded-2xl bg-muted/30 border border-border/50 p-4">
+                      <p className="font-semibold uppercase tracking-wide text-sm mb-2">
+                        Pay Deposit & Sign Digitally
+                      </p>
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        Make your secure deposit payment via Stripe. We'll prepare your tenancy agreement for digital signing.
+                      </p>
+                    </div>
+                    <div className="rounded-2xl bg-muted/30 border border-border/50 p-4">
+                      <p className="font-semibold uppercase tracking-wide text-sm mb-2">
+                        Allocation & Move-In
+                      </p>
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        Once verified, your studio will be allocated and you'll receive full move-in instructions.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
-
-        <Card className="rounded-3xl border border-border/60 bg-muted/30 shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-lg font-display uppercase tracking-wide flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              What happens next?
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid md:grid-cols-3 gap-4 text-sm text-muted-foreground">
-            <div className="rounded-2xl bg-background/70 border border-border/50 p-4">
-              <p className="font-semibold uppercase tracking-wide">
-                1. Complete booking journey
-              </p>
-              <p>
-                Share your personal, academic, and guarantor details. Upload
-                required documents with drag-and-drop convenience.
-              </p>
-            </div>
-            <div className="rounded-2xl bg-background/70 border border-border/50 p-4">
-              <p className="font-semibold uppercase tracking-wide">
-                2. Pay deposit & sign
-              </p>
-              <p>
-                Pay securely via Stripe. We’ll prepare your tenancy agreement so
-                you can sign digitally.
-              </p>
-            </div>
-            <div className="rounded-2xl bg-background/70 border border-border/50 p-4">
-              <p className="font-semibold uppercase tracking-wide">
-                3. Allocation & move-in
-              </p>
-              <p>
-                Once verified, we’ll allocate your studio and share your move-in
-                information.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
       </main>
 
       <Footer />

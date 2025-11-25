@@ -16,6 +16,7 @@ import AdminContracts from "./pages/admin/Contracts";
 import AdminSettings from "./pages/admin/Settings";
 import AdminBranding from "./pages/admin/Branding";
 import AdminAcademicYears from "./pages/admin/AcademicYears";
+import AdminDocuSignTemplates from "./pages/admin/DocuSignTemplates";
 import AdminStudioGrades from "./pages/admin/StudioGrades";
 import AdminStudios from "./pages/admin/Studios";
 import AdminApplications from "./pages/admin/Applications";
@@ -39,6 +40,7 @@ import AdminWeeklyPaymentReport from "./pages/admin/WeeklyPaymentReport";
 import PartnerLogin from "./pages/partner/Login";
 import PartnerRegister from "./pages/partner/Register";
 import PartnerResetPassword from "./pages/partner/ResetPassword";
+import RequestPasswordReset from "./pages/partner/RequestPasswordReset";
 import PartnerDashboard from "./pages/partner/Dashboard";
 import PartnerReferrals from "./pages/partner/Referrals";
 import PartnerCommissions from "./pages/partner/Commissions";
@@ -288,6 +290,14 @@ const App = () => (
               }
             />
             <Route
+              path="/admin/docusign-templates"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                  <AdminDocuSignTemplates />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/admin/financial-forecast"
               element={
                 <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
@@ -363,6 +373,7 @@ const App = () => (
             {/* Partner Portal Routes */}
             <Route path="/partner/login" element={<PartnerLogin />} />
             <Route path="/partner/register" element={<PartnerRegister />} />
+            <Route path="/partner/request-password-reset" element={<RequestPasswordReset />} />
             <Route path="/partner/reset-password" element={<PartnerResetPassword />} />
             <Route
               path="/partner"

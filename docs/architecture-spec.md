@@ -219,7 +219,26 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
   - Awaiting deposits
   - Overdue payments
   - Debtors
-  - Occupancy reports
+  - **Occupancy reports**: 
+    - Studio grade breakdown with occupancy statistics (total, occupied, available, reserved, maintenance, percentage)
+    - Overall occupancy summary with academic year filtering
+    - Detailed view of occupied studios with student information
+    - Uses `studio_status_by_academic_year` view for accurate per-academic-year status
+    - Exportable to CSV with comprehensive metrics
+  - **Weekly Payment Report** (`/admin/weekly-payment-report`):
+    - Generates payment summaries for selected week (start date + optional end date, defaults to 7 days)
+    - **Data Source**: Uses `unified_payment_history` view which includes:
+      - **Stripe payments** from `stripe_payments` table (status: 'succeeded' or 'completed')
+      - **Deposit payments** from `student_applications` table (backward compatibility for deposits not yet migrated to `stripe_payments`)
+      - **Manual payments** from `manual_payments` table
+    - **Summary Statistics**:
+      - Total amount and count
+      - Stripe amount and count
+      - Manual amount and count
+    - **Payments by Day**: Grouped breakdown showing daily payment totals
+    - **Filtering**: Optional filters by contract ID and academic year ID
+    - **Export**: CSV export functionality
+    - **Edge Function**: `weekly-payment-report` handles data aggregation and date range filtering
   - Revenue reports
   - All exportable to CSV
 - **Communication**: 
@@ -272,19 +291,32 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
 ### 6.3 Partner Portal ✅ IMPLEMENTED
 
 - **Authentication**:
-  - Separate partner login page (`/partner/login`) with "Forgot password" functionality
+  - **Partner Login Page** (`/partner/login`):
+    - Beautiful two-column layout matching modern design standards
+    - Left section: Red gradient background with promotional content, statistics (Active Partners, Total Payouts, Avg Commission), and dashboard visualization
+    - Right section: White background with login form, email/password fields, "Keep me signed in" checkbox
+    - Mobile responsive: Left section hidden on mobile, condensed header with stats shown
+    - Skeleton loaders during initial load with "SC" placeholder for favicon
+    - Uses branding fonts (Big Shoulders Display for headings, Inter Tight for body)
+    - Favicon from branding settings displayed in logo containers
+  - **Request Password Reset Page** (`/partner/request-password-reset`):
+    - Beautiful two-column layout matching login page design
+    - Email input form for requesting password reset
+    - Success state with confirmation message
+    - Navigates to `/partner/reset-password` when user clicks link in email
   - Partner registration with referral code validation (`/partner/register`)
   - Password reset page (`/partner/reset-password`) for setting initial password or resetting forgotten password
   - Real-time referral code validation during registration
   - Auto-linking of accounts to partner records via referral code
   - Admin can create partner accounts directly (automatically sends password reset email)
   - **Password Reset Workflow**:
-    1. Admin creates partner account via admin UI
-    2. System automatically sends password reset email using `resetPasswordForEmail()`
-    3. Partner clicks link in email → redirected to `/partner/reset-password` with token
-    4. Partner sets new password (validates token, creates session, updates password)
-    5. Partner can then log in with their password
-    6. "Forgot password" on login page allows existing partners to request new reset email
+    1. User clicks "Reset it here" on login page → navigates to `/partner/request-password-reset`
+    2. User enters email address in form
+    3. System sends password reset email using `resetPasswordForEmail()`
+    4. User clicks link in email → redirected to `/partner/reset-password` with token
+    5. User sets new password (validates token, creates session, updates password)
+    6. User can then log in with their password
+    7. Admin-created accounts: System automatically sends password reset email when admin creates partner account
 - **Dashboard** (`/partner`):
   - Overview metrics:
     - Total referrals
@@ -700,11 +732,18 @@ See `COMPREHENSIVE_SYSTEM_ANALYSIS.md` for complete system assessment and gap an
 ### 14.3 Partner Password Reset System
 - **Status:** ✅ Implemented & Deployed (2025-11-20)
 - **Features:**
-  - Password reset page at `/partner/reset-password`
+  - **Request Password Reset Page** (`/partner/request-password-reset`):
+    - Beautiful two-column layout matching login page design
+    - Email input form for requesting password reset
+    - Success state with confirmation message and email address
+    - "Try Again" and "Back to Login" buttons
+    - Skeleton loaders during initial load
+    - Mobile responsive design
+  - Password reset page at `/partner/reset-password` for setting new password
   - Automatic password reset email sending when admin creates partner accounts
   - Token handling for Supabase hash fragments and query parameters
-  - "Forgot password" functionality on partner login page
-  - Complete workflow: Account creation → Email sent → Password set → Login
+  - "Forgot password" functionality on partner login page (navigates to request page instead of browser prompt)
+  - Complete workflow: Request reset → Email sent → Click link → Set password → Login
 - **Technical Details:**
   - Uses Supabase `resetPasswordForEmail()` API
   - Handles URL hash fragments (`#access_token=...&type=recovery`)
@@ -712,10 +751,50 @@ See `COMPREHENSIVE_SYSTEM_ANALYSIS.md` for complete system assessment and gap an
   - Automatic session management after token validation
   - Production URL configuration via `PORTAL_URL` secret
 - **Files:**
+  - `src/pages/partner/RequestPasswordReset.tsx` - Request password reset page
   - `src/pages/partner/ResetPassword.tsx` - Password reset page
   - `supabase/functions/create-partner-account/index.ts` - Updated to send emails automatically
-  - `src/pages/partner/Login.tsx` - Added "Forgot password" link
-  - `src/App.tsx` - Added route for reset password page
+  - `src/pages/partner/Login.tsx` - Updated to navigate to request page instead of browser prompt
+  - `src/App.tsx` - Added route for request password reset page
+
+### 14.6 Partner Login Page Redesign
+- **Status:** ✅ Implemented & Deployed (2025-11-20)
+- **Design:**
+  - Beautiful two-column layout inspired by modern partner portal designs
+  - **Left Section** (Desktop only):
+    - Red gradient background with geometric wave patterns
+    - Logo (favicon) in white rounded square
+    - Headline: "EARN MORE WITH EVERY REFERRAL"
+    - Tagline: "Track sign-ups, commissions and payouts in real time."
+    - Statistics display:
+      - Active Partners: 10
+      - Total Payouts: £23,116
+      - Avg. Commission: 5%
+    - Dashboard visualization with bar charts, line graphs, and progress cards
+  - **Right Section:**
+    - White background with login form
+    - Logo (favicon) in red rounded square
+    - "PARTNER PORTAL" title
+    - Email and password input fields with icons
+    - "Keep me signed in" checkbox
+    - Sign in button with arrow icon
+    - Register and password reset links
+    - Security message at bottom
+  - **Mobile Responsive:**
+    - Left section hidden on mobile
+    - Condensed header with stats shown on mobile
+    - Full-width form on mobile
+  - **Loading States:**
+    - Skeleton loaders for all elements during initial load
+    - "SC" text placeholder for favicon while loading
+    - Smooth transitions when content loads
+  - **Branding:**
+    - Uses Big Shoulders Display font for headings (uppercase, bold/black)
+    - Uses Inter Tight font for body text
+    - Favicon from branding settings
+    - Primary red color for accents and gradients
+- **Files:**
+  - `src/pages/partner/Login.tsx` - Complete redesign with two-column layout
 
 ### 14.4 Production URL Configuration
 - **Status:** ✅ Implemented & Deployed (2025-11-20)
@@ -742,3 +821,42 @@ See `COMPREHENSIVE_SYSTEM_ANALYSIS.md` for complete system assessment and gap an
 - Status badges, account information, error messages
 - Refresh functionality
 - See `src/pages/admin/Settings.tsx` and `supabase/functions/check-integration-status/index.ts`
+
+### 14.6 Partner Login Page Redesign
+- **Status:** ✅ Implemented & Deployed (2025-11-20)
+- **Design:**
+  - Beautiful two-column layout inspired by modern partner portal designs
+  - **Left Section** (Desktop only):
+    - Red gradient background with geometric wave patterns
+    - Logo (favicon) in white rounded square
+    - Headline: "EARN MORE WITH EVERY REFERRAL"
+    - Tagline: "Track sign-ups, commissions and payouts in real time."
+    - Statistics display:
+      - Active Partners: 10
+      - Total Payouts: £23,116
+      - Avg. Commission: 5%
+    - Dashboard visualization with bar charts, line graphs, and progress cards
+  - **Right Section:**
+    - White background with login form
+    - Logo (favicon) in red rounded square
+    - "PARTNER PORTAL" title
+    - Email and password input fields with icons
+    - "Keep me signed in" checkbox
+    - Sign in button with arrow icon
+    - Register and password reset links
+    - Security message at bottom
+  - **Mobile Responsive:**
+    - Left section hidden on mobile
+    - Condensed header with stats shown on mobile
+    - Full-width form on mobile
+  - **Loading States:**
+    - Skeleton loaders for all elements during initial load
+    - "SC" text placeholder for favicon while loading
+    - Smooth transitions when content loads
+  - **Branding:**
+    - Uses Big Shoulders Display font for headings (uppercase, bold/black)
+    - Uses Inter Tight font for body text
+    - Favicon from branding settings
+    - Primary red color for accents and gradients
+- **Files:**
+  - `src/pages/partner/Login.tsx` - Complete redesign with two-column layout

@@ -286,6 +286,7 @@ serve(async (req) => {
         contract:contracts (
           id,
           name,
+          academic_year_id,
           studio_grade:studio_grades ( name )
         ),
         student_application_steps (*)
@@ -423,6 +424,50 @@ serve(async (req) => {
     const studentPhone = (contactPayload.mobile as string) ?? "";
     const requiresGuarantor = Boolean(application.selected_payment_plan_id);
 
+    // Fetch DocuSign templates for this academic year
+    const academicYearId = (application.contract as any)?.academic_year_id;
+    if (!academicYearId) {
+      return new Response(
+        JSON.stringify({ error: "Application contract missing academic year" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { data: templates, error: templatesError } = await supabaseAdmin
+      .from("docusign_templates")
+      .select("template_id, template_type, role_names")
+      .eq("academic_year_id", academicYearId)
+      .eq("is_active", true);
+
+    if (templatesError) {
+      console.error("Failed to fetch DocuSign templates:", templatesError);
+      return new Response(
+        JSON.stringify({ 
+          error: "Failed to load DocuSign templates. Please contact support." 
+        }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const tenancyTemplate = templates?.find(t => t.template_type === 'tenancy');
+    const guarantorTemplate = templates?.find(t => t.template_type === 'guarantor');
+
+    if (!tenancyTemplate) {
+      return new Response(
+        JSON.stringify({ 
+          error: "Tenancy template not configured for this academic year. Please contact support." 
+        }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Use dynamic role names if provided, otherwise fall back to config defaults
+    const roleNames = (tenancyTemplate.role_names as any) || {};
+    const tenancyStudentRole = roleNames.student || config.tenancyStudentRole;
+    const tenancyWitnessRole = roleNames.witness || config.tenancyWitnessRole;
+    const tenancyGuarantorRole = roleNames.guarantor || config.guarantorRole;
+    const guarantorRole = guarantorTemplate?.role_names?.guarantor || config.guarantorRole;
+
     // Build auto-fill values for tenancy template
     const academicYear = formatAcademicYear(application.contract?.contract_start);
     const tenantNameForDoc = studentName || studentEmail;
@@ -486,31 +531,7 @@ serve(async (req) => {
       dob: (paymentPayload.guarantor_dob as string) ?? "",
     };
 
-    if (!requiresGuarantor) {
-      if (!witness.name.trim() || !witness.email.trim()) {
-        return new Response(
-          JSON.stringify({
-            error:
-              "Witness details are required before we can send the tenancy agreement.",
-          }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          },
-        );
-      }
-    } else if (!guarantor.name.trim() || !guarantor.email.trim()) {
-      return new Response(
-        JSON.stringify({
-          error:
-            "Guarantor details are required before we can send the agreements.",
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
+    // Note: Witness and guarantor validation is now done in the tenancy recipients section
 
     const textTabs = [
       ...(studentPhone
@@ -524,9 +545,10 @@ serve(async (req) => {
       ...(planSummary ? [{ tabLabel: "plan_summary", value: planSummary }] : []),
     ].filter((tab) => tab.value && tab.value.trim().length > 0);
 
+    // Tenancy contract: Tenant signs (1), Witness views (2 - optional), Guarantor signs (2 or 3 depending on witness)
     const tenancyRecipients = [
       {
-        roleName: config.tenancyStudentRole,
+        roleName: tenancyStudentRole,
         name: studentName || studentEmail,
         email: studentEmail,
         routingOrder: "1",
@@ -535,17 +557,45 @@ serve(async (req) => {
       },
     ];
 
-    if (!requiresGuarantor) {
+    // Optionally add witness as viewer (routing order 2) - only if details provided
+    const hasWitness = witness.name.trim() && witness.email.trim();
+    let nextRoutingOrder = 2;
+    
+    if (hasWitness) {
       tenancyRecipients.push({
-        roleName: config.tenancyWitnessRole,
+        roleName: tenancyWitnessRole,
         name: witness.name,
         email: witness.email,
-        routingOrder: "2",
+        routingOrder: String(nextRoutingOrder),
+        // Witness is a viewer, not a signer - DocuSign will handle this based on template role settings
+      });
+      nextRoutingOrder = 3;
+    }
+
+    // If guarantor is required, add them as a signer (routing order 2 or 3 depending on witness)
+    if (requiresGuarantor) {
+      if (!guarantor.name.trim() || !guarantor.email.trim()) {
+        return new Response(
+          JSON.stringify({
+            error: "Guarantor details are required before we can send the agreements.",
+          }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+      
+      tenancyRecipients.push({
+        roleName: tenancyGuarantorRole,
+        name: guarantor.name,
+        email: guarantor.email,
+        routingOrder: String(nextRoutingOrder),
       });
     }
 
     const tenancyBody = {
-      templateId: config.tenancyTemplateId,
+      templateId: tenancyTemplate.template_id,
       status: "sent",
       emailSubject: `Urban Hub tenancy agreement – ${
         application.contract?.studio_grade?.name ?? "Urban Hub"
@@ -588,11 +638,11 @@ serve(async (req) => {
     }
 
     if (requiresGuarantor) {
-      if (!config.guarantorTemplateId) {
+      if (!guarantorTemplate) {
         return new Response(
           JSON.stringify({
             error:
-              "DOCUSIGN_GUARANTOR_TEMPLATE_ID is not configured. Please add it before sending guarantor agreements.",
+              "Guarantor template not configured for this academic year. Please contact support.",
           }),
           {
             status: 500,
@@ -613,14 +663,14 @@ serve(async (req) => {
       if (!existingGuarantor) {
         const guarantorRecipients = [
           {
-            roleName: config.guarantorRole,
+            roleName: guarantorRole,
             name: guarantor.name,
             email: guarantor.email,
             routingOrder: "1",
           },
         ];
         const guarantorBody = {
-          templateId: config.guarantorTemplateId,
+          templateId: guarantorTemplate.template_id,
           status: "sent",
           emailSubject: `Urban Hub guarantor agreement – ${studentName || "Student"}`,
           templateRoles: guarantorRecipients,

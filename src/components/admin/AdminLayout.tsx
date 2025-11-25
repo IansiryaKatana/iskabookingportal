@@ -214,6 +214,11 @@ const navSections: NavSection[] = [
         to: "/admin/branding",
         icon: Image,
       },
+      {
+        label: "DocuSign Templates",
+        to: "/admin/docusign-templates",
+        icon: FileText,
+      },
     ],
   },
 ];

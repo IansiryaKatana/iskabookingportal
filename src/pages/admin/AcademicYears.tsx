@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import {
   useAdminAcademicYears,
@@ -6,9 +6,11 @@ import {
   useSetActiveAcademicYear,
   useUpdateAcademicYear,
 } from "@/hooks/useAdminAcademicYears";
+import { useDocuSignTemplates } from "@/hooks/useDocuSignTemplates";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Pencil, Star, Plus } from "lucide-react";
+import { Loader2, Pencil, Star, Plus, CheckCircle2, AlertCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -46,9 +48,27 @@ const schema = z
 
 const AcademicYears = () => {
   const { data, isLoading } = useAdminAcademicYears();
+  const { data: templates } = useDocuSignTemplates();
   const createYear = useCreateAcademicYear();
   const updateYear = useUpdateAcademicYear();
   const setActiveYear = useSetActiveAcademicYear();
+
+  // Check template status for each academic year
+  const templateStatus = useMemo(() => {
+    if (!data || !templates) return new Map();
+    const status = new Map();
+    data.forEach((year) => {
+      const yearTemplates = templates.filter((t) => t.academic_year_id === year.id && t.is_active);
+      const hasTenancy = yearTemplates.some((t) => t.template_type === "tenancy");
+      const hasGuarantor = yearTemplates.some((t) => t.template_type === "guarantor");
+      status.set(year.id, {
+        hasTenancy,
+        hasGuarantor,
+        isComplete: hasTenancy && hasGuarantor,
+      });
+    });
+    return status;
+  }, [data, templates]);
 
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -173,7 +193,7 @@ const AcademicYears = () => {
           </DialogTrigger>
           <DialogContent className="max-w-lg">
             <DialogHeader>
-              <DialogTitle className="text-xl font-display uppercase tracking-wide">
+              <DialogTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide">
                 {editingId ? "Edit academic year" : "Create academic year"}
               </DialogTitle>
             </DialogHeader>
@@ -273,7 +293,7 @@ const AcademicYears = () => {
 
       <Card className="rounded-3xl border border-border/60 shadow-xl">
         <CardHeader>
-          <CardTitle className="text-lg font-display uppercase tracking-wide">
+          <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">
             Academic year timeline
           </CardTitle>
           <CardDescription>
@@ -289,6 +309,8 @@ const AcademicYears = () => {
             <div className="space-y-4">
               {data?.map((year) => {
                 const isActive = year.is_active;
+                const status = templateStatus.get(year.id);
+                const templatesConfigured = status?.isComplete || false;
                 return (
                   <div
                     key={year.id}
@@ -298,17 +320,42 @@ const AcademicYears = () => {
                         : "border-border/60"
                     }`}
                   >
-                    <div>
-                      <p className="text-sm uppercase tracking-[0.3em] text-muted-foreground">
-                        {isActive ? "Active" : "Archived"}
-                      </p>
-                      <h3 className="text-xl font-display font-bold uppercase tracking-wide">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="text-sm uppercase tracking-[0.3em] text-muted-foreground">
+                          {isActive ? "Active" : "Archived"}
+                        </p>
+                        {status && (
+                          <Badge
+                            variant={templatesConfigured ? "default" : "destructive"}
+                            className="text-xs"
+                          >
+                            {templatesConfigured ? (
+                              <>
+                                <CheckCircle2 className="h-3 w-3 mr-1" />
+                                Templates Ready
+                              </>
+                            ) : (
+                              <>
+                                <AlertCircle className="h-3 w-3 mr-1" />
+                                Templates Missing
+                              </>
+                            )}
+                          </Badge>
+                        )}
+                      </div>
+                      <h3 className="text-base md:text-xl font-display font-bold uppercase tracking-wide">
                         {year.name}
                       </h3>
                       <p className="text-sm text-muted-foreground">
                         {format(new Date(year.start_date), "d MMM yyyy")} –{" "}
                         {format(new Date(year.end_date), "d MMM yyyy")}
                       </p>
+                      {status && !templatesConfigured && (
+                        <p className="text-xs text-destructive mt-1">
+                          Configure DocuSign templates before students can sign agreements.
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       {!isActive && (

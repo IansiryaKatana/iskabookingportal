@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
+import WhatsAppButton from "@/components/WhatsAppButton";
 import { supabase } from "@/integrations/supabase/client";
 import { useBrandingSetting } from "@/hooks/useBranding";
 import { Button } from "@/components/ui/button";
@@ -264,6 +265,7 @@ const StudiosCatalog = () => {
           </section>
         </main>
         <Footer />
+        <WhatsAppButton />
       </div>
     );
   }
@@ -485,6 +487,7 @@ const StudiosCatalog = () => {
         )}
       </main>
       <Footer />
+      <WhatsAppButton />
     </div>
   );
 };
