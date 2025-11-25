@@ -392,15 +392,14 @@ const RequestPasswordReset = () => {
 
           {/* Links */}
           <div className="space-y-3 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
+            <div>
+              <button
                 onClick={() => navigate("/partner/login")}
-                className="p-0 h-auto font-normal text-muted-foreground hover:text-foreground"
+                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
-                <ArrowLeft className="h-4 w-4 mr-2" />
+                <ArrowLeft className="h-4 w-4" />
                 Back to login
-              </Button>
+              </button>
             </div>
             <div>
               Don't have an account?{" "}

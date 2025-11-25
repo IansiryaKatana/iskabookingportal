@@ -29,10 +29,23 @@ const ContractDetail = () => {
   const [creatingRebooking, setCreatingRebooking] = useState(false);
   
   // Check if student can rebook for this contract
-  const { data: rebookingCheck, isLoading: checkingRebooking } = useCanRebook(
+  const { data: rebookingCheck, isLoading: checkingRebooking, error: rebookingError } = useCanRebook(
     user?.id && contract?.id ? contract.id : undefined
   );
   const markAsRebooking = useMarkAsRebooking();
+
+  // Debug logging
+  useEffect(() => {
+    if (user?.id && contract?.id) {
+      console.log("Rebooking Check Debug:", {
+        userId: user.id,
+        contractId: contract.id,
+        rebookingCheck,
+        checkingRebooking,
+        rebookingError,
+      });
+    }
+  }, [user?.id, contract?.id, rebookingCheck, checkingRebooking, rebookingError]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });

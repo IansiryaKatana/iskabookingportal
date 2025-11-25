@@ -168,6 +168,11 @@ const navSections: NavSection[] = [
         icon: MessageSquare,
       },
       {
+        label: "Targeted Messages",
+        to: "/admin/targeted-messages",
+        icon: Users,
+      },
+      {
         label: "Email Templates",
         to: "/admin/email-templates",
         icon: Mail,

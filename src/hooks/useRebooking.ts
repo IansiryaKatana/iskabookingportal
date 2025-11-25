@@ -36,7 +36,12 @@ export const useCanRebook = (contractId: string | undefined) => {
           p_contract_id: contractId,
         });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Rebooking check error:", error);
+        throw error;
+      }
+      
+      console.log("Rebooking check result:", { data, firstItem: data?.[0] });
       return (data?.[0] || null) as RebookingCheck | null;
     },
     enabled: !!user?.id && !!contractId,

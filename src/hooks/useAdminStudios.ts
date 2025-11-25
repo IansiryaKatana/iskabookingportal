@@ -17,6 +17,7 @@ const fetchStudios = async (options?: {
   gradeId?: string; 
   status?: string; 
   allocation?: string;
+  floor?: string;
   academicYearId?: string;
 }) => {
   // If academic year is provided, use the status view
@@ -54,6 +55,10 @@ const fetchStudios = async (options?: {
       } else {
         query = query.eq("allocation", options.allocation);
       }
+    }
+
+    if (options?.floor) {
+      query = query.eq("floor", options.floor);
     }
 
     const { data, error } = await query;
@@ -112,6 +117,10 @@ const fetchStudios = async (options?: {
     }
   }
 
+  if (options?.floor) {
+    query = query.eq("floor", options.floor);
+  }
+
   const { data, error } = await query;
   if (error) throw error;
   return (data as unknown as AdminStudio[]) ?? [];
@@ -121,6 +130,7 @@ export const useAdminStudios = (options?: {
   gradeId?: string; 
   status?: string; 
   allocation?: string;
+  floor?: string;
   academicYearId?: string;
 }) =>
   useQuery({
@@ -139,6 +149,29 @@ export const useUpdateStudio = () => {
         .eq("id", id)
         .select("*")
         .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-studios"] });
+    },
+  });
+};
+
+export const useBulkUpdateStudios = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      studioIds: string[];
+      updates: Partial<StudioRow>;
+    }) => {
+      const { studioIds, updates } = payload;
+      const { data, error } = await supabase
+        .from("studios")
+        .update(updates)
+        .in("id", studioIds)
+        .select("*");
 
       if (error) throw error;
       return data;

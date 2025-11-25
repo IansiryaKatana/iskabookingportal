@@ -19,7 +19,7 @@ Deliver a data-driven accommodation booking experience where every studio-grade 
 - `studio_grades` – name, slug, descriptions, max occupancy, `is_active`.
 - `studio_grade_media` – six images + optional video per grade.
 - `amenities` & `studio_grade_amenities` – amenity catalogue and grade mappings.
-- `studios` – existing dataset extended with `status`, `allocation`, `is_active`.
+- `studios` – existing dataset extended with `status`, `allocation`, `is_active`. `allocation` can be: `NULL` (Unallocated), `'Student'`, `'OTA'`, `'Keyworkers'`, or UUID (temporary student reservation during 30-min hold period). Studios allocated to OTA or Keyworkers are excluded from student selection and availability calculations.
 - `payment_plans` – per academic year, references deposit amount.
 - `payment_plan_installments` – ordered schedule items with offsets/percentages.
 - `studio_grade_prices` – per academic year + grade weekly price & deposit override.
@@ -39,7 +39,7 @@ Deliver a data-driven accommodation booking experience where every studio-grade 
 - `staff_activity_logs` – immutable audit log.
 - `notifications` – in-app notifications with email template support, starring, read/unread status.
 - `email_templates` – HTML email templates with dynamic variable replacement.
-- `bulk_messages` – bulk message tracking and history.
+- `bulk_messages` – bulk and targeted message tracking and history. Stores both bulk messages (all confirmed students) and targeted messages (specific students or filtered groups) with `message_type` in `filters` JSONB column.
 - `refunds` – refund processing and audit trail.
 - `financial_forecasts` – revenue forecasting calculations.
 - `branding_settings` – branding assets paths and text content (logo, favicon, contact info, footer text).
@@ -76,7 +76,8 @@ Deliver a data-driven accommodation booking experience where every studio-grade 
 
 - Show contract overview, weekly price, start/end, payment plan summary.
 - Present list/grid of available studios with photos (grade gallery reused).
-- Selected studio reserved (set `status = 'reserved'`, `reservation_expires_at`). Scheduled job releases expired reservations.
+- **Studio Availability Filtering**: Students only see studios where `allocation IS NULL` (Unallocated), `allocation = 'Student'`, or `allocation = {studentId UUID}` (their own temporary reservation). Studios allocated to OTA or Keyworkers are automatically excluded from student selection.
+- Selected studio reserved (set `status = 'reserved'`, `allocation = {studentId}`, `reservation_expires_at`). Scheduled job releases expired reservations.
 
 ### 4.4 Student Journey (6 Steps)
 
@@ -101,7 +102,8 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
 
 ### 4.7 Confirmation & Allocation
 
-- Upon deposit + signature + verification, application status → `confirmed`; studio `status = 'occupied'`. Notification dispatched.
+- Upon deposit + signature + verification, application status → `confirmed`; studio `status = 'occupied'` and `allocation = 'Student'` (permanent allocation). Notification dispatched.
+- Auto-allocation trigger (`handle_application_confirmation`) automatically sets studio allocation to 'Student' when application is confirmed, and clears allocation when application is unconfirmed.
 
 ## 5. Error Handling & Validation
 
@@ -221,6 +223,7 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
   - Debtors
   - **Occupancy reports**: 
     - Studio grade breakdown with occupancy statistics (total, occupied, available, reserved, maintenance, percentage)
+    - **Availability Calculations**: Studios allocated to OTA or Keyworkers are excluded from student availability counts and total capacity calculations
     - Overall occupancy summary with academic year filtering
     - Detailed view of occupied studios with student information
     - Uses `studio_status_by_academic_year` view for accurate per-academic-year status
@@ -247,9 +250,20 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
   - Notification management
 - **Studio Management**: 
   - Studio roster with color-coded status badges
-  - Allocation filter (All allocations, Student, Staff, Unallocated)
-  - Status-based filtering
+  - **Allocation Filter**: Filter by allocation type (All allocations, Student, OTA, Keyworkers, Unallocated)
+  - **Floor Filter**: Filter studios by floor (dynamically populated from studio data)
+  - **Status Filter**: Filter by studio status (Available, Reserved, Occupied, Maintenance)
+  - **Academic Year Filter**: View studio status per academic year using `studio_status_by_academic_year` view
+  - **Bulk Selection**: 
+    - Checkbox selection for individual studios
+    - "Select All" functionality
+    - Bulk actions menu with options:
+      - Set Allocation to Student/OTA/Keyworkers/Unallocated
+      - Set Status to Available/Maintenance
+    - Confirmation dialog for bulk operations
+    - Visual feedback for selected studios
   - Studio import functionality
+  - Individual studio status and allocation management
 - **User Management**: 
   - Invite staff
   - Assign roles
@@ -360,7 +374,11 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
   - `stripe-webhook` – Stripe webhook handler
   - `calculate-forecast` – Financial forecasting calculations
   - `get-user-emails` – User email fetching from auth.users
-  - `send-bulk-message` – Bulk notification and email sending with template variable replacement, enhanced error handling with HTML response detection and detailed logging
+  - `send-bulk-message` – Bulk and targeted notification/email sending with template variable replacement. Supports two modes:
+    - **Bulk mode**: Sends to all confirmed students (default behavior)
+    - **Targeted mode**: Sends to specific students (via `student_ids`) or filtered groups (via `application_status`, `studio_grade_id`, `academic_year_id`, etc.)
+    - Enhanced error handling with HTML response detection and detailed logging
+    - Debug logging for troubleshooting targeted vs bulk message flows
   - `send-transactional-email` – Transactional email sending for specific events, enhanced error handling with HTML response detection and detailed logging
   - `process-refund` – Refund processing with Stripe integration, audit logging, and notifications
   - `get-payment-intent-details` – Fetches payment intent details from Stripe for refund processing
@@ -395,7 +413,7 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
 - **Color-Coded Status Badges**: 
   - Application statuses (draft, awaiting_deposit, awaiting_signature, awaiting_verification, confirmed, cancelled, expired)
   - Studio statuses (available, reserved, occupied, maintenance)
-  - Bulk message statuses (pending, sending, completed, failed)
+  - Bulk/Targeted message statuses (pending, sending, completed, failed)
   - Refund statuses (pending, succeeded, failed)
   - DocuSign envelope statuses (sent, delivered, completed)
 - **Badge System**: Colored badges with counters on filter tabs, notification counts, and status indicators
@@ -442,6 +460,18 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
 - **Per-Student Variable Replacement**: Each student receives personalized email with their data
 - **Notification + Email**: Sends both in-app notification and email
 - **Template Metadata**: Stores `email_template_id` and `bulk_message_id` in notification metadata
+- **Target Audience**: Sends to all confirmed students by default
+
+### 9.4 Targeted Messaging
+- **Status**: ✅ Implemented & Deployed (2025-11-25)
+- **Purpose**: Send messages to specific students or filtered groups (complements bulk messaging)
+- **Two Selection Methods**:
+  - **Direct Selection**: Searchable multi-select to choose specific students by name/email
+  - **Filter by Category**: Filter by application status, studio grade, or academic year
+- **Same Template System**: Uses same email template workflow as bulk messages
+- **Separate History**: Targeted messages tracked separately from bulk messages
+- **Flexible Targeting**: Can send to students even if they don't have applications (when using direct selection)
+- **Mobile Responsive**: Tabbed interface optimized for mobile devices
 
 ### 9.4 Financial Forecasting
 - **Revenue Goals**: Input target revenue
@@ -479,10 +509,20 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
 ### 9.9 Additional Features
 - **Skeleton Loaders**: Component-specific loaders on all pages
 - **Color-Coded Badges**: Status indicators throughout the system
-- **Studio Roster Filters**: Allocation and status filtering
+- **Studio Roster Filters**: 
+  - Allocation filter (Student, OTA, Keyworkers, Unallocated)
+  - Floor filter (dynamically populated)
+  - Status filter (Available, Reserved, Occupied, Maintenance)
+  - Academic year filter for per-year status view
+- **Bulk Studio Management**: 
+  - Multi-select with checkboxes
+  - Bulk allocation updates (Student/OTA/Keyworkers/Unallocated)
+  - Bulk status updates (Available/Maintenance)
+  - Confirmation dialogs for bulk operations
 - **Sign-Out Confirmation**: Confirmation dialogs for security
-- **Auto-Allocation**: Automatic studio allocation on confirmation
+- **Auto-Allocation**: Automatic studio allocation to 'Student' on confirmation, clears allocation on unconfirmation
 - **Reservation Expiry**: Automatic release of expired reservations
+- **OTA/Keyworkers Exclusion**: Studios allocated to OTA or Keyworkers are automatically excluded from student selection and availability calculations
 
 ### 9.9 Partner Referral System ✅ IMPLEMENTED
 - **Referral Code Management**: 
@@ -624,16 +664,26 @@ See `COMPREHENSIVE_SYSTEM_ANALYSIS.md` for complete system assessment and gap an
 
 ## 13. Future Enhancements (Planned)
 
-### 12.1 Studio Availability Tracking & Dynamic Tags
-- **Status:** Planned
+### 12.1 Studio Availability Tracking & Dynamic Tags ✅ IMPLEMENTED
+- **Status:** ✅ Complete
 - **Priority:** HIGH
+- **Implementation Date:** February 2025
 - Real-time availability calculation per studio grade
+- **Availability Calculations**: 
+  - Uses `get_studio_availability()` function and `studio_grade_availability_by_year` view
+  - Studios allocated to OTA or Keyworkers are excluded from student availability counts
+  - Per-academic-year availability tracking via `studio_status_by_academic_year` view
 - Dynamic availability tags on catalog:
   - "Going Fast" when < 20% available
   - "X Left" when low availability (e.g., "2 Left", "1 Left")
   - "Fully Booked" when 0 available
 - "Book Now" button changes to "Fully Booked" when no availability
-- See `docs/COMPREHENSIVE_ANALYSIS_AND_IMPLEMENTATION_PLAN.md` for details
+- **Studio Allocation System**:
+  - Allocation options: Student, OTA, Keyworkers, Unallocated
+  - Temporary reservations use UUID format (30-min hold period)
+  - Auto-allocation to 'Student' on application confirmation
+  - OTA/Keyworkers studios excluded from student selection
+- See `docs/STUDIO_ALLOCATION_DEEP_ANALYSIS.md` for detailed implementation analysis
 
 ### 12.2 Rebooking System ✅ IMPLEMENTED
 - **Status:** ✅ Complete
@@ -712,7 +762,32 @@ See `COMPREHENSIVE_SYSTEM_ANALYSIS.md` for complete system assessment and gap an
 
 ## 15. Recent Implementations
 
-### 14.1 Bulk Message Filters
+### 15.1 Targeted Messages Feature
+- **Status:** ✅ Implemented & Deployed (2025-11-25)
+- **Overview**: Separate feature from bulk messages that allows staff to send messages to specific students or students matching particular criteria
+- **Location**: `/admin/targeted-messages`
+- **Features**:
+  - **Direct Student Selection**: Searchable multi-select dropdown to choose specific students by name/email
+  - **Filter by Category**: 
+    - Application Status (draft, awaiting_deposit, awaiting_signature, awaiting_verification, confirmed, cancelled, expired)
+    - Studio Grade
+    - Academic Year
+  - **Same Email Template Workflow**: Reuses bulk messages email template system with variable replacement
+  - **Message History**: Tracks all targeted messages separately from bulk messages
+  - **Mobile Responsive**: Tabbed interface with mobile-friendly bottom-sheet dialogs
+- **Technical Implementation**:
+  - Uses same `bulk_messages` table with `message_type: "targeted"` stored in `filters` JSONB column
+  - Edge function `send-bulk-message` detects `mode: "targeted"` parameter
+  - When `student_ids` provided, sends directly to those students (even without applications)
+  - When filters provided, queries `student_applications` based on filter criteria
+  - Separated from bulk messages in UI (targeted messages don't show in bulk list and vice versa)
+- **Files**:
+  - `src/pages/admin/TargetedMessages.tsx` - Main component
+  - `src/hooks/useTargetedMessages.ts` - Hooks for targeted messages
+  - `supabase/functions/send-bulk-message/index.ts` - Updated to support both modes
+  - `supabase/migrations/20250222_add_bulk_messages_filters_index.sql` - Optional GIN index for performance
+
+### 15.2 Bulk Message Filters
 - **Status:** ✅ Implemented & Deployed
 - Filter bulk messages by:
   - Contract ID

@@ -13,7 +13,21 @@ const fetchStudios = async (studioGradeId: string): Promise<StudioRow[]> => {
     .order("studio_number", { ascending: true });
 
   if (error) throw error;
-  return data ?? [];
+  
+  // Filter out studios allocated to OTA or Keyworkers
+  // Students should only see: NULL (Unallocated), 'Student', or UUID (temporary reservation)
+  const filtered = (data ?? []).filter((studio) => {
+    const allocation = studio.allocation;
+    // Allow NULL, 'Student', or UUID format (temporary reservations)
+    return (
+      allocation === null ||
+      allocation === "Student" ||
+      // UUID format check (temporary student reservation)
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(allocation)
+    );
+  });
+  
+  return filtered;
 };
 
 export const useStudios = (studioGradeId?: string) =>

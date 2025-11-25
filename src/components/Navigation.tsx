@@ -172,9 +172,9 @@ const Navigation = () => {
             {renderAccountMenu("px-3")}
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-white hover:bg-accent-yellow hover:text-black">
-                  <Menu className="h-5 w-5" />
-                </Button>
+            <Button variant="ghost" size="icon" className="text-white hover:bg-accent-yellow hover:text-black">
+              <Menu className="h-5 w-5" />
+            </Button>
               </SheetTrigger>
               <SheetContent side="right" className="w-[300px] sm:w-[400px] bg-background">
                 <SheetHeader>

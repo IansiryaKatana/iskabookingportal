@@ -15,7 +15,16 @@ export const useBulkMessages = () => {
         .limit(50);
 
       if (error) throw error;
-      return data ?? [];
+
+      const bulkOnly = (data ?? []).filter((msg) => {
+        const filters = msg.filters as Record<string, unknown> | null;
+        const isTargeted =
+          filters &&
+          (filters.message_type === "targeted" || Array.isArray(filters.student_ids));
+        return !isTargeted;
+      });
+
+      return bulkOnly;
     },
   });
 };
@@ -52,6 +61,7 @@ export const useSendBulkMessage = () => {
       // Call Edge Function to send bulk message
       const { data: result, error: functionError } = await supabase.functions.invoke("send-bulk-message", {
         body: {
+          mode: "bulk",
           bulk_message_id: bulkMessage.id,
           title: payload.title,
           message: payload.message,

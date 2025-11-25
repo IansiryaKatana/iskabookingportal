@@ -12,6 +12,7 @@ import StudiosCatalog from "./pages/StudiosCatalog";
 import ContractDetail from "./pages/ContractDetail";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminLogin from "./pages/admin/Login";
+import AdminRequestPasswordReset from "./pages/admin/RequestPasswordReset";
 import AdminContracts from "./pages/admin/Contracts";
 import AdminSettings from "./pages/admin/Settings";
 import AdminBranding from "./pages/admin/Branding";
@@ -26,6 +27,7 @@ import AdminStudents from "./pages/admin/Students";
 import AdminStudentDetail from "./pages/admin/StudentDetail";
 import AdminReports from "./pages/admin/Reports";
 import AdminBulkMessages from "./pages/admin/BulkMessages";
+import AdminTargetedMessages from "./pages/admin/TargetedMessages";
 import AdminEmailTemplates from "./pages/admin/EmailTemplates";
 import AdminApplicationDetail from "./pages/admin/ApplicationDetail";
 import AdminUsers from "./pages/admin/Users";
@@ -50,6 +52,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import StudentApplicationWizard from "./pages/portal/ApplicationWizard";
 import StudentApplicationWizardPrototype from "./pages/portal/ApplicationWizardPrototype";
 import PortalAuth from "./pages/portal/Auth";
+import PortalRequestPasswordReset from "./pages/portal/RequestPasswordReset";
 import PortalDashboard from "./pages/portal/Dashboard";
 import StudioSelection from "./pages/portal/StudioSelection";
 import PortalPayments from "./pages/portal/Payments";
@@ -87,6 +90,7 @@ const App = () => (
             <Route path="/contracts/:slug" element={<ContractDetail />} />
             <Route path="/reference/studio-grade-static" element={<StudioGradeStatic />} />
             <Route path="/portal/login" element={<PortalAuth />} />
+            <Route path="/portal/request-password-reset" element={<PortalRequestPasswordReset />} />
                   <Route
                     path="/portal"
                     element={
@@ -145,6 +149,7 @@ const App = () => (
                   />
 
             <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/admin/request-password-reset" element={<AdminRequestPasswordReset />} />
             <Route
               path="/admin"
               element={
@@ -238,6 +243,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
                   <AdminBulkMessages />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/targeted-messages"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                  <AdminTargetedMessages />
                 </ProtectedRoute>
               }
             />

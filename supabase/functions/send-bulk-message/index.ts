@@ -12,6 +12,10 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  // Log immediately when function is called
+  console.log("🚀 send-bulk-message function called");
+  console.log("Request method:", req.method);
+
   try {
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -24,14 +28,19 @@ serve(async (req) => {
       },
     );
 
+    // Parse request body
+    const requestBody = await req.json();
+    console.log("📥 Raw request body:", JSON.stringify(requestBody, null, 2));
+
     const {
+      mode = "bulk",
       bulk_message_id,
       title,
       message,
       notification_type = "info",
       email_template_id,
       filters = {},
-    } = await req.json();
+    } = requestBody;
 
     if (!bulk_message_id || !title || !message) {
       return new Response(
@@ -49,40 +58,130 @@ serve(async (req) => {
       .update({ status: "sending" })
       .eq("id", bulk_message_id);
 
-    // Fetch all confirmed students (or apply filters)
-    let query = supabaseClient
-      .from("student_applications")
-      .select("id, student_id, status, contract_id, assigned_studio_id")
-      .eq("status", "confirmed");
+    // DEBUG: Log incoming request
+    console.log("=== 🔍 DEBUG: Request received ===");
+    console.log("Mode:", mode);
+    console.log("Mode type:", typeof mode);
+    console.log("Mode === 'targeted':", mode === "targeted");
+    console.log("Filters:", JSON.stringify(filters, null, 2));
+    console.log("Filters type:", typeof filters);
+    console.log("Filters is object:", filters && typeof filters === "object");
 
-    // Apply filters if provided
-    if (filters && typeof filters === "object") {
-      // Filter by contract_id
-      if (filters.contract_id && typeof filters.contract_id === "string") {
-        query = query.eq("contract_id", filters.contract_id);
+    // Check if this is a targeted message
+    const filtersObject = (filters && typeof filters === "object") ? filters : {};
+    const hasStudentIds = Array.isArray(filtersObject.student_ids) && filtersObject.student_ids.length > 0;
+    const hasMessageType = filtersObject.message_type === "targeted";
+    const isTargeted = mode === "targeted" || hasStudentIds || hasMessageType;
+
+    console.log("=== DEBUG: Targeted check ===");
+    console.log("hasStudentIds:", hasStudentIds, "student_ids:", filtersObject.student_ids);
+    console.log("hasMessageType:", hasMessageType, "message_type:", filtersObject.message_type);
+    console.log("mode === 'targeted':", mode === "targeted");
+    console.log("isTargeted:", isTargeted);
+
+    let filteredApplications: any[] = [];
+    const hasStudentSelection = isTargeted && hasStudentIds;
+
+    if (isTargeted) {
+      console.log("=== DEBUG: TARGETED MESSAGE PATH ===");
+      console.log(
+        hasStudentSelection
+          ? `Targeted message: Sending to ${filtersObject.student_ids.length} specific students`
+          : "Targeted message: Sending to students matching filters",
+      );
+
+      let query = supabaseClient
+        .from("student_applications")
+        .select("id, student_id, status, contract_id, assigned_studio_id, studio_grade_id");
+
+      if (hasStudentSelection) {
+        console.log("=== DEBUG: Filtering by student_ids ===");
+        console.log("student_ids to filter:", filtersObject.student_ids);
+        query = query.in("student_id", filtersObject.student_ids);
       }
+
+      // Apply status filter if provided
+      if (filtersObject.application_status && Array.isArray(filtersObject.application_status) && filtersObject.application_status.length > 0) {
+        console.log("=== DEBUG: Filtering by application_status ===", filtersObject.application_status);
+        query = query.in("status", filtersObject.application_status);
+      }
+
+      // Filter by contract_id directly if possible
+      if (filtersObject.contract_id) {
+        if (typeof filtersObject.contract_id === "string") {
+          query = query.eq("contract_id", filtersObject.contract_id);
+        } else if (Array.isArray(filtersObject.contract_id) && filtersObject.contract_id.length > 0) {
+          query = query.in("contract_id", filtersObject.contract_id);
+        }
+      }
+
+      // Filter by studio_grade_id directly if available
+      if (filtersObject.studio_grade_id) {
+        if (typeof filtersObject.studio_grade_id === "string") {
+          query = query.eq("studio_grade_id", filtersObject.studio_grade_id);
+        } else if (Array.isArray(filtersObject.studio_grade_id) && filtersObject.studio_grade_id.length > 0) {
+          query = query.in("studio_grade_id", filtersObject.studio_grade_id);
+        }
+      }
+
+      const { data: applications, error: appsError } = await query;
+
+      console.log("=== DEBUG: Query results ===");
+      console.log("Applications found:", applications?.length || 0);
+      console.log("Applications:", JSON.stringify(applications?.map(a => ({ id: a.id, student_id: a.student_id, status: a.status })), null, 2));
+
+      if (appsError) {
+        console.error("Error fetching applications for targeted message:", appsError);
+        throw appsError;
+      }
+
+      filteredApplications = applications || [];
+    } else {
+      // BULK: Original behavior - only confirmed students (preserve existing functionality)
+      console.log("=== DEBUG: BULK MESSAGE PATH ===");
+      console.log("Bulk message: Sending to all confirmed students");
       
-      // Filter by studio_grade (via assigned_studio_id -> studios -> studio_grades)
-      if (filters.studio_grade_id && typeof filters.studio_grade_id === "string") {
-        // We'll filter this after fetching by joining with studios
-        // For now, we'll fetch all and filter in memory for simplicity
+      let query = supabaseClient
+        .from("student_applications")
+        .select("id, student_id, status, contract_id, assigned_studio_id, studio_grade_id")
+        .eq("status", "confirmed");
+
+      // Apply filters if provided (for backward compatibility)
+      if (filtersObject && typeof filtersObject === "object") {
+        // Filter by contract_id
+        if (filtersObject.contract_id) {
+          if (typeof filtersObject.contract_id === "string") {
+            query = query.eq("contract_id", filtersObject.contract_id);
+          } else if (Array.isArray(filtersObject.contract_id) && filtersObject.contract_id.length > 0) {
+            query = query.in("contract_id", filtersObject.contract_id);
+          }
+        }
+        
+        // Filter by studio_grade_id
+        if (filtersObject.studio_grade_id) {
+          if (typeof filtersObject.studio_grade_id === "string") {
+            query = query.eq("studio_grade_id", filtersObject.studio_grade_id);
+          } else if (Array.isArray(filtersObject.studio_grade_id) && filtersObject.studio_grade_id.length > 0) {
+            query = query.in("studio_grade_id", filtersObject.studio_grade_id);
+          }
+        }
       }
+
+      const { data: applications, error: appsError } = await query;
       
-      // Filter by academic_year (via contract -> academic_year_id)
-      if (filters.academic_year_id && typeof filters.academic_year_id === "string") {
-        // We'll filter this after fetching by joining with contracts
-        // For now, we'll fetch all and filter in memory for simplicity
+      if (appsError) {
+        console.error("Error fetching applications:", appsError);
+        throw appsError;
       }
+
+      filteredApplications = applications || [];
     }
-
-    const { data: applications, error: appsError } = await query;
     
-    // Apply post-query filters if needed (for complex joins)
-    let filteredApplications = applications || [];
-    
-    if (filters && typeof filters === "object" && filteredApplications.length > 0) {
-      // Filter by studio_grade_id
-      if (filters.studio_grade_id && typeof filters.studio_grade_id === "string") {
+    // Apply post-query filters for complex joins (works for both bulk and targeted)
+    if (filtersObject && typeof filtersObject === "object" && filteredApplications.length > 0) {
+      // Filter by studio_grade_id (if not already filtered in query)
+      if (filtersObject.studio_grade_id && Array.isArray(filtersObject.studio_grade_id) && filtersObject.studio_grade_id.length > 0) {
+        // Only filter if we need to check via assigned_studio_id -> studios
         const studioIds = filteredApplications
           .map((app) => app.assigned_studio_id)
           .filter(Boolean) as string[];
@@ -92,7 +191,7 @@ serve(async (req) => {
             .from("studios")
             .select("id, studio_grade_id")
             .in("id", studioIds)
-            .eq("studio_grade_id", filters.studio_grade_id);
+            .in("studio_grade_id", filtersObject.studio_grade_id);
           
           const matchingStudioIds = new Set(studios?.map((s) => s.id) || []);
           filteredApplications = filteredApplications.filter((app) =>
@@ -104,57 +203,88 @@ serve(async (req) => {
       }
       
       // Filter by academic_year_id
-      if (filters.academic_year_id && typeof filters.academic_year_id === "string") {
-        const contractIds = filteredApplications
-          .map((app) => app.contract_id)
-          .filter(Boolean) as string[];
+      if (filtersObject.academic_year_id) {
+        const academicYearIds = Array.isArray(filtersObject.academic_year_id) 
+          ? filtersObject.academic_year_id 
+          : [filtersObject.academic_year_id];
         
-        if (contractIds.length > 0) {
-          const { data: contracts } = await supabaseClient
-            .from("contracts")
-            .select("id, academic_year_id")
-            .in("id", contractIds)
-            .eq("academic_year_id", filters.academic_year_id);
+        if (academicYearIds.length > 0) {
+          const contractIds = filteredApplications
+            .map((app) => app.contract_id)
+            .filter(Boolean) as string[];
           
-          const matchingContractIds = new Set(contracts?.map((c) => c.id) || []);
-          filteredApplications = filteredApplications.filter((app) =>
-            app.contract_id && matchingContractIds.has(app.contract_id),
-          );
-        } else {
-          filteredApplications = [];
+          if (contractIds.length > 0) {
+            const { data: contracts } = await supabaseClient
+              .from("contracts")
+              .select("id, academic_year_id")
+              .in("id", contractIds)
+              .in("academic_year_id", academicYearIds);
+            
+            const matchingContractIds = new Set(contracts?.map((c) => c.id) || []);
+            filteredApplications = filteredApplications.filter((app) =>
+              app.contract_id && matchingContractIds.has(app.contract_id),
+            );
+          } else {
+            filteredApplications = [];
+          }
         }
+      }
+
+      // Filter by application status (for targeted messages)
+      if (isTargeted && filtersObject.application_status && Array.isArray(filtersObject.application_status) && filtersObject.application_status.length > 0) {
+        filteredApplications = filteredApplications.filter((app) =>
+          filtersObject.application_status.includes(app.status),
+        );
       }
     }
 
-    if (appsError) {
-      console.error("Error fetching applications:", appsError);
-      throw appsError;
+    console.log(`=== DEBUG: After post-query filters ===`);
+    console.log(`Found ${filteredApplications.length} applications after applying filters`);
+
+    // Get student IDs - for targeted messages with student selection, ALWAYS use the provided student_ids
+    let studentIds: string[] = [];
+    
+    if (isTargeted && hasStudentIds) {
+      console.log("=== DEBUG: TARGETED with student_ids ===");
+      console.log("Provided student_ids:", filtersObject.student_ids);
+      console.log("Applications found:", filteredApplications.length);
+      
+      // For targeted messages with specific student selection, ALWAYS use the provided student_ids
+      // This ensures we send to the selected students even if they don't have applications
+      studentIds = filtersObject.student_ids.filter(Boolean);
+      console.log("Final student_ids to send to:", studentIds);
+    } else if (isTargeted) {
+      // Targeted message with filters only (no specific student selection)
+      console.log("=== DEBUG: TARGETED with filters only ===");
+      studentIds = [...new Set(filteredApplications.map((app) => app.student_id).filter(Boolean))];
+      console.log("Student IDs from filtered applications:", studentIds);
+    } else {
+      // Bulk message - only use students with applications
+      if (filteredApplications.length === 0) {
+        await supabaseClient
+          .from("bulk_messages")
+          .update({
+            status: "completed",
+            total_recipients: 0,
+            notifications_sent: 0,
+            emails_sent: 0,
+            completed_at: new Date().toISOString(),
+          })
+          .eq("id", bulk_message_id);
+
+        return new Response(
+          JSON.stringify({ message: "No recipients found", recipients: 0 }),
+          {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+      studentIds = [...new Set(filteredApplications.map((app) => app.student_id).filter(Boolean))];
     }
-
-    console.log(`Found ${filteredApplications.length} confirmed applications after applying filters`);
-
-    if (!filteredApplications || filteredApplications.length === 0) {
-      await supabaseClient
-        .from("bulk_messages")
-        .update({
-          status: "completed",
-          total_recipients: 0,
-          notifications_sent: 0,
-          emails_sent: 0,
-          completed_at: new Date().toISOString(),
-        })
-        .eq("id", bulk_message_id);
-
-      return new Response(
-        JSON.stringify({ message: "No recipients found", recipients: 0 }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    const studentIds = [...new Set(filteredApplications.map((app) => app.student_id).filter(Boolean))];
-    console.log(`Sending to ${studentIds.length} unique students:`, studentIds);
+    
+    console.log(`=== DEBUG: Final student list ===`);
+    console.log(`Sending to ${studentIds.length} unique students`);
+    console.log("Student IDs:", studentIds);
     
     if (studentIds.length === 0) {
       await supabaseClient

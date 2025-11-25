@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { useAdminStudios, useUpdateStudio } from "@/hooks/useAdminStudios";
+import { useAdminStudios, useUpdateStudio, useBulkUpdateStudios } from "@/hooks/useAdminStudios";
 import { useAdminStudioGrades } from "@/hooks/useAdminStudioGrades";
 import {
   Card,
@@ -11,7 +11,22 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, ArrowRightCircle } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Loader2, ArrowRightCircle, CheckSquare, Square, MoreVertical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
@@ -27,16 +42,22 @@ const Studios = () => {
   const [gradeFilter, setGradeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [allocationFilter, setAllocationFilter] = useState<string>("all");
+  const [floorFilter, setFloorFilter] = useState<string>("all");
   const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string | undefined>();
+  const [selectedStudios, setSelectedStudios] = useState<Set<string>>(new Set());
+  const [bulkActionDialogOpen, setBulkActionDialogOpen] = useState(false);
+  const [bulkAction, setBulkAction] = useState<{ type: string; value: string } | null>(null);
 
   const { data: gradesData } = useAdminStudioGrades(selectedAcademicYearId);
   const { data: studios, isLoading } = useAdminStudios({
     gradeId: gradeFilter === "all" ? undefined : gradeFilter,
     status: statusFilter === "all" ? undefined : statusFilter,
     allocation: allocationFilter === "all" ? undefined : allocationFilter,
+    floor: floorFilter === "all" ? undefined : floorFilter,
     academicYearId: selectedAcademicYearId,
   });
   const updateStudio = useUpdateStudio();
+  const bulkUpdateStudios = useBulkUpdateStudios();
 
   const gradeOptions = useMemo(
     () =>
@@ -47,6 +68,20 @@ const Studios = () => {
     [gradesData],
   );
 
+  // Get unique floor values from studios
+  const floorOptions = useMemo(() => {
+    const floors = new Set<string>();
+    studios?.forEach((studio) => {
+      if (studio.floor) {
+        floors.add(studio.floor);
+      }
+    });
+    return Array.from(floors).sort();
+  }, [studios]);
+
+  const selectAll = selectedStudios.size === studios?.length && studios.length > 0;
+  const someSelected = selectedStudios.size > 0 && selectedStudios.size < (studios?.length ?? 0);
+
   const handleStatusChange = async (studioId: string, status: string) => {
     try {
       await updateStudio.mutateAsync({ id: studioId, status });
@@ -56,6 +91,63 @@ const Studios = () => {
       toast({
         variant: "destructive",
         title: "Unable to update studio status",
+      });
+    }
+  };
+
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedStudios(new Set());
+    } else {
+      setSelectedStudios(new Set(studios?.map((s) => s.id) ?? []));
+    }
+  };
+
+  const handleSelectStudio = (studioId: string) => {
+    const newSelected = new Set(selectedStudios);
+    if (newSelected.has(studioId)) {
+      newSelected.delete(studioId);
+    } else {
+      newSelected.add(studioId);
+    }
+    setSelectedStudios(newSelected);
+  };
+
+  const handleBulkAction = (type: string, value: string) => {
+    setBulkAction({ type, value });
+    setBulkActionDialogOpen(true);
+  };
+
+  const confirmBulkAction = async () => {
+    if (!bulkAction || selectedStudios.size === 0) return;
+
+    try {
+      const updates: Record<string, unknown> = {};
+      if (bulkAction.type === "allocation") {
+        updates.allocation = bulkAction.value === "unallocated" ? null : bulkAction.value;
+      } else if (bulkAction.type === "status") {
+        updates.status = bulkAction.value;
+      }
+
+      await bulkUpdateStudios.mutateAsync({
+        studioIds: Array.from(selectedStudios),
+        updates,
+      });
+
+      toast({
+        title: "Bulk update successful",
+        description: `Updated ${selectedStudios.size} studio${selectedStudios.size > 1 ? "s" : ""}`,
+      });
+
+      setSelectedStudios(new Set());
+      setBulkActionDialogOpen(false);
+      setBulkAction(null);
+    } catch (error) {
+      console.error(error);
+      toast({
+        variant: "destructive",
+        title: "Bulk update failed",
+        description: "Unable to update studios. Please try again.",
       });
     }
   };
@@ -106,12 +198,71 @@ const Studios = () => {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All allocations</SelectItem>
-            <SelectItem value="student">Student</SelectItem>
-            <SelectItem value="staff">Staff</SelectItem>
+            <SelectItem value="Student">Student</SelectItem>
+            <SelectItem value="OTA">OTA</SelectItem>
+            <SelectItem value="Keyworkers">Keyworkers</SelectItem>
             <SelectItem value="unallocated">Unallocated</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={floorFilter} onValueChange={setFloorFilter}>
+          <SelectTrigger className="w-full sm:w-40 md:w-56 rounded-full">
+            <SelectValue placeholder="Filter by floor" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All floors</SelectItem>
+            {floorOptions.map((floor) => (
+              <SelectItem key={floor} value={floor}>
+                Floor {floor}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         </div>
+        {selectedStudios.size > 0 && (
+          <div className="flex items-center justify-between p-4 bg-primary/5 rounded-2xl border border-primary/20">
+            <p className="text-sm font-medium">
+              {selectedStudios.size} studio{selectedStudios.size > 1 ? "s" : ""} selected
+            </p>
+            <div className="flex items-center gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="rounded-full uppercase tracking-wide">
+                    <MoreVertical className="h-4 w-4 mr-2" />
+                    Bulk Actions
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem onClick={() => handleBulkAction("allocation", "Student")}>
+                    Set Allocation to Student
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleBulkAction("allocation", "OTA")}>
+                    Set Allocation to OTA
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleBulkAction("allocation", "Keyworkers")}>
+                    Set Allocation to Keyworkers
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleBulkAction("allocation", "unallocated")}>
+                    Set Allocation to Unallocated
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleBulkAction("status", "available")}>
+                    Set Status to Available
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleBulkAction("status", "maintenance")}>
+                    Set Status to Maintenance
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedStudios(new Set())}
+                className="rounded-full uppercase tracking-wide"
+              >
+                Clear
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       <Card className="rounded-3xl border border-border/60 shadow-xl">
@@ -130,12 +281,34 @@ const Studios = () => {
             </div>
           ) : (
             <div className="space-y-4">
+              {studios && studios.length > 0 && (
+                <div className="flex items-center gap-3 pb-2 border-b border-border/60">
+                  <Checkbox
+                    checked={selectAll}
+                    onCheckedChange={handleSelectAll}
+                    className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    {selectAll ? "Deselect all" : "Select all"}
+                  </span>
+                </div>
+              )}
               {studios?.map((studio) => (
                 <div
                   key={studio.id}
-                  className="rounded-2xl border border-border/60 px-5 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
+                  className={`rounded-2xl border px-5 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 ${
+                    selectedStudios.has(studio.id)
+                      ? "border-primary bg-primary/5"
+                      : "border-border/60"
+                  }`}
                 >
-                  <div className="space-y-1">
+                  <div className="flex items-start gap-3 flex-1">
+                    <Checkbox
+                      checked={selectedStudios.has(studio.id)}
+                      onCheckedChange={() => handleSelectStudio(studio.id)}
+                      className="mt-1 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                    />
+                    <div className="space-y-1 flex-1">
                     <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
                       {studio.studio_grade?.name ?? "Unknown grade"} — Floor{" "}
                       {studio.floor ?? "n/a"}
@@ -153,6 +326,7 @@ const Studios = () => {
                         Reservation expires {studio.reservation_expires_at}
                       </p>
                     )}
+                    </div>
                   </div>
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                     <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
@@ -210,6 +384,49 @@ const Studios = () => {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={bulkActionDialogOpen} onOpenChange={setBulkActionDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Bulk Action</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to {bulkAction?.type === "allocation" ? "set allocation to" : "set status to"}{" "}
+              <strong>
+                {bulkAction?.value === "unallocated"
+                  ? "Unallocated"
+                  : bulkAction?.value}
+              </strong>{" "}
+              for {selectedStudios.size} studio{selectedStudios.size > 1 ? "s" : ""}?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setBulkActionDialogOpen(false);
+                setBulkAction(null);
+              }}
+              className="rounded-full uppercase tracking-wide w-full sm:w-auto"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmBulkAction}
+              disabled={bulkUpdateStudios.isPending}
+              className="rounded-full uppercase tracking-wide w-full sm:w-auto"
+            >
+              {bulkUpdateStudios.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                "Confirm"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 };
