@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { FaWhatsapp } from "react-icons/fa";
 import { supabase } from "@/integrations/supabase/client";
+import { useBrandingSettings } from "@/hooks/useBranding";
 
 const WhatsAppButton = () => {
+  const { data: brandingSettings } = useBrandingSettings();
+  const companyName = brandingSettings?.company_name || "StudentStaySolutions";
   const [whatsappUrl, setWhatsappUrl] = useState<string | null>(null);
-  const whatsappMessage = "Hi! I'd like to inquire about booking a studio at Urban Hub.";
+  const whatsappMessage = `Hi! I'd like to inquire about booking a studio at ${companyName}.`;
 
   useEffect(() => {
     const fetchWhatsApp = async () => {

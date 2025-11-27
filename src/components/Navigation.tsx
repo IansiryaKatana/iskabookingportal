@@ -27,6 +27,7 @@ const Navigation = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
   const logoPath = useBrandingSetting("logo_path");
+  const companyName = useBrandingSetting("company_name");
   const { data: navItems } = useNavigationItems("header");
   const logoUrl = logoPath || logo;
 
@@ -152,7 +153,7 @@ const Navigation = () => {
           </div>
           
           <a href="/" className="flex items-center lg:absolute lg:left-1/2 lg:transform lg:-translate-x-1/2">
-            <img src={logoUrl} alt="Urban Hub" className="h-8 md:h-12" />
+            <img src={logoUrl} alt={companyName || "StudentStaySolutions"} className="h-8 md:h-12" />
           </a>
 
           <div className="hidden xl:flex items-center gap-2">

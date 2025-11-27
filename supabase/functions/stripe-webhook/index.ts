@@ -12,12 +12,26 @@ const staffNotificationEmail = Deno.env.get("NOTIFICATIONS_STAFF_EMAIL") ?? "";
 const stripe = new Stripe(stripeSecret);
 const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
+const getCompanyName = async (): Promise<string> => {
+  try {
+    const { data } = await supabaseAdmin
+      .from("branding_settings")
+      .select("setting_value")
+      .eq("setting_key", "company_name")
+      .maybeSingle();
+    return data?.setting_value || "StudentStaySolutions";
+  } catch {
+    return "StudentStaySolutions";
+  }
+};
+
 const sendEmail = async (payload: {
   to: string;
   subject: string;
   html: string;
 }) => {
   if (!resendApiKey) return;
+  const companyName = await getCompanyName();
   await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -25,7 +39,7 @@ const sendEmail = async (payload: {
       Authorization: `Bearer ${resendApiKey}`,
     },
     body: JSON.stringify({
-      from: Deno.env.get("NOTIFICATIONS_FROM_EMAIL") ?? "Urban Hub <noreply@urbanhub.com>",
+      from: Deno.env.get("NOTIFICATIONS_FROM_EMAIL") ?? `${companyName} <noreply@send.portal.iankatana.com>`,
       to: payload.to,
       subject: payload.subject,
       html: payload.html,
@@ -151,24 +165,26 @@ serve(async (req) => {
                 console.error("Error sending deposit received email:", emailError);
                 // Fallback to direct email if function fails
                 if (studentEmail) {
+                  const companyName = await getCompanyName();
                   await sendEmail({
                     to: studentEmail,
-                    subject: "Urban Hub deposit received",
+                    subject: `${companyName} deposit received`,
                     html:
                       `<p>Hi ${studentName ?? ""},</p>
                        <p>Thanks for paying your £${(paymentIntent.amount / 100).toFixed(
                          2,
                        )} deposit. We're preparing your tenancy agreement.</p>
-                       <p>You can now continue your booking journey via the Urban Hub portal.</p>`,
+                       <p>You can now continue your booking journey via the ${companyName} portal.</p>`,
                   });
                 }
               }
             }
 
             if (staffNotificationEmail && studentEmail) {
+              const companyName = await getCompanyName();
               await sendEmail({
                 to: staffNotificationEmail,
-                subject: "Deposit received – Urban Hub booking update",
+                subject: `Deposit received – ${companyName} booking update`,
                 html:
                   `<p>Deposit payment succeeded for application ${applicationId}.</p>
                    <p>Student: ${studentName ?? studentEmail}</p>
@@ -200,9 +216,10 @@ serve(async (req) => {
             );
             const studentEmail = authUser?.user?.email ?? undefined;
             if (studentEmail) {
+              const companyName = await getCompanyName();
               await sendEmail({
                 to: studentEmail,
-                subject: "Urban Hub deposit unsuccessful",
+                subject: `${companyName} deposit unsuccessful`,
                 html:
                   `<p>Hi there,</p>
                    <p>We were unable to collect your deposit. Please return to the booking portal and try again or contact the team if you need help.</p>`,

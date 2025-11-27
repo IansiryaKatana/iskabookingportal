@@ -14,6 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useContract } from "@/hooks/useContract";
 import { useToast } from "@/hooks/use-toast";
 import { useCanRebook, useMarkAsRebooking } from "@/hooks/useRebooking";
+import { useBrandingSettings } from "@/hooks/useBranding";
 import { format } from "date-fns";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,6 +24,8 @@ const ContractDetail = () => {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const { toast } = useToast();
+  const { data: brandingSettings } = useBrandingSettings();
+  const companyName = brandingSettings?.company_name || "StudentStaySolutions";
 
   const { data: contract, isLoading, isError } = useContract(slug);
   const [creating, setCreating] = useState(false);
@@ -276,7 +279,7 @@ const ContractDetail = () => {
       toast({
         variant: "destructive",
         title: "Unable to proceed",
-        description: "Please try again later or contact the Urban Hub team.",
+        description: `Please try again later or contact the ${companyName} team.`,
       });
     } finally {
       setCreating(false);
@@ -351,7 +354,7 @@ const ContractDetail = () => {
       toast({
         variant: "destructive",
         title: "Unable to proceed",
-        description: "Please try again later or contact the Urban Hub team.",
+        description: `Please try again later or contact the ${companyName} team.`,
       });
     } finally {
       setCreatingRebooking(false);

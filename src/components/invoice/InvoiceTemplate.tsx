@@ -28,7 +28,7 @@ export const InvoiceTemplate = ({
   const { data: branding } = useBrandingSettings();
 
   const logoPath = branding?.logo_path || logo;
-  const companyName = branding?.company_name || "Urban Hub";
+  const companyName = branding?.company_name || "StudentStaySolutions";
   const contactPhone = branding?.contact_phone || "+44 123 456 7890";
   const contactEmail = branding?.contact_email || "info@urbanhub.uk";
   const contactAddress1 = branding?.contact_address_line1 || "123 Student Street";

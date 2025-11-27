@@ -22,7 +22,7 @@ const Footer = () => {
   const logoPath = settings?.logo_path;
   const logoUrl = logoPath || logo;
   const footerDescription = settings?.footer_description || "Premium student accommodation designed for modern living and academic success.";
-  const footerCopyright = settings?.footer_copyright_text || "Urban Hub. All rights reserved.";
+  const footerCopyright = settings?.footer_copyright_text || `${settings?.company_name || "StudentStaySolutions"}. All rights reserved.`;
   const contactPhone = settings?.contact_phone || "+44 123 456 7890";
   const contactEmail = settings?.contact_email || "info@urbanhub.uk";
   const contactAddress1 = settings?.contact_address_line1 || "123 Student Street";
@@ -68,7 +68,7 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 md:gap-12">
           <div>
             <div className="mb-4">
-              <img src={logoUrl} alt="Urban Hub" className="h-12" />
+              <img src={logoUrl} alt={settings?.company_name || "StudentStaySolutions"} className="h-12" />
             </div>
             <p className="text-white/80 mb-4">
               {footerDescription}

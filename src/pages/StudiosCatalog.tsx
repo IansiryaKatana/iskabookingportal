@@ -4,7 +4,7 @@ import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import WhatsAppButton from "@/components/WhatsAppButton";
 import { supabase } from "@/integrations/supabase/client";
-import { useBrandingSetting } from "@/hooks/useBranding";
+import { useBrandingSetting, useBrandingSettings } from "@/hooks/useBranding";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -37,6 +37,8 @@ const StudiosCatalog = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const heroImagePath = useBrandingSetting("studio_catalog_hero_image");
+  const { data: brandingSettings } = useBrandingSettings();
+  const companyName = brandingSettings?.company_name || "StudentStaySolutions";
   
   // Get availability for selected academic year
   const { data: availabilityData, isLoading: availabilityLoading } = useAllStudioAvailability(
@@ -293,7 +295,7 @@ const StudiosCatalog = () => {
             <br />
             Student Accommodation
             <br />
-            at Urban Hub for £99
+            at {companyName} for £99
           </h1>
           <Button
             asChild
@@ -329,7 +331,7 @@ const StudiosCatalog = () => {
 
         <header className="space-y-4 text-center">
           <p className="text-xs uppercase tracking-[0.4em] text-muted-foreground">
-            Discover Urban Hub
+            Discover {companyName}
           </p>
           <h1 className="text-4xl md:text-5xl font-display font-black uppercase tracking-wide">
             5 Room Grades to Choose From
@@ -429,7 +431,7 @@ const StudiosCatalog = () => {
                       </Carousel>
                     ) : (
                       <div className="flex h-full w-full items-center justify-center text-xs uppercase tracking-[0.4em] text-muted-foreground">
-                        Urban Hub
+                        {companyName}
                       </div>
                     )}
                     {availabilityTag && (

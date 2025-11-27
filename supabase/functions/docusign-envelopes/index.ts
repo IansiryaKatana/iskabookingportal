@@ -594,11 +594,19 @@ serve(async (req) => {
       });
     }
 
+    // Fetch company name from branding settings
+    const { data: brandingData } = await supabaseAdmin
+      .from("branding_settings")
+      .select("setting_value")
+      .eq("setting_key", "company_name")
+      .maybeSingle();
+    const companyName = brandingData?.setting_value || "StudentStaySolutions";
+
     const tenancyBody = {
       templateId: tenancyTemplate.template_id,
       status: "sent",
-      emailSubject: `Urban Hub tenancy agreement – ${
-        application.contract?.studio_grade?.name ?? "Urban Hub"
+      emailSubject: `${companyName} tenancy agreement – ${
+        application.contract?.studio_grade?.name ?? companyName
       }`,
       templateRoles: tenancyRecipients,
     };
@@ -672,7 +680,7 @@ serve(async (req) => {
         const guarantorBody = {
           templateId: guarantorTemplate.template_id,
           status: "sent",
-          emailSubject: `Urban Hub guarantor agreement – ${studentName || "Student"}`,
+          emailSubject: `${companyName} guarantor agreement – ${studentName || "Student"}`,
           templateRoles: guarantorRecipients,
         };
         const guarantorEnvelope = await sendEnvelope(guarantorBody);

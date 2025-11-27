@@ -15,6 +15,7 @@ const PortalResetPassword = () => {
   const { data: brandingSettings } = useBrandingSettings();
   const faviconPath = brandingSettings?.favicon_path;
   const faviconUrl = faviconPath || "/favicon.png";
+  const companyName = brandingSettings?.company_name || "StudentStaySolutions";
   
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -168,7 +169,7 @@ const PortalResetPassword = () => {
       setTimeout(() => {
         navigate("/portal", { 
           replace: true,
-          state: { message: isConfirmation ? "Account confirmed! Welcome to Urban Hub." : "Password updated successfully." }
+          state: { message: isConfirmation ? `Account confirmed! Welcome to ${companyName}.` : "Password updated successfully." }
         });
       }, 2000);
 
@@ -255,7 +256,7 @@ const PortalResetPassword = () => {
               {faviconLoaded ? (
                 <img 
                   src={faviconUrl} 
-                  alt="Urban Hub" 
+                  alt={companyName} 
                   className="h-8 w-8 md:h-10 md:w-10"
                 />
               ) : (

@@ -37,6 +37,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useBrandingSettings } from "@/hooks/useBranding";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Elements } from "@stripe/react-stripe-js";
@@ -303,6 +304,8 @@ const toFieldErrorMap = <T extends Record<string, unknown>>(
 };
 
 const StudentApplicationWizard = () => {
+  const { data: brandingSettings } = useBrandingSettings();
+  const companyName = brandingSettings?.company_name || "StudentStaySolutions";
   const { applicationId } = useParams<{ applicationId: string }>();
   const navigate = useNavigate();
   const { user, profile, refreshProfile } = useAuth();
@@ -3165,7 +3168,7 @@ useEffect(() => {
                               })
                             ) : (
                               <p className="text-sm text-muted-foreground">
-                                Instalment schedule will be confirmed by Urban Hub.
+                                Instalment schedule will be confirmed by {companyName}.
                               </p>
                             )}
                           </div>
@@ -3415,7 +3418,7 @@ useEffect(() => {
                   className="size-4 rounded border-border"
                 />
                 <span className="text-xs md:text-sm text-muted-foreground leading-snug">
-                  I consent to the collection and processing of the information and documents supplied for the purposes of confirming my booking with Urban Hub Student Accommodation.
+                  I consent to the collection and processing of the information and documents supplied for the purposes of confirming my booking with {companyName} Student Accommodation.
                 </span>
               </div>
               {paymentErrors.consent && (
@@ -3450,7 +3453,7 @@ useEffect(() => {
                     )}
                   </div>
                   <div className="text-sm text-muted-foreground max-w-md">
-                    Once the transaction is successful we will notify the Urban Hub team to prepare your tenancy agreement. Deposits are fully protected in line with our policy.
+                    Once the transaction is successful we will notify the {companyName} team to prepare your tenancy agreement. Deposits are fully protected in line with our policy.
                   </div>
                 </div>
 
@@ -3551,7 +3554,7 @@ useEffect(() => {
                 </CardTitle>
                 <CardDescription>
                   {effectiveTenancyEnvelope
-                    ? "Sign digitally to secure your Urban Hub studio."
+                    ? `Sign digitally to secure your ${companyName} studio.`
                     : "Complete Step 5 to generate your tenancy agreement."}
                 </CardDescription>
               </CardHeader>
@@ -3665,8 +3668,8 @@ useEffect(() => {
                   )}
                   <p className="text-sm text-muted-foreground">
                     We’ve emailed your guarantor with their own secure signing link. Let
-                    them know to check their inbox (and spam folder) for “Urban Hub
-                    guarantor agreement”.
+                    them know to check their inbox (and spam folder) for "{companyName}
+                    guarantor agreement".
                   </p>
                 </CardContent>
               </Card>

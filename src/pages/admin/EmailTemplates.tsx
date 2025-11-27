@@ -145,7 +145,7 @@ const getDefaultTemplate = (templateType: string): { subject: string; html: stri
   
   const templates: Record<string, { subject: string; html: string; text: string }> = {
     welcome: {
-      subject: "Welcome to Urban Hub, {student_name}!",
+      subject: "Welcome to {company_name}, {student_name}!",
       html: `<!DOCTYPE html>
 <html>
 <head>
@@ -172,13 +172,13 @@ const getDefaultTemplate = (templateType: string): { subject: string; html: stri
   <div class="email-wrapper">
     <div class="container">
       <div class="header">
-        <img src="${logoUrl}" alt="Urban Hub" class="logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-        <h1 style="margin: 0; display: none;">Urban Hub</h1>
-        <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">Welcome to Urban Hub!</p>
+        <img src="${logoUrl}" alt="{company_name}" class="logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+        <h1 style="margin: 0; display: none;">{company_name}</h1>
+        <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">Welcome to {company_name}!</p>
       </div>
       <div class="content">
         <h2>Hello {student_name},</h2>
-        <p style="font-size: 16px; color: ${BRAND_COLORS.textMuted};">We're thrilled to welcome you to Urban Hub! Your journey to finding the perfect student accommodation starts here.</p>
+        <p style="font-size: 16px; color: ${BRAND_COLORS.textMuted};">We're thrilled to welcome you to {company_name}! Your journey to finding the perfect student accommodation starts here.</p>
         <p style="font-size: 16px; color: ${BRAND_COLORS.textMuted};">Our platform makes it easy to browse studio options, complete your application, and manage your booking all in one place.</p>
         <p style="margin: 20px 0 10px 0; font-weight: 600; color: ${BRAND_COLORS.text};"><strong>What's next?</strong></p>
         <ul style="color: ${BRAND_COLORS.textMuted}; line-height: 1.8;">
@@ -191,21 +191,21 @@ const getDefaultTemplate = (templateType: string): { subject: string; html: stri
           <a href="{portal_url}" class="button">Access Your Portal</a>
         </div>
         <p style="font-size: 16px; color: ${BRAND_COLORS.textMuted};">If you have any questions, our support team is here to help. Welcome aboard!</p>
-        <p style="margin: 30px 0 0 0; color: ${BRAND_COLORS.text};"><strong style="color: ${BRAND_COLORS.primaryHex}; font-family: ${BRAND_FONTS.display}; text-transform: uppercase;">The Urban Hub Team</strong></p>
+        <p style="margin: 30px 0 0 0; color: ${BRAND_COLORS.text};"><strong style="color: ${BRAND_COLORS.primaryHex}; font-family: ${BRAND_FONTS.display}; text-transform: uppercase;">The {company_name} Team</strong></p>
       </div>
       <div class="footer">
-        <p style="margin: 0 0 10px 0;">© ${new Date().getFullYear()} Urban Hub. All rights reserved.</p>
-        <p style="margin: 0; font-size: 12px;">This email was sent to you as part of your Urban Hub account.</p>
+        <p style="margin: 0 0 10px 0;">© ${new Date().getFullYear()} {company_name}. All rights reserved.</p>
+        <p style="margin: 0; font-size: 12px;">This email was sent to you as part of your {company_name} account.</p>
       </div>
     </div>
   </div>
 </body>
 </html>`,
-      text: `Welcome to Urban Hub!
+      text: `Welcome to {company_name}!
 
 Hello {student_name},
 
-We're thrilled to welcome you to Urban Hub! Your journey to finding the perfect student accommodation starts here.
+We're thrilled to welcome you to {company_name}! Your journey to finding the perfect student accommodation starts here.
 
 Our platform makes it easy to browse studio options, complete your application, and manage your booking all in one place.
 
@@ -220,12 +220,12 @@ Access your portal: {portal_url}
 If you have any questions, our support team is here to help. Welcome aboard!
 
 Best regards,
-The Urban Hub Team
+The {company_name} Team
 
-© ${new Date().getFullYear()} Urban Hub. All rights reserved.`,
+© ${new Date().getFullYear()} {company_name}. All rights reserved.`,
     },
     application_received: {
-      subject: "Application Received - Urban Hub",
+      subject: "Application Received - {company_name}",
       html: `<!DOCTYPE html>
 <html>
 <head>
@@ -248,7 +248,7 @@ The Urban Hub Team
     </div>
     <div class="content">
       <h2 style="color: #1f2937; margin-top: 0;">Hello {student_name},</h2>
-      <p>Thank you for submitting your application to Urban Hub! We've successfully received your application.</p>
+      <p>Thank you for submitting your application to {company_name}! We've successfully received your application.</p>
       <div class="info-box">
         <p style="margin: 0 0 10px 0;"><strong>Application ID:</strong> {application_id}</p>
         <p style="margin: 0;">We're currently reviewing your application and will notify you of the next steps shortly.</p>
@@ -261,19 +261,19 @@ The Urban Hub Team
         <li>Make your deposit payment</li>
       </ol>
       <p>You can track your application progress and complete these steps in your student portal.</p>
-      <p style="margin-bottom: 0;">Best regards,<br><strong>The Urban Hub Team</strong></p>
+      <p style="margin-bottom: 0;">Best regards,<br><strong>The {company_name} Team</strong></p>
     </div>
     <div class="footer">
-      <p style="margin: 0;">© ${new Date().getFullYear()} Urban Hub. All rights reserved.</p>
+      <p style="margin: 0;">© ${new Date().getFullYear()} {company_name}. All rights reserved.</p>
     </div>
   </div>
 </body>
 </html>`,
-      text: `Application Received - Urban Hub
+      text: `Application Received - {company_name}
 
 Hello {student_name},
 
-Thank you for submitting your application to Urban Hub! We've successfully received your application.
+Thank you for submitting your application to {company_name}! We've successfully received your application.
 
 Application ID: {application_id}
 
@@ -288,12 +288,12 @@ Next Steps:
 You can track your application progress and complete these steps in your student portal.
 
 Best regards,
-The Urban Hub Team
+The {company_name} Team
 
-© ${new Date().getFullYear()} Urban Hub. All rights reserved.`,
+© ${new Date().getFullYear()} {company_name}. All rights reserved.`,
     },
     deposit_reminder: {
-      subject: "Deposit Payment Reminder - Urban Hub",
+      subject: "Deposit Payment Reminder - {company_name}",
       html: `<!DOCTYPE html>
 <html>
 <head>
@@ -329,15 +329,15 @@ The Urban Hub Team
       </div>
       <p style="color: #dc2626; font-weight: 600;">⚠️ Important: Your reservation may expire if payment is not received by the due date.</p>
       <p>If you've already made this payment, please disregard this reminder. If you have any questions, please contact our support team.</p>
-      <p style="margin-bottom: 0;">Best regards,<br><strong>The Urban Hub Team</strong></p>
+      <p style="margin-bottom: 0;">Best regards,<br><strong>The {company_name} Team</strong></p>
     </div>
     <div class="footer">
-      <p style="margin: 0;">© ${new Date().getFullYear()} Urban Hub. All rights reserved.</p>
+      <p style="margin: 0;">© ${new Date().getFullYear()} {company_name}. All rights reserved.</p>
     </div>
   </div>
 </body>
 </html>`,
-      text: `Deposit Payment Reminder - Urban Hub
+      text: `Deposit Payment Reminder - {company_name}
 
 Hello {student_name},
 
@@ -355,12 +355,12 @@ Pay now: {payment_url}
 If you've already made this payment, please disregard this reminder. If you have any questions, please contact our support team.
 
 Best regards,
-The Urban Hub Team
+The {company_name} Team
 
-© ${new Date().getFullYear()} Urban Hub. All rights reserved.`,
+© ${new Date().getFullYear()} {company_name}. All rights reserved.`,
     },
     payment_reminder: {
-      subject: "Payment Reminder - Installment #{installment_number} - Urban Hub",
+      subject: "Payment Reminder - Installment #{installment_number} - {company_name}",
       html: `<!DOCTYPE html>
 <html>
 <head>
@@ -396,15 +396,15 @@ The Urban Hub Team
       </div>
       <p>You can view your complete payment schedule and history in your student portal.</p>
       <p>If you have any questions or concerns about this payment, please don't hesitate to contact us.</p>
-      <p style="margin-bottom: 0;">Best regards,<br><strong>The Urban Hub Team</strong></p>
+      <p style="margin-bottom: 0;">Best regards,<br><strong>The {company_name} Team</strong></p>
     </div>
     <div class="footer">
-      <p style="margin: 0;">© ${new Date().getFullYear()} Urban Hub. All rights reserved.</p>
+      <p style="margin: 0;">© ${new Date().getFullYear()} {company_name}. All rights reserved.</p>
     </div>
   </div>
 </body>
 </html>`,
-      text: `Payment Reminder - Installment #{installment_number} - Urban Hub
+      text: `Payment Reminder - Installment #{installment_number} - {company_name}
 
 Hello {student_name},
 
@@ -423,12 +423,12 @@ You can view your complete payment schedule and history in your student portal.
 If you have any questions or concerns about this payment, please don't hesitate to contact us.
 
 Best regards,
-The Urban Hub Team
+The {company_name} Team
 
-© ${new Date().getFullYear()} Urban Hub. All rights reserved.`,
+© ${new Date().getFullYear()} {company_name}. All rights reserved.`,
     },
     overdue_payment: {
-      subject: "⚠️ Overdue Payment - Action Required - Urban Hub",
+      subject: "⚠️ Overdue Payment - Action Required - {company_name}",
       html: `<!DOCTYPE html>
 <html>
 <head>
@@ -469,15 +469,15 @@ The Urban Hub Team
         <a href="{payment_url}" class="button">Pay Overdue Amount Now</a>
       </div>
       <p>If you're experiencing financial difficulties, please contact our support team immediately to discuss payment arrangements. We're here to help.</p>
-      <p style="margin-bottom: 0;">Best regards,<br><strong>The Urban Hub Team</strong></p>
+      <p style="margin-bottom: 0;">Best regards,<br><strong>The {company_name} Team</strong></p>
     </div>
     <div class="footer">
-      <p style="margin: 0;">© ${new Date().getFullYear()} Urban Hub. All rights reserved.</p>
+      <p style="margin: 0;">© ${new Date().getFullYear()} {company_name}. All rights reserved.</p>
     </div>
   </div>
 </body>
 </html>`,
-      text: `⚠️ Overdue Payment - Action Required - Urban Hub
+      text: `⚠️ Overdue Payment - Action Required - {company_name}
 
 Hello {student_name},
 
@@ -497,12 +497,12 @@ Pay now: {payment_url}
 If you're experiencing financial difficulties, please contact our support team immediately to discuss payment arrangements. We're here to help.
 
 Best regards,
-The Urban Hub Team
+The {company_name} Team
 
-© ${new Date().getFullYear()} Urban Hub. All rights reserved.`,
+© ${new Date().getFullYear()} {company_name}. All rights reserved.`,
     },
     application_confirmed: {
-      subject: "🎉 Application Confirmed - Welcome to Urban Hub!",
+      subject: "🎉 Application Confirmed - Welcome to {company_name}!",
       html: `<!DOCTYPE html>
 <html>
 <head>
@@ -527,7 +527,7 @@ The Urban Hub Team
     </div>
     <div class="content">
       <h2 style="color: #1f2937; margin-top: 0;">Congratulations, {student_name}!</h2>
-      <p>We're thrilled to inform you that your application has been confirmed. Welcome to Urban Hub!</p>
+      <p>We're thrilled to inform you that your application has been confirmed. Welcome to {company_name}!</p>
       <div class="success-box">
         <h3 style="margin-top: 0; color: #059669;">Your Booking Details</h3>
         <div class="info-row">
@@ -553,20 +553,20 @@ The Urban Hub Team
       <div style="text-align: center;">
         <a href="{portal_url}" class="button">Access Your Portal</a>
       </div>
-      <p>If you have any questions or need assistance, our support team is always here to help. We're excited to have you as part of the Urban Hub community!</p>
-      <p style="margin-bottom: 0;">Best regards,<br><strong>The Urban Hub Team</strong></p>
+      <p>If you have any questions or need assistance, our support team is always here to help. We're excited to have you as part of the {company_name} community!</p>
+      <p style="margin-bottom: 0;">Best regards,<br><strong>The {company_name} Team</strong></p>
     </div>
     <div class="footer">
-      <p style="margin: 0;">© ${new Date().getFullYear()} Urban Hub. All rights reserved.</p>
+      <p style="margin: 0;">© ${new Date().getFullYear()} {company_name}. All rights reserved.</p>
     </div>
   </div>
 </body>
 </html>`,
-      text: `🎉 Application Confirmed - Welcome to Urban Hub!
+      text: `🎉 Application Confirmed - Welcome to {company_name}!
 
 Congratulations, {student_name}!
 
-We're thrilled to inform you that your application has been confirmed. Welcome to Urban Hub!
+We're thrilled to inform you that your application has been confirmed. Welcome to {company_name}!
 
 Your Booking Details:
 Studio Number: {studio_number}
@@ -581,15 +581,15 @@ Your studio is now reserved for you. You can access your student portal to:
 
 Access your portal: {portal_url}
 
-If you have any questions or need assistance, our support team is always here to help. We're excited to have you as part of the Urban Hub community!
+If you have any questions or need assistance, our support team is always here to help. We're excited to have you as part of the {company_name} community!
 
 Best regards,
-The Urban Hub Team
+The {company_name} Team
 
-© ${new Date().getFullYear()} Urban Hub. All rights reserved.`,
+© ${new Date().getFullYear()} {company_name}. All rights reserved.`,
     },
     document_approved: {
-      subject: "Document Approved - Urban Hub",
+      subject: "Document Approved - {company_name}",
       html: `<!DOCTYPE html>
 <html>
 <head>
@@ -618,15 +618,15 @@ The Urban Hub Team
       </div>
       <p>Your application is progressing well. Continue with the remaining steps in your booking journey.</p>
       <p>You can view all your documents and their status in your student portal.</p>
-      <p style="margin-bottom: 0;">Best regards,<br><strong>The Urban Hub Team</strong></p>
+      <p style="margin-bottom: 0;">Best regards,<br><strong>The {company_name} Team</strong></p>
     </div>
     <div class="footer">
-      <p style="margin: 0;">© ${new Date().getFullYear()} Urban Hub. All rights reserved.</p>
+      <p style="margin: 0;">© ${new Date().getFullYear()} {company_name}. All rights reserved.</p>
     </div>
   </div>
 </body>
 </html>`,
-      text: `Document Approved - Urban Hub
+      text: `Document Approved - {company_name}
 
 Hello {student_name},
 
@@ -640,12 +640,12 @@ Your application is progressing well. Continue with the remaining steps in your 
 You can view all your documents and their status in your student portal.
 
 Best regards,
-The Urban Hub Team
+The {company_name} Team
 
-© ${new Date().getFullYear()} Urban Hub. All rights reserved.`,
+© ${new Date().getFullYear()} {company_name}. All rights reserved.`,
     },
     document_rejected: {
-      subject: "Document Review - Action Required - Urban Hub",
+      subject: "Document Review - Action Required - {company_name}",
       html: `<!DOCTYPE html>
 <html>
 <head>
@@ -682,15 +682,15 @@ The Urban Hub Team
         <li>Ensure the document is clear, complete, and valid</li>
       </ol>
       <p>Please log in to your student portal to upload a new document. If you have any questions about the requirements, please contact our support team.</p>
-      <p style="margin-bottom: 0;">Best regards,<br><strong>The Urban Hub Team</strong></p>
+      <p style="margin-bottom: 0;">Best regards,<br><strong>The {company_name} Team</strong></p>
     </div>
     <div class="footer">
-      <p style="margin: 0;">© ${new Date().getFullYear()} Urban Hub. All rights reserved.</p>
+      <p style="margin: 0;">© ${new Date().getFullYear()} {company_name}. All rights reserved.</p>
     </div>
   </div>
 </body>
 </html>`,
-      text: `Document Review - Action Required - Urban Hub
+      text: `Document Review - Action Required - {company_name}
 
 Hello {student_name},
 
@@ -710,12 +710,12 @@ What you need to do:
 Please log in to your student portal to upload a new document. If you have any questions about the requirements, please contact our support team.
 
 Best regards,
-The Urban Hub Team
+The {company_name} Team
 
-© ${new Date().getFullYear()} Urban Hub. All rights reserved.`,
+© ${new Date().getFullYear()} {company_name}. All rights reserved.`,
     },
     signature_reminder: {
-      subject: "Signature Reminder - Complete Your Agreement - Urban Hub",
+      subject: "Signature Reminder - Complete Your Agreement - {company_name}",
       html: `<!DOCTYPE html>
 <html>
 <head>
@@ -750,15 +750,15 @@ The Urban Hub Team
       </div>
       <p style="color: #dc2626; font-weight: 600;">⚠️ Important: Your agreement will expire on {expiry_date}. Please complete the signing process before then.</p>
       <p>If you have any questions about the agreement or need assistance, please contact our support team.</p>
-      <p style="margin-bottom: 0;">Best regards,<br><strong>The Urban Hub Team</strong></p>
+      <p style="margin-bottom: 0;">Best regards,<br><strong>The {company_name} Team</strong></p>
     </div>
     <div class="footer">
-      <p style="margin: 0;">© ${new Date().getFullYear()} Urban Hub. All rights reserved.</p>
+      <p style="margin: 0;">© ${new Date().getFullYear()} {company_name}. All rights reserved.</p>
     </div>
   </div>
 </body>
 </html>`,
-      text: `Signature Reminder - Complete Your Agreement - Urban Hub
+      text: `Signature Reminder - Complete Your Agreement - {company_name}
 
 Hello {student_name},
 
@@ -776,12 +776,12 @@ Sign now: {signing_url}
 If you have any questions about the agreement or need assistance, please contact our support team.
 
 Best regards,
-The Urban Hub Team
+The {company_name} Team
 
-© ${new Date().getFullYear()} Urban Hub. All rights reserved.`,
+© ${new Date().getFullYear()} {company_name}. All rights reserved.`,
     },
     custom: {
-      subject: "Notification from Urban Hub",
+      subject: "Notification from {company_name}",
       html: `<!DOCTYPE html>
 <html>
 <head>
@@ -798,32 +798,32 @@ The Urban Hub Team
 <body>
   <div class="container">
     <div class="header">
-      <h1 style="margin: 0; font-size: 28px;">Urban Hub</h1>
+      <h1 style="margin: 0; font-size: 28px;">{company_name}</h1>
     </div>
     <div class="content">
       <h2 style="color: #1f2937; margin-top: 0;">Hello {student_name},</h2>
-      <p>This is a custom notification from Urban Hub.</p>
+      <p>This is a custom notification from {company_name}.</p>
       <p>You can customize this template with any variables you need.</p>
-      <p style="margin-bottom: 0;">Best regards,<br><strong>The Urban Hub Team</strong></p>
+      <p style="margin-bottom: 0;">Best regards,<br><strong>The {company_name} Team</strong></p>
     </div>
     <div class="footer">
-      <p style="margin: 0;">© ${new Date().getFullYear()} Urban Hub. All rights reserved.</p>
+      <p style="margin: 0;">© ${new Date().getFullYear()} {company_name}. All rights reserved.</p>
     </div>
   </div>
 </body>
 </html>`,
-      text: `Notification from Urban Hub
+      text: `Notification from {company_name}
 
 Hello {student_name},
 
-This is a custom notification from Urban Hub.
+This is a custom notification from {company_name}.
 
 You can customize this template with any variables you need.
 
 Best regards,
-The Urban Hub Team
+The {company_name} Team
 
-© ${new Date().getFullYear()} Urban Hub. All rights reserved.`,
+© ${new Date().getFullYear()} {company_name}. All rights reserved.`,
     },
   };
 
@@ -1214,7 +1214,7 @@ const EmailTemplates = () => {
                     <FormControl>
                       <Input
                         {...field}
-                        placeholder="e.g., Welcome to Urban Hub!"
+                        placeholder="e.g., Welcome to {company_name}!"
                       />
                     </FormControl>
                     <FormMessage />

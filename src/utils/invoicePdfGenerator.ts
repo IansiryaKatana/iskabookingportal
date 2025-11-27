@@ -36,7 +36,7 @@ export const generateInvoicePDF = async (data: InvoiceData): Promise<void> => {
 
   const { payment, studentName, studentEmail, studentPhone, studentAddress, invoiceNumber, branding } = data;
 
-  const companyName = branding?.companyName || "Urban Hub";
+  const companyName = branding?.companyName || "StudentStaySolutions";
   const contactPhone = branding?.contactPhone || "+44 123 456 7890";
   const contactEmail = branding?.contactEmail || "info@urbanhub.uk";
   const contactAddress1 = branding?.contactAddress1 || "123 Student Street";

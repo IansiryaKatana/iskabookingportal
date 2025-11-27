@@ -5,6 +5,7 @@ import { ChevronLeft, UserCircle2, LayoutDashboard, Users, DollarSign, User } fr
 import clsx from "clsx";
 import { useState } from "react";
 import { usePartner } from "@/hooks/usePartner";
+import { useBrandingSettings } from "@/hooks/useBranding";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -58,6 +59,8 @@ const PartnerLayout = ({
   hideNav = false,
   actionButton,
 }: PartnerLayoutProps) => {
+  const { data: brandingSettings } = useBrandingSettings();
+  const companyName = brandingSettings?.company_name || "StudentStaySolutions";
   const navigate = useNavigate();
   const location = useLocation();
   const { profile, signOut, user } = useAuth();
@@ -101,7 +104,7 @@ const PartnerLayout = ({
                     Partner Portal
                   </h1>
                   <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground mt-1">
-                    Urban Hub
+                    {companyName}
                   </p>
                 </div>
               </div>

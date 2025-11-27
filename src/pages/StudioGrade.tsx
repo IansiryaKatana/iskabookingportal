@@ -14,6 +14,7 @@ import ContractShowcase from "@/components/ContractShowcase";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { useBrandingSettings } from "@/hooks/useBranding";
 import type { Database } from "@/integrations/supabase/types";
 
 type StudioGradeRow = Database["public"]["Tables"]["studio_grades"]["Row"];
@@ -231,6 +232,8 @@ const loadStudioGrade = async (slug: string, academicYearName?: string): Promise
 };
 
 const StudioGradePage = () => {
+  const { data: brandingSettings } = useBrandingSettings();
+  const companyName = brandingSettings?.company_name || "StudentStaySolutions";
   const { slug, year } = useParams<{ slug: string; year?: string }>();
   const navigate = useNavigate();
   const [redirecting, setRedirecting] = useState(false);
@@ -393,7 +396,7 @@ const StudioGradePage = () => {
       <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6 text-center">
         <Skeleton className="h-10 w-10 rounded-full mb-4" />
         <p className="text-muted-foreground">
-          Loading the Urban Hub studio experience...
+          Loading the {companyName} studio experience...
         </p>
       </div>
     );
