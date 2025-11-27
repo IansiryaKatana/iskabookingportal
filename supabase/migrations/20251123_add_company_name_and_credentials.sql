@@ -67,7 +67,6 @@ SET credential_value = EXCLUDED.credential_value, updated_at = NOW();
 -- ============================================================================
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.credentials TO authenticated;
-GRANT USAGE ON SEQUENCE credentials_id_seq TO authenticated;
 
 -- ============================================================================
 -- PART 6: COMMENTS
