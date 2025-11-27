@@ -63,6 +63,7 @@ const Branding = () => {
   const { data: openingHours, isLoading: hoursLoading } = useOpeningHours();
 
   // Form states
+  const [companyName, setCompanyName] = useState("");
   const [logoPath, setLogoPath] = useState("");
   const [faviconPath, setFaviconPath] = useState("");
   const [heroImagePath, setHeroImagePath] = useState("");
@@ -86,6 +87,7 @@ const Branding = () => {
   // Initialize form states when data loads
   useEffect(() => {
     if (settings) {
+      setCompanyName(settings.company_name || "");
       setLogoPath(settings.logo_path || "");
       setFaviconPath(settings.favicon_path || "");
       setHeroImagePath(settings.studio_catalog_hero_image || "");
@@ -320,6 +322,7 @@ const Branding = () => {
   const saveSettingsMutation = useMutation({
     mutationFn: async () => {
       const updates = [
+        { setting_key: "company_name", setting_value: companyName, setting_type: "text" },
         { setting_key: "logo_path", setting_value: logoPath, setting_type: "url" },
         { setting_key: "favicon_path", setting_value: faviconPath, setting_type: "url" },
         { setting_key: "studio_catalog_hero_image", setting_value: heroImagePath, setting_type: "url" },
@@ -593,6 +596,36 @@ const Branding = () => {
             Manage your logo, favicon, navigation, contact information, and footer content.
           </p>
         </div>
+
+        {/* Company Name */}
+        <Card className="rounded-3xl">
+          <CardHeader>
+            <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">
+              Company Name
+            </CardTitle>
+            <CardDescription className="text-xs md:text-sm">
+              Your company name used throughout the system (emails, invoices, UI). Default: StudentStaySolutions
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="company_name" className="text-sm font-medium">
+                Company Name
+              </Label>
+              <Input
+                id="company_name"
+                type="text"
+                placeholder="StudentStaySolutions"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                className="text-sm md:text-base"
+              />
+              <p className="text-xs text-muted-foreground">
+                This name will appear in all emails, invoices, and throughout the portal.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Logo & Favicon */}
         <Card>

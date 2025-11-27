@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
-import { CheckCircle2, XCircle, Loader2, RefreshCw, ExternalLink, Save, Trash2, AlertTriangle } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, RefreshCw, ExternalLink, Save, Trash2, AlertTriangle, Eye, EyeOff, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { logActivity } from "@/utils/auditLog";
@@ -47,6 +47,13 @@ const Settings = () => {
   const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>("");
   const [deleteAllOpen, setDeleteAllOpen] = useState(false);
   const [deleteByYearOpen, setDeleteByYearOpen] = useState(false);
+  const [credentials, setCredentials] = useState<{ resend_api_key: string; resend_from_email: string }>({
+    resend_api_key: "",
+    resend_from_email: "",
+  });
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [isSavingCredentials, setIsSavingCredentials] = useState(false);
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
 
   const checkIntegrations = async () => {
     try {
@@ -554,11 +561,6 @@ const Settings = () => {
                   </p>
                 </div>
 
-                <div className="border-t pt-4 mt-4">
-                  <p className="text-xs text-muted-foreground">
-                    API keys and credentials are managed in Supabase Dashboard → Project Settings → Edge Functions → Secrets.
-                  </p>
-                </div>
               </>
             ) : (
               <p className="text-sm text-muted-foreground">Unable to load integration status.</p>
@@ -566,6 +568,128 @@ const Settings = () => {
           </CardContent>
         </Card>
         </div>
+
+        {/* Email Credentials Section */}
+        <Card className="rounded-3xl">
+          <CardHeader>
+            <CardTitle className="text-base md:text-lg font-semibold flex items-center gap-2">
+              <Lock className="h-5 w-5" />
+              Email Credentials
+            </CardTitle>
+            <CardDescription className="text-xs md:text-sm">
+              Manage Resend API key and from email address for sending transactional emails.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {isLoadingCredentials ? (
+              <div className="space-y-4">
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-20 w-full" />
+              </div>
+            ) : (
+              <>
+                {/* Resend API Key */}
+                <div className="space-y-2">
+                  <Label htmlFor="resend_api_key" className="text-sm md:text-base font-medium">
+                    Resend API Key
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="resend_api_key"
+                      type={showApiKey ? "text" : "password"}
+                      placeholder="re_..."
+                      value={credentials.resend_api_key}
+                      onChange={(e) => handleCredentialsChange("resend_api_key", e.target.value)}
+                      className="pr-10 text-sm md:text-base"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label={showApiKey ? "Hide API key" : "Show API key"}
+                    >
+                      {showApiKey ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Your Resend API key. Keep this secure and never share it publicly.
+                  </p>
+                </div>
+
+                {/* Resend From Email */}
+                <div className="space-y-2">
+                  <Label htmlFor="resend_from_email" className="text-sm md:text-base font-medium">
+                    From Email Address
+                  </Label>
+                  <Input
+                    id="resend_from_email"
+                    type="email"
+                    placeholder="noreply@send.portal.iankatana.com"
+                    value={credentials.resend_from_email}
+                    onChange={(e) => handleCredentialsChange("resend_from_email", e.target.value)}
+                    className="text-sm md:text-base"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    The email address that will appear as the sender for all transactional emails.
+                  </p>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row gap-3 pt-4">
+                  <Button
+                    onClick={handleSaveCredentials}
+                    disabled={isSavingCredentials}
+                    className="rounded-full uppercase tracking-wide gap-2 text-xs md:text-sm flex-1"
+                  >
+                    <Save className="h-3 w-3 md:h-4 md:w-4" />
+                    {isSavingCredentials ? "Saving..." : "Save Credentials"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleTestConnection}
+                    disabled={isTestingConnection}
+                    className="rounded-full uppercase tracking-wide gap-2 text-xs md:text-sm"
+                  >
+                    {isTestingConnection ? (
+                      <>
+                        <Loader2 className="h-3 w-3 md:h-4 md:w-4 animate-spin" />
+                        Testing...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-3 w-3 md:h-4 md:w-4" />
+                        Test Connection
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {/* Status Info */}
+                {integrationStatus?.resend && (
+                  <div className="rounded-lg border p-3 bg-muted/30">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium">Connection Status:</span>
+                      {getStatusBadge(integrationStatus.resend.connected)}
+                    </div>
+                    {integrationStatus.resend.connected ? (
+                      <p className="text-xs text-muted-foreground">
+                        Domain: {integrationStatus.resend.domain || "Connected"}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-destructive">
+                        {integrationStatus.resend.error || "Not configured"}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Data Management Section */}
         <Card className="rounded-3xl border-destructive/20">
