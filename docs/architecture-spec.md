@@ -301,6 +301,33 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
   - Unified view of Stripe and manual payments
   - Payment summaries per application
   - Export functionality
+- **Settings** (`/admin/settings`):
+  - **Social Media Links**: Manage social media profile URLs (Instagram, TikTok, LinkedIn, Facebook, WhatsApp) with enable/disable toggles
+  - **Integrations Status**: View connection status for Stripe, DocuSign, and Resend with refresh functionality
+  - **Notifications**: Control automated reminders and operational updates (upcoming instalments, document uploads)
+  - **Data Management** (Development/Testing):
+    - Application statistics display (total applications and breakdown by academic year)
+    - **Delete All Applications**: One-click deletion of all student applications and all related records
+    - **Delete by Academic Year**: Select specific academic year and delete all applications for that year
+    - Comprehensive deletion includes:
+      - Application records and all steps (`student_application_steps`)
+      - Uploaded documents and signatures (`student_documents`, `student_signatures`)
+      - Payment records (Stripe and manual payments: `stripe_payments`, `manual_payments`)
+      - Partner referrals and commissions (`partner_referrals`, `application_cashbacks`)
+      - DocuSign envelopes (`docusign_envelopes`)
+      - Studio allocations (automatically frees studios: sets `status = 'available'`, `allocation = NULL`)
+      - Updates refunds and rebooking references (sets `application_id` to NULL where appropriate)
+    - Safety features:
+      - Confirmation dialogs with detailed warnings
+      - Statistics display showing what will be deleted
+      - Audit logging of all deletions
+      - Error handling with detailed error messages
+    - Database functions:
+      - `delete_student_application(p_application_id UUID)`: Deletes single application and all related records
+      - `delete_all_student_applications()`: Deletes all applications in the system
+      - `delete_student_applications_by_academic_year(p_academic_year_id UUID)`: Deletes applications for specific academic year
+    - All functions use `SECURITY DEFINER` and disable RLS to ensure complete deletion
+    - Functions return JSONB with deletion counts and detailed results
 
 ### 6.3 Partner Portal ✅ IMPLEMENTED
 
@@ -393,6 +420,12 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
     - Handles existing accounts (sends reset if already linked, returns error if linked to different partner)
     - Redirects to `/partner/reset-password` for password setup
   - `weekly-payment-report` – Weekly payment report generation
+  - Data Management Functions (Development/Testing):
+    - `delete_student_application(p_application_id UUID)` – Deletes single application and all related records, returns deletion statistics
+    - `delete_all_student_applications()` – Deletes all applications in the system, returns JSONB with deletion count and details
+    - `delete_student_applications_by_academic_year(p_academic_year_id UUID)` – Deletes applications for specific academic year, returns JSONB with deletion count and details
+    - All functions use `SECURITY DEFINER` and `set_config('row_security', 'off', true)` to bypass RLS
+    - Functions handle cascading deletes, studio allocation cleanup, and orphaned record prevention
 - **Stripe** – capture payment method, deposit, instalment payments, webhook for payment updates, refund processing.
 - **DocuSign** – agreement creation, embedded signing, status polling, signed document retrieval, envelope management.
 - **Email Service (Resend)** – transactional notifications, bulk messaging, template-based emails with variable replacement. Configured with dedicated sending domain `send.portal.urbanhub.uk` for high deliverability. Enhanced error handling with HTML response detection, detailed logging, and API key validation. See `docs/SYSTEM_IMPROVEMENTS_AND_CONFIG.md` for complete setup instructions.

@@ -8,10 +8,28 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
-import { CheckCircle2, XCircle, Loader2, RefreshCw, ExternalLink, Save } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, RefreshCw, ExternalLink, Save, Trash2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { logActivity } from "@/utils/auditLog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type IntegrationStatus = {
   stripe: { connected: boolean; account?: string; error?: string };
@@ -26,6 +44,9 @@ const Settings = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [socialMediaSettings, setSocialMediaSettings] = useState<Record<string, { url: string; is_enabled: boolean }>>({});
+  const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>("");
+  const [deleteAllOpen, setDeleteAllOpen] = useState(false);
+  const [deleteByYearOpen, setDeleteByYearOpen] = useState(false);
 
   const checkIntegrations = async () => {
     try {
@@ -128,6 +149,164 @@ const Settings = () => {
   const handleSaveSocialMedia = () => {
     updateSocialMedia.mutate(socialMediaSettings);
   };
+
+  // Fetch academic years for deletion dropdown
+  const { data: academicYears, isLoading: isLoadingYears } = useQuery({
+    queryKey: ["academic-years"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("academic_years")
+        .select("id, name")
+        .order("start_date", { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Fetch application statistics
+  const { data: appStats, refetch: refetchStats } = useQuery({
+    queryKey: ["application-stats"],
+    queryFn: async () => {
+      const { data: allApps, error: allError } = await supabase
+        .from("student_applications")
+        .select(`
+          id,
+          contract_id,
+          contracts!inner(
+            academic_year_id
+          )
+        `);
+
+      if (allError) throw allError;
+
+      const statsByYear: Record<string, number> = {};
+      (allApps || []).forEach((app: any) => {
+        const yearId = app.contracts?.academic_year_id;
+        if (yearId) {
+          statsByYear[yearId] = (statsByYear[yearId] || 0) + 1;
+        }
+      });
+
+      return {
+        total: allApps?.length || 0,
+        byYear: statsByYear,
+      };
+    },
+  });
+
+  // Delete all applications mutation
+  const deleteAllApplications = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.rpc("delete_all_student_applications", {});
+
+      if (error) {
+        console.error("Delete all applications error:", error);
+        throw error;
+      }
+      return data;
+    },
+    onSuccess: async (data) => {
+      const deletedCount = data?.deleted_count || 0;
+      const message = data?.message;
+      const debug = data?.debug;
+      const totalFound = data?.total_found;
+      const details = data?.details || [];
+      
+      console.log("Delete all applications result:", { 
+        data, 
+        deletedCount, 
+        totalFound, 
+        debug,
+        details,
+        detailsCount: details.length,
+        firstDetail: details[0],
+        allDetails: details
+      });
+      
+      // Check if there are errors in details
+      const errors = details.filter((d: any) => d.error || !d.success);
+      if (errors.length > 0) {
+        console.error("Deletion errors found:", errors);
+      }
+      
+      await logActivity({
+        action: "delete",
+        entityType: "student_applications",
+        payload: { type: "all", count: deletedCount, total_found: totalFound },
+      });
+      queryClient.invalidateQueries({ queryKey: ["application-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["student-applications"] });
+      
+      if (deletedCount === 0) {
+        toast({
+          title: "No applications found",
+          description: message || `There are no applications in the database to delete. (Found: ${totalFound || 0})`,
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "Applications deleted",
+          description: `Successfully deleted ${deletedCount} application(s) and all related records.`,
+        });
+      }
+      setDeleteAllOpen(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete applications",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete applications by academic year mutation
+  const deleteByAcademicYear = useMutation({
+    mutationFn: async (academicYearId: string) => {
+      const { data, error } = await supabase.rpc("delete_student_applications_by_academic_year", {
+        p_academic_year_id: academicYearId,
+      });
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: async (data, academicYearId) => {
+      const deletedCount = data?.deleted_count || 0;
+      const yearName = academicYears?.find((y) => y.id === academicYearId)?.name || "Unknown";
+      const message = data?.message;
+      
+      await logActivity({
+        action: "delete",
+        entityType: "student_applications",
+        payload: { type: "by_academic_year", academic_year_id: academicYearId, count: deletedCount },
+      });
+      queryClient.invalidateQueries({ queryKey: ["application-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["student-applications"] });
+      
+      if (deletedCount === 0) {
+        toast({
+          title: "No applications found",
+          description: message || `No applications found for ${yearName} to delete.`,
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "Applications deleted",
+          description: `Successfully deleted ${deletedCount} application(s) for ${yearName} and all related records.`,
+        });
+      }
+      setDeleteByYearOpen(false);
+      setSelectedAcademicYear("");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete applications",
+        variant: "destructive",
+      });
+    },
+  });
 
   useEffect(() => {
     checkIntegrations();
@@ -387,6 +566,230 @@ const Settings = () => {
           </CardContent>
         </Card>
         </div>
+
+        {/* Data Management Section */}
+        <Card className="rounded-3xl border-destructive/20">
+          <CardHeader>
+            <CardTitle className="text-base md:text-lg font-semibold flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Data Management
+            </CardTitle>
+            <CardDescription className="text-xs md:text-sm">
+              Development/Testing: Delete student applications and all related records. This action cannot be undone.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Statistics */}
+            <div className="rounded-lg border border-border/60 bg-muted/30 p-4">
+              <h4 className="text-sm font-semibold mb-3">Current Application Statistics</h4>
+              {appStats ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Total Applications:</span>
+                    <Badge variant="outline" className="font-semibold">
+                      {appStats.total}
+                    </Badge>
+                  </div>
+                  {Object.keys(appStats.byYear).length > 0 && (
+                    <div className="mt-3 pt-3 border-t">
+                      <p className="text-xs font-medium mb-2 text-muted-foreground">By Academic Year:</p>
+                      <div className="space-y-1">
+                        {academicYears
+                          ?.filter((year) => appStats.byYear[year.id])
+                          .map((year) => (
+                            <div key={year.id} className="flex items-center justify-between text-xs">
+                              <span>{year.name}:</span>
+                              <Badge variant="outline" className="text-xs">
+                                {appStats.byYear[year.id]}
+                              </Badge>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Skeleton className="h-20 w-full" />
+              )}
+            </div>
+
+            {/* Warning Alert */}
+            <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
+                <div className="text-sm">
+                  <p className="font-semibold text-destructive mb-1">Warning: Irreversible Action</p>
+                  <p className="text-muted-foreground text-xs">
+                    Deleting applications will permanently remove:
+                  </p>
+                  <ul className="list-disc list-inside mt-2 text-xs text-muted-foreground space-y-1">
+                    <li>Application records and all steps</li>
+                    <li>Uploaded documents and signatures</li>
+                    <li>Payment records (Stripe and manual)</li>
+                    <li>Partner referrals and commissions</li>
+                    <li>DocuSign envelopes</li>
+                    <li>Studio allocations (studios will be freed)</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Delete Actions */}
+            <div className="grid gap-4 md:grid-cols-2">
+              {/* Delete All */}
+              <AlertDialog open={deleteAllOpen} onOpenChange={setDeleteAllOpen}>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="destructive"
+                    className="w-full rounded-full uppercase tracking-wide"
+                    disabled={deleteAllApplications.isPending || (appStats?.total || 0) === 0}
+                  >
+                    {deleteAllApplications.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete All Applications
+                      </>
+                    )}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent className="rounded-3xl">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="text-destructive">Delete All Applications?</AlertDialogTitle>
+                    <AlertDialogDescription asChild>
+                      <div className="text-sm space-y-2">
+                        <p>
+                          This will permanently delete <strong>all {appStats?.total || 0} application(s)</strong> and all
+                          related records including:
+                        </p>
+                        <ul className="list-disc list-inside mt-2 space-y-1">
+                          <li>Application steps and data</li>
+                          <li>Documents and signatures</li>
+                          <li>Payment records</li>
+                          <li>Partner referrals</li>
+                          <li>Studio allocations</li>
+                        </ul>
+                        <p className="mt-3 font-semibold text-destructive">This action cannot be undone.</p>
+                      </div>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel className="rounded-full">Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => deleteAllApplications.mutate()}
+                      className="rounded-full bg-destructive hover:bg-destructive/90"
+                      disabled={deleteAllApplications.isPending}
+                    >
+                      {deleteAllApplications.isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Deleting...
+                        </>
+                      ) : (
+                        "Delete All"
+                      )}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+
+              {/* Delete by Academic Year */}
+              <AlertDialog open={deleteByYearOpen} onOpenChange={setDeleteByYearOpen}>
+                <div className="space-y-3">
+                  <Select
+                    value={selectedAcademicYear || ""}
+                    onValueChange={setSelectedAcademicYear}
+                    disabled={isLoadingYears || deleteByAcademicYear.isPending}
+                  >
+                    <SelectTrigger className="w-full rounded-full">
+                      <SelectValue placeholder="Select academic year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {academicYears?.map((year) => {
+                        const count = appStats?.byYear[year.id] || 0;
+                        return (
+                          <SelectItem key={year.id} value={year.id}>
+                            {year.name} ({count} application{count !== 1 ? "s" : ""})
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="destructive"
+                      className="w-full rounded-full uppercase tracking-wide"
+                      disabled={
+                        !selectedAcademicYear ||
+                        deleteByAcademicYear.isPending ||
+                        (appStats?.byYear[selectedAcademicYear] || 0) === 0
+                      }
+                    >
+                      {deleteByAcademicYear.isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Deleting...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete by Academic Year
+                        </>
+                      )}
+                    </Button>
+                  </AlertDialogTrigger>
+                </div>
+                <AlertDialogContent className="rounded-3xl">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="text-destructive">
+                      Delete Applications for {academicYears?.find((y) => y.id === selectedAcademicYear)?.name}?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription asChild>
+                      <div className="text-sm space-y-2">
+                        <p>
+                          This will permanently delete{" "}
+                          <strong>
+                            {appStats?.byYear[selectedAcademicYear] || 0} application(s)
+                          </strong>{" "}
+                          for this academic year and all related records including:
+                        </p>
+                        <ul className="list-disc list-inside mt-2 space-y-1">
+                          <li>Application steps and data</li>
+                          <li>Documents and signatures</li>
+                          <li>Payment records</li>
+                          <li>Partner referrals</li>
+                          <li>Studio allocations</li>
+                        </ul>
+                        <p className="mt-3 font-semibold text-destructive">This action cannot be undone.</p>
+                      </div>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel className="rounded-full">Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => selectedAcademicYear && deleteByAcademicYear.mutate(selectedAcademicYear)}
+                      className="rounded-full bg-destructive hover:bg-destructive/90"
+                      disabled={deleteByAcademicYear.isPending || !selectedAcademicYear}
+                    >
+                      {deleteByAcademicYear.isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Deleting...
+                        </>
+                      ) : (
+                        "Delete"
+                      )}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </AdminLayout>
   );

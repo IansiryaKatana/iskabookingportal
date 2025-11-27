@@ -36,16 +36,16 @@ const ContractDetail = () => {
 
   // Debug logging
   useEffect(() => {
-    if (user?.id && contract?.id) {
-      console.log("Rebooking Check Debug:", {
-        userId: user.id,
-        contractId: contract.id,
-        rebookingCheck,
-        checkingRebooking,
-        rebookingError,
-      });
-    }
-  }, [user?.id, contract?.id, rebookingCheck, checkingRebooking, rebookingError]);
+    console.log("=== REBOOKING DEBUG ===");
+    console.log("User:", user?.id ? "Logged in" : "Not logged in", user?.id);
+    console.log("Contract:", contract?.id ? "Loaded" : "Not loaded", contract?.id, contract?.name);
+    console.log("Hook enabled:", !!(user?.id && contract?.id));
+    console.log("Rebooking check result:", rebookingCheck);
+    console.log("Is loading:", checkingRebooking);
+    console.log("Error:", rebookingError);
+    console.log("Can show rebooking:", !!(user && rebookingCheck?.can_rebook && rebookingCheck.previous_application_id));
+    console.log("=======================");
+  }, [user?.id, contract?.id, contract?.name, rebookingCheck, checkingRebooking, rebookingError]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });

@@ -74,9 +74,12 @@ export const AcademicYearSelector = ({
     );
   }
 
+  // Ensure value is always a string (controlled component)
+  const controlledValue = value ?? defaultYear?.id ?? "";
+
   return (
     <div className={className}>
-      <Select value={value || defaultYear?.id || ""} onValueChange={onValueChange}>
+      <Select value={controlledValue} onValueChange={onValueChange}>
         <SelectTrigger className="w-full rounded-full">
           <SelectValue placeholder={label} />
         </SelectTrigger>
