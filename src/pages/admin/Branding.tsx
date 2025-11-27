@@ -1282,11 +1282,11 @@ const Branding = () => {
                 id="footer-copyright"
                 value={footerCopyright}
                 onChange={(e) => setFooterCopyright(e.target.value)}
-                placeholder={`${brandingSettings?.company_name || "StudentStaySolutions"}. All rights reserved.`}
+                placeholder={`${settings?.company_name || "StudentStaySolutions"}. All rights reserved.`}
                 className="rounded-xl text-sm"
               />
               <p className="text-xs text-muted-foreground">
-                The current year will be automatically added (e.g., `© 2025 ${brandingSettings?.company_name || "StudentStaySolutions"}. All rights reserved.`)
+                The current year will be automatically added (e.g., `© 2025 ${settings?.company_name || "StudentStaySolutions"}. All rights reserved.`)
               </p>
             </div>
             <Button
