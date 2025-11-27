@@ -106,6 +106,40 @@ const Settings = () => {
     }
   }, [socialMediaData]);
 
+  // Fetch credentials
+  const { data: credentialsData, isLoading: isLoadingCredentials } = useQuery({
+    queryKey: ["credentials"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("credentials")
+        .select("credential_key, credential_value")
+        .in("credential_key", ["resend_api_key", "resend_from_email"]);
+
+      if (error) throw error;
+
+      const credsMap: { resend_api_key: string; resend_from_email: string } = {
+        resend_api_key: "",
+        resend_from_email: "",
+      };
+
+      (data || []).forEach((item) => {
+        if (item.credential_key === "resend_api_key") {
+          credsMap.resend_api_key = item.credential_value || "";
+        } else if (item.credential_key === "resend_from_email") {
+          credsMap.resend_from_email = item.credential_value || "";
+        }
+      });
+
+      return credsMap;
+    },
+  });
+
+  useEffect(() => {
+    if (credentialsData) {
+      setCredentials(credentialsData);
+    }
+  }, [credentialsData]);
+
   // Update social media settings mutation
   const updateSocialMedia = useMutation({
     mutationFn: async (updates: Record<string, { url: string; is_enabled: boolean }>) => {
