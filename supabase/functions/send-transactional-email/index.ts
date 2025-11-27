@@ -86,53 +86,66 @@ serve(async (req) => {
       }
     }
 
+    // Get company name for default templates (if not already fetched)
+    let companyName = "StudentStaySolutions";
+    if (!brandingSettings) {
+      const { data: branding } = await supabaseClient
+        .from("branding_settings")
+        .select("setting_value")
+        .eq("setting_key", "company_name")
+        .single();
+      companyName = branding?.setting_value || "StudentStaySolutions";
+    } else {
+      companyName = brandingSettings.setting_value || "StudentStaySolutions";
+    }
+
     // Default templates for common email types
     if (!emailSubject) {
       switch (email_type) {
         case "deposit_received":
-          emailSubject = "Deposit Payment Received - Urban Hub";
+          emailSubject = `Deposit Payment Received - ${companyName}`;
           emailBodyHtml = `
             <h2>Deposit Payment Received</h2>
             <p>Dear ${variables.student_name || "Student"},</p>
             <p>We have successfully received your deposit payment of ${variables.amount || "£99"}.</p>
             <p>Your application is now progressing to the next stage. Please complete the remaining steps in your booking journey.</p>
-            <p>Thank you for choosing Urban Hub!</p>
+            <p>Thank you for choosing ${companyName}!</p>
           `;
           break;
         case "signature_completed":
-          emailSubject = "Agreement Signed - Urban Hub";
+          emailSubject = `Agreement Signed - ${companyName}`;
           emailBodyHtml = `
             <h2>Agreement Signed</h2>
             <p>Dear ${variables.student_name || "Student"},</p>
             <p>Thank you for completing the signing of your tenancy agreement.</p>
             <p>Your application is now being reviewed by our team. We'll notify you once it's been confirmed.</p>
-            <p>Best regards,<br>Urban Hub Team</p>
+            <p>Best regards,<br>${companyName} Team</p>
           `;
           break;
         case "application_confirmed":
-          emailSubject = "Application Confirmed - Welcome to Urban Hub!";
+          emailSubject = `Application Confirmed - Welcome to ${companyName}!`;
           emailBodyHtml = `
             <h2>Application Confirmed</h2>
             <p>Dear ${variables.student_name || "Student"},</p>
             <p>Congratulations! Your application has been confirmed.</p>
             <p>Your studio: ${variables.studio_number || "TBA"}</p>
             <p>Contract start: ${variables.contract_start || "TBA"}</p>
-            <p>Welcome to Urban Hub! We're excited to have you join us.</p>
-            <p>Best regards,<br>Urban Hub Team</p>
+            <p>Welcome to ${companyName}! We're excited to have you join us.</p>
+            <p>Best regards,<br>${companyName} Team</p>
           `;
           break;
         case "payment_due":
-          emailSubject = "Payment Due Reminder - Urban Hub";
+          emailSubject = `Payment Due Reminder - ${companyName}`;
           emailBodyHtml = `
             <h2>Payment Due Reminder</h2>
             <p>Dear ${variables.student_name || "Student"},</p>
             <p>This is a reminder that your payment of ${variables.amount || "£XXX"} is due on ${variables.due_date || "TBA"}.</p>
             <p>Please log in to your portal to make the payment.</p>
-            <p>Thank you,<br>Urban Hub Team</p>
+            <p>Thank you,<br>${companyName} Team</p>
           `;
           break;
         case "refund_processed":
-          emailSubject = "Refund Processed - Urban Hub";
+          emailSubject = `Refund Processed - ${companyName}`;
           emailBodyHtml = `
             <h2>Refund Processed</h2>
             <p>Dear ${variables.student_name || "Student"},</p>
@@ -141,12 +154,12 @@ serve(async (req) => {
             <p>Refund ID: ${variables.refund_id || "N/A"}</p>
             <p>The refund should appear in your account within 5-10 business days, depending on your bank or card issuer.</p>
             <p>If you have any questions, please contact our support team.</p>
-            <p>Best regards,<br>Urban Hub Team</p>
+            <p>Best regards,<br>${companyName} Team</p>
           `;
           break;
         default:
-          emailSubject = "Notification from Urban Hub";
-          emailBodyHtml = `<p>${variables.message || "You have a new notification from Urban Hub."}</p>`;
+          emailSubject = `Notification from ${companyName}`;
+          emailBodyHtml = `<p>${variables.message || `You have a new notification from ${companyName}.`}</p>`;
       }
       emailBodyText = emailBodyHtml.replace(/<[^>]*>/g, "");
     }
@@ -159,22 +172,44 @@ serve(async (req) => {
       emailBodyText = emailBodyText.replace(regex, String(value));
     });
 
-    // Send email via Resend
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    // Get branding settings (company name)
+    const { data: brandingSettings, error: brandingError } = await supabaseClient
+      .from("branding_settings")
+      .select("setting_key, setting_value")
+      .eq("setting_key", "company_name")
+      .single();
+
+    const companyName = brandingSettings?.setting_value || "StudentStaySolutions";
+
+    // Get Resend credentials from database (fallback to env vars for backward compatibility)
+    const { data: credentials, error: credsError } = await supabaseClient
+      .from("credentials")
+      .select("credential_key, credential_value")
+      .in("credential_key", ["resend_api_key", "resend_from_email"]);
+
+    let resendApiKey = Deno.env.get("RESEND_API_KEY");
+    let fromEmail = Deno.env.get("RESEND_FROM_EMAIL") || "noreply@send.portal.iankatana.com";
+
+    if (credentials && credentials.length > 0) {
+      const credsMap = new Map(
+        credentials.map((c) => [c.credential_key, c.credential_value])
+      );
+      resendApiKey = credsMap.get("resend_api_key") || resendApiKey;
+      fromEmail = credsMap.get("resend_from_email") || fromEmail;
+    }
+
     if (!resendApiKey) {
       return new Response(
-        JSON.stringify({ error: "RESEND_API_KEY not configured" }),
+        JSON.stringify({ error: "RESEND_API_KEY not configured. Please set it in Settings." }),
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         },
       );
     }
-
-    const fromEmail = Deno.env.get("RESEND_FROM_EMAIL") || "noreply@send.portal.urbanhub.uk";
     
     // Format from email properly (Resend accepts both formats, but let's be explicit)
-    const formattedFromEmail = fromEmail.includes("<") ? fromEmail : `Urban Hub Management <${fromEmail}>`;
+    const formattedFromEmail = fromEmail.includes("<") ? fromEmail : `${companyName} <${fromEmail}>`;
 
     console.log(`Sending email to ${user.email} from ${formattedFromEmail}`);
     console.log(`Email subject: ${emailSubject}`);

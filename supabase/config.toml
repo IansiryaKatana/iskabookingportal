@@ -53,3 +53,6 @@ verify_jwt = true
 
 [functions.get-payment-intent-details]
 verify_jwt = true
+
+[functions.send-confirmation-email]
+verify_jwt = true

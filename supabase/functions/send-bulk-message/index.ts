@@ -386,9 +386,32 @@ serve(async (req) => {
       const { data: { users }, error: usersError } = await supabaseClient.auth.admin.listUsers();
 
       if (!usersError && users) {
-        const resendApiKey = Deno.env.get("RESEND_API_KEY");
+        // Get branding settings (company name)
+        const { data: brandingSettings } = await supabaseClient
+          .from("branding_settings")
+          .select("setting_value")
+          .eq("setting_key", "company_name")
+          .single();
+        const companyName = brandingSettings?.setting_value || "StudentStaySolutions";
+
+        // Get Resend credentials from database (fallback to env vars)
+        const { data: credentials } = await supabaseClient
+          .from("credentials")
+          .select("credential_key, credential_value")
+          .in("credential_key", ["resend_api_key", "resend_from_email"]);
+
+        let resendApiKey = Deno.env.get("RESEND_API_KEY");
+        let fromEmail = Deno.env.get("RESEND_FROM_EMAIL") || "noreply@send.portal.iankatana.com";
+
+        if (credentials && credentials.length > 0) {
+          const credsMap = new Map(
+            credentials.map((c) => [c.credential_key, c.credential_value])
+          );
+          resendApiKey = credsMap.get("resend_api_key") || resendApiKey;
+          fromEmail = credsMap.get("resend_from_email") || fromEmail;
+        }
+
         if (resendApiKey) {
-          const fromEmail = Deno.env.get("RESEND_FROM_EMAIL") || "noreply@send.portal.urbanhub.uk";
           console.log(`Using from email: ${fromEmail}`);
           console.log(`Resend API Key present: ${resendApiKey ? "Yes" : "No"}`);
           console.log(`Resend API Key length: ${resendApiKey?.length || 0} characters`);
@@ -519,7 +542,7 @@ serve(async (req) => {
             );
 
               // Format from email properly (Resend accepts both formats, but let's be explicit)
-              const formattedFromEmail = fromEmail.includes("<") ? fromEmail : `Urban Hub Management <${fromEmail}>`;
+              const formattedFromEmail = fromEmail.includes("<") ? fromEmail : `${companyName} <${fromEmail}>`;
               
               console.log(`Attempting to send email to ${user.email} from ${formattedFromEmail}`);
               console.log(`Email subject: ${emailSubject.substring(0, 50)}...`);
