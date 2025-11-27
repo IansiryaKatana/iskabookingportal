@@ -609,9 +609,6 @@ const Branding = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="company_name" className="text-sm font-medium">
-                Company Name
-              </Label>
               <Input
                 id="company_name"
                 type="text"
@@ -624,6 +621,24 @@ const Branding = () => {
                 This name will appear in all emails, invoices, and throughout the portal.
               </p>
             </div>
+            <Button
+              onClick={() => saveSettingsMutation.mutate()}
+              disabled={saveSettingsMutation.isPending}
+              className="rounded-full uppercase tracking-wide text-xs md:text-sm h-9 md:h-10 px-4 md:px-6 gap-2"
+            >
+              {saveSettingsMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="hidden sm:inline">Saving...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  <span className="hidden sm:inline">Save Company Name</span>
+                  <span className="sm:hidden">Save</span>
+                </>
+              )}
+            </Button>
           </CardContent>
         </Card>
 
