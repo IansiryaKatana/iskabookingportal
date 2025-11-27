@@ -191,6 +191,119 @@ const Settings = () => {
     updateSocialMedia.mutate(socialMediaSettings);
   };
 
+  // Update credentials mutation
+  const updateCredentials = useMutation({
+    mutationFn: async (updates: { resend_api_key: string; resend_from_email: string }) => {
+      const updatePromises = [
+        supabase
+          .from("credentials")
+          .upsert(
+            {
+              credential_key: "resend_api_key",
+              credential_value: updates.resend_api_key,
+              credential_type: "api_key",
+              description: "Resend API key for sending emails",
+            },
+            { onConflict: "credential_key" }
+          ),
+        supabase
+          .from("credentials")
+          .upsert(
+            {
+              credential_key: "resend_from_email",
+              credential_value: updates.resend_from_email,
+              credential_type: "email",
+              description: "Default from email address for Resend",
+            },
+            { onConflict: "credential_key" }
+          ),
+      ];
+
+      const results = await Promise.all(updatePromises);
+      results.forEach(({ error }) => {
+        if (error) throw error;
+      });
+
+      await logActivity({
+        action: "update",
+        entityType: "credentials",
+        payload: { updated_keys: ["resend_api_key", "resend_from_email"] },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["credentials"] });
+      queryClient.invalidateQueries({ queryKey: ["integration-status"] });
+      toast({
+        title: "Credentials updated",
+        description: "Email credentials have been saved successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update credentials",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleCredentialsChange = (key: "resend_api_key" | "resend_from_email", value: string) => {
+    setCredentials((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+
+  const handleSaveCredentials = () => {
+    if (!credentials.resend_api_key.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Resend API key is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!credentials.resend_from_email.trim() || !credentials.resend_from_email.includes("@")) {
+      toast({
+        title: "Validation Error",
+        description: "Valid email address is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSavingCredentials(true);
+    updateCredentials.mutate(credentials, {
+      onSettled: () => {
+        setIsSavingCredentials(false);
+      },
+    });
+  };
+
+  const handleTestConnection = async () => {
+    setIsTestingConnection(true);
+    try {
+      // Refresh integration status to test connection
+      await checkIntegrations();
+      toast({
+        title: "Connection Test",
+        description: integrationStatus?.resend?.connected
+          ? "Successfully connected to Resend"
+          : integrationStatus?.resend?.error || "Failed to connect to Resend",
+        variant: integrationStatus?.resend?.connected ? "default" : "destructive",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to test connection",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTestingConnection(false);
+    }
+  };
+
   // Fetch academic years for deletion dropdown
   const { data: academicYears, isLoading: isLoadingYears } = useQuery({
     queryKey: ["academic-years"],
