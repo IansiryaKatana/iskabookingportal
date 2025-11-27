@@ -53,6 +53,7 @@ import StudentApplicationWizard from "./pages/portal/ApplicationWizard";
 import StudentApplicationWizardPrototype from "./pages/portal/ApplicationWizardPrototype";
 import PortalAuth from "./pages/portal/Auth";
 import PortalRequestPasswordReset from "./pages/portal/RequestPasswordReset";
+import PortalResetPassword from "./pages/portal/ResetPassword";
 import PortalDashboard from "./pages/portal/Dashboard";
 import StudioSelection from "./pages/portal/StudioSelection";
 import PortalPayments from "./pages/portal/Payments";
@@ -91,6 +92,8 @@ const App = () => (
             <Route path="/reference/studio-grade-static" element={<StudioGradeStatic />} />
             <Route path="/portal/login" element={<PortalAuth />} />
             <Route path="/portal/request-password-reset" element={<PortalRequestPasswordReset />} />
+            <Route path="/portal/reset-password" element={<PortalResetPassword />} />
+                  <Route path="/portal/reset-password" element={<PortalResetPassword />} />
                   <Route
                     path="/portal"
                     element={

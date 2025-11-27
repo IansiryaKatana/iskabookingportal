@@ -107,9 +107,24 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    } = supabase.auth.onAuthStateChange((event, newSession) => {
       setSession(newSession);
       updateUser(newSession?.user ?? null);
+      
+      // Handle email confirmation - redirect to set password page
+      if (event === "SIGNED_IN" && newSession?.user) {
+        const hash = window.location.hash;
+        const isConfirmation = hash && hash.includes("type=signup");
+        const isPasswordReset = hash && hash.includes("type=recovery");
+        
+        // If user just confirmed email or reset password, check if we're already on the reset-password page
+        if ((isConfirmation || isPasswordReset) && !window.location.pathname.includes("/reset-password")) {
+          // Redirect to set password page
+          window.location.href = `/portal/reset-password${hash ? `#${hash}` : ""}`;
+          return;
+        }
+      }
+      
       if (newSession?.user) {
         refreshProfile(newSession.user.id).catch((error) =>
           console.error("Error loading profile after auth change:", error),
@@ -157,6 +172,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             last_name: metadata?.last_name,
             role: "student",
           },
+          emailRedirectTo: `${window.location.origin}/portal/reset-password`,
         },
       });
 
