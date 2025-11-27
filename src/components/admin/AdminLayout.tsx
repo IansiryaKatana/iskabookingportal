@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import { useBrandingSettings } from "@/hooks/useBranding";
 import clsx from "clsx";
 import { useState, useEffect, useRef } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -239,6 +240,8 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
   const navigate = useNavigate();
   const location = useLocation();
   const { profile, signOut, loading } = useAuth();
+  const { data: brandingSettings } = useBrandingSettings();
+  const companyName = brandingSettings?.company_name || "StudentStaySolutions";
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [showSignOutDialog, setShowSignOutDialog] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
@@ -334,7 +337,7 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
         {/* Sidebar Header - Fixed */}
         <div className="px-6 py-6 border-b border-border flex-shrink-0">
           <h1 className="text-2xl font-display font-bold uppercase tracking-wide">
-            Urban Hub Admin
+            {companyName} Admin
           </h1>
           <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
             Staff Console

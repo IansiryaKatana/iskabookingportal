@@ -25,6 +25,9 @@ const routeTitleMap: Record<string, string> = {
 
 export const usePageTitle = () => {
   const location = useLocation();
+  const { data: brandingSettings } = useBrandingSettings();
+  const companyName = brandingSettings?.company_name || "StudentStaySolutions";
+  const baseTitle = `${companyName} Booking Portal`;
   const [studioGradeName, setStudioGradeName] = useState<string | null>(null);
 
   useEffect(() => {
@@ -46,7 +49,7 @@ export const usePageTitle = () => {
         const slug = pathname.split("/studios/")[1]?.split("/")[0]; // Get slug, ignore any additional path segments
         if (slug) {
           // Set temporary title while loading
-          document.title = `Studio Grade | ${BASE_TITLE}`;
+          document.title = `Studio Grade | ${baseTitle}`;
           
           // Fetch studio grade name
           supabase
@@ -58,11 +61,11 @@ export const usePageTitle = () => {
             .then(({ data, error }) => {
               if (!error && data?.name) {
                 setStudioGradeName(data.name);
-                document.title = `${data.name} | ${BASE_TITLE}`;
+                document.title = `${data.name} | ${baseTitle}`;
               } else {
                 // Fallback if fetch fails
                 setStudioGradeName(null);
-                document.title = `Studio Grade | ${BASE_TITLE}`;
+                document.title = `Studio Grade | ${baseTitle}`;
               }
             });
           return; // Exit early, title will be set by the fetch
@@ -98,12 +101,12 @@ export const usePageTitle = () => {
       }
       // Default fallback
       else {
-        pageTitle = "Urban Hub";
+        pageTitle = companyName;
       }
     }
 
     // Set the document title
-    document.title = `${pageTitle} | ${BASE_TITLE}`;
-  }, [location.pathname]);
+    document.title = `${pageTitle} | ${baseTitle}`;
+  }, [location.pathname, companyName, baseTitle]);
 };
 

@@ -144,8 +144,23 @@ serve(async (req) => {
       };
     }
 
-    // Check Resend connection
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    // Check Resend connection - try database credentials first, fallback to env vars
+    let resendApiKey = Deno.env.get("RESEND_API_KEY");
+    
+    // Try to get from database credentials table
+    const { data: credentials } = await supabaseClient
+      .from("credentials")
+      .select("credential_key, credential_value")
+      .in("credential_key", ["resend_api_key", "resend_from_email"])
+      .limit(2);
+
+    if (credentials && credentials.length > 0) {
+      const credsMap = new Map(
+        credentials.map((c) => [c.credential_key, c.credential_value])
+      );
+      resendApiKey = credsMap.get("resend_api_key") || resendApiKey;
+    }
+
     if (resendApiKey) {
       try {
         const response = await fetch("https://api.resend.com/domains", {
