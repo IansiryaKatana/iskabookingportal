@@ -3078,17 +3078,19 @@ useEffect(() => {
                   }}
                   className="w-full"
                 >
-                  <TabsList className="bg-muted/60 rounded-full p-1 flex flex-wrap gap-1">
+                  <div className="overflow-x-auto scroll-smooth -mx-1 px-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                    <TabsList className="bg-muted/60 rounded-full p-1 flex gap-1 w-max min-w-full">
                     {resolvedPlans.map((plan) => (
                       <TabsTrigger
                         key={plan.planId}
                         value={plan.planId}
-                        className="rounded-full px-4 py-1 text-xs uppercase tracking-wide data-[state=active]:bg-background"
+                        className="rounded-full px-4 py-1 text-xs uppercase tracking-wide data-[state=active]:bg-background whitespace-nowrap flex-shrink-0 snap-start"
                       >
                         {plan.plan.name}
                       </TabsTrigger>
                     ))}
-                  </TabsList>
+                    </TabsList>
+                  </div>
                   {resolvedPlans.map((plan) => {
                     const schedule =
                       plan.plan.payment_plan_installments
@@ -3930,35 +3932,39 @@ useEffect(() => {
           </Alert>
         )}
 
-        <div className="rounded-3xl border-2 border-primary/20 bg-primary text-primary-foreground p-6 md:p-8 shadow-xl shadow-primary/20">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div className="space-y-2">
+        <div className="rounded-3xl border-2 border-primary/20 bg-primary text-primary-foreground p-4 md:p-6 lg:p-8 shadow-xl shadow-primary/20">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1 md:space-y-2 flex-1 min-w-0">
               {application.contract_id && (
-                <h1 className="text-2xl md:text-3xl font-display font-black uppercase tracking-wide text-primary-foreground">
+                <h1 className="text-xl md:text-2xl lg:text-3xl font-display font-black uppercase tracking-wide text-primary-foreground break-words">
                   {steps[currentStep - 1]?.title || "Personal Information"}
                 </h1>
               )}
-              <h2 className="text-xl md:text-2xl font-display font-bold uppercase tracking-wide text-primary-foreground/90">
+              <h2 className="text-base md:text-xl lg:text-2xl font-display font-bold uppercase tracking-wide text-primary-foreground/90">
                 {application.contract_id
                   ? `Step ${currentStep} of ${steps.length}`
                   : "Complete the journey"}
               </h2>
             </div>
-            <div className="flex items-center gap-3">
-              <div className={`w-48 ${allSignaturesCompleted ? '[&>*]:!bg-green-600' : '[&>*]:bg-primary-foreground/30'}`}>
-                <Progress 
-                  value={progress}
-                  className="h-2"
-                />
+            <div className="flex flex-col items-start md:items-end gap-2 flex-shrink-0">
+              <div className="w-full md:w-48">
+                <div className="relative h-2 w-full overflow-hidden rounded-full bg-white">
+                  <div 
+                    className={`h-full transition-all ${
+                      allSignaturesCompleted ? 'bg-green-600' : 'bg-black'
+                    }`}
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
               </div>
-              <span className={`text-sm font-semibold uppercase tracking-wide ${
-                allSignaturesCompleted ? 'text-green-200' : 'text-primary-foreground'
+              <span className={`text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-black uppercase tracking-wide leading-none ${
+                allSignaturesCompleted ? 'text-green-600' : 'text-primary-foreground'
               }`}>
                 {Math.round(progress)}%
               </span>
             </div>
           </div>
-          <div className="flex flex-wrap gap-3 md:gap-4 mt-6">
+          <div className="flex flex-wrap gap-2 md:gap-3 lg:gap-4 mt-4 md:mt-6">
             {steps.map((step) => {
               const isActive = step.number === currentStep;
               const isComplete = application.student_application_steps.some(
@@ -3970,7 +3976,7 @@ useEffect(() => {
                   key={step.number}
                   type="button"
                   onClick={() => setCurrentStep(step.number)}
-                  className={`px-4 py-2 rounded-full text-sm font-semibold uppercase tracking-wide transition-all hover:opacity-80 ${
+                  className={`px-3 py-1.5 md:px-4 md:py-2 rounded-full text-xs md:text-sm font-semibold uppercase tracking-wide transition-all hover:opacity-80 ${
                     isActive
                       ? "bg-primary-foreground text-primary shadow-lg scale-105"
                       : isComplete

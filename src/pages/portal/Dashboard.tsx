@@ -4,11 +4,11 @@ import { Loader2, PlusCircle, CalendarRange, ArrowRightCircle, CreditCard, FileT
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStudentApplicationsList } from "@/hooks/useStudentApplications";
 import { supabase } from "@/integrations/supabase/client";
 import PortalLayout from "@/components/portal/PortalLayout";
+import RebookingCarousel from "@/components/RebookingCarousel";
 import { format } from "date-fns";
 
 const statusLabels: Record<string, string> = {
@@ -33,6 +33,7 @@ const Dashboard = () => {
     contract: any;
     canRebook: boolean;
     message: string;
+    previousAcademicYear?: string;
   }>>([]);
   const [loadingRebooking, setLoadingRebooking] = useState(false);
 
@@ -53,7 +54,10 @@ const Dashboard = () => {
           .from("contracts")
           .select(`
             *,
-            studio_grade:studio_grades(*),
+            studio_grade:studio_grades(
+              *,
+              studio_grade_media(*)
+            ),
             academic_year:academic_years(*)
           `)
           .eq("is_active", true)
@@ -90,6 +94,7 @@ const Dashboard = () => {
                 contract,
                 canRebook: true,
                 message: rebookingCheck[0].message,
+                previousAcademicYear: rebookingCheck[0].previous_academic_year || undefined,
               });
             } else {
               console.log("Dashboard: Contract not eligible - can_rebook:", rebookingCheck?.[0]?.can_rebook, "previous_application_id:", rebookingCheck?.[0]?.previous_application_id);
@@ -172,7 +177,7 @@ const Dashboard = () => {
 
     return (
       <div className="space-y-6">
-        {/* Prominent Rebooking Banner */}
+        {/* Rebooking Carousel Section */}
         {loadingRebooking && (
           <Card className="rounded-3xl border border-border/60">
             <CardContent className="p-6">
@@ -185,33 +190,6 @@ const Dashboard = () => {
         )}
         
         {!loadingRebooking && rebookingContracts.length > 0 && (
-          <Alert className="rounded-3xl border-primary/50 bg-gradient-to-r from-primary/10 to-primary/5 p-6">
-            <RotateCcw className="h-6 w-6 text-primary" />
-            <AlertTitle className="text-xl font-display uppercase tracking-wide text-primary mb-2">
-              Rebooking Available! 🎉
-            </AlertTitle>
-            <AlertDescription className="text-base mb-4">
-              You can rebook for upcoming academic years using your previous application data. 
-              Your information will be pre-filled automatically!
-            </AlertDescription>
-            <div className="flex flex-wrap gap-3 mt-4">
-              {rebookingContracts.map(({ contract, message }) => (
-                <Button
-                  key={contract.id}
-                  size="lg"
-                  className="rounded-full uppercase tracking-wide bg-primary hover:bg-primary/90 text-white shadow-lg"
-                  onClick={() => navigate(`/contracts/${contract.slug}`)}
-                >
-                  <RotateCcw className="h-5 w-5 mr-2" />
-                  Rebook for {contract.academic_year?.name || contract.name}
-                </Button>
-              ))}
-            </div>
-          </Alert>
-        )}
-
-        {/* Rebooking Opportunities Card (Secondary) */}
-        {rebookingContracts.length > 0 && (
           <Card className="rounded-3xl border-primary/20 bg-primary/5">
             <CardHeader>
               <CardTitle className="text-xl font-display uppercase tracking-wide flex items-center gap-2">
@@ -219,28 +197,17 @@ const Dashboard = () => {
                 All Rebooking Options
               </CardTitle>
               <CardDescription>
-                View all available contracts for rebooking
+                View all available contracts for rebooking. Your previous application data will be pre-filled automatically!
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {rebookingContracts.map(({ contract, message }) => (
-                <Alert key={contract.id} className="border-primary/30 bg-background">
-                  <AlertTitle className="font-semibold">
-                    {contract.name}
-                  </AlertTitle>
-                  <AlertDescription className="text-sm mt-1">
-                    {contract.academic_year?.name} · {message}
-                  </AlertDescription>
-                  <Button
-                    className="mt-3 rounded-full uppercase tracking-wide"
-                    size="sm"
-                    onClick={() => navigate(`/contracts/${contract.slug}`)}
-                  >
-                    <RotateCcw className="h-4 w-4 mr-2" />
-                    View Details
-                  </Button>
-                </Alert>
-              ))}
+            <CardContent>
+              <RebookingCarousel 
+                contracts={rebookingContracts.map(({ contract, message, previousAcademicYear }) => ({
+                  contract,
+                  message,
+                  previousAcademicYear,
+                }))}
+              />
             </CardContent>
           </Card>
         )}
@@ -361,6 +328,16 @@ const Dashboard = () => {
   return (
     <PortalLayout
       subtitle={`Welcome back, ${profile?.first_name ?? "student"}`}
+      mobileHeaderActions={
+        <Button
+          size="icon"
+          className="h-10 w-10 rounded-full bg-red-500 hover:bg-red-600 text-white shadow-lg"
+          onClick={() => navigate("/")}
+          title="New Booking"
+        >
+          <PlusCircle className="h-5 w-5" />
+        </Button>
+      }
     >
       <section className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
         <div>

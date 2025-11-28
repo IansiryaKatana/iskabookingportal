@@ -57,6 +57,7 @@ type PortalLayoutProps = {
   onBack?: () => void;
   backLabel?: string;
   hideNav?: boolean;
+  mobileHeaderActions?: React.ReactNode;
 };
 
 const PortalLayout = ({
@@ -66,6 +67,7 @@ const PortalLayout = ({
   onBack,
   backLabel = "Back",
   hideNav = false,
+  mobileHeaderActions,
 }: PortalLayoutProps) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -191,6 +193,7 @@ const PortalLayout = ({
                 </div>
                 <div className="flex items-center gap-2">
                   <NotificationBell />
+                  {mobileHeaderActions}
                   <Button
                     variant="outline"
                     size="sm"
@@ -242,40 +245,45 @@ const PortalLayout = ({
       <div className="flex-1 flex flex-col min-w-0 min-h-screen lg:overflow-y-auto">
         {hideNav && (
           <header className="border-b border-border/50 bg-background/80 backdrop-blur sticky top-0 z-20 flex-shrink-0">
-            <div className="w-full max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-4 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                {onBack && (
+            <div className="w-full max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-3 md:py-4">
+              {/* Mobile Layout - Stacked */}
+              <div className="flex flex-col gap-3 md:hidden">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    {onBack && (
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-9 w-9 rounded-full shrink-0 border-border/60"
+                        onClick={handleBack}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {title && (
+                      <h1 className="text-lg font-display font-black uppercase tracking-wide truncate">
+                        {title}
+                      </h1>
+                    )}
+                  </div>
                   <Button
                     variant="outline"
                     size="sm"
-                    className={clsx(
-                      "rounded-full uppercase tracking-wide gap-2",
-                      "bg-background/80 border-border/60",
-                    )}
-                    onClick={handleBack}
+                    className="rounded-full uppercase tracking-wide text-xs shrink-0"
+                    onClick={() => setShowSignOutDialog(true)}
                   >
-                    <ChevronLeft className="h-4 w-4" />
-                    {backLabel}
+                    Sign Out
                   </Button>
+                </div>
+                {subtitle && (
+                  <p className="text-xs text-muted-foreground">
+                    {subtitle}
+                  </p>
                 )}
-                {title && (
-                  <div>
-                    <h1 className="text-xl md:text-2xl font-display font-black uppercase tracking-wide">
-                      {title}
-                    </h1>
-                    {subtitle && (
-                      <p className="text-xs md:text-sm text-muted-foreground">
-                        {subtitle}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2 text-sm">
-                  <UserCircle2 className="h-6 w-6 text-muted-foreground" />
-                  <div className="leading-tight">
-                    <div className="font-semibold">
+                  <UserCircle2 className="h-5 w-5 text-muted-foreground shrink-0" />
+                  <div className="leading-tight min-w-0">
+                    <div className="font-semibold truncate">
                       {studentName.full_name}
                     </div>
                     <div className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
@@ -283,14 +291,59 @@ const PortalLayout = ({
                     </div>
                   </div>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="rounded-full uppercase tracking-wide"
-                  onClick={() => setShowSignOutDialog(true)}
-                >
-                  Sign Out
-                </Button>
+              </div>
+              
+              {/* Desktop Layout - Horizontal */}
+              <div className="hidden md:flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  {onBack && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={clsx(
+                        "rounded-full uppercase tracking-wide gap-2",
+                        "bg-background/80 border-border/60",
+                      )}
+                      onClick={handleBack}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      {backLabel}
+                    </Button>
+                  )}
+                  {title && (
+                    <div>
+                      <h1 className="text-xl md:text-2xl font-display font-black uppercase tracking-wide">
+                        {title}
+                      </h1>
+                      {subtitle && (
+                        <p className="text-xs md:text-sm text-muted-foreground">
+                          {subtitle}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 text-sm">
+                    <UserCircle2 className="h-6 w-6 text-muted-foreground" />
+                    <div className="leading-tight">
+                      <div className="font-semibold">
+                        {studentName.full_name}
+                      </div>
+                      <div className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                        Student Portal
+                      </div>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-full uppercase tracking-wide"
+                    onClick={() => setShowSignOutDialog(true)}
+                  >
+                    Sign Out
+                  </Button>
+                </div>
               </div>
             </div>
           </header>

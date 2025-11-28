@@ -251,12 +251,46 @@ ${companyName} Team
       current_year: new Date().getFullYear().toString(),
     };
 
-    Object.entries(variables).forEach(([key, value]) => {
-      const regex = new RegExp(`\\{${key}\\}`, "g");
-      emailSubject = emailSubject.replace(regex, String(value));
-      emailBodyHtml = emailBodyHtml.replace(regex, String(value));
-      emailBodyText = emailBodyText.replace(regex, String(value));
-    });
+    // Helper function to replace variables in multiple formats - runs multiple passes to catch all variations
+    const replaceVariables = (text: string, vars: Record<string, string>): string => {
+      if (!text) return text;
+      let result = text;
+      
+      // Run multiple passes to ensure all replacements happen
+      for (let pass = 0; pass < 3; pass++) {
+        Object.entries(vars).forEach(([key, value]) => {
+          const stringValue = String(value || "").trim();
+          if (!stringValue) return; // Skip empty values
+          
+          // Escape only special regex characters in the key name itself (not the braces/brackets)
+          const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          
+          // Replace {variable} format - case insensitive, global replace
+          result = result.replace(new RegExp(`\\{${escapedKey}\\}`, "gi"), stringValue);
+          
+          // Replace [variable] format - case insensitive, global replace
+          result = result.replace(new RegExp(`\\[${escapedKey}\\]`, "gi"), stringValue);
+        });
+      }
+      
+      return result;
+    };
+
+    // Replace template variables
+    console.log("=== EMAIL TEMPLATE REPLACEMENT ===");
+    console.log("Before replacement - Subject preview:", emailSubject.substring(0, 150));
+    console.log("Company name value:", companyName);
+    console.log("Company name type:", typeof companyName);
+    console.log("Variables:", JSON.stringify(variables, null, 2));
+    
+    emailSubject = replaceVariables(emailSubject, variables);
+    emailBodyHtml = replaceVariables(emailBodyHtml, variables);
+    emailBodyText = replaceVariables(emailBodyText, variables);
+    
+    console.log("After replacement - Subject preview:", emailSubject.substring(0, 150));
+    console.log("Contains {company_name}:", emailSubject.includes("{company_name}"));
+    console.log("Contains [company_name]:", emailSubject.includes("[company_name]"));
+    console.log("=== END REPLACEMENT ===");
 
     // Format from email
     const formattedFromEmail = fromEmail.includes("<") 

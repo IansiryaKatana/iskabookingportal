@@ -208,6 +208,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
       }
 
+      // Send custom confirmation email via Resend (even though email confirmations are disabled)
+      // This sends a welcome/confirmation email using our custom Resend template
+      try {
+        await supabase.functions.invoke("send-confirmation-email", {
+          body: {
+            email: email,
+            type: "signup",
+            redirect_to: `${window.location.origin}/portal/reset-password`,
+          },
+        });
+      } catch (emailError) {
+        console.error("Failed to send confirmation email:", emailError);
+        // Don't fail registration, just log the error - email is sent in background
+      }
+
       setSession(data.session);
       updateUser(data.user);
       await refreshProfile(data.user.id);
