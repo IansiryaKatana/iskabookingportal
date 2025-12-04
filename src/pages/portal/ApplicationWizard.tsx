@@ -306,6 +306,18 @@ const toFieldErrorMap = <T extends Record<string, unknown>>(
 const StudentApplicationWizard = () => {
   const { data: brandingSettings } = useBrandingSettings();
   const companyName = brandingSettings?.company_name || "StudentStaySolutions";
+  const successColorHex = brandingSettings?.color_success || "#10B981";
+  
+  // Convert hex to rgba for opacity support
+  const hexToRgba = (hex: string, opacity: number) => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  };
+  
+  const successColorBg = hexToRgba(successColorHex, 0.95); // 95% opacity - same vibrant green as completed button
+  const successColorBorder = successColorHex; // Full color for border
   const { applicationId } = useParams<{ applicationId: string }>();
   const navigate = useNavigate();
   const { user, profile, refreshProfile } = useAuth();
@@ -3561,6 +3573,44 @@ useEffect(() => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Status message when waiting for documents/agreement */}
+                {!canLaunchSigning && !effectiveTenancyEnvelope && depositPaid && (
+                  <Alert className="border-blue-500/40 bg-blue-500/10">
+                    <Info className="h-4 w-4" />
+                    <AlertTitle className="font-semibold">Preparing Your Agreement</AlertTitle>
+                    <AlertDescription className="text-sm mt-1">
+                      Your documents are being reviewed. We'll prepare your tenancy agreement once verification is complete. You'll receive an email when it's ready to sign.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {/* Progress checklist when waiting */}
+                {!canLaunchSigning && !effectiveTenancyEnvelope && depositPaid && (
+                  <div className="space-y-2 rounded-lg border border-border/60 bg-muted/30 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                      Application Progress
+                    </p>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2 text-sm">
+                        <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
+                        <span className="text-muted-foreground">Deposit paid</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
+                        <span className="text-muted-foreground">Documents uploaded</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <Loader2 className="h-4 w-4 animate-spin text-blue-600 flex-shrink-0" />
+                        <span className="text-muted-foreground">Documents verified (in progress)</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <Loader2 className="h-4 w-4 animate-spin text-blue-600 flex-shrink-0" />
+                        <span className="text-muted-foreground">Agreement prepared (waiting)</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex flex-wrap items-center gap-4">
                   <div>
                     <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
@@ -3588,6 +3638,11 @@ useEffect(() => {
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             Launching…
+                          </>
+                        ) : !canLaunchSigning && !effectiveTenancyEnvelope && depositPaid ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Preparing agreement...
                           </>
                         ) : isEnvelopeCompleted(effectiveTenancyEnvelope?.status) ? (
                           "Completed"
@@ -3932,7 +3987,17 @@ useEffect(() => {
           </Alert>
         )}
 
-        <div className="rounded-3xl border-2 border-primary/20 bg-primary text-primary-foreground p-4 md:p-6 lg:p-8 shadow-xl shadow-primary/20">
+        <div 
+          className={`rounded-3xl border-2 p-4 md:p-6 lg:p-8 shadow-xl transition-all ${
+            allSignaturesCompleted 
+              ? 'text-primary-foreground' 
+              : 'border-primary/20 bg-primary text-primary-foreground shadow-primary/20'
+          }`}
+          style={allSignaturesCompleted ? {
+            backgroundColor: successColorBg,
+            borderColor: successColorBorder,
+          } : undefined}
+        >
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="space-y-1 md:space-y-2 flex-1 min-w-0">
               {application.contract_id && (
@@ -3950,16 +4015,12 @@ useEffect(() => {
               <div className="w-full md:w-48">
                 <div className="relative h-2 w-full overflow-hidden rounded-full bg-white">
                   <div 
-                    className={`h-full transition-all ${
-                      allSignaturesCompleted ? 'bg-green-600' : 'bg-black'
-                    }`}
+                    className="h-full transition-all bg-black"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
               </div>
-              <span className={`text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-black uppercase tracking-wide leading-none ${
-                allSignaturesCompleted ? 'text-green-600' : 'text-primary-foreground'
-              }`}>
+              <span className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-black uppercase tracking-wide leading-none text-primary-foreground">
                 {Math.round(progress)}%
               </span>
             </div>
