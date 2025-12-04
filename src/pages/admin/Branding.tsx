@@ -84,6 +84,10 @@ const Branding = () => {
   const [bulkIsClosed, setBulkIsClosed] = useState(false);
   const [bulkSpecialNote, setBulkSpecialNote] = useState("");
 
+  // Color and font states
+  const [colors, setColors] = useState<Record<string, string>>({});
+  const [fonts, setFonts] = useState<Record<string, string>>({});
+
   // Initialize form states when data loads
   useEffect(() => {
     if (settings) {
@@ -99,6 +103,27 @@ const Branding = () => {
       setContactAddress2(settings.contact_address_line2 || "");
       setContactAddress3(settings.contact_address_line3 || "");
       setEmergencyContact(settings.emergency_contact_text || "");
+
+      // Initialize colors
+      const colorKeys = [
+        "color_primary", "color_primary_foreground", "color_secondary", "color_secondary_foreground",
+        "color_accent", "color_accent_foreground", "color_destructive", "color_destructive_foreground",
+        "color_muted", "color_muted_foreground", "color_success", "color_success_foreground",
+        "color_background", "color_foreground", "color_border", "color_card", "color_card_foreground"
+      ];
+      const colorValues: Record<string, string> = {};
+      colorKeys.forEach(key => {
+        colorValues[key] = settings[key] || "";
+      });
+      setColors(colorValues);
+
+      // Initialize fonts
+      setFonts({
+        font_family_body: settings.font_family_body || "Inter Tight",
+        font_family_display: settings.font_family_display || "Big Shoulders Display",
+        font_family_body_fallback: settings.font_family_body_fallback || "sans-serif",
+        font_family_display_fallback: settings.font_family_display_fallback || "sans-serif",
+      });
     }
   }, [settings]);
 
@@ -334,6 +359,18 @@ const Branding = () => {
         { setting_key: "contact_address_line2", setting_value: contactAddress2, setting_type: "text" },
         { setting_key: "contact_address_line3", setting_value: contactAddress3, setting_type: "text" },
         { setting_key: "emergency_contact_text", setting_value: emergencyContact, setting_type: "text" },
+        // Colors
+        ...Object.entries(colors).map(([key, value]) => ({
+          setting_key: key,
+          setting_value: value,
+          setting_type: "color" as const,
+        })),
+        // Fonts
+        ...Object.entries(fonts).map(([key, value]) => ({
+          setting_key: key,
+          setting_value: value,
+          setting_type: "text" as const,
+        })),
       ];
 
       const { error } = await supabase
@@ -730,6 +767,430 @@ const Branding = () => {
                 Recommended: WebP or JPG, landscape orientation, 1920x1080 or higher, max 5MB
               </p>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Colors & Fonts */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">
+              Colors & Fonts
+            </CardTitle>
+            <CardDescription className="text-xs md:text-sm">
+              Customize your brand colors and typography. Changes will apply to PDFs, emails, and UI.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Primary Colors */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold uppercase tracking-wide">Primary Colors</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Primary Color</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="color"
+                      value={colors.color_primary || "#E63946"}
+                      onChange={(e) => setColors({ ...colors, color_primary: e.target.value })}
+                      className="w-20 h-10 rounded-lg cursor-pointer"
+                    />
+                    <Input
+                      type="text"
+                      value={colors.color_primary || "#E63946"}
+                      onChange={(e) => setColors({ ...colors, color_primary: e.target.value })}
+                      placeholder="#E63946"
+                      className="flex-1 rounded-xl text-sm font-mono"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Primary Text Color</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="color"
+                      value={colors.color_primary_foreground || "#FFFFFF"}
+                      onChange={(e) => setColors({ ...colors, color_primary_foreground: e.target.value })}
+                      className="w-20 h-10 rounded-lg cursor-pointer"
+                    />
+                    <Input
+                      type="text"
+                      value={colors.color_primary_foreground || "#FFFFFF"}
+                      onChange={(e) => setColors({ ...colors, color_primary_foreground: e.target.value })}
+                      placeholder="#FFFFFF"
+                      className="flex-1 rounded-xl text-sm font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Secondary Colors */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold uppercase tracking-wide">Secondary Colors</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Secondary Color</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="color"
+                      value={colors.color_secondary || "#FAFAFA"}
+                      onChange={(e) => setColors({ ...colors, color_secondary: e.target.value })}
+                      className="w-20 h-10 rounded-lg cursor-pointer"
+                    />
+                    <Input
+                      type="text"
+                      value={colors.color_secondary || "#FAFAFA"}
+                      onChange={(e) => setColors({ ...colors, color_secondary: e.target.value })}
+                      placeholder="#FAFAFA"
+                      className="flex-1 rounded-xl text-sm font-mono"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Secondary Text Color</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="color"
+                      value={colors.color_secondary_foreground || "#000000"}
+                      onChange={(e) => setColors({ ...colors, color_secondary_foreground: e.target.value })}
+                      className="w-20 h-10 rounded-lg cursor-pointer"
+                    />
+                    <Input
+                      type="text"
+                      value={colors.color_secondary_foreground || "#000000"}
+                      onChange={(e) => setColors({ ...colors, color_secondary_foreground: e.target.value })}
+                      placeholder="#000000"
+                      className="flex-1 rounded-xl text-sm font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Accent Colors */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold uppercase tracking-wide">Accent Colors</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Accent Color</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="color"
+                      value={colors.color_accent || "#FFD60A"}
+                      onChange={(e) => setColors({ ...colors, color_accent: e.target.value })}
+                      className="w-20 h-10 rounded-lg cursor-pointer"
+                    />
+                    <Input
+                      type="text"
+                      value={colors.color_accent || "#FFD60A"}
+                      onChange={(e) => setColors({ ...colors, color_accent: e.target.value })}
+                      placeholder="#FFD60A"
+                      className="flex-1 rounded-xl text-sm font-mono"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Accent Text Color</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="color"
+                      value={colors.color_accent_foreground || "#000000"}
+                      onChange={(e) => setColors({ ...colors, color_accent_foreground: e.target.value })}
+                      className="w-20 h-10 rounded-lg cursor-pointer"
+                    />
+                    <Input
+                      type="text"
+                      value={colors.color_accent_foreground || "#000000"}
+                      onChange={(e) => setColors({ ...colors, color_accent_foreground: e.target.value })}
+                      placeholder="#000000"
+                      className="flex-1 rounded-xl text-sm font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Success Color (for Fully Paid stamp) */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold uppercase tracking-wide">Success Color</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Success Color</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="color"
+                      value={colors.color_success || "#10B981"}
+                      onChange={(e) => setColors({ ...colors, color_success: e.target.value })}
+                      className="w-20 h-10 rounded-lg cursor-pointer"
+                    />
+                    <Input
+                      type="text"
+                      value={colors.color_success || "#10B981"}
+                      onChange={(e) => setColors({ ...colors, color_success: e.target.value })}
+                      placeholder="#10B981"
+                      className="flex-1 rounded-xl text-sm font-mono"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">Used for "Fully Paid" stamp and success badges</p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Success Text Color</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="color"
+                      value={colors.color_success_foreground || "#FFFFFF"}
+                      onChange={(e) => setColors({ ...colors, color_success_foreground: e.target.value })}
+                      className="w-20 h-10 rounded-lg cursor-pointer"
+                    />
+                    <Input
+                      type="text"
+                      value={colors.color_success_foreground || "#FFFFFF"}
+                      onChange={(e) => setColors({ ...colors, color_success_foreground: e.target.value })}
+                      placeholder="#FFFFFF"
+                      className="flex-1 rounded-xl text-sm font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Destructive Colors */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold uppercase tracking-wide">Destructive/Error Colors</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Destructive Color</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="color"
+                      value={colors.color_destructive || "#EF4444"}
+                      onChange={(e) => setColors({ ...colors, color_destructive: e.target.value })}
+                      className="w-20 h-10 rounded-lg cursor-pointer"
+                    />
+                    <Input
+                      type="text"
+                      value={colors.color_destructive || "#EF4444"}
+                      onChange={(e) => setColors({ ...colors, color_destructive: e.target.value })}
+                      placeholder="#EF4444"
+                      className="flex-1 rounded-xl text-sm font-mono"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Destructive Text Color</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="color"
+                      value={colors.color_destructive_foreground || "#F8FAFC"}
+                      onChange={(e) => setColors({ ...colors, color_destructive_foreground: e.target.value })}
+                      className="w-20 h-10 rounded-lg cursor-pointer"
+                    />
+                    <Input
+                      type="text"
+                      value={colors.color_destructive_foreground || "#F8FAFC"}
+                      onChange={(e) => setColors({ ...colors, color_destructive_foreground: e.target.value })}
+                      placeholder="#F8FAFC"
+                      className="flex-1 rounded-xl text-sm font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Muted Colors */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold uppercase tracking-wide">Muted Colors</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Muted Background</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="color"
+                      value={colors.color_muted || "#F1F5F9"}
+                      onChange={(e) => setColors({ ...colors, color_muted: e.target.value })}
+                      className="w-20 h-10 rounded-lg cursor-pointer"
+                    />
+                    <Input
+                      type="text"
+                      value={colors.color_muted || "#F1F5F9"}
+                      onChange={(e) => setColors({ ...colors, color_muted: e.target.value })}
+                      placeholder="#F1F5F9"
+                      className="flex-1 rounded-xl text-sm font-mono"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Muted Text Color</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="color"
+                      value={colors.color_muted_foreground || "#64748B"}
+                      onChange={(e) => setColors({ ...colors, color_muted_foreground: e.target.value })}
+                      className="w-20 h-10 rounded-lg cursor-pointer"
+                    />
+                    <Input
+                      type="text"
+                      value={colors.color_muted_foreground || "#64748B"}
+                      onChange={(e) => setColors({ ...colors, color_muted_foreground: e.target.value })}
+                      placeholder="#64748B"
+                      className="flex-1 rounded-xl text-sm font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Background & Foreground */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold uppercase tracking-wide">Background & Foreground</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Background Color</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="color"
+                      value={colors.color_background || "#FFFFFF"}
+                      onChange={(e) => setColors({ ...colors, color_background: e.target.value })}
+                      className="w-20 h-10 rounded-lg cursor-pointer"
+                    />
+                    <Input
+                      type="text"
+                      value={colors.color_background || "#FFFFFF"}
+                      onChange={(e) => setColors({ ...colors, color_background: e.target.value })}
+                      placeholder="#FFFFFF"
+                      className="flex-1 rounded-xl text-sm font-mono"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Foreground (Text) Color</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="color"
+                      value={colors.color_foreground || "#000000"}
+                      onChange={(e) => setColors({ ...colors, color_foreground: e.target.value })}
+                      className="w-20 h-10 rounded-lg cursor-pointer"
+                    />
+                    <Input
+                      type="text"
+                      value={colors.color_foreground || "#000000"}
+                      onChange={(e) => setColors({ ...colors, color_foreground: e.target.value })}
+                      placeholder="#000000"
+                      className="flex-1 rounded-xl text-sm font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Border & Card Colors */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold uppercase tracking-wide">Border & Card Colors</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Border Color</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="color"
+                      value={colors.color_border || "#E2E8F0"}
+                      onChange={(e) => setColors({ ...colors, color_border: e.target.value })}
+                      className="w-20 h-10 rounded-lg cursor-pointer"
+                    />
+                    <Input
+                      type="text"
+                      value={colors.color_border || "#E2E8F0"}
+                      onChange={(e) => setColors({ ...colors, color_border: e.target.value })}
+                      placeholder="#E2E8F0"
+                      className="flex-1 rounded-xl text-sm font-mono"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Card Background</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="color"
+                      value={colors.color_card || "#FFFFFF"}
+                      onChange={(e) => setColors({ ...colors, color_card: e.target.value })}
+                      className="w-20 h-10 rounded-lg cursor-pointer"
+                    />
+                    <Input
+                      type="text"
+                      value={colors.color_card || "#FFFFFF"}
+                      onChange={(e) => setColors({ ...colors, color_card: e.target.value })}
+                      placeholder="#FFFFFF"
+                      className="flex-1 rounded-xl text-sm font-mono"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Card Text Color</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="color"
+                      value={colors.color_card_foreground || "#000000"}
+                      onChange={(e) => setColors({ ...colors, color_card_foreground: e.target.value })}
+                      className="w-20 h-10 rounded-lg cursor-pointer"
+                    />
+                    <Input
+                      type="text"
+                      value={colors.color_card_foreground || "#000000"}
+                      onChange={(e) => setColors({ ...colors, color_card_foreground: e.target.value })}
+                      placeholder="#000000"
+                      className="flex-1 rounded-xl text-sm font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Fonts */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold uppercase tracking-wide">Typography</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Body Font</Label>
+                  <Input
+                    type="text"
+                    value={fonts.font_family_body || "Inter Tight"}
+                    onChange={(e) => setFonts({ ...fonts, font_family_body: e.target.value })}
+                    placeholder="Inter Tight"
+                    className="rounded-xl text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">Used for main content</p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Display Font</Label>
+                  <Input
+                    type="text"
+                    value={fonts.font_family_display || "Big Shoulders Display"}
+                    onChange={(e) => setFonts({ ...fonts, font_family_display: e.target.value })}
+                    placeholder="Big Shoulders Display"
+                    className="rounded-xl text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">Used for headings and titles</p>
+                </div>
+              </div>
+            </div>
+
+            <Button
+              onClick={() => saveSettingsMutation.mutate()}
+              disabled={saveSettingsMutation.isPending}
+              className="rounded-full uppercase tracking-wide text-xs md:text-sm h-9 md:h-10 px-4 md:px-6 gap-2"
+            >
+              {saveSettingsMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="hidden sm:inline">Saving...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  <span className="hidden sm:inline">Save Colors & Fonts</span>
+                  <span className="sm:hidden">Save</span>
+                </>
+              )}
+            </Button>
           </CardContent>
         </Card>
 

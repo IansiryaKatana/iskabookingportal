@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Download, CheckCircle2, Filter } from "lucide-react";
+import { Download, CheckCircle2, Filter, FileDown } from "lucide-react";
 import { format } from "date-fns";
 import { useAdminContracts } from "@/hooks/useAdminContracts";
 import { useAdminAcademicYears } from "@/hooks/useAdminAcademicYears";
@@ -44,7 +45,7 @@ const FullyPaidStudents = () => {
   const { data: contracts } = useAdminContracts();
   const { data: academicYears } = useAdminAcademicYears();
 
-  const { data: students, isLoading } = useQuery({
+  const { data: students, isLoading, error: queryError } = useQuery({
     queryKey: ["fully-paid-students", selectedContract, selectedYear, startDate, endDate],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_fully_paid_students", {
@@ -54,7 +55,10 @@ const FullyPaidStudents = () => {
         p_end_date: endDate && endDate.trim() !== "" ? endDate : null,
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
+
       return (data || []) as FullyPaidStudent[];
     },
   });
@@ -75,9 +79,15 @@ const FullyPaidStudents = () => {
       "Application Status",
     ];
 
-    const rows = students.map((student) => [
-      `${student.first_name} ${student.last_name}`,
-      student.email,
+    const rows = students.map((student) => {
+      // Ensure student name is properly formatted
+      const firstName = student.first_name || "";
+      const lastName = student.last_name || "";
+      const fullName = `${firstName} ${lastName}`.trim() || "N/A";
+      
+      return [
+        fullName,
+        student.email || "N/A",
       student.contract_name || "N/A",
       student.academic_year_name || "N/A",
       student.studio_number || "N/A",
@@ -88,7 +98,8 @@ const FullyPaidStudents = () => {
         ? format(new Date(student.last_payment_date), "yyyy-MM-dd")
         : "N/A",
       student.application_status,
-    ]);
+      ];
+    });
 
     const csvContent = [
       headers.join(","),
@@ -111,6 +122,45 @@ const FullyPaidStudents = () => {
 
   const totalRevenue = students?.reduce((sum, s) => sum + s.total_paid, 0) || 0;
 
+  const downloadPaymentHistoryPDF = async (applicationId: string, studentName: string) => {
+    try {
+      toast.loading("Generating PDF...", { id: `pdf-${applicationId}` });
+      
+      const { data, error } = await supabase.functions.invoke("generate-payment-history-pdf", {
+        body: { applicationId },
+      });
+
+      if (error) throw error;
+
+      if (data?.pdf) {
+        // Convert base64 to blob
+        const binaryString = atob(data.pdf);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: "application/pdf" });
+
+        // Create download link
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = data.filename || `payment-history-${studentName.replace(/\s+/g, "-")}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        toast.success("PDF downloaded successfully", { id: `pdf-${applicationId}` });
+      } else {
+        throw new Error("No PDF data received");
+      }
+    } catch (error: any) {
+      console.error("Error downloading PDF:", error);
+      toast.error(error.message || "Failed to download PDF", { id: `pdf-${applicationId}` });
+    }
+  };
+
   return (
     <AdminLayout
       pageTitle="Fully Paid Students"
@@ -128,7 +178,7 @@ const FullyPaidStudents = () => {
       }
     >
       <div className="space-y-6">
-        <div className="hidden lg:flex items-center justify-end">
+        <div className="hidden lg:flex items-center justify-end gap-2">
           <Button
             onClick={exportToCSV}
             disabled={!students || students.length === 0}
@@ -138,6 +188,20 @@ const FullyPaidStudents = () => {
             Export CSV
           </Button>
         </div>
+
+        {/* Error Display */}
+        {queryError && (
+          <Card className="rounded-3xl border border-red-500/50 bg-red-50 dark:bg-red-950/20">
+            <CardHeader>
+              <CardTitle className="text-red-600 dark:text-red-400">Error Loading Data</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <pre className="text-sm overflow-auto">
+                {JSON.stringify(queryError, null, 2)}
+              </pre>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Summary Card */}
         <Card className="rounded-3xl border border-border/60 shadow-xl">
@@ -278,15 +342,29 @@ const FullyPaidStudents = () => {
                         {student.contract_name} • {student.academic_year_name}
                       </div>
                     </div>
-                    <div className="text-right space-y-1">
-                      <div className="text-sm font-semibold">
-                        £{student.total_paid.toLocaleString("en-GB", { minimumFractionDigits: 2 })}
-                      </div>
-                      {student.last_payment_date && (
-                        <div className="text-xs text-muted-foreground">
-                          Paid: {format(new Date(student.last_payment_date), "MMM dd, yyyy")}
+                    <div className="flex flex-col sm:flex-row items-end gap-2">
+                      <div className="text-right space-y-1">
+                        <div className="text-sm font-semibold">
+                          £{student.total_paid.toLocaleString("en-GB", { minimumFractionDigits: 2 })}
                         </div>
-                      )}
+                        {student.last_payment_date && (
+                          <div className="text-xs text-muted-foreground">
+                            Paid: {format(new Date(student.last_payment_date), "MMM dd, yyyy")}
+                          </div>
+                        )}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-full p-2 h-9 w-9 flex-shrink-0"
+                        onClick={() => downloadPaymentHistoryPDF(
+                          student.application_id,
+                          `${student.first_name} ${student.last_name}`
+                        )}
+                        title="Download Payment History PDF"
+                      >
+                        <FileDown className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
                 ))}

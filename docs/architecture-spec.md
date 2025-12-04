@@ -42,7 +42,7 @@ Deliver a data-driven accommodation booking experience where every studio-grade 
 - `bulk_messages` – bulk and targeted message tracking and history. Stores both bulk messages (all confirmed students) and targeted messages (specific students or filtered groups) with `message_type` in `filters` JSONB column.
 - `refunds` – refund processing and audit trail.
 - `financial_forecasts` – revenue forecasting calculations.
-- `branding_settings` – branding assets paths and text content (logo, favicon, contact info, footer text).
+- `branding_settings` – branding assets paths, text content, colors, and fonts (logo, favicon, contact info, footer text, 17 color settings, 4 font settings). All system colors and fonts centralized here for easy brand management.
 - `navigation_items` – navigation items for header and footer with ordering and active status.
 - `opening_hours` – structured opening hours for each day of the week.
 
@@ -99,6 +99,23 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
 
 - Deposit: Stripe Payment Intent created via edge function, success transitions application to signature step.
 - Instalments: Option A – Stripe Billing (invoices scheduled per `payment_plan_installments`). Option B – manual triggers with Payment Intents; record status in `contract_payment_schedule`.
+- **Payment Calculation Logic** (Implemented 2025-01-25):
+  - Contract Total = `weekly_price × weeks`
+  - Deposit = `payment_plan.deposit_amount` (or contract/grade override)
+  - Remaining Balance = Contract Total - Deposit
+  - Installments = Remaining Balance × percentage (NOT Contract Total × percentage)
+  - All calculations aligned across database functions and frontend hooks
+  - Remaining balance correctly shows £0.00 when all installments are paid
+- **Payment History PDF** (Implemented 2025-01-25, Enhanced 2025-01-25):
+  - Edge function: `generate-payment-history-pdf`
+  - Branded PDF with logo, colors, and fonts from `branding_settings`
+  - Complete payment history (deposit + all installments)
+  - "PAID IN FULL" stamp image positioned above Amount column (50px spacing)
+  - Proper spacing between labels and values (150px offset)
+  - Visible transaction borders (1.5px) between payment rows
+  - Deposit amount displayed in Payment Summary
+  - Enhanced student name retrieval with multiple fallbacks
+  - Downloadable from Fully Paid Students admin page
 
 ### 4.7 Confirmation & Allocation
 
@@ -430,7 +447,52 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
 - **DocuSign** – agreement creation, embedded signing, status polling, signed document retrieval, envelope management.
 - **Email Service (Resend)** – transactional notifications, bulk messaging, template-based emails with variable replacement. Configured with dedicated sending domain `send.portal.urbanhub.uk` for high deliverability. Enhanced error handling with HTML response detection, detailed logging, and API key validation. See `docs/SYSTEM_IMPROVEMENTS_AND_CONFIG.md` for complete setup instructions.
 
-## 8. UI/UX Principles
+## 8. Branding System
+
+### 8.1 Centralized Branding (Implemented 2025-01-25)
+
+All brand colors, fonts, and assets are centralized in the `branding_settings` table for easy management and consistency across the entire system.
+
+**Branding Settings Structure**:
+- **Colors** (17 settings): Primary, secondary, accent, success, destructive, muted, background, foreground, border, card colors and their foregrounds
+- **Fonts** (4 settings): Body font (Inter Tight), display font (Big Shoulders Display), and fallbacks
+- **Assets**: Logo, favicon, hero images
+- **Contact Info**: Phone, email, address
+- **Text Content**: Footer description, copyright text, emergency contact
+
+**Benefits**:
+- Single source of truth for all branding
+- Change once, updates everywhere (PDFs, emails, UI)
+- Easy brand consistency management
+- No hardcoded colors or fonts
+
+**Usage**:
+- **PDFs**: Edge functions fetch branding settings and use colors/fonts/logo
+- **Emails**: Email templates use branding colors and fonts
+- **UI**: CSS variables can reference branding (future enhancement)
+- **Admin**: Edit all branding in Admin → Branding page
+
+### 8.2 Payment History PDF Generation
+
+**Edge Function**: `generate-payment-history-pdf`
+
+**Features**:
+- Branded PDF with company logo, colors, and fonts
+- Complete payment history (deposit + all installments)
+- Beautiful "Fully Paid" stamp with success color
+- Professional layout and formatting
+- Downloadable from Fully Paid Students admin page
+
+**PDF Contents**:
+- Header with logo and company name
+- Student information
+- Contract details
+- Payment summary (total due, total paid, remaining balance)
+- Payment history table (date, type, description, amount)
+- "Fully Paid" stamp (if applicable)
+- Footer with generation date
+
+## 9. UI/UX Principles
 
 - Keep existing visual language; enhance with iOS-like micro-interactions, smooth transitions via Framer Motion.
 - Typography: use **Big Shoulders Display** in bold or black weight only, always uppercase; use **Inter Tight** with appropriate weight for body copy and supporting text with normal casing.
