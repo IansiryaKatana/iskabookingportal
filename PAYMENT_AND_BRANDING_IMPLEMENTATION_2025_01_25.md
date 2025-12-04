@@ -337,6 +337,34 @@ If applying all migrations fresh:
 - ✅ **Student Name Fix**: Enhanced name retrieval with multiple fallbacks (profiles → application steps → user metadata → email)
 - ✅ **Stamp Position**: "PAID IN FULL" stamp positioned 50px above "Amount" label to avoid covering important values
 - ✅ **Stack Overflow Fix**: Fixed base64 encoding to prevent "Maximum call stack size exceeded" error
+- ✅ **All 17 Colors**: Added all branding colors to admin Branding page (previously only 4)
+
+### PDF Features
+- **Header**: Logo (max 150px width, auto-height), company name, contact info
+- **Student Information**: Name with multiple fallback sources
+- **Contract Information**: Contract name, period, studio grade
+- **Payment Summary**: Total Due, Deposit, Total Paid, Remaining Balance
+- **Payment History Table**: Date, Type, Description, Amount with border lines between transactions
+- **Fully Paid Stamp**: "PAID IN FULL" image from branding storage (`branding/paid-in-full-stamp.png`), positioned 50px above Amount column
+
+### Technical Fixes
+- Fixed `studentName` scope issue for filename generation
+- Improved error handling for payment summary and deposit calculation
+- Efficient base64 encoding using loop instead of spread operator (prevents stack overflow)
+- Enhanced error logging for debugging
+- Fixed multi-page rendering bug (stamp now appears on correct page)
+
+---
+
+## 📄 Payment History PDF Enhancements (Updated 2025-01-25)
+
+### PDF Layout Improvements
+- ✅ **Proper Spacing**: Increased spacing between labels and values (from x:120 to x:150)
+- ✅ **Transaction Borders**: Added visible border lines (1.5px) between each payment transaction
+- ✅ **Deposit Amount**: Added "Deposit:" line item between "Total Due:" and "Total Paid:" in Payment Summary
+- ✅ **Student Name Fix**: Enhanced name retrieval with multiple fallbacks (profiles → application steps → user metadata → email)
+- ✅ **Stamp Position**: "PAID IN FULL" stamp positioned 50px above "Amount" label to avoid covering important values
+- ✅ **Stack Overflow Fix**: Fixed base64 encoding to prevent "Maximum call stack size exceeded" error
 
 ### PDF Features
 - **Header**: Logo (max 150px width), company name, contact info
