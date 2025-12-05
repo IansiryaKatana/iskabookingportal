@@ -1,23 +1,25 @@
 import { useMemo, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, CreditCard, Calendar, CheckCircle2, Clock, AlertCircle, Gift } from "lucide-react";
+import { Loader2, CreditCard, Calendar, CheckCircle2, Clock, AlertCircle, Gift, FileDown } from "lucide-react";
 import PortalLayout from "@/components/portal/PortalLayout";
 import { useStudentApplicationsList } from "@/hooks/useStudentApplications";
 import { useStudentPayments } from "@/hooks/useStudentPayments";
 import { useApplicationCashback } from "@/hooks/useCashback";
-import { usePaymentSummary } from "@/hooks/useUnifiedPayments";
+import { usePaymentSummary, useUnifiedPayments } from "@/hooks/useUnifiedPayments";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { format, isPast, isToday, isFuture } from "date-fns";
 import { Elements } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
 import StripePaymentForm from "@/components/StripePaymentForm";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
 
 const stripePromise = loadStripe(
   import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? "",
@@ -27,6 +29,7 @@ const Payments = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [selectedInstalment, setSelectedInstalment] = useState<{
     applicationId: string;
     instalmentId: string;
@@ -50,8 +53,14 @@ const Payments = () => {
   );
 
   // Fetch paid instalments from Stripe immediately on load
+  // IMPORTANT: Only poll when payment form is NOT open to prevent disrupting user input
   useEffect(() => {
     const fetchPaidInstalments = async () => {
+      // Don't poll if payment form is open - it disrupts user input
+      if (paymentClientSecret || selectedInstalment) {
+        return;
+      }
+      
       if (confirmedApplications.length === 0) {
         setIsLoadingPaidStatus(false);
         return;
@@ -85,11 +94,17 @@ const Payments = () => {
     };
 
     fetchPaidInstalments();
-    // Refetch every 30 seconds to check for new payments
-    const interval = setInterval(fetchPaidInstalments, 30000);
+    // Only poll when payment form is closed - longer interval to reduce disruption
+    // Poll every 30 seconds when form is closed, but stop when form is open
+    const interval = setInterval(() => {
+      // Only poll if payment form is not active
+      if (!paymentClientSecret && !selectedInstalment) {
+        fetchPaidInstalments();
+      }
+    }, 30000); // 30 seconds - less aggressive
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [confirmedApplications.map(a => a.id).join(",")]);
+  }, [confirmedApplications.length, paymentClientSecret, selectedInstalment]); // Include payment state to stop polling when form is open
 
   const createInstalmentPaymentIntent = async (
     applicationId: string,
@@ -159,7 +174,8 @@ const Payments = () => {
     
     console.log("Payment success callback triggered", { 
       instalmentId: currentInstalment?.instalmentId,
-      paymentIntentId 
+      paymentIntentId,
+      applicationId: currentInstalment?.applicationId,
     });
     
     // Add the paid instalment ID to the set immediately and persist it
@@ -178,47 +194,98 @@ const Payments = () => {
     
     toast({
       title: "Payment successful",
-      description: "Your instalment has been processed successfully.",
+      description: "Your instalment has been processed successfully. Updating payment history...",
     });
     
-    // Refetch paid instalments from Stripe after a delay to ensure accuracy
-    // But keep the immediate update to prevent flickering
-    if (currentInstalment) {
+    // Immediately sync payment from Stripe to ensure it's in the database
+    let syncSucceeded = false;
+    if (currentInstalment && paymentIntentId) {
       try {
-        // Wait a bit longer to ensure Stripe has processed the payment
-        setTimeout(async () => {
-          console.log("Checking payment status for application:", currentInstalment.applicationId);
-          const { data, error } = await supabase.functions.invoke("check-payment-status", {
-            body: { applicationId: currentInstalment.applicationId },
-          });
+        console.log("Immediately syncing payment from Stripe:", paymentIntentId);
+        const { data: syncData, error: syncError } = await supabase.functions.invoke("sync-payment-from-stripe", {
+          body: {
+            applicationId: currentInstalment.applicationId,
+            paymentIntentId: paymentIntentId,
+          },
+        });
 
-          if (error) {
-            console.error("Error checking payment status:", error);
-          } else {
-            console.log("Payment status check result:", data);
-          }
-
-          if (!error && data?.paidInstalments) {
-            console.log("Found paid instalments:", data.paidInstalments);
-            setPaidInstalmentIds((prev) => {
-              const newPaidIds = new Set(prev);
-              // Always keep the current instalment ID even if Stripe hasn't updated yet
-              if (currentInstalment) {
-                newPaidIds.add(currentInstalment.instalmentId);
-              }
-              data.paidInstalments.forEach((pi: { instalmentId: string }) => {
-                newPaidIds.add(pi.instalmentId);
-              });
-              console.log("Updated paid instalment IDs:", Array.from(newPaidIds));
-              return newPaidIds;
-            });
-          } else {
-            console.warn("No paid instalments found in Stripe yet. Payment may still be processing.");
-          }
-        }, 5000); // 5 second delay to allow Stripe to process
-      } catch (error) {
-        console.error("Error checking payment status after success:", error);
+        if (syncError) {
+          console.error("Sync error:", syncError);
+          // Log the full error for debugging
+          console.error("Sync error details:", JSON.stringify(syncError, null, 2));
+        } else if (syncData?.synced && syncData.synced > 0) {
+          console.log("Payment synced successfully:", syncData);
+          syncSucceeded = true;
+        } else if (syncData?.synced === 0) {
+          console.log("Payment already exists in database (synced: 0)");
+          syncSucceeded = true; // Already exists is fine
+        } else {
+          console.log("Sync response:", syncData);
+        }
+      } catch (syncErr) {
+        console.error("Error syncing payment:", syncErr);
+        // Continue - webhook will handle it
       }
+    } else {
+      console.warn("Cannot sync: missing paymentIntentId or instalment", {
+        hasPaymentIntentId: !!paymentIntentId,
+        hasInstalment: !!currentInstalment,
+      });
+    }
+    
+    // Immediately invalidate and refetch React Query caches
+    if (currentInstalment) {
+      // Invalidate payment history and summary queries
+      queryClient.invalidateQueries({ queryKey: ["unified-payments", currentInstalment.applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["payment-summary", currentInstalment.applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["student-payments", currentInstalment.applicationId] });
+      
+      // Also invalidate all payments queries (for admin view)
+      queryClient.invalidateQueries({ queryKey: ["all-payments"] });
+      
+      // Force immediate refetch and wait for it
+      const refetchResults = await Promise.all([
+        queryClient.refetchQueries({ queryKey: ["unified-payments", currentInstalment.applicationId] }),
+        queryClient.refetchQueries({ queryKey: ["payment-summary", currentInstalment.applicationId] }),
+      ]);
+      
+      console.log("Refetch results:", refetchResults);
+      
+      // If sync didn't work, try again after a short delay (webhook might have processed it)
+      if (!syncSucceeded && paymentIntentId) {
+        setTimeout(async () => {
+          console.log("Retrying sync after delay:", paymentIntentId);
+          try {
+            const { data: syncData, error: syncError } = await supabase.functions.invoke("sync-payment-from-stripe", {
+              body: {
+                applicationId: currentInstalment.applicationId,
+                paymentIntentId: paymentIntentId,
+              },
+            });
+            
+            if (syncError) {
+              console.error("Retry sync error:", syncError);
+            } else if (syncData?.synced && syncData.synced > 0) {
+              console.log("Payment synced on retry:", syncData);
+              // Refetch again after successful sync
+              queryClient.invalidateQueries({ queryKey: ["unified-payments", currentInstalment.applicationId] });
+              queryClient.invalidateQueries({ queryKey: ["payment-summary", currentInstalment.applicationId] });
+              await queryClient.refetchQueries({ queryKey: ["unified-payments", currentInstalment.applicationId] });
+            }
+          } catch (err) {
+            console.error("Retry sync error:", err);
+          }
+        }, 3000); // 3 second delay for webhook to process
+      }
+      
+      // Final refetch after a delay to catch any webhook-processed payments
+      setTimeout(async () => {
+        // Final refetch to ensure UI is up to date
+        queryClient.invalidateQueries({ queryKey: ["unified-payments", currentInstalment.applicationId] });
+        queryClient.invalidateQueries({ queryKey: ["payment-summary", currentInstalment.applicationId] });
+        queryClient.invalidateQueries({ queryKey: ["student-payments", currentInstalment.applicationId] });
+        queryClient.invalidateQueries({ queryKey: ["all-payments"] });
+      }, 5000); // 5 second final check
     }
   };
 
@@ -230,21 +297,22 @@ const Payments = () => {
     },
   ) => {
     // Check if this instalment has been paid (from Stripe payment intents)
+    // This is the primary check for installment payments
     if (paidInstalmentIds.has(instalment.id)) {
       return { status: "paid", label: "Paid", color: "default" as const };
     }
 
-    // Check if this is the deposit instalment (usually first one or labeled as deposit)
-    const isDeposit = instalment.label?.toLowerCase().includes("deposit") || 
-                      instalment.sequence === 1;
+    // IMPORTANT: Deposits are NOT in the payment schedule - they're tracked separately
+    // Only check label for "deposit" if it explicitly says so (not sequence 1)
+    // For Pay in Full, sequence 1 is the installment, NOT the deposit
+    const isDeposit = instalment.label?.toLowerCase().includes("deposit");
     
-    // Check if deposit has been paid
+    // Only check deposit status if label explicitly says "deposit"
+    // This should rarely happen since deposits are usually separate
     if (isDeposit) {
-      // Check deposit_payment_intent_id first (most reliable)
       if (application.deposit_payment_intent_id) {
         return { status: "paid", label: "Paid", color: "default" as const };
       }
-      // Also check step 5 payload for deposit_paid flag
       const step5 = application.student_application_steps?.find(s => s.step_number === 5);
       if (step5?.payload && typeof step5.payload === "object") {
         const payload = step5.payload as Record<string, unknown>;
@@ -254,7 +322,7 @@ const Payments = () => {
       }
     }
 
-    // Check based on due date
+    // For installments (not deposits), check based on due date
     const date = new Date(instalment.due_date);
     if (isPast(date) && !isToday(date)) {
       return { status: "overdue", label: "Overdue", color: "destructive" as const };
@@ -265,7 +333,8 @@ const Payments = () => {
     if (isFuture(date)) {
       return { status: "upcoming", label: "Upcoming", color: "secondary" as const };
     }
-    return { status: "paid", label: "Paid", color: "default" as const };
+    // Default to unpaid if no other status applies
+    return { status: "upcoming", label: "Upcoming", color: "secondary" as const };
   };
 
   const PaymentsSkeleton = () => (
@@ -365,6 +434,11 @@ const Payments = () => {
             getInstalmentStatus={getInstalmentStatus}
           />
         ))}
+
+        {/* Payment History Section */}
+        {confirmedApplications.length > 0 && (
+          <PaymentHistorySection applications={confirmedApplications} />
+        )}
       </div>
     </PortalLayout>
   );
@@ -412,6 +486,7 @@ const PaymentCard = ({
   onCancelPayment,
   getInstalmentStatus,
 }: PaymentCardProps) => {
+  const queryClient = useQueryClient();
   const { data: instalments, isLoading, refetch } = useStudentPayments(application.id);
   const { data: cashback } = useApplicationCashback(application.id);
   // Only fetch payment summary for confirmed applications (they have payment schedules)
@@ -422,6 +497,7 @@ const PaymentCard = ({
   const gradeName = contract?.studio_grade?.name ?? "Studio Grade";
 
   // Calculate cashback-adjusted installments (reduce final installment)
+  // For Pay in Full (1 installment), this will reduce that single installment
   const adjustedInstalments = useMemo(() => {
     if (!instalments || instalments.length === 0) return [];
     if (!cashback || cashback.cashback_amount <= 0) return instalments;
@@ -431,11 +507,16 @@ const PaymentCard = ({
     const lastInstalment = sorted[lastIndex];
 
     // Reduce final installment by cashback amount (minimum 0)
+    // For Pay in Full, this is the only installment
     const adjustedAmount = Math.max(0, Number(lastInstalment.amount) - cashback.cashback_amount);
 
     return sorted.map((inst, index) => {
       if (index === lastIndex) {
-        return { ...inst, amount: adjustedAmount, original_amount: Number(inst.amount) };
+        return { 
+          ...inst, 
+          amount: adjustedAmount, 
+          original_amount: Number(inst.amount) 
+        };
       }
       return inst;
     });
@@ -451,6 +532,29 @@ const PaymentCard = ({
       return () => clearTimeout(timer);
     }
   }, [selectedInstalment, paymentClientSecret, application.id, refetch]);
+
+  // Periodically refetch payment summary if not fully paid (to catch webhook updates)
+  // BUT: Only when payment form is NOT open to prevent disrupting user input
+  useEffect(() => {
+    if (application.status !== "confirmed" || paymentSummary?.payment_status === "fully_paid") {
+      return;
+    }
+    
+    // Don't poll if payment form is open for this application
+    if (selectedInstalment?.applicationId === application.id && paymentClientSecret) {
+      return;
+    }
+    
+    const interval = setInterval(() => {
+      // Double-check form is still closed before refetching
+      if (!paymentClientSecret && selectedInstalment?.applicationId !== application.id) {
+        queryClient.invalidateQueries({ queryKey: ["payment-summary", application.id] });
+        queryClient.invalidateQueries({ queryKey: ["unified-payments", application.id] });
+      }
+    }, 30000); // 30 seconds - less aggressive, only when form is closed
+    
+    return () => clearInterval(interval);
+  }, [application.id, application.status, paymentSummary?.payment_status, queryClient, paymentClientSecret, selectedInstalment]);
 
   if (isLoading) {
     return (
@@ -515,7 +619,19 @@ const PaymentCard = ({
 
         {/* Payment Summary with Cashback */}
         {paymentSummary && (
-          <div className="rounded-2xl border border-border/60 bg-muted/30 p-4 space-y-2">
+          <div className={`rounded-2xl border p-4 space-y-2 ${
+            paymentSummary.payment_status === 'fully_paid' 
+              ? 'border-green-500/50 bg-green-50 dark:bg-green-950/20' 
+              : 'border-border/60 bg-muted/30'
+          }`}>
+            {paymentSummary.payment_status === 'fully_paid' && (
+              <div className="flex items-center gap-2 mb-2 pb-2 border-b border-green-200 dark:border-green-800">
+                <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+                <span className="font-bold text-green-700 dark:text-green-300 uppercase tracking-wide">
+                  Fully Paid
+                </span>
+              </div>
+            )}
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Total Due:</span>
               <span className="font-semibold">
@@ -535,7 +651,11 @@ const PaymentCard = ({
             )}
             <div className="flex items-center justify-between text-sm pt-2 border-t border-border/60">
               <span className="font-semibold">Remaining Balance:</span>
-              <span className="font-bold text-lg">
+              <span className={`font-bold text-lg ${
+                paymentSummary.payment_status === 'fully_paid' 
+                  ? 'text-green-700 dark:text-green-300' 
+                  : ''
+              }`}>
                 £{paymentSummary.remaining_balance.toLocaleString("en-GB", { minimumFractionDigits: 2 })}
               </span>
             </div>
@@ -658,6 +778,324 @@ const PaymentCard = ({
         })}
       </CardContent>
     </Card>
+  );
+};
+
+// Payment History Section Component
+type PaymentHistorySectionProps = {
+  applications: Array<{ id: string; contract?: { name: string | null } | null }>;
+};
+
+const PaymentHistorySection = ({ applications }: PaymentHistorySectionProps) => {
+  const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(
+    applications[0]?.id || null
+  );
+
+  // Get payment history for the selected application
+  const { data: paymentHistory, isLoading: historyLoading } = useUnifiedPayments(
+    selectedApplicationId || ""
+  );
+
+  // Separate payments into deposits and installments
+  const { deposits, installments, allPayments } = useMemo(() => {
+    if (!paymentHistory) return { deposits: [], installments: [], allPayments: [] };
+    
+    const sorted = paymentHistory.sort((a, b) => 
+      new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime()
+    );
+    
+    const depositsList = sorted.filter(payment => {
+      // Deposit if: no installment_number AND (metadata type is deposit OR no type/installment_number)
+      const isDeposit = !payment.installment_number && 
+        (payment.payment_metadata?.type === "deposit" || 
+         !payment.payment_metadata?.type || 
+         payment.payment_metadata?.type !== "instalment");
+      return isDeposit;
+    });
+    
+    const installmentsList = sorted.filter(payment => {
+      // Installment if: has installment_number OR metadata type is instalment
+      return payment.installment_number !== null || 
+             payment.payment_metadata?.type === "instalment";
+    });
+    
+    return {
+      deposits: depositsList,
+      installments: installmentsList,
+      allPayments: sorted,
+    };
+  }, [paymentHistory]);
+
+  if (applications.length === 0) return null;
+
+  const selectedApp = applications.find(app => app.id === selectedApplicationId);
+
+  return (
+    <Card className="rounded-3xl border border-border/60 shadow-xl mt-8">
+      <CardHeader>
+        <CardTitle className="text-xl font-display uppercase tracking-wide">
+          Payment History
+        </CardTitle>
+        <CardDescription>
+          View all your completed payments including deposits and instalments
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {applications.length > 1 && (
+          <div className="flex gap-2 flex-wrap">
+            {applications.map((app) => (
+              <Button
+                key={app.id}
+                variant={selectedApplicationId === app.id ? "default" : "outline"}
+                size="sm"
+                className="rounded-full"
+                onClick={() => setSelectedApplicationId(app.id)}
+              >
+                {app.contract?.name || "Application"}
+              </Button>
+            ))}
+          </div>
+        )}
+
+        {historyLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-16 w-full rounded-xl" />
+            ))}
+          </div>
+        ) : allPayments.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <CreditCard className="h-12 w-12 mx-auto mb-3 opacity-50" />
+            <p>No payment history yet</p>
+            <p className="text-sm mt-1">Completed payments will appear here</p>
+          </div>
+        ) : (
+          <Tabs defaultValue="all" className="w-full">
+            <TabsList className="grid w-full grid-cols-3 rounded-full bg-muted/50">
+              <TabsTrigger value="all" className="rounded-full">
+                All Payments
+                {allPayments.length > 0 && (
+                  <Badge variant="secondary" className="ml-2 text-xs">
+                    {allPayments.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="deposits" className="rounded-full">
+                Deposits
+                {deposits.length > 0 && (
+                  <Badge variant="secondary" className="ml-2 text-xs">
+                    {deposits.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="installments" className="rounded-full">
+                Installments
+                {installments.length > 0 && (
+                  <Badge variant="secondary" className="ml-2 text-xs">
+                    {installments.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="all" className="mt-4">
+              <PaymentList payments={allPayments} />
+            </TabsContent>
+            
+            <TabsContent value="deposits" className="mt-4">
+              {deposits.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <CreditCard className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>No deposit payments yet</p>
+                </div>
+              ) : (
+                <PaymentList payments={deposits} />
+              )}
+            </TabsContent>
+            
+            <TabsContent value="installments" className="mt-4">
+              {installments.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <CreditCard className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>No installment payments yet</p>
+                  <p className="text-sm mt-1">Completed installment payments will appear here</p>
+                </div>
+              ) : (
+                <PaymentList payments={installments} />
+              )}
+            </TabsContent>
+          </Tabs>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+// Payment List Component for reusability
+type PaymentListProps = {
+  payments: Array<{
+    payment_id: string;
+    payment_source: "stripe" | "manual";
+    payment_metadata?: {
+      label?: string;
+      type?: string;
+      [key: string]: unknown;
+    } | null;
+    installment_number: number | null;
+    payment_status: string;
+    payment_date: string;
+    amount_paid: number;
+    currency: string;
+    contract_name: string;
+  }>;
+};
+
+const PaymentList = ({ payments }: PaymentListProps) => {
+  const [downloadingInvoice, setDownloadingInvoice] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  const handleDownloadInvoice = async (payment: PaymentListProps["payments"][0]) => {
+    if (downloadingInvoice) return;
+
+    setDownloadingInvoice(payment.payment_id);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-student-invoice-pdf", {
+        body: {
+          paymentId: payment.payment_id,
+          paymentSource: payment.payment_source,
+        },
+      });
+
+      if (error) {
+        console.error("Error generating invoice:", error);
+        toast({
+          title: "Error",
+          description: "Failed to generate invoice. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (data?.pdf) {
+        // Convert base64 to blob
+        const binaryString = atob(data.pdf);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: "application/pdf" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = data.filename || `Invoice-${payment.payment_id}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        toast({
+          title: "Invoice Downloaded",
+          description: "Your invoice has been downloaded successfully.",
+        });
+      }
+    } catch (error) {
+      console.error("Error downloading invoice:", error);
+      toast({
+        title: "Error",
+        description: "Failed to download invoice. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDownloadingInvoice(null);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      {payments.map((payment) => {
+        const isPaid = payment.payment_status === "completed" || payment.payment_status === "succeeded";
+        const isDownloading = downloadingInvoice === payment.payment_id;
+
+        return (
+          <div
+            key={payment.payment_id}
+            className="rounded-xl border border-border/60 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4"
+          >
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-2">
+                <h4 className="font-semibold">
+                  {payment.payment_source === "stripe" 
+                    ? payment.payment_metadata?.label || 
+                      (payment.installment_number 
+                        ? `Instalment ${payment.installment_number}` 
+                        : payment.payment_metadata?.type === "instalment"
+                        ? "Instalment Payment"
+                        : "Deposit")
+                    : "Manual Payment"}
+                </h4>
+                <Badge variant="outline" className="text-xs">
+                  {payment.payment_source === "stripe" ? "Stripe" : "Manual"}
+                </Badge>
+                {isPaid && (
+                  <Badge className="bg-green-600 text-white text-xs">
+                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                    Completed
+                  </Badge>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  {format(new Date(payment.payment_date), "d MMM yyyy 'at' HH:mm")}
+                </div>
+                {payment.installment_number && (
+                  <div className="flex items-center gap-2">
+                    <span>Instalment #{payment.installment_number}</span>
+                  </div>
+                )}
+                {payment.contract_name && (
+                  <div className="flex items-center gap-2">
+                    <span>{payment.contract_name}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="text-right">
+                <div className="font-bold text-lg">
+                  £{payment.amount_paid.toLocaleString("en-GB", { minimumFractionDigits: 2 })}
+                </div>
+                <div className="text-xs text-muted-foreground uppercase">
+                  {payment.currency}
+                </div>
+              </div>
+              {isPaid && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full"
+                  onClick={() => handleDownloadInvoice(payment)}
+                  disabled={isDownloading}
+                  title="Download Invoice"
+                >
+                  {isDownloading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <FileDown className="h-4 w-4 mr-2" />
+                      Invoice
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 };
 

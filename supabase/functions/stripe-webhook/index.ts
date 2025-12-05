@@ -73,29 +73,69 @@ serve(async (req) => {
       case "payment_intent.succeeded": {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         const applicationId = paymentIntent.metadata?.application_id;
+        const paymentType = paymentIntent.metadata?.type || "deposit";
+        
         if (applicationId) {
-          const updates: Record<string, unknown> = {
-            status: "awaiting_signature",
-            deposit_payment_intent_id: paymentIntent.id,
-            stripe_customer_id:
-              typeof paymentIntent.customer === "string"
-                ? paymentIntent.customer
-                : null,
-            reserved_studio_expires_at: null,
-            submitted_at: new Date().toISOString(),
-          };
+          // Handle deposit payments
+          if (paymentType === "deposit") {
+            const updates: Record<string, unknown> = {
+              status: "awaiting_signature",
+              deposit_payment_intent_id: paymentIntent.id,
+              stripe_customer_id:
+                typeof paymentIntent.customer === "string"
+                  ? paymentIntent.customer
+                  : null,
+              reserved_studio_expires_at: null,
+              submitted_at: new Date().toISOString(),
+            };
 
-          const { error } = await supabaseAdmin
-            .from("student_applications")
-            .update(updates)
-            .eq("id", applicationId);
+            const { error } = await supabaseAdmin
+              .from("student_applications")
+              .update(updates)
+              .eq("id", applicationId);
 
-          if (error) {
-            console.error("Failed to update application after deposit:", error);
-          }
+            if (error) {
+              console.error("Failed to update application after deposit:", error);
+            }
 
-          // Also create a record in stripe_payments table
-          if (!error) {
+            // Create a record in stripe_payments table for deposit
+            if (!error) {
+              const { error: paymentError } = await supabaseAdmin
+                .from("stripe_payments")
+                .insert({
+                  student_application_id: applicationId,
+                  stripe_payment_intent_id: paymentIntent.id,
+                  amount: paymentIntent.amount / 100, // Convert from cents
+                  currency: paymentIntent.currency.toUpperCase(),
+                  status: "succeeded",
+                  payment_type: "deposit",
+                  metadata: {
+                    application_id: applicationId,
+                    student_id: paymentIntent.metadata?.student_id,
+                  },
+                })
+                .select()
+                .single();
+
+              if (paymentError) {
+                console.error("Failed to create stripe_payments record:", paymentError);
+              }
+            }
+          } 
+          // Handle installment payments
+          else if (paymentType === "instalment") {
+            const instalmentId = paymentIntent.metadata?.instalment_id;
+            const label = paymentIntent.metadata?.label || "Instalment";
+            
+            console.log("Processing installment payment:", {
+              applicationId,
+              instalmentId,
+              paymentIntentId: paymentIntent.id,
+              amount: paymentIntent.amount / 100,
+            });
+
+            // Create a record in stripe_payments table for installment
+            // Note: instalment_id is stored in metadata since the table doesn't have that column
             const { error: paymentError } = await supabaseAdmin
               .from("stripe_payments")
               .insert({
@@ -104,22 +144,27 @@ serve(async (req) => {
                 amount: paymentIntent.amount / 100, // Convert from cents
                 currency: paymentIntent.currency.toUpperCase(),
                 status: "succeeded",
-                payment_type: "deposit",
+                payment_type: "instalment",
                 metadata: {
                   application_id: applicationId,
                   student_id: paymentIntent.metadata?.student_id,
+                  instalment_id: instalmentId,
+                  label: label,
+                  amount_pounds: paymentIntent.metadata?.amount_pounds,
                 },
               })
               .select()
               .single();
 
             if (paymentError) {
-              console.error("Failed to create stripe_payments record:", paymentError);
-              // Don't fail the webhook if this fails, but log it
+              console.error("Failed to create stripe_payments record for installment:", paymentError);
+            } else {
+              console.log("Successfully recorded installment payment in stripe_payments");
             }
           }
 
-          if (!error) {
+          // Send notifications for deposits
+          if (paymentType === "deposit" && !error) {
             const customerId =
               typeof paymentIntent.customer === "string"
                 ? paymentIntent.customer

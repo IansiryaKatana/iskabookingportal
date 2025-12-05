@@ -26,6 +26,7 @@ import AdminFinancialForecast from "./pages/admin/FinancialForecast";
 import AdminStudents from "./pages/admin/Students";
 import AdminStudentDetail from "./pages/admin/StudentDetail";
 import AdminReports from "./pages/admin/Reports";
+import AdminAccountingReports from "./pages/admin/AccountingReports";
 import AdminBulkMessages from "./pages/admin/BulkMessages";
 import AdminTargetedMessages from "./pages/admin/TargetedMessages";
 import AdminEmailTemplates from "./pages/admin/EmailTemplates";
@@ -39,6 +40,7 @@ import AdminCashbackCampaigns from "./pages/admin/CashbackCampaigns";
 import AdminPartners from "./pages/admin/Partners";
 import AdminPartnerCommissions from "./pages/admin/PartnerCommissions";
 import AdminWeeklyPaymentReport from "./pages/admin/WeeklyPaymentReport";
+import AdminDataImport from "./pages/admin/DataImport";
 import PartnerLogin from "./pages/partner/Login";
 import PartnerRegister from "./pages/partner/Register";
 import PartnerResetPassword from "./pages/partner/ResetPassword";
@@ -242,6 +244,14 @@ const App = () => (
               }
             />
             <Route
+              path="/admin/accounting-reports"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                  <AdminAccountingReports />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/admin/bulk-messages"
               element={
                 <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
@@ -366,6 +376,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
                   <AdminWeeklyPaymentReport />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/data-import"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                  <AdminDataImport />
                 </ProtectedRoute>
               }
             />

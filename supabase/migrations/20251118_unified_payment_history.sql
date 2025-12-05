@@ -20,8 +20,24 @@ SELECT
   NULL::TEXT AS manual_entry_notes,
   NULL::UUID AS entered_by_user_id,
   sa.student_id,
-  NULL::INTEGER AS installment_number,
-  NULL::DATE AS due_date,
+  -- Extract installment number from metadata or contract_payment_schedule
+  CASE 
+    WHEN sp.metadata->>'instalment_id' IS NOT NULL THEN
+      (SELECT cps.sequence 
+       FROM public.contract_payment_schedule cps 
+       WHERE cps.id::text = sp.metadata->>'instalment_id'
+       LIMIT 1)
+    ELSE NULL
+  END AS installment_number,
+  -- Extract due date from contract_payment_schedule if available
+  CASE 
+    WHEN sp.metadata->>'instalment_id' IS NOT NULL THEN
+      (SELECT cps.due_date 
+       FROM public.contract_payment_schedule cps 
+       WHERE cps.id::text = sp.metadata->>'instalment_id'
+       LIMIT 1)
+    ELSE NULL
+  END AS due_date,
   c.id AS contract_id,
   c.name AS contract_name,
   ay.id AS academic_year_id,
@@ -35,6 +51,7 @@ WHERE sp.status IN ('succeeded', 'completed')
 UNION ALL
 
 -- Deposits from student_applications that aren't in stripe_payments yet (backward compatibility)
+-- This ensures deposits are always shown even if webhook hasn't created stripe_payments record yet
 SELECT 
   'stripe' AS payment_source,
   gen_random_uuid() AS payment_id,
@@ -69,6 +86,7 @@ WHERE sa.deposit_payment_intent_id IS NOT NULL
   AND NOT EXISTS (
     SELECT 1 FROM public.stripe_payments sp2
     WHERE sp2.stripe_payment_intent_id = sa.deposit_payment_intent_id
+      AND sp2.payment_type = 'deposit'
   )
 
 UNION ALL

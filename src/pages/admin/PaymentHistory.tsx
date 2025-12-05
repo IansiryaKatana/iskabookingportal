@@ -12,7 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Download, Calendar, Filter, FileText } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Download, Calendar, Filter, FileText, RefreshCw, CheckCircle2, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { generateInvoicePDF } from "@/utils/invoicePdfGenerator";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,6 +27,8 @@ const PaymentHistory = () => {
   const [endDate, setEndDate] = useState<string>("");
   const [selectedPayments, setSelectedPayments] = useState<Set<string>>(new Set());
   const [isGeneratingInvoices, setIsGeneratingInvoices] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ synced: number; errors?: Array<{ paymentIntentId: string; error: string }> } | null>(null);
 
   const { data: contracts } = useAdminContracts();
   const { data: academicYears } = useAdminAcademicYears();
@@ -92,6 +95,32 @@ const PaymentHistory = () => {
   const totalAmount = payments?.reduce((sum, p) => sum + p.amount_paid, 0) || 0;
   const stripeCount = payments?.filter((p) => p.payment_source === "stripe").length || 0;
   const manualCount = payments?.filter((p) => p.payment_source === "manual").length || 0;
+
+  // Separate payments into deposits and installments
+  const { deposits, installments, allPayments } = useMemo(() => {
+    if (!payments) return { deposits: [], installments: [], allPayments: [] };
+    
+    const depositsList = payments.filter(payment => {
+      // Deposit if: no installment_number AND (metadata type is deposit OR no type/installment_number)
+      const isDeposit = !payment.installment_number && 
+        (payment.payment_metadata?.type === "deposit" || 
+         !payment.payment_metadata?.type || 
+         payment.payment_metadata?.type !== "instalment");
+      return isDeposit;
+    });
+    
+    const installmentsList = payments.filter(payment => {
+      // Installment if: has installment_number OR metadata type is instalment
+      return payment.installment_number !== null || 
+             payment.payment_metadata?.type === "instalment";
+    });
+    
+    return {
+      deposits: depositsList,
+      installments: installmentsList,
+      allPayments: payments,
+    };
+  }, [payments]);
 
   // Fetch student info on demand
   const fetchStudentInfo = async (studentId: string, applicationId: string) => {
@@ -262,6 +291,87 @@ const PaymentHistory = () => {
     }
   };
 
+  const handleSyncPayments = async () => {
+    setIsSyncing(true);
+    setSyncResult(null);
+    try {
+      // Get unique application IDs from current payments
+      const applicationIds = new Set(
+        payments?.map((p) => p.student_application_id).filter(Boolean) || []
+      );
+
+      if (applicationIds.size === 0) {
+        toast({
+          title: "No applications found",
+          description: "No payment records found to sync from. Try syncing for a specific application.",
+          variant: "destructive",
+        });
+        setIsSyncing(false);
+        return;
+      }
+
+      let totalSynced = 0;
+      const errors: Array<{ paymentIntentId: string; error: string }> = [];
+
+      // Sync payments for each application
+      for (const applicationId of Array.from(applicationIds)) {
+        try {
+          const { data, error } = await supabase.functions.invoke("sync-payment-from-stripe", {
+            body: { applicationId },
+          });
+
+          if (error) {
+            console.error(`Error syncing payments for ${applicationId}:`, error);
+            errors.push({
+              paymentIntentId: applicationId,
+              error: error.message || "Unknown error",
+            });
+          } else if (data) {
+            totalSynced += data.synced || 0;
+            if (data.errors && data.errors.length > 0) {
+              errors.push(...data.errors);
+            }
+          }
+        } catch (err) {
+          console.error(`Error calling sync function for ${applicationId}:`, err);
+          errors.push({
+            paymentIntentId: applicationId,
+            error: err instanceof Error ? err.message : "Unknown error",
+          });
+        }
+      }
+
+      setSyncResult({ synced: totalSynced, errors: errors.length > 0 ? errors : undefined });
+
+      if (totalSynced > 0) {
+        toast({
+          title: "Payments synced",
+          description: `Successfully synced ${totalSynced} payment(s) from Stripe.`,
+        });
+        // Refetch payments after a short delay
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+      } else {
+        toast({
+          title: "No payments to sync",
+          description: errors.length > 0
+            ? `Found ${errors.length} error(s). Check console for details.`
+            : "All payments are already synced.",
+        });
+      }
+    } catch (error) {
+      console.error("Error syncing payments:", error);
+      toast({
+        title: "Error",
+        description: "Failed to sync payments. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   return (
     <AdminLayout
       pageTitle="Payment History"
@@ -399,6 +509,36 @@ const PaymentHistory = () => {
           </CardContent>
         </Card>
 
+        {/* Sync Result Alert */}
+        {syncResult && (
+          <Card className="rounded-3xl border border-border/60">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2">
+                {syncResult.synced > 0 ? (
+                  <>
+                    <CheckCircle2 className="h-5 w-5 text-green-600" />
+                    <p className="text-sm">
+                      Successfully synced {syncResult.synced} payment(s) from Stripe.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle className="h-5 w-5 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      No payments to sync. All payments are already recorded.
+                    </p>
+                  </>
+                )}
+              </div>
+              {syncResult.errors && syncResult.errors.length > 0 && (
+                <div className="mt-2 text-xs text-muted-foreground">
+                  {syncResult.errors.length} error(s) occurred. Check console for details.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Payment List */}
         <Card>
           <CardHeader>
@@ -409,29 +549,40 @@ const PaymentHistory = () => {
                   All payment transactions sorted by date (newest first)
                 </CardDescription>
               </div>
-              {payments && payments.length > 0 && (
-                <div className="flex items-center gap-2">
-                  {selectedPayments.size > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button
+                  onClick={handleSyncPayments}
+                  disabled={isSyncing}
+                  variant="outline"
+                  className="rounded-full uppercase tracking-wide gap-2"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
+                  {isSyncing ? "Syncing..." : "Sync Missing Payments"}
+                </Button>
+                {payments && payments.length > 0 && (
+                  <>
+                    {selectedPayments.size > 0 && (
+                      <Button
+                        onClick={handleBulkDownloadInvoices}
+                        disabled={isGeneratingInvoices}
+                        variant="outline"
+                        className="rounded-full uppercase tracking-wide gap-2"
+                      >
+                        <Download className="h-4 w-4" />
+                        Download {selectedPayments.size} Invoice{selectedPayments.size !== 1 ? "s" : ""}
+                      </Button>
+                    )}
                     <Button
-                      onClick={handleBulkDownloadInvoices}
-                      disabled={isGeneratingInvoices}
-                      variant="outline"
-                      className="rounded-full uppercase tracking-wide gap-2"
+                      onClick={toggleSelectAll}
+                      variant="ghost"
+                      size="sm"
+                      className="rounded-full"
                     >
-                      <Download className="h-4 w-4" />
-                      Download {selectedPayments.size} Invoice{selectedPayments.size !== 1 ? "s" : ""}
+                      {selectedPayments.size === payments.length ? "Deselect All" : "Select All"}
                     </Button>
-                  )}
-                  <Button
-                    onClick={toggleSelectAll}
-                    variant="ghost"
-                    size="sm"
-                    className="rounded-full"
-                  >
-                    {selectedPayments.size === payments.length ? "Deselect All" : "Select All"}
-                  </Button>
-                </div>
-              )}
+                  </>
+                )}
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -446,80 +597,160 @@ const PaymentHistory = () => {
                 No payments found matching your filters.
               </div>
             ) : (
-              <div className="space-y-4">
-                {payments.map((payment) => {
-                  const paymentKey = `${payment.payment_source}-${payment.payment_id}`;
-                  const isSelected = selectedPayments.has(paymentKey);
-                  return (
-                    <div
-                      key={paymentKey}
-                      className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 border rounded-lg ${
-                        isSelected ? "bg-primary/5 border-primary" : ""
-                      }`}
-                    >
-                      <div className="flex items-start gap-3 flex-1">
-                        <Checkbox
-                          checked={isSelected}
-                          onCheckedChange={() => togglePaymentSelection(paymentKey)}
-                          className="mt-1"
-                        />
-                        <div className="flex-1 space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <Badge variant={payment.payment_source === "stripe" ? "default" : "secondary"}>
-                              {payment.payment_source === "stripe" ? "Stripe" : "Manual"}
-                            </Badge>
-                            <span className="text-sm font-medium">
-                              £{payment.amount_paid.toLocaleString("en-GB", { minimumFractionDigits: 2 })}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {format(new Date(payment.payment_date), "MMM dd, yyyy HH:mm")}
-                            </span>
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            <span>{payment.contract_name}</span>
-                            {payment.installment_number && (
-                              <span className="ml-2">• Installment #{payment.installment_number}</span>
-                            )}
-                          </div>
-                          {payment.manual_entry_notes && (
-                            <p className="text-xs text-muted-foreground italic">{payment.manual_entry_notes}</p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge
-                          variant={
-                            payment.payment_status === "succeeded" || payment.payment_status === "completed"
-                              ? "default"
-                              : "outline"
-                          }
-                          className={
-                            payment.payment_status === "succeeded" || payment.payment_status === "completed"
-                              ? "bg-green-600 hover:bg-green-700 text-white"
-                              : ""
-                          }
-                        >
-                          {payment.payment_status}
-                        </Badge>
-                        <Button
-                          onClick={() => handleDownloadInvoice(payment)}
-                          variant="ghost"
-                          size="sm"
-                          className="rounded-full gap-2"
-                        >
-                          <FileText className="h-4 w-4" />
-                          <span className="hidden sm:inline">Invoice</span>
-                        </Button>
-                      </div>
+              <Tabs defaultValue="all" className="w-full">
+                <TabsList className="grid w-full grid-cols-3 rounded-full bg-muted/50 mb-4">
+                  <TabsTrigger value="all" className="rounded-full">
+                    All Payments
+                    {allPayments.length > 0 && (
+                      <Badge variant="secondary" className="ml-2 text-xs">
+                        {allPayments.length}
+                      </Badge>
+                    )}
+                  </TabsTrigger>
+                  <TabsTrigger value="deposits" className="rounded-full">
+                    Deposits
+                    {deposits.length > 0 && (
+                      <Badge variant="secondary" className="ml-2 text-xs">
+                        {deposits.length}
+                      </Badge>
+                    )}
+                  </TabsTrigger>
+                  <TabsTrigger value="installments" className="rounded-full">
+                    Installments
+                    {installments.length > 0 && (
+                      <Badge variant="secondary" className="ml-2 text-xs">
+                        {installments.length}
+                      </Badge>
+                    )}
+                  </TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="all" className="mt-4">
+                  <PaymentList 
+                    payments={allPayments} 
+                    selectedPayments={selectedPayments}
+                    togglePaymentSelection={togglePaymentSelection}
+                    handleDownloadInvoice={handleDownloadInvoice}
+                  />
+                </TabsContent>
+                
+                <TabsContent value="deposits" className="mt-4">
+                  {deposits.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No deposit payments found.
                     </div>
-                  );
-                })}
-              </div>
+                  ) : (
+                    <PaymentList 
+                      payments={deposits} 
+                      selectedPayments={selectedPayments}
+                      togglePaymentSelection={togglePaymentSelection}
+                      handleDownloadInvoice={handleDownloadInvoice}
+                    />
+                  )}
+                </TabsContent>
+                
+                <TabsContent value="installments" className="mt-4">
+                  {installments.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No installment payments found.
+                    </div>
+                  ) : (
+                    <PaymentList 
+                      payments={installments} 
+                      selectedPayments={selectedPayments}
+                      togglePaymentSelection={togglePaymentSelection}
+                      handleDownloadInvoice={handleDownloadInvoice}
+                    />
+                  )}
+                </TabsContent>
+              </Tabs>
             )}
           </CardContent>
         </Card>
       </div>
     </AdminLayout>
+  );
+};
+
+// Payment List Component for reusability
+type PaymentListProps = {
+  payments: UnifiedPayment[];
+  selectedPayments: Set<string>;
+  togglePaymentSelection: (key: string) => void;
+  handleDownloadInvoice: (payment: UnifiedPayment) => Promise<void>;
+};
+
+const PaymentList = ({ payments, selectedPayments, togglePaymentSelection, handleDownloadInvoice }: PaymentListProps) => {
+  return (
+    <div className="space-y-4">
+      {payments.map((payment) => {
+        const paymentKey = `${payment.payment_source}-${payment.payment_id}`;
+        const isSelected = selectedPayments.has(paymentKey);
+        return (
+          <div
+            key={paymentKey}
+            className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 border rounded-lg ${
+              isSelected ? "bg-primary/5 border-primary" : ""
+            }`}
+          >
+            <div className="flex items-start gap-3 flex-1">
+              <Checkbox
+                checked={isSelected}
+                onCheckedChange={() => togglePaymentSelection(paymentKey)}
+                className="mt-1"
+              />
+              <div className="flex-1 space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge variant={payment.payment_source === "stripe" ? "default" : "secondary"}>
+                    {payment.payment_source === "stripe" ? "Stripe" : "Manual"}
+                  </Badge>
+                  <span className="text-sm font-medium">
+                    £{payment.amount_paid.toLocaleString("en-GB", { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {format(new Date(payment.payment_date), "MMM dd, yyyy HH:mm")}
+                  </span>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  <span>{payment.contract_name}</span>
+                  {payment.installment_number && (
+                    <span className="ml-2">• Installment #{payment.installment_number}</span>
+                  )}
+                </div>
+                {payment.manual_entry_notes && (
+                  <p className="text-xs text-muted-foreground italic">{payment.manual_entry_notes}</p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge
+                variant={
+                  payment.payment_status === "succeeded" || payment.payment_status === "completed"
+                    ? "default"
+                    : "outline"
+                }
+                className={
+                  payment.payment_status === "succeeded" || payment.payment_status === "completed"
+                    ? "bg-green-600 hover:bg-green-700 text-white"
+                    : ""
+                }
+              >
+                {payment.payment_status}
+              </Badge>
+              <Button
+                onClick={() => handleDownloadInvoice(payment)}
+                variant="ghost"
+                size="sm"
+                className="rounded-full gap-2"
+              >
+                <FileText className="h-4 w-4" />
+                <span className="hidden sm:inline">Invoice</span>
+              </Button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 };
 

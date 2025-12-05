@@ -23,6 +23,7 @@ import {
   ChevronDown,
   ChevronRight,
   Image,
+  Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -194,6 +195,11 @@ const navSections: NavSection[] = [
         to: "/admin/reports",
         icon: FileText,
       },
+      {
+        label: "Accounting Reports",
+        to: "/admin/accounting-reports",
+        icon: FileSpreadsheet,
+      },
     ],
   },
   {
@@ -224,6 +230,11 @@ const navSections: NavSection[] = [
         label: "DocuSign Templates",
         to: "/admin/docusign-templates",
         icon: FileText,
+      },
+      {
+        label: "Data Import",
+        to: "/admin/data-import",
+        icon: Upload,
       },
     ],
   },

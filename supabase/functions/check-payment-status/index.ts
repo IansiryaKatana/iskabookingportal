@@ -131,6 +131,27 @@ serve(async (req) => {
       customer: pi.customer,
     })));
 
+    // Also check stripe_payments table for recorded payments
+    const { data: dbPayments } = await supabaseAdmin
+      .from("stripe_payments")
+      .select("stripe_payment_intent_id, metadata, amount, created_at")
+      .eq("student_application_id", applicationId)
+      .eq("payment_type", "instalment")
+      .in("status", ["succeeded", "completed"]);
+    
+    console.log(`Found ${dbPayments?.length || 0} installment payments in database`);
+    
+    // Combine Stripe API results with database records
+    const dbInstalmentIds = new Set<string>();
+    if (dbPayments) {
+      dbPayments.forEach((payment) => {
+        const instalmentId = payment.metadata?.instalment_id;
+        if (instalmentId) {
+          dbInstalmentIds.add(instalmentId);
+        }
+      });
+    }
+
     // Filter for successful instalment payments for this application
     const paidInstalments = allPaymentIntents
       .filter((pi) => {
@@ -156,7 +177,23 @@ serve(async (req) => {
         paidAt: new Date(pi.created * 1000).toISOString(),
       }));
     
-    console.log(`Found ${paidInstalments.length} paid instalments:`, paidInstalments);
+    // Add any instalment IDs from database that aren't in Stripe results
+    dbInstalmentIds.forEach((instalmentId) => {
+      const alreadyIncluded = paidInstalments.some(pi => pi.instalmentId === instalmentId);
+      if (!alreadyIncluded) {
+        const dbPayment = dbPayments?.find(p => p.metadata?.instalment_id === instalmentId);
+        if (dbPayment) {
+          paidInstalments.push({
+            instalmentId: instalmentId,
+            paymentIntentId: dbPayment.stripe_payment_intent_id,
+            amount: Number(dbPayment.amount),
+            paidAt: dbPayment.created_at,
+          });
+        }
+      }
+    });
+    
+    console.log(`Found ${paidInstalments.length} paid instalments (${allPaymentIntents.length} from Stripe, ${dbInstalmentIds.size} from DB):`, paidInstalments);
 
     return new Response(
       JSON.stringify({ paidInstalments }),

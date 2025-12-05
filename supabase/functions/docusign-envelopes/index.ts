@@ -216,36 +216,52 @@ const retrievePaymentIntent = async (id: string) => {
 };
 
 serve(async (req) => {
+  // Always handle OPTIONS for CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  if (req.method !== "POST") {
-    return new Response("Method Not Allowed", {
-      status: 405,
-      headers: corsHeaders,
-    });
-  }
-
-  if (missing.length) {
-    return new Response(
-      JSON.stringify({
-        error: `Missing DocuSign configuration: ${missing.join(", ")}`,
-      }),
-      { status: 500, headers: corsHeaders },
-    );
-  }
-
-  const authHeader = req.headers.get("Authorization");
-  const token = authHeader?.replace("Bearer ", "");
-  if (!token) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
+  // Wrap everything in try-catch to ensure CORS headers are always returned
+  // This outer catch ensures CORS headers are always present, even for unexpected errors
   try {
+    if (req.method !== "POST") {
+      return new Response("Method Not Allowed", {
+        status: 405,
+        headers: corsHeaders,
+      });
+    }
+
+    if (missing.length) {
+      return new Response(
+        JSON.stringify({
+          error: `Missing DocuSign configuration: ${missing.join(", ")}`,
+        }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const authHeader = req.headers.get("Authorization");
+    const token = authHeader?.replace("Bearer ", "");
+    if (!token) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    let body: { applicationId?: string } = {};
+    
+    // Parse body first to catch JSON errors early
+    try {
+      body = await req.json();
+    } catch (parseError) {
+      console.error("Error parsing request body:", parseError);
+      return new Response(JSON.stringify({ error: "Invalid JSON in request body" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const {
       data: { user },
       error: userError,
@@ -257,8 +273,16 @@ serve(async (req) => {
       });
     }
 
-    const { applicationId } = await req.json();
+    const { applicationId } = body;
+    
+    console.log("DocuSign envelope request received", {
+      applicationId,
+      userId: user.id,
+      timestamp: new Date().toISOString(),
+    });
+    
     if (!applicationId) {
+      console.error("Missing applicationId in request", { body });
       return new Response(JSON.stringify({ error: "applicationId required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -283,11 +307,25 @@ serve(async (req) => {
         status,
         deposit_payment_intent_id,
         selected_payment_plan_id,
+        studio_grade_id,
+        assigned_studio_id,
+        assigned_studio:studios (
+          studio_number,
+          floor
+        ),
         contract:contracts (
           id,
           name,
           academic_year_id,
-          studio_grade:studio_grades ( name )
+          contract_start,
+          contract_end,
+          weeks,
+          weekly_price_override,
+          deposit_override,
+          studio_grade:studio_grades ( 
+            id,
+            name 
+          )
         ),
         student_application_steps (*)
       `,
@@ -296,11 +334,23 @@ serve(async (req) => {
       .single();
 
     if (applicationError || !application) {
+      console.error("Application not found", {
+        applicationId,
+        error: applicationError,
+      });
       return new Response(JSON.stringify({ error: "Application not found" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    console.log("Application loaded", {
+      applicationId: application.id,
+      status: application.status,
+      hasPaymentPlan: !!application.selected_payment_plan_id,
+      paymentPlanId: application.selected_payment_plan_id,
+      hasDepositPaymentIntent: !!application.deposit_payment_intent_id,
+    });
 
     const isApplicant = application.student_id === user.id;
     const isStaff =
@@ -322,11 +372,23 @@ serve(async (req) => {
     let depositVerified = depositVerifiedStatuses.has(application.status);
 
     if (!depositVerified) {
+      console.log("Deposit not verified by status, checking payment intent", {
+        applicationId: application.id,
+        status: application.status,
+        depositPaymentIntentId: application.deposit_payment_intent_id,
+        hasStripeSecret: !!stripeSecret,
+      });
+
       if (!stripeSecret || !application.deposit_payment_intent_id) {
+        console.error("Missing deposit payment intent or Stripe secret", {
+          applicationId: application.id,
+          hasStripeSecret: !!stripeSecret,
+          hasPaymentIntentId: !!application.deposit_payment_intent_id,
+        });
         return new Response(
           JSON.stringify({
             error:
-              "We’re still processing your deposit. Please wait a moment and try again.",
+              "We're still processing your deposit. Please wait a moment and try again.",
           }),
           {
             status: 400,
@@ -339,6 +401,13 @@ serve(async (req) => {
         const paymentIntent = await retrievePaymentIntent(
           application.deposit_payment_intent_id,
         );
+        console.log("Payment intent retrieved", {
+          id: paymentIntent.id,
+          status: paymentIntent.status,
+          amount: paymentIntent.amount,
+          metadata: paymentIntent.metadata,
+        });
+        
         if (paymentIntent.status === "succeeded") {
           depositVerified = true;
           await supabaseAdmin
@@ -348,8 +417,13 @@ serve(async (req) => {
             })
             .eq("id", application.id);
           application.status = "awaiting_signature";
+          console.log("Deposit verified, application status updated to awaiting_signature");
         } else {
           const friendlyStatus = paymentIntent.status.replaceAll("_", " ");
+          console.warn("Payment intent not succeeded", {
+            status: paymentIntent.status,
+            applicationId: application.id,
+          });
           return new Response(
             JSON.stringify({
               error: `Deposit is ${friendlyStatus}. Please wait until it succeeds before requesting agreements.`,
@@ -373,6 +447,11 @@ serve(async (req) => {
           },
         );
       }
+    } else {
+      console.log("Deposit already verified by application status", {
+        applicationId: application.id,
+        status: application.status,
+      });
     }
 
     const { data: studentAuth } = await supabaseAdmin.auth.admin.getUserById(
@@ -422,11 +501,62 @@ serve(async (req) => {
     );
 
     const studentPhone = (contactPayload.mobile as string) ?? "";
-    const requiresGuarantor = Boolean(application.selected_payment_plan_id);
+    
+    // Check if the selected payment plan is "Pay in Full" (1 installment with 100% percentage)
+    // Pay in Full plans don't require a guarantor
+    let isPayInFullPlan = false;
+    if (application.selected_payment_plan_id) {
+      try {
+        const { data: installments, error: installmentsError } = await supabaseAdmin
+          .from("payment_plan_installments")
+          .select("amount_type, amount_value, sequence")
+          .eq("payment_plan_id", application.selected_payment_plan_id)
+          .order("sequence", { ascending: true });
+        
+        if (installmentsError) {
+          console.error("Error fetching installments for Pay in Full check:", installmentsError);
+          // If we can't check, default to requiring guarantor for safety
+        } else if (installments && installments.length === 1) {
+          const installment = installments[0];
+          // Pay in Full = exactly 1 installment with 100% percentage
+          isPayInFullPlan = 
+            installment.amount_type === 'percentage' && 
+            installment.amount_value === 100;
+        }
+      } catch (error) {
+        console.error("Error checking if payment plan is Pay in Full:", error);
+        // If we can't check, default to requiring guarantor for safety
+      }
+    }
+    
+    // Require guarantor only if there's a payment plan AND it's NOT a "Pay in Full" plan
+    const requiresGuarantor = Boolean(application.selected_payment_plan_id) && !isPayInFullPlan;
+
+    console.log("Guarantor requirement check", {
+      applicationId: application.id,
+      hasPaymentPlan: !!application.selected_payment_plan_id,
+      paymentPlanId: application.selected_payment_plan_id,
+      isPayInFullPlan,
+      requiresGuarantor,
+    });
 
     // Fetch DocuSign templates for this academic year
     const academicYearId = (application.contract as any)?.academic_year_id;
+    const contractId = (application.contract as any)?.id;
+    const contractName = (application.contract as any)?.name;
+    
+    console.log("DocuSign contract selection", {
+      applicationId: application.id,
+      contractId,
+      contractName,
+      academicYearId,
+    });
+    
     if (!academicYearId) {
+      console.error("Application contract missing academic year", {
+        applicationId: application.id,
+        contract: application.contract,
+      });
       return new Response(
         JSON.stringify({ error: "Application contract missing academic year" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -438,6 +568,12 @@ serve(async (req) => {
       .select("template_id, template_type, role_names")
       .eq("academic_year_id", academicYearId)
       .eq("is_active", true);
+    
+    console.log("DocuSign templates fetched", {
+      academicYearId,
+      templateCount: templates?.length || 0,
+      templates: templates?.map(t => ({ type: t.template_type, id: t.template_id })),
+    });
 
     if (templatesError) {
       console.error("Failed to fetch DocuSign templates:", templatesError);
@@ -469,53 +605,116 @@ serve(async (req) => {
     const guarantorRole = guarantorTemplate?.role_names?.guarantor || config.guarantorRole;
 
     // Build auto-fill values for tenancy template
-    const academicYear = formatAcademicYear(application.contract?.contract_start);
+    const contract = application.contract as any;
+    const academicYear = formatAcademicYear(contract?.contract_start);
     const tenantNameForDoc = studentName || studentEmail;
-    const roomNumber =
-      (application.assigned_studio as any)?.room_number ??
-      (application.assigned_studio as any)?.name ??
-      (application.assigned_studio as any)?.code ??
-      "";
+    const assignedStudio = application.assigned_studio as any;
+    const roomNumber = assignedStudio?.studio_number 
+      ? `${assignedStudio.studio_number}${assignedStudio.floor ? ` (Floor ${assignedStudio.floor})` : ""}`
+      : "To Be Advised";
     const tenancyPeriod =
-      application.contract?.contract_start && application.contract?.contract_end
-        ? `${formatGbDate(application.contract.contract_start)} – ${formatGbDate(
-            application.contract.contract_end,
-          )}${application.contract?.weeks ? ` (${application.contract.weeks} weeks)` : ""}`
+      contract?.contract_start && contract?.contract_end
+        ? `${formatGbDate(contract.contract_start)} – ${formatGbDate(
+            contract.contract_end,
+          )}${contract?.weeks ? ` (${contract.weeks} weeks)` : ""}`
         : "";
 
-    // Optional: compute plan summary and total from selected plan
+    // Calculate weekly rate, deposit, and payment schedule
+    let weeklyRate: number | null = null;
+    let depositAmount: number | null = null;
+    let totalContractValue: number | null = null;
     let planSummary = "";
-    let totalRentPence: number | null = null;
-    if (application.selected_payment_plan_id) {
-      try {
-        const { data: installments } = await supabaseAdmin
-          .from("payment_plan_installments")
-          .select("amount_pence, due_date, sequence")
-          .eq("payment_plan_id", application.selected_payment_plan_id)
-          .order("sequence", { ascending: true });
-        if (installments && installments.length) {
-          totalRentPence = installments.reduce(
-            (sum, it) => sum + (it.amount_pence ?? 0),
-            0,
-          );
-          planSummary = installments
-            .map((it) => {
-              const amt =
-                typeof it.amount_pence === "number"
-                  ? formatGBP(it.amount_pence)
-                  : "";
-              const due = it.due_date ? formatGbDate(it.due_date) : "";
-              return [amt, due].filter(Boolean).join(" due ");
-            })
-            .join("; ");
-        }
-      } catch {
-        // ignore; leave empty if lookup fails
+    
+    // Get weekly rate: contract override > studio_grade_prices
+    if (contract?.academic_year_id && application.studio_grade_id) {
+      if (contract.weekly_price_override) {
+        weeklyRate = Number(contract.weekly_price_override);
+      } else {
+        const { data: priceData } = await supabaseAdmin
+          .from("studio_grade_prices")
+          .select("weekly_price")
+          .eq("academic_year_id", contract.academic_year_id)
+          .eq("studio_grade_id", application.studio_grade_id)
+          .eq("is_active", true)
+          .maybeSingle();
+        weeklyRate = priceData ? Number(priceData.weekly_price) : null;
       }
     }
 
-    const totalRent =
-      typeof totalRentPence === "number" ? formatGBP(totalRentPence) : "";
+    // Calculate total contract value
+    if (weeklyRate && contract?.weeks) {
+      totalContractValue = weeklyRate * contract.weeks;
+    }
+
+    // Get deposit amount: contract override > payment plan > studio_grade_prices override
+    if (application.selected_payment_plan_id) {
+      const { data: paymentPlan } = await supabaseAdmin
+        .from("payment_plans")
+        .select("deposit_amount")
+        .eq("id", application.selected_payment_plan_id)
+        .maybeSingle();
+      
+      depositAmount = contract?.deposit_override 
+        ? Number(contract.deposit_override)
+        : paymentPlan?.deposit_amount 
+          ? Number(paymentPlan.deposit_amount)
+          : null;
+    } else if (contract?.deposit_override) {
+      depositAmount = Number(contract.deposit_override);
+    }
+
+    // If still no deposit, check studio_grade_prices
+    if (!depositAmount && contract?.academic_year_id && application.studio_grade_id) {
+      const { data: priceData } = await supabaseAdmin
+        .from("studio_grade_prices")
+        .select("deposit_amount_override")
+        .eq("academic_year_id", contract.academic_year_id)
+        .eq("studio_grade_id", application.studio_grade_id)
+        .eq("is_active", true)
+        .maybeSingle();
+      depositAmount = priceData?.deposit_amount_override 
+        ? Number(priceData.deposit_amount_override)
+        : null;
+    }
+
+    // Calculate payment schedule with actual amounts
+    if (application.selected_payment_plan_id && totalContractValue && depositAmount) {
+      try {
+        const { data: installments, error: installmentsError } = await supabaseAdmin
+          .from("payment_plan_installments")
+          .select("amount_value, amount_type, due_date, sequence, label")
+          .eq("payment_plan_id", application.selected_payment_plan_id)
+          .order("sequence", { ascending: true });
+        
+        if (!installmentsError && installments && installments.length) {
+          // Calculate remaining balance after deposit
+          const remainingBalance = totalContractValue - depositAmount;
+          
+          // Build payment schedule with actual calculated amounts
+          const scheduleItems = installments.map((it) => {
+            let amount = 0;
+            if (it.amount_type === "fixed") {
+              amount = Number(it.amount_value);
+            } else if (it.amount_type === "percentage") {
+              // Calculate percentage of remaining balance (not total)
+              amount = (remainingBalance * Number(it.amount_value)) / 100;
+            }
+            const due = it.due_date ? formatGbDate(it.due_date) : "";
+            const label = it.label ? `${it.label}: ` : "";
+            const formattedAmount = formatGBP(Math.round(amount * 100));
+            return [label, formattedAmount, due].filter(Boolean).join(" ");
+          });
+          
+          planSummary = scheduleItems.join("; ");
+        }
+      } catch (error) {
+        console.error("Error processing payment plan installments:", error);
+      }
+    }
+
+    const weeklyRateFormatted = weeklyRate ? formatGBP(Math.round(weeklyRate * 100)) : "";
+    const depositAmountFormatted = depositAmount ? formatGBP(Math.round(depositAmount * 100)) : "";
+    const totalRent = totalContractValue ? formatGBP(Math.round(totalContractValue * 100)) : "";
 
     const witness = {
       name: (paymentPayload.witness_name as string) ?? "",
@@ -534,16 +733,124 @@ serve(async (req) => {
     // Note: Witness and guarantor validation is now done in the tenancy recipients section
 
     const textTabs = [
-      ...(studentPhone
-        ? [{ tabLabel: "student_phone", value: studentPhone }]
-        : []),
       ...(academicYear ? [{ tabLabel: "academic_year", value: academicYear }] : []),
+      ...(weeklyRateFormatted ? [{ tabLabel: "weekly_rate", value: weeklyRateFormatted }] : []),
       ...(tenantNameForDoc ? [{ tabLabel: "tenant_name", value: tenantNameForDoc }] : []),
       ...(roomNumber ? [{ tabLabel: "room_number", value: String(roomNumber) }] : []),
+      ...(depositAmountFormatted ? [{ tabLabel: "deposit_amount", value: depositAmountFormatted }] : []),
       ...(tenancyPeriod ? [{ tabLabel: "tenancy_period", value: tenancyPeriod }] : []),
       ...(totalRent ? [{ tabLabel: "total_rent", value: totalRent }] : []),
       ...(planSummary ? [{ tabLabel: "plan_summary", value: planSummary }] : []),
+      ...(studentPhone
+        ? [{ tabLabel: "student_phone", value: studentPhone }]
+        : []),
     ].filter((tab) => tab.value && tab.value.trim().length > 0);
+
+    // Log all calculated values for debugging
+    console.log("DocuSign data calculation results", {
+      applicationId: application.id,
+      academicYear,
+      weeklyRate,
+      weeklyRateFormatted,
+      depositAmount,
+      depositAmountFormatted,
+      totalContractValue,
+      totalRent,
+      tenantNameForDoc,
+      roomNumber,
+      tenancyPeriod,
+      planSummary,
+      textTabsCount: textTabs.length,
+      textTabs: textTabs.map(t => ({ label: t.tabLabel, value: t.value?.substring(0, 50) })),
+    });
+
+    // IMPORTANT: Signature tabs should ideally be pre-placed in the DocuSign template
+    // However, we can add them programmatically as a fallback using anchor text
+    // If your template has anchor text like "{{signature}}" or "Sign here", DocuSign will place tabs there
+    // Otherwise, you need to add signHereTabs with x/y coordinates or anchor strings
+    const signHereTabs: Array<{
+      anchorString?: string;
+      anchorXOffset?: string;
+      anchorYOffset?: string;
+      optional?: string;
+      tabLabel?: string;
+    }> = [
+      // Signature tab - will be placed at anchor text "{{signature}}" in template
+      // OR pre-place a Sign Here tab in your template with tabLabel "signature"
+      {
+        anchorString: "{{signature}}",
+        anchorXOffset: "0",
+        anchorYOffset: "0",
+        optional: "false",
+        tabLabel: "signature",
+      },
+    ];
+
+    const dateSignedTabs: Array<{
+      anchorString?: string;
+      anchorXOffset?: string;
+      anchorYOffset?: string;
+      tabLabel?: string;
+    }> = [
+      // Date signed tab - will be placed at anchor text "{{date_signed}}" in template
+      // OR pre-place a Date Signed tab in your template with tabLabel "date_signed"
+      {
+        anchorString: "{{date_signed}}",
+        anchorXOffset: "0",
+        anchorYOffset: "0",
+        tabLabel: "date_signed",
+      },
+    ];
+
+    // Print Name tab - tenant name that's not editable (read-only)
+    // This will be placed at anchor text "{{print_name}}" in template
+    // OR pre-place a Text tab in your template with tabLabel "print_name" and set it to read-only
+    const printNameTabs: Array<{
+      anchorString?: string;
+      anchorXOffset?: string;
+      anchorYOffset?: string;
+      tabLabel?: string;
+      value?: string;
+      locked?: string;
+    }> = [
+      {
+        anchorString: "{{print_name}}",
+        anchorXOffset: "0",
+        anchorYOffset: "0",
+        tabLabel: "print_name",
+        value: tenantNameForDoc,
+        locked: "true", // Makes it read-only
+      },
+    ];
+
+    // Combine print name with text tabs (print name is also a text tab)
+    const allTextTabs = [
+      ...textTabs,
+      ...(printNameTabs.length > 0 ? printNameTabs.map(tab => ({
+        tabLabel: tab.tabLabel,
+        value: tab.value,
+        locked: tab.locked,
+      })) : []),
+    ];
+
+    // Log the complete tabs structure being sent
+    console.log("DocuSign tabs structure", {
+      applicationId: application.id,
+      roleName: tenancyStudentRole,
+      textTabs: allTextTabs.map(t => ({ 
+        label: t.tabLabel, 
+        value: t.value?.substring(0, 50),
+        locked: (t as any).locked 
+      })),
+      signHereTabs: signHereTabs.map(t => ({ 
+        label: t.tabLabel,
+        anchor: t.anchorString 
+      })),
+      dateSignedTabs: dateSignedTabs.map(t => ({ 
+        label: t.tabLabel,
+        anchor: t.anchorString 
+      })),
+    });
 
     // Tenancy contract: Tenant signs (1), Witness views (2 - optional), Guarantor signs (2 or 3 depending on witness)
     const tenancyRecipients = [
@@ -553,7 +860,14 @@ serve(async (req) => {
         email: studentEmail,
         routingOrder: "1",
         clientUserId: application.student_id,
-        ...(textTabs.length > 0 ? { tabs: { textTabs } } : {}),
+        tabs: {
+          // Combine all text tabs including print name
+          textTabs: allTextTabs.length > 0 ? allTextTabs : undefined,
+          // Add signature tabs - these will only work if your template has matching anchor text
+          // OR if you provide x/y coordinates instead of anchorString
+          ...(signHereTabs.length > 0 ? { signHereTabs } : {}),
+          ...(dateSignedTabs.length > 0 ? { dateSignedTabs } : {}),
+        },
       },
     ];
 
@@ -720,9 +1034,20 @@ serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error) {
-    console.error("DocuSign integration error:", error);
+    // Catch-all to ensure CORS headers are always present
+    // This catches any errors that occur in the function
+    console.error("DocuSign integration error:", {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      applicationId: body?.applicationId,
+    });
     const message = error instanceof Error ? error.message : "Server error";
-    return new Response(JSON.stringify({ error: message }), {
+    return new Response(JSON.stringify({ 
+      error: message,
+      details: process.env.NODE_ENV === "development" 
+        ? (error instanceof Error ? error.stack : String(error))
+        : undefined,
+    }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

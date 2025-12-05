@@ -93,7 +93,14 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
 ### 4.5 Agreement & Signatures
 
 - Generate PDF via Supabase Edge Function (`create-contract-pdf`), merging contract + application data.
-- Adobe Sign integration recommended for compliant e-signatures; embed signing ceremony. Webhook updates stored in `student_signatures` and uploads signed PDF to storage.
+- DocuSign integration for compliant e-signatures; embed signing ceremony. Webhook updates stored in `student_signatures` and uploads signed PDF to storage.
+- **DocuSign Template Requirements:**
+  - **CRITICAL:** Data fields must NOT have "Read Only" checked (prevents API population)
+  - Tab labels must match exactly (case-sensitive): `academic_year`, `weekly_rate`, `tenant_name`, `deposit_amount`, `tenancy_period`, `total_rent`, `plan_summary`, `print_name`
+  - All tabs must be assigned to "Tenant" role (or configured role name)
+  - Role name must match exactly between template and code (default: "Tenant")
+  - Only `print_name` field should have "Read Only" checked
+  - Envelopes are created when Step 5 is submitted, not when signing button is clicked
 
 ### 4.6 Payments
 

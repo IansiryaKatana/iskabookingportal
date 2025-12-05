@@ -22,6 +22,13 @@ export type UnifiedPayment = {
   contract_name: string;
   academic_year_id: string;
   academic_year_name: string;
+  payment_metadata?: {
+    label?: string;
+    type?: string;
+    instalment_id?: string;
+    amount_pounds?: string;
+    [key: string]: unknown;
+  } | null;
 };
 
 export type PaymentSummary = {

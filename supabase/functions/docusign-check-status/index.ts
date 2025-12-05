@@ -148,10 +148,17 @@ const updateApplicationStatus = async (applicationId: string) => {
     return;
   }
 
-  // Check if all envelopes are completed
+  // Check if all envelopes are completed (case-insensitive check)
   const allCompleted = envelopes.every(
     (env) => env.status?.toLowerCase() === "completed",
   );
+  
+  console.log("Envelope status check", {
+    applicationId,
+    envelopeCount: envelopes.length,
+    envelopeStatuses: envelopes.map(e => ({ type: e.envelope_type, status: e.status })),
+    allCompleted,
+  });
 
   if (allCompleted) {
     // Only update to awaiting_verification if currently awaiting_signature or earlier
@@ -262,7 +269,25 @@ serve(async (req) => {
     for (const envelopeId of envelopeIdsToCheck) {
       try {
         const envelopeData = await checkEnvelopeStatus(envelopeId);
+        // DocuSign returns status like "completed", "Completed", "COMPLETED", etc.
+        // Normalize to lowercase for consistent comparison
         const newStatus = envelopeData.status?.toLowerCase() || "unknown";
+        
+        // Get envelope type for logging
+        const { data: envelopeInfo } = await supabaseAdmin
+          .from("docusign_envelopes")
+          .select("envelope_type, status")
+          .eq("envelope_id", envelopeId)
+          .single();
+        
+        console.log("Envelope status from DocuSign", {
+          envelopeId,
+          envelopeType: envelopeInfo?.envelope_type,
+          currentStatus: envelopeInfo?.status,
+          rawStatus: envelopeData.status,
+          normalizedStatus: newStatus,
+          statusChanged: envelopeInfo?.status?.toLowerCase() !== newStatus,
+        });
 
         // Update envelope status in database
         const { error: updateError } = await supabaseAdmin
@@ -277,6 +302,7 @@ serve(async (req) => {
         if (updateError) {
           console.error(`Error updating envelope ${envelopeId}:`, updateError);
         } else {
+          console.log(`Successfully updated envelope ${envelopeId} (${envelopeInfo?.envelope_type}) to status: ${newStatus}`);
           updates.push({
             envelopeId,
             status: newStatus,
