@@ -33,6 +33,13 @@
    - Calculation methods
    - Usage guide
 
+6. **[Contracts Page Improvements (2025-01-25)](./CONTRACTS_PAGE_IMPROVEMENTS_COMPLETED.md)** ⭐ **NEW**
+   - Complete documentation of contract management enhancements
+   - Academic year filter implementation
+   - Payment plan order persistence
+   - Weeks calculation fixes
+   - Technical implementation details
+
 ---
 
 ## 🚀 Quick Start
@@ -68,7 +75,7 @@
 
 **Current Version**: 1.0  
 **Status**: Production Ready  
-**Last Updated**: December 2024
+**Last Updated**: January 2025
 
 ### ✅ Completed Features
 - Complete student portal (all post-confirmation features)
@@ -105,5 +112,5 @@ For technical questions or issues:
 ---
 
 **Maintained by**: Development Team  
-**Last Documentation Update**: December 2024
+**Last Documentation Update**: January 2025
 

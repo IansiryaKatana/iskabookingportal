@@ -215,7 +215,13 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
   - Studio Grades (content, media upload, amenities).
   - Amenities.
   - Payment Plans + installment builder.
-  - Contracts (link to academic year/grade, associate multiple payment plans, weekly rent, deposit, date range).
+  - Contracts (link to academic year/grade, associate multiple payment plans, weekly rent, deposit, date range). **Enhanced Features (2025-01-25):**
+    - **Academic Year Filter**: Toggle to filter contracts by academic year (defaults to active year)
+    - **Editable Contract Name**: Contract names can be edited in edit mode (previously read-only)
+    - **Payment Plan Order Management**: Payment plans maintain their display order when editing contracts (order no longer resets)
+    - **Default Payment Plan Order**: Sensible default order (Pay in Full=1, 3 Instalments=2, 4 Instalments=3, 10 Instalments=4) for new contracts
+    - **Accurate Weeks Calculation**: Uses Math.round() for accurate contract duration calculation (replaces Math.ceil() which rounded up)
+    - **Automatic Weeks Recalculation**: Weeks are automatically recalculated and saved when contract dates are edited
   - Studios (status management, import, floor filters).
 - **Application Management**: 
   - Review steps, verify documents, update status

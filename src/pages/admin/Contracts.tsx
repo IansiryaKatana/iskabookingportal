@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Loader2, Pencil, Plus, Copy } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -60,6 +61,18 @@ const schema = z.object({
   cta_label: z.string().optional(),
 });
 
+// Default order for payment plans
+const getDefaultPaymentPlanOrder = (planName: string): number => {
+  const orderMap: Record<string, number> = {
+    "Pay in Full": 1,
+    "3 Instalments": 2,
+    "4 Instalments": 3,
+    "10 Instalments": 4,
+  };
+  // For plans not in map, use a high number (append to end)
+  return orderMap[planName] ?? 999;
+};
+
 const Contracts = () => {
   const { data, isLoading } = useAdminContracts();
   const { data: academicYears } = useAdminAcademicYears();
@@ -69,6 +82,7 @@ const Contracts = () => {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string | null>(null);
+  const [filterAcademicYearId, setFilterAcademicYearId] = useState<string | null>(null);
   const { data: activePlans } = useContractPaymentPlans(selectedAcademicYearId);
   const [selectedPlans, setSelectedPlans] = useState<
     Record<string, { selected: boolean; order: number }>
@@ -96,9 +110,26 @@ const Contracts = () => {
     },
   });
 
+  // Filter contracts by academic year if filter is set
+  const filteredData = useMemo(() => {
+    if (!data) return [];
+    if (!filterAcademicYearId) return data;
+    return data.filter((contract) => contract.academic_year_id === filterAcademicYearId);
+  }, [data, filterAcademicYearId]);
+
+  // Set default filter to active year on mount
+  useEffect(() => {
+    if (!filterAcademicYearId && academicYears && academicYears.length > 0) {
+      const activeYear = academicYears.find((y) => y.is_active) || academicYears[0];
+      if (activeYear) {
+        setFilterAcademicYearId(activeYear.id);
+      }
+    }
+  }, [filterAcademicYearId, academicYears]);
+
   const grouped = useMemo(() => {
-    const groups: Record<string, typeof data> = {};
-    data?.forEach((contract) => {
+    const groups: Record<string, typeof filteredData> = {};
+    filteredData?.forEach((contract) => {
       const gradeName = contract.studio_grade?.name ?? "Unknown grade";
       if (!groups[gradeName]) {
         groups[gradeName] = [];
@@ -106,7 +137,22 @@ const Contracts = () => {
       groups[gradeName]?.push(contract);
     });
     return groups;
-  }, [data]);
+  }, [filteredData]);
+
+  // Sort activePlans by default order, then by saved order
+  const sortedActivePlans = useMemo(() => {
+    if (!activePlans) return [];
+    // Create a copy and sort by default order first, then by name
+    return [...activePlans].sort((a, b) => {
+      const orderA = getDefaultPaymentPlanOrder(a.name);
+      const orderB = getDefaultPaymentPlanOrder(b.name);
+      if (orderA !== orderB) {
+        return orderA - orderB;
+      }
+      // If same default order, sort alphabetically
+      return a.name.localeCompare(b.name);
+    });
+  }, [activePlans]);
 
   useEffect(() => {
     if (!open) return;
@@ -117,20 +163,43 @@ const Contracts = () => {
       
       setSelectedAcademicYearId(contract.academic_year_id);
       
+      // Create a map of saved orders from the contract
+      const savedOrders = new Map<string, number>();
+      contract.contract_payment_plans?.forEach((link) => {
+        if (link.payment_plan_id && typeof link.display_order === "number") {
+          savedOrders.set(link.payment_plan_id, link.display_order);
+        }
+      });
+      
+      // Initialize plans with saved order if exists, otherwise use default order
       const initial: Record<string, { selected: boolean; order: number }> = {};
-      (activePlans ?? []).forEach((plan, index) => {
+      sortedActivePlans.forEach((plan, index) => {
         const match =
           contract.contract_payment_plans?.find(
             (link) => link.payment_plan_id === plan.id,
           ) ?? null;
+        
+        // Use saved order if exists, otherwise use default order based on plan name
+        const savedOrder = savedOrders.get(plan.id);
+        const defaultOrder = getDefaultPaymentPlanOrder(plan.name);
+        const finalOrder = savedOrder ?? (defaultOrder < 999 ? defaultOrder : index + 1);
+        
         initial[plan.id] = {
           selected: Boolean(match),
-          order:
-            typeof match?.display_order === "number"
-              ? match.display_order
-              : index + 1,
+          order: finalOrder,
         };
       });
+      
+      // Also include any plans from contract that might not be in activePlans (edge case)
+      contract.contract_payment_plans?.forEach((link) => {
+        if (link.payment_plan_id && !initial[link.payment_plan_id]) {
+          initial[link.payment_plan_id] = {
+            selected: true,
+            order: typeof link.display_order === "number" ? link.display_order : 999,
+          };
+        }
+      });
+      
       setSelectedPlans(initial);
     } else {
       // For create, set first academic year (prefer active, but show all)
@@ -139,9 +208,20 @@ const Contracts = () => {
         setSelectedAcademicYearId(firstYear.id);
         form.setValue("academic_year_id", firstYear.id);
       }
-      setSelectedPlans({});
+      
+      // Initialize plans with default order for new contracts
+      const initial: Record<string, { selected: boolean; order: number }> = {};
+      sortedActivePlans.forEach((plan) => {
+        initial[plan.id] = {
+          selected: false,
+          order: getDefaultPaymentPlanOrder(plan.name) < 999 
+            ? getDefaultPaymentPlanOrder(plan.name) 
+            : sortedActivePlans.indexOf(plan) + 1,
+        };
+      });
+      setSelectedPlans(initial);
     }
-  }, [open, editingId, data, activePlans, academicYears, form]);
+  }, [open, editingId, data, sortedActivePlans, academicYears, form]);
 
   useEffect(() => {
     if (!open) {
@@ -200,10 +280,17 @@ const Contracts = () => {
   };
 
   const handlePlanToggle = (planId: string, checked: boolean) => {
-    setSelectedPlans((prev) => ({
-      ...prev,
-      [planId]: { selected: checked, order: prev[planId]?.order ?? 1 },
-    }));
+    setSelectedPlans((prev) => {
+      const plan = sortedActivePlans.find((p) => p.id === planId);
+      const defaultOrder = plan ? getDefaultPaymentPlanOrder(plan.name) : 999;
+      return {
+        ...prev,
+        [planId]: { 
+          selected: checked, 
+          order: prev[planId]?.order ?? (defaultOrder < 999 ? defaultOrder : Object.keys(prev).length + 1),
+        },
+      };
+    });
   };
 
   // Calculate weeks from dates
@@ -213,14 +300,15 @@ const Contracts = () => {
     const endDate = new Date(end);
     const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return Math.ceil(diffDays / 7);
+    return Math.round(diffDays / 7);
   };
 
   const handleSubmit = form.handleSubmit(async (values) => {
+    // Get selected plans with their order values, sorted by order
     const orderedPlans = Object.entries(selectedPlans)
       .filter(([, value]) => value.selected)
       .sort((a, b) => (a[1].order ?? 0) - (b[1].order ?? 0))
-      .map(([planId]) => planId);
+      .map(([planId, value]) => ({ planId, order: value.order }));
 
     const weeks = calculateWeeks(values.contract_start, values.contract_end);
 
@@ -228,14 +316,17 @@ const Contracts = () => {
       if (editingId) {
         await updateContract.mutateAsync({
           id: editingId,
+          name: values.name,
           contract_start: values.contract_start,
           contract_end: values.contract_end,
+          weeks,
           weekly_price_override: values.weekly_price_override,
           deposit_override: values.deposit_override,
           summary: values.summary ?? null,
           display_order: values.display_order,
           cta_label: values.cta_label ?? null,
-          payment_plan_ids: orderedPlans,
+          payment_plan_ids: orderedPlans.map(p => p.planId),
+          payment_plan_orders: orderedPlans.map(p => p.order),
         });
         toast({ title: "Contract updated" });
       } else {
@@ -252,7 +343,8 @@ const Contracts = () => {
           display_order: values.display_order,
           cta_label: values.cta_label ?? null,
           is_active: true,
-          payment_plan_ids: orderedPlans,
+          payment_plan_ids: orderedPlans.map(p => p.planId),
+          payment_plan_orders: orderedPlans.map(p => p.order),
         });
         toast({ title: "Contract created" });
       }
@@ -346,9 +438,34 @@ const Contracts = () => {
       </div>
       <Card className="rounded-3xl border border-border/60 shadow-xl">
         <CardHeader>
-          <CardTitle className="text-lg font-display uppercase tracking-wide">
-            Contract catalogue
-          </CardTitle>
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <CardTitle className="text-lg font-display uppercase tracking-wide">
+              Contract catalogue
+            </CardTitle>
+            {academicYears && academicYears.length > 1 && (
+              <div className="flex items-center gap-2">
+                <Label htmlFor="year-filter" className="text-sm text-muted-foreground whitespace-nowrap">
+                  Filter by year:
+                </Label>
+                <Select
+                  value={filterAcademicYearId || "all"}
+                  onValueChange={(value) => setFilterAcademicYearId(value === "all" ? null : value)}
+                >
+                  <SelectTrigger id="year-filter" className="w-full lg:w-[180px]">
+                    <SelectValue placeholder="All Years" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Years</SelectItem>
+                    {academicYears.map((year) => (
+                      <SelectItem key={year.id} value={year.id}>
+                        {year.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
           {isLoading ? (
@@ -503,21 +620,21 @@ const Contracts = () => {
                       </FormItem>
                     )}
                   />
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Contract Name</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., 45 Week Contract" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
                 </>
               )}
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Contract Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., 45 Week Contract" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <div className="grid gap-4 md:grid-cols-2">
                 <FormField
                   control={form.control}
@@ -604,10 +721,11 @@ const Contracts = () => {
                   </p>
                 </div>
                 <div className="space-y-2">
-                  {(activePlans ?? []).map((plan, index) => {
+                  {sortedActivePlans.map((plan) => {
+                    const defaultOrder = getDefaultPaymentPlanOrder(plan.name);
                     const planState = selectedPlans[plan.id] ?? {
                       selected: false,
-                      order: index + 1,
+                      order: defaultOrder < 999 ? defaultOrder : sortedActivePlans.indexOf(plan) + 1,
                     };
                     return (
                       <div

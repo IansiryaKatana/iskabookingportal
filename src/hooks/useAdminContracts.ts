@@ -57,9 +57,10 @@ export const useCreateContract = () => {
     mutationFn: async (
       payload: Omit<ContractRow, "id" | "created_at" | "updated_at"> & {
         payment_plan_ids?: string[] | null;
+        payment_plan_orders?: number[] | null;
       },
     ) => {
-      const { payment_plan_ids, ...contractData } = payload;
+      const { payment_plan_ids, payment_plan_orders, ...contractData } = payload;
       
       // Generate slug from name if not provided
       const slug = contractData.slug || 
@@ -84,7 +85,7 @@ export const useCreateContract = () => {
         const insertPayload = payment_plan_ids.map((planId, index) => ({
           contract_id: contract.id,
           payment_plan_id: planId,
-          display_order: index,
+          display_order: payment_plan_orders?.[index] ?? (index + 1),
         }));
         const { error: linkError } = await supabase
           .from("contract_payment_plans")
@@ -107,9 +108,10 @@ export const useUpdateContract = () => {
       payload: Partial<ContractRow> & {
         id: string;
         payment_plan_ids?: string[] | null;
+        payment_plan_orders?: number[] | null;
       },
     ) => {
-      const { id, payment_plan_ids, ...rest } = payload;
+      const { id, payment_plan_ids, payment_plan_orders, ...rest } = payload;
       const { error } = await supabase
         .from("contracts")
         .update({
@@ -128,7 +130,7 @@ export const useUpdateContract = () => {
         const insertPayload = payment_plan_ids.map((planId, index) => ({
           contract_id: id,
           payment_plan_id: planId,
-          display_order: index,
+          display_order: payment_plan_orders?.[index] ?? (index + 1),
         }));
         const { error: linkError } = await supabase
           .from("contract_payment_plans")
@@ -242,7 +244,7 @@ export const useDuplicateContracts = () => {
           const end = new Date(contractEnd);
           const diffTime = Math.abs(end.getTime() - start.getTime());
           const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-          weeks = Math.ceil(diffDays / 7);
+          weeks = Math.round(diffDays / 7);
         } else {
           weeks = contractData.weeks; // Fallback to original weeks if dates missing
         }

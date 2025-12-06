@@ -98,6 +98,20 @@
 - **Impact**: Better error recovery and user experience
 
 ### ✅ **1.10 Payment Plan Selection Persistence**
+
+### ✅ **1.11 Contracts Page Enhancements (2025-01-25)**
+**Implementation**: Major improvements to contract management interface
+- **Academic Year Context Toggle**: Added filter dropdown to view contracts by academic year, defaults to active year
+- **Editable Contract Names**: Contract names can now be edited after creation (previously only during creation)
+- **Payment Plan Order Persistence**: Payment plan display order now persists correctly when reopening edit dialog (previously reset to alphabetical)
+- **Default Payment Plan Order**: Implemented sensible default order (Pay in Full, 3 Instalments, 4 Instalments, 10 Instalments) with 1-based indexing (1,2,3,4) instead of 0-based
+- **Weeks Calculation Accuracy**: Changed from Math.ceil() to Math.round() for accurate contract duration (e.g., 45.14 weeks now rounds to 45 instead of 46)
+- **Automatic Weeks Recalculation**: Weeks value is automatically recalculated and saved when contract dates are modified
+- **Impact**: Improved contract management workflow, accurate calculations, better user experience
+
+---
+
+### ✅ **1.12 Payment Plan Selection Persistence**
 **Original Spec**: Basic plan selection
 **Implementation**:
 - RPC function `set_selected_payment_plan` to handle PostgREST cache issues

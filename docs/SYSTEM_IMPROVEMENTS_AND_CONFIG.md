@@ -44,7 +44,25 @@
 
 ---
 
-### ✅ **1.3 Enhanced Document Management**
+### ✅ **1.3 Contracts Management Enhancements (2025-01-25)**
+**Original Spec**: Basic contract CRUD with payment plan association
+**Implementation**: Enhanced contract management with improved UX and accuracy
+- **Academic Year Filter**: Filter contracts by academic year with dropdown selector (similar to Payment Plans page)
+- **Editable Contract Names**: Contract names can be edited in edit mode (previously only during creation)
+- **Payment Plan Order Persistence**: Display order of payment plans persists when reopening edit dialog
+- **Default Payment Plan Order**: Sensible default order (Pay in Full=1, 3 Instalments=2, 4 Instalments=3, 10 Instalments=4) using 1-based indexing
+- **Accurate Weeks Calculation**: Changed from Math.ceil() to Math.round() for accurate contract duration calculation
+- **Automatic Weeks Updates**: Weeks are recalculated and saved when contract dates are edited
+- **Technical Implementation**:
+  - Added `filterAcademicYearId` state and filtering logic
+  - Moved contract name field outside conditional rendering
+  - Created `getDefaultPaymentPlanOrder()` helper function
+  - Implemented `sortedActivePlans` memo for consistent ordering
+  - Modified `useCreateContract` and `useUpdateContract` hooks to accept `payment_plan_orders` array
+  - Fixed `display_order` to use actual order values (1,2,3,4) instead of array index (0,1,2,3)
+- **Impact**: Better contract management workflow, accurate financial calculations, improved data integrity
+
+### ✅ **1.4 Enhanced Document Management**
 **Original Spec**: Basic document upload  
 **Implementation**: Comprehensive document lifecycle management
 
@@ -556,6 +574,7 @@ All Edge Functions include:
 - `release-expired-reservations` - Reservation expiry handling
 - `create-contract-pdf` - PDF generation
 - `download-signed-document` - DocuSign document download
+- `manage-users` - Admin user management (invite/delete staff/superadmin users)
 
 ### **5.2 Database Migrations**
 - `20250315_set_selected_plan_function.sql` - Payment plan selection

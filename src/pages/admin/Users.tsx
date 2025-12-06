@@ -86,25 +86,6 @@ const Users = () => {
             emailMap = data.emails;
           } else if (emailError) {
             console.warn("Could not fetch user emails via edge function:", emailError);
-            // Fallback: try direct admin API calls
-            const emailPromises = profileIds.map(async (userId) => {
-              try {
-                const { data: user, error } = await supabase.auth.admin.getUserById(userId);
-                if (!error && user?.user?.email) {
-                  return { userId, email: user.user.email };
-                }
-                return null;
-              } catch (err) {
-                return null;
-              }
-            });
-
-            const emailResults = await Promise.all(emailPromises);
-            emailResults.forEach((result) => {
-              if (result) {
-                emailMap[result.userId] = result.email;
-              }
-            });
           }
         } catch (err) {
           console.warn("Could not fetch user emails:", err);
@@ -122,30 +103,34 @@ const Users = () => {
   // Invite user mutation
   const inviteUser = useMutation({
     mutationFn: async ({ email, role }: { email: string; role: "staff" | "superadmin" }) => {
-      // Create user in auth
-      const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, {
-        data: { role },
+      // Call Edge Function to invite user
+      const { data, error } = await supabase.functions.invoke("manage-users", {
+        body: {
+          action: "invite",
+          email,
+          role,
+        },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Edge function invoke error:", error);
+        throw new Error(error.message || "Failed to invoke manage-users function");
+      }
 
-      // Update profile role
-      if (data.user) {
-        const { error: profileError } = await supabase
-          .from("profiles")
-          .update({ role })
-          .eq("id", data.user.id);
+      if (data?.error) {
+        console.error("Edge function returned error:", data.error);
+        throw new Error(data.error);
+      }
 
-        if (profileError) {
-          console.warn("Failed to update profile role:", profileError);
-        }
+      if (!data || !data.success) {
+        throw new Error(data?.message || "Failed to invite user");
       }
 
       // Log activity
       await logActivity({
         action: "create",
         entityType: "user",
-        entityId: data.user?.id,
+        entityId: data?.user?.id,
         payload: { email, role },
       });
 
@@ -247,17 +232,27 @@ const Users = () => {
   // Delete user mutation
   const deleteUser = useMutation({
     mutationFn: async (userId: string) => {
-      // Get user email before deletion for logging
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("first_name, last_name, role")
-        .eq("id", userId)
-        .single();
+      // Call Edge Function to delete user
+      const { data, error } = await supabase.functions.invoke("manage-users", {
+        body: {
+          action: "delete",
+          userId,
+        },
+      });
 
-      // Delete user from auth (this will cascade delete profile)
-      const { error } = await supabase.auth.admin.deleteUser(userId);
+      if (error) {
+        console.error("Edge function invoke error:", error);
+        throw new Error(error.message || "Failed to invoke manage-users function");
+      }
 
-      if (error) throw error;
+      if (data?.error) {
+        console.error("Edge function returned error:", data.error);
+        throw new Error(data.error);
+      }
+
+      if (!data || !data.success) {
+        throw new Error(data?.message || "Failed to delete user");
+      }
 
       // Log activity
       await logActivity({
@@ -265,9 +260,9 @@ const Users = () => {
         entityType: "user",
         entityId: userId,
         payload: { 
-          first_name: profile?.first_name,
-          last_name: profile?.last_name,
-          role: profile?.role 
+          first_name: data?.deletedUser?.first_name,
+          last_name: data?.deletedUser?.last_name,
+          role: data?.deletedUser?.role 
         },
       });
     },

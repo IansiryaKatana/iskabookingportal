@@ -32,7 +32,7 @@ There are **2 Supabase Edge Functions** that exist locally but are **NOT YET DEP
 
 ---
 
-## Currently Deployed Functions (19 total)
+## Currently Deployed Functions (22 total)
 
 ✅ All these functions are **ACTIVE** and deployed:
 
@@ -55,6 +55,9 @@ There are **2 Supabase Edge Functions** that exist locally but are **NOT YET DEP
 17. check-integration-status
 18. create-partner-account
 19. weekly-payment-report
+20. get-payment-intent-details
+21. send-confirmation-email
+22. manage-users
 
 ---
 
@@ -133,5 +136,23 @@ Both pending functions are now **ACTIVE** on Supabase:
 - `get-payment-intent-details` - Version 2, deployed at 2025-01-27 11:51:26 UTC
 - `send-confirmation-email` - Version 2, deployed at 2025-01-27 11:51:32 UTC
 
-**Total Functions Deployed:** 21/21 ✅
+**Total Functions Deployed:** 22/22 ✅
+
+---
+
+## Recently Deployed Functions
+
+### `manage-users` ✅ **DEPLOYED** - 2025-12-06
+
+- **Status:** ✅ Deployed and active
+- **Location:** `supabase/functions/manage-users/index.ts`
+- **Usage:** 
+  - Used in `src/pages/admin/Users.tsx` for user invitation and deletion
+  - Handles admin user management operations securely
+- **Features:**
+  - Invite staff/superadmin users by email
+  - Delete users from the system
+  - Verifies admin permissions before allowing operations
+  - Uses service role key securely on backend
+- **Security:** Requires admin authentication (staff or superadmin role)
 

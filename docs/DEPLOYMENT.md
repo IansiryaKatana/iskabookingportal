@@ -156,6 +156,7 @@ supabase functions deploy
 # Or deploy individually
 supabase functions deploy create-payment
 supabase functions deploy release-expired-reservations
+supabase functions deploy manage-users
 # ... etc
 ```
 
