@@ -75,7 +75,9 @@ const fetchApplications = async (academicYearId?: string): Promise<AdminApplicat
   }
 
   if (!data || data.length === 0) {
-    console.info("No applications found");
+    if (import.meta.env.DEV) {
+      console.info("No applications found");
+    }
     return [];
   }
 
@@ -122,7 +124,9 @@ const fetchApplications = async (academicYearId?: string): Promise<AdminApplicat
     (profiles ?? []).map((p) => [p.id, { id: p.id, first_name: p.first_name, last_name: p.last_name }]),
   );
 
-  console.info("Fetched applications:", data.length, "applications");
+  if (import.meta.env.DEV) {
+    console.info("Fetched applications:", data.length, "applications");
+  }
 
   const enriched = data.map((row) => ({
     ...row,

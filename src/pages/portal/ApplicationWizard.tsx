@@ -3573,8 +3573,19 @@ useEffect(() => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Loading indicator when sending DocuSign agreements */}
+                {sendingAgreements && (
+                  <Alert className="border-blue-500/40 bg-blue-500/10">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <AlertTitle className="font-semibold">Sending Agreements</AlertTitle>
+                    <AlertDescription className="text-sm mt-1">
+                      We're preparing and sending your tenancy agreement via DocuSign. This may take a few moments. You'll receive an email when it's ready to sign.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 {/* Status message when waiting for documents/agreement */}
-                {!canLaunchSigning && !effectiveTenancyEnvelope && depositPaid && (
+                {!sendingAgreements && !canLaunchSigning && !effectiveTenancyEnvelope && depositPaid && (
                   <Alert className="border-blue-500/40 bg-blue-500/10">
                     <Info className="h-4 w-4" />
                     <AlertTitle className="font-semibold">Preparing Your Agreement</AlertTitle>
@@ -3585,7 +3596,7 @@ useEffect(() => {
                 )}
 
                 {/* Progress checklist when waiting */}
-                {!canLaunchSigning && !effectiveTenancyEnvelope && depositPaid && (
+                {!sendingAgreements && !canLaunchSigning && !effectiveTenancyEnvelope && depositPaid && (
                   <div className="space-y-2 rounded-lg border border-border/60 bg-muted/30 p-4">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
                       Application Progress
@@ -3632,9 +3643,14 @@ useEffect(() => {
                         type="button"
                         className="rounded-full uppercase tracking-wide"
                         onClick={handleLaunchSigning}
-                        disabled={!canLaunchSigning}
+                        disabled={!canLaunchSigning || sendingAgreements}
                       >
-                        {signingLoading ? (
+                        {sendingAgreements ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Sending agreements...
+                          </>
+                        ) : signingLoading ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             Launching…

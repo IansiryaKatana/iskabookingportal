@@ -123,10 +123,10 @@ const Applications = () => {
             className="w-full md:w-64"
           />
         </div>
-        <div className="flex flex-wrap gap-2 md:gap-3">
+        <div className="flex flex-wrap gap-2 md:gap-3 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 scrollbar-hide">
           <Button
             variant={statusFilter === "all" ? "default" : "outline"}
-            className="rounded-full uppercase tracking-wide text-xs sm:text-sm"
+            className="rounded-full uppercase tracking-wide text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
             onClick={() => setStatusFilter("all")}
           >
             All applications
@@ -135,7 +135,7 @@ const Applications = () => {
             <Button
               key={key}
               variant={statusFilter === key ? "default" : "outline"}
-              className="rounded-full uppercase tracking-wide text-xs sm:text-sm whitespace-nowrap"
+              className="rounded-full uppercase tracking-wide text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
               onClick={() => setStatusFilter(key)}
             >
               {statusLabels[key]}
@@ -192,59 +192,63 @@ const Applications = () => {
               {filtered.map((application) => (
                 <div
                   key={application.id}
-                  className="rounded-2xl border border-border/60 px-5 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
+                  className="rounded-2xl border border-border/60 px-4 md:px-5 py-4 flex flex-col gap-3 overflow-hidden"
                 >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-3">
-                      <h3 className="text-lg font-display font-bold uppercase tracking-wide">
+                  <div className="space-y-1 flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 md:gap-3">
+                      <h3 className="text-base md:text-lg font-display font-bold uppercase tracking-wide truncate">
                         {application.student?.first_name} {application.student?.last_name}
                       </h3>
-                      {getStatusBadge(application.status)}
+                      <div className="flex-shrink-0">
+                        {getStatusBadge(application.status)}
+                      </div>
                     </div>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-xs md:text-sm text-muted-foreground break-words">
                       {application.contract?.studio_grade?.name ?? "Studio"} —{" "}
                       {application.contract?.name ?? "Contract"} — Created{" "}
                       {new Date(application.created_at).toLocaleDateString("en-GB")}
                     </p>
                     {application.assigned_studio?.studio_number && (
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-muted-foreground truncate">
                         Assigned studio: {application.assigned_studio.studio_number}
                       </p>
                     )}
                     {application.deposit_payment_intent_id && (
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-muted-foreground truncate">
                         Stripe payment intent: {application.deposit_payment_intent_id}
                       </p>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <SelectStatusButton
-                      status={application.status}
-                      onChange={(status) =>
-                        handleStatusChange(
-                          application.id,
-                          status as keyof typeof statusLabels,
-                        )
-                      }
-                    />
-                    <div className="flex items-center gap-2">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-wrap">
+                    <div className="w-full sm:w-auto sm:min-w-[180px]">
+                      <SelectStatusButton
+                        status={application.status}
+                        onChange={(status) =>
+                          handleStatusChange(
+                            application.id,
+                            status as keyof typeof statusLabels,
+                          )
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
                       <Button
                         variant="outline"
                         size="sm"
-                        className="rounded-full uppercase tracking-wide gap-2"
+                        className="rounded-full uppercase tracking-wide gap-2 flex-1 sm:flex-initial text-xs"
                         onClick={() => {
                           setSelectedApplicationId(application.id);
                           setManualPaymentOpen(true);
                         }}
                       >
                         <CreditCard className="h-4 w-4" />
-                        Record Payment
+                        <span className="hidden sm:inline">Record Payment</span>
+                        <span className="sm:hidden">Payment</span>
                       </Button>
-                    <div className="flex items-center gap-2">
                       <Button
                         variant="outline"
                         size="sm"
-                        className="rounded-full uppercase tracking-wide gap-2"
+                        className="rounded-full uppercase tracking-wide gap-2 flex-1 sm:flex-initial text-xs"
                         onClick={() => navigate(`/admin/applications/${application.id}`)}
                       >
                         Review
@@ -252,15 +256,15 @@ const Applications = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="rounded-full uppercase tracking-wide gap-2"
+                        className="rounded-full uppercase tracking-wide gap-2 flex-1 sm:flex-initial text-xs"
                         onClick={() =>
                           navigate(`/portal/applications/${application.id}`)
                         }
                       >
                         <ExternalLink className="h-4 w-4" />
-                        Open journey
+                        <span className="hidden sm:inline">Open journey</span>
+                        <span className="sm:hidden">Open</span>
                       </Button>
-                    </div>
                     </div>
                   </div>
                 </div>
@@ -307,7 +311,7 @@ const SelectStatusButton = ({
       value={status}
       onValueChange={(value) => onChange(value)}
     >
-      <SelectTrigger className="w-48 rounded-full">
+      <SelectTrigger className="w-full sm:w-48 rounded-full text-xs sm:text-sm">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

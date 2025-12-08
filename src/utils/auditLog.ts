@@ -44,8 +44,8 @@ export async function logActivity(params: AuditLogParams): Promise<void> {
       return;
     }
 
-    // Debug log for superadmin
-    if (profile.role === "superadmin") {
+    // Debug log for superadmin (development only)
+    if (import.meta.env.DEV && profile.role === "superadmin") {
       console.log("🔐 Logging activity as superadmin:", {
         action: params.action,
         entityType: params.entityType,
@@ -100,23 +100,27 @@ export async function logActivity(params: AuditLogParams): Promise<void> {
         // Don't throw - allow the operation to succeed even if logging fails
         // But log the error so we can debug
       } else {
-        console.log("✅ Activity logged successfully (direct insert):", {
-          logId: insertData?.id,
-          action: params.action,
-          entityType: params.entityType,
-          entityId: params.entityId,
-        });
+        if (import.meta.env.DEV) {
+          console.log("✅ Activity logged successfully (direct insert):", {
+            logId: insertData?.id,
+            action: params.action,
+            entityType: params.entityType,
+            entityId: params.entityId,
+          });
+        }
       }
     } else {
       // RPC function succeeded - if it returns a UUID, the insert worked
       // (RPC uses SECURITY DEFINER so it bypasses RLS)
       if (rpcResult && typeof rpcResult === 'string') {
-        console.log("✅ Activity logged successfully (via RPC function):", {
-          logId: rpcResult,
-          action: params.action,
-          entityType: params.entityType,
-          entityId: params.entityId,
-        });
+        if (import.meta.env.DEV) {
+          console.log("✅ Activity logged successfully (via RPC function):", {
+            logId: rpcResult,
+            action: params.action,
+            entityType: params.entityType,
+            entityId: params.entityId,
+          });
+        }
         // RPC function worked - record is in database, no need to verify
         // (verification would fail due to RLS, but RPC bypasses RLS)
       } else {
