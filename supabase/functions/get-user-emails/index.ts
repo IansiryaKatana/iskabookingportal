@@ -25,13 +25,37 @@ serve(async (req) => {
     );
 
     // Get user IDs from request body
-    const { userIds } = await req.json();
-
-    if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+    let body: any;
+    try {
+      body = await req.json();
+    } catch (parseError) {
       return new Response(
-        JSON.stringify({ error: "userIds array is required" }),
+        JSON.stringify({ error: "Invalid JSON in request body" }),
         {
           status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    const { userIds } = body || {};
+
+    // Validate userIds is an array
+    if (!userIds || !Array.isArray(userIds)) {
+      return new Response(
+        JSON.stringify({ error: "userIds must be an array" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    // If empty array, return empty emails map (not an error)
+    if (userIds.length === 0) {
+      return new Response(
+        JSON.stringify({ emails: {} }),
+        {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         },
       );

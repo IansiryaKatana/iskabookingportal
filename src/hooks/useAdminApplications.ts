@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { logActivity } from "@/utils/auditLog";
 
 type ApplicationRow = Database["public"]["Tables"]["student_applications"]["Row"];
 
@@ -158,6 +159,8 @@ export const useUpdateApplicationStatus = () => {
         .eq("id", id)
         .single();
 
+      const oldStatus = currentApp?.status;
+
       const { data, error } = await supabase
         .from("student_applications")
         .update({
@@ -170,6 +173,23 @@ export const useUpdateApplicationStatus = () => {
         .single();
 
       if (error) throw error;
+
+      // Log status change
+      if (oldStatus !== status) {
+        await logActivity({
+          action: "update",
+          entityType: "student_application",
+          entityId: id,
+          payload: {
+            status_change: {
+              from: oldStatus,
+              to: status,
+            },
+            student_id: currentApp?.student_id,
+            verified_by: rest.verified_by || null,
+          },
+        });
+      }
 
       // Send confirmation email if status changed to confirmed
       if (status === "confirmed" && currentApp?.status !== "confirmed") {

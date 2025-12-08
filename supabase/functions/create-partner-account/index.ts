@@ -352,6 +352,23 @@ serve(async (req) => {
       // Log the error but still return success since account was created
     }
 
+    // Log partner account creation
+    await supabaseAdmin
+      .from("staff_activity_logs")
+      .insert({
+        staff_id: user.id,
+        action: "create",
+        entity_type: "partner_account",
+        entity_id: authData.user.id,
+        payload: {
+          partner_id,
+          email,
+          first_name,
+          last_name,
+          password_reset_sent: !resetError,
+        },
+      });
+
     return new Response(
       JSON.stringify({
         success: true,

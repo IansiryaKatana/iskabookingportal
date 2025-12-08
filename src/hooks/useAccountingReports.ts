@@ -129,6 +129,12 @@ export const useRevenueSummary = (
       const start = startDate ? new Date(startDate) : null;
       const end = endDate ? new Date(endDate) : null;
 
+      // Validate groupBy parameter
+      if (groupBy !== "month" && groupBy !== "quarter") {
+        console.warn(`Invalid groupBy value: ${groupBy}, defaulting to "month"`);
+        groupBy = "month";
+      }
+
       const { data, error } = await supabase.rpc("get_revenue_summary", {
         p_start_date: start?.toISOString().split("T")[0] || null,
         p_end_date: end?.toISOString().split("T")[0] || null,
@@ -136,12 +142,20 @@ export const useRevenueSummary = (
       });
 
       if (error) {
+        // Don't log as error if it's just a validation issue
+        if (error.code === "42883" || error.message?.includes("does not exist")) {
+          console.warn("Revenue summary function not available:", error.message);
+          return [];
+        }
         console.error("Failed to fetch revenue summary:", error);
-        throw error;
+        // Return empty array instead of throwing to prevent UI crashes
+        return [];
       }
 
       return (data || []) as RevenueSummaryItem[];
     },
+    enabled: startDate !== undefined && endDate !== undefined && !!startDate && !!endDate, // Only run when dates are provided
+    retry: false, // Don't retry on error
   });
 };
 

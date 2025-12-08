@@ -7,9 +7,10 @@ type AcademicYearRow = Database["public"]["Tables"]["academic_years"]["Row"];
 
 type AcademicYearSelectorProps = {
   value?: string; // academic_year_id
-  onValueChange: (academicYearId: string) => void;
+  onValueChange: (academicYearId: string | undefined) => void;
   label?: string;
   className?: string;
+  allowEmpty?: boolean; // Allow selecting "All" option
 };
 
 const formatYearForDisplay = (yearName: string) => {
@@ -22,6 +23,7 @@ export const AcademicYearSelector = ({
   onValueChange,
   label = "Academic Year",
   className,
+  allowEmpty = false,
 }: AcademicYearSelectorProps) => {
   const [academicYears, setAcademicYears] = useState<AcademicYearRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,8 +51,10 @@ export const AcademicYearSelector = ({
       const futureYear = years.find((y) => new Date(y.start_date) > now);
       const selected = futureYear || years[0] || null;
       setDefaultYear(selected);
-
-      // If no value is set, use the default
+      
+      // If no value is provided and we have a default, notify parent
+      // This ensures queries run with the correct academic year on initial load
+      // Even when allowEmpty is true, we auto-select the default year
       if (!value && selected) {
         onValueChange(selected.id);
       }
@@ -60,7 +64,7 @@ export const AcademicYearSelector = ({
 
     loadAcademicYears();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+  }, []);
 
   if (loading) {
     return (
@@ -75,15 +79,27 @@ export const AcademicYearSelector = ({
   }
 
   // Ensure value is always a string (controlled component)
-  const controlledValue = value ?? defaultYear?.id ?? "";
+  // Use empty string if no value is provided and no default is available
+  const controlledValue = value || defaultYear?.id || (allowEmpty ? "all" : "");
+
+  const handleValueChange = (newValue: string) => {
+    if (allowEmpty && newValue === "all") {
+      onValueChange(undefined);
+    } else {
+      onValueChange(newValue);
+    }
+  };
 
   return (
     <div className={className}>
-      <Select value={controlledValue} onValueChange={onValueChange}>
+      <Select value={controlledValue} onValueChange={handleValueChange}>
         <SelectTrigger className="w-full rounded-full">
           <SelectValue placeholder={label} />
         </SelectTrigger>
         <SelectContent>
+          {allowEmpty && (
+            <SelectItem value="all">All Academic Years</SelectItem>
+          )}
           {academicYears.map((year) => (
             <SelectItem key={year.id} value={year.id}>
               {formatYearForDisplay(year.name)} ({year.name})

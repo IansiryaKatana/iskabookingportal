@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { logActivity } from "@/utils/auditLog";
 
 type StudioGrade = Database["public"]["Tables"]["studio_grades"]["Row"];
 type StudioGradePrice =
@@ -100,6 +101,14 @@ export const useUpdateStudioGrade = () => {
   return useMutation({
     mutationFn: async (payload: Partial<StudioGrade> & { id: string }) => {
       const { id, ...rest } = payload;
+      
+      // Get old studio grade data for logging
+      const { data: oldGrade } = await supabase
+        .from("studio_grades")
+        .select("name, slug")
+        .eq("id", id)
+        .single();
+
       const { data, error } = await supabase
         .from("studio_grades")
         .update(rest)
@@ -108,6 +117,18 @@ export const useUpdateStudioGrade = () => {
         .single();
 
       if (error) throw error;
+
+      // Log studio grade update
+      await logActivity({
+        action: "update",
+        entityType: "studio_grade",
+        entityId: id,
+        payload: {
+          name: oldGrade?.name,
+          slug: oldGrade?.slug,
+        },
+      });
+
       return data;
     },
     onSuccess: () => {
@@ -128,6 +149,13 @@ export const useUpdateStudioGradePrice = () => {
     }) => {
       const { id, ...rest } = payload;
       if (id) {
+        // Get old price data for logging
+        const { data: oldPrice } = await supabase
+          .from("studio_grade_prices")
+          .select("weekly_price, deposit_amount_override")
+          .eq("id", id)
+          .single();
+
         const { data, error } = await supabase
           .from("studio_grade_prices")
           .update(rest)
@@ -135,6 +163,26 @@ export const useUpdateStudioGradePrice = () => {
           .select("*")
           .single();
         if (error) throw error;
+
+        // Log studio grade price update
+        await logActivity({
+          action: "update",
+          entityType: "studio_grade_price",
+          entityId: id,
+          payload: {
+            studio_grade_id: rest.studio_grade_id,
+            academic_year_id: rest.academic_year_id,
+            changes: {
+              weekly_price: rest.weekly_price !== undefined
+                ? { from: oldPrice?.weekly_price, to: rest.weekly_price }
+                : undefined,
+              deposit_amount_override: rest.deposit_amount_override !== undefined
+                ? { from: oldPrice?.deposit_amount_override, to: rest.deposit_amount_override }
+                : undefined,
+            },
+          },
+        });
+
         return data;
       }
 
@@ -144,6 +192,20 @@ export const useUpdateStudioGradePrice = () => {
         .select("*")
         .single();
       if (error) throw error;
+
+      // Log studio grade price creation
+      await logActivity({
+        action: "create",
+        entityType: "studio_grade_price",
+        entityId: data.id,
+        payload: {
+          studio_grade_id: rest.studio_grade_id,
+          academic_year_id: rest.academic_year_id,
+          weekly_price: rest.weekly_price,
+          deposit_amount_override: rest.deposit_amount_override,
+        },
+      });
+
       return data;
     },
     onSuccess: () => {

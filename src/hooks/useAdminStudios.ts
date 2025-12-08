@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { logActivity } from "@/utils/auditLog";
 
 type StudioRow = Database["public"]["Tables"]["studios"]["Row"];
 
@@ -143,6 +144,14 @@ export const useUpdateStudio = () => {
   return useMutation({
     mutationFn: async (payload: Partial<StudioRow> & { id: string }) => {
       const { id, ...rest } = payload;
+      
+      // Get old studio data for logging
+      const { data: oldStudio } = await supabase
+        .from("studios")
+        .select("studio_number, status, allocation, is_active")
+        .eq("id", id)
+        .single();
+
       const { data, error } = await supabase
         .from("studios")
         .update(rest)
@@ -151,6 +160,28 @@ export const useUpdateStudio = () => {
         .single();
 
       if (error) throw error;
+
+      // Log studio update
+      await logActivity({
+        action: "update",
+        entityType: "studio",
+        entityId: id,
+        payload: {
+          studio_number: oldStudio?.studio_number,
+          changes: {
+            status: rest.status !== undefined
+              ? { from: oldStudio?.status, to: rest.status }
+              : undefined,
+            allocation: rest.allocation !== undefined
+              ? { from: oldStudio?.allocation, to: rest.allocation }
+              : undefined,
+            is_active: rest.is_active !== undefined
+              ? { from: oldStudio?.is_active, to: rest.is_active }
+              : undefined,
+          },
+        },
+      });
+
       return data;
     },
     onSuccess: () => {
@@ -167,6 +198,13 @@ export const useBulkUpdateStudios = () => {
       updates: Partial<StudioRow>;
     }) => {
       const { studioIds, updates } = payload;
+      
+      // Get old studio data for logging
+      const { data: oldStudios } = await supabase
+        .from("studios")
+        .select("id, studio_number, status, allocation")
+        .in("id", studioIds);
+
       const { data, error } = await supabase
         .from("studios")
         .update(updates)
@@ -174,6 +212,30 @@ export const useBulkUpdateStudios = () => {
         .select("*");
 
       if (error) throw error;
+
+      // Log bulk studio update
+      await logActivity({
+        action: "update",
+        entityType: "studio",
+        entityId: null, // Bulk operation
+        payload: {
+          bulk_update: true,
+          studios_count: studioIds.length,
+          studio_ids: studioIds,
+          changes: {
+            status: updates.status !== undefined
+              ? { from: oldStudios?.map(s => s.status), to: updates.status }
+              : undefined,
+            allocation: updates.allocation !== undefined
+              ? { from: oldStudios?.map(s => s.allocation), to: updates.allocation }
+              : undefined,
+            is_active: updates.is_active !== undefined
+              ? { from: oldStudios?.map(s => s.is_active), to: updates.is_active }
+              : undefined,
+          },
+        },
+      });
+
       return data;
     },
     onSuccess: () => {

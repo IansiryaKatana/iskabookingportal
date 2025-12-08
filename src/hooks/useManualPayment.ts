@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { logActivity } from "@/utils/auditLog";
 
 type ManualPayment = Database["public"]["Tables"]["manual_payments"]["Row"];
 
@@ -38,6 +39,24 @@ export const useCreateManualPayment = () => {
         .single();
 
       if (error) throw error;
+
+      // Log manual payment creation
+      await logActivity({
+        action: "create",
+        entityType: "payment",
+        entityId: data.id,
+        payload: {
+          payment_type: "manual",
+          application_id: input.applicationId,
+          payment_type_detail: input.paymentType,
+          amount: input.amount,
+          payment_method: input.paymentMethod,
+          receipt_number: input.receiptNumber || null,
+          payment_date: input.paymentDate,
+          instalment_id: input.instalmentId || null,
+          notes: input.notes || null,
+        },
+      });
 
       // If deposit payment, update application status
       if (input.paymentType === "deposit") {

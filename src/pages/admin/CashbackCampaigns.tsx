@@ -24,6 +24,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import type { CashbackCampaign } from "@/hooks/useCashback";
+import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
+import { useAdminAcademicYears } from "@/hooks/useAdminAcademicYears";
+import { logActivity } from "@/utils/auditLog";
 
 const CashbackCampaigns = () => {
   const { user } = useAuth();
@@ -31,14 +34,112 @@ const CashbackCampaigns = () => {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<CashbackCampaign | null>(null);
+  const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string | undefined>(undefined);
 
   const { data: campaigns, isLoading } = useQuery({
-    queryKey: ["cashback-campaigns"],
+    queryKey: ["cashback-campaigns", selectedAcademicYearId],
+    enabled: true, // Always enabled - will refetch when selectedAcademicYearId changes
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("cashback_campaigns")
-        .select("*")
+        .select(`
+          *,
+          academic_year:academic_years(id, name)
+        `)
         .order("created_at", { ascending: false });
+
+      // Filter by academic year if selected
+      // Show campaigns for the selected year OR campaigns with no academic year (applies to all)
+      if (selectedAcademicYearId) {
+        // Fetch campaigns matching the academic year OR null academic year
+        const { data: yearCampaigns, error: yearError } = await supabase
+          .from("cashback_campaigns")
+          .select("*")
+          .eq("academic_year_id", selectedAcademicYearId)
+          .order("created_at", { ascending: false });
+
+        const { data: allYearCampaigns, error: allYearError } = await supabase
+          .from("cashback_campaigns")
+          .select("*")
+          .is("academic_year_id", null)
+          .order("created_at", { ascending: false });
+
+        if (yearError || allYearError) {
+          console.error("Error fetching campaigns:", yearError || allYearError);
+          throw yearError || allYearError;
+        }
+
+        // Fetch academic year names for campaigns that have academic_year_id
+        const academicYearIds = [
+          ...new Set(
+            [...(yearCampaigns || [])]
+              .map((c) => c.academic_year_id)
+              .filter((id): id is string => Boolean(id))
+          ),
+        ];
+
+        let academicYearsMap = new Map<string, { id: string; name: string }>();
+        if (academicYearIds.length > 0) {
+          const { data: years } = await supabase
+            .from("academic_years")
+            .select("id, name")
+            .in("id", academicYearIds);
+
+          if (years) {
+            years.forEach((year) => {
+              academicYearsMap.set(year.id, year);
+            });
+          }
+        }
+
+        // Combine and enrich with academic year data
+        const combined = [...(yearCampaigns || []), ...(allYearCampaigns || [])];
+        const unique = combined
+          .filter((campaign, index, self) => 
+            index === self.findIndex((c) => c.id === campaign.id)
+          )
+          .map((campaign) => ({
+            ...campaign,
+            academic_year: campaign.academic_year_id
+              ? academicYearsMap.get(campaign.academic_year_id) || null
+              : null,
+          }));
+
+        return unique as CashbackCampaign[];
+      }
+
+      // Fetch academic year names for campaigns that have academic_year_id
+      const academicYearIds = [
+        ...new Set(
+          (data || [])
+            .map((c: any) => c.academic_year_id)
+            .filter((id: any): id is string => Boolean(id))
+        ),
+      ];
+
+      let academicYearsMap = new Map<string, { id: string; name: string }>();
+      if (academicYearIds.length > 0) {
+        const { data: years } = await supabase
+          .from("academic_years")
+          .select("id, name")
+          .in("id", academicYearIds);
+
+        if (years) {
+          years.forEach((year) => {
+            academicYearsMap.set(year.id, year);
+          });
+        }
+      }
+
+      // Enrich campaigns with academic year data
+      const enriched = (data || []).map((campaign: any) => ({
+        ...campaign,
+        academic_year: campaign.academic_year_id
+          ? academicYearsMap.get(campaign.academic_year_id) || null
+          : null,
+      }));
+
+      return enriched as CashbackCampaign[];
 
       if (error) throw error;
       return (data || []) as CashbackCampaign[];
@@ -54,13 +155,29 @@ const CashbackCampaigns = () => {
       start_date: string;
       end_date: string;
       max_uses?: number;
+      academic_year_id?: string | null;
     }) => {
-      const { error } = await supabase.from("cashback_campaigns").insert({
+      const { data: result, error } = await supabase.from("cashback_campaigns").insert({
         ...data,
         created_by: user?.id,
-      });
+      }).select("*").single();
 
       if (error) throw error;
+
+      // Log cashback campaign creation
+      await logActivity({
+        action: "create",
+        entityType: "cashback_campaign",
+        entityId: result.id,
+        payload: {
+          name: data.name,
+          cashback_amount: data.cashback_amount,
+          applies_to: data.applies_to,
+          start_date: data.start_date,
+          end_date: data.end_date,
+          academic_year_id: data.academic_year_id,
+        },
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cashback-campaigns"] });
@@ -87,12 +204,39 @@ const CashbackCampaigns = () => {
       id: string;
       data: Partial<CashbackCampaign>;
     }) => {
+      // Get old campaign data for logging
+      const { data: oldCampaign } = await supabase
+        .from("cashback_campaigns")
+        .select("name, is_active, cashback_amount")
+        .eq("id", id)
+        .single();
+
       const { error } = await supabase
         .from("cashback_campaigns")
         .update(data)
         .eq("id", id);
 
       if (error) throw error;
+
+      // Log cashback campaign update
+      await logActivity({
+        action: "update",
+        entityType: "cashback_campaign",
+        entityId: id,
+        payload: {
+          changes: {
+            name: data.name !== undefined
+              ? { from: oldCampaign?.name, to: data.name }
+              : undefined,
+            is_active: data.is_active !== undefined
+              ? { from: oldCampaign?.is_active, to: data.is_active }
+              : undefined,
+            cashback_amount: data.cashback_amount !== undefined
+              ? { from: oldCampaign?.cashback_amount, to: data.cashback_amount }
+              : undefined,
+          },
+        },
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cashback-campaigns"] });
@@ -114,12 +258,29 @@ const CashbackCampaigns = () => {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      // Get campaign name for logging
+      const { data: campaign } = await supabase
+        .from("cashback_campaigns")
+        .select("name")
+        .eq("id", id)
+        .single();
+
       const { error } = await supabase
         .from("cashback_campaigns")
         .update({ is_active: false })
         .eq("id", id);
 
       if (error) throw error;
+
+      // Log cashback campaign deactivation
+      await logActivity({
+        action: "deactivate",
+        entityType: "cashback_campaign",
+        entityId: id,
+        payload: {
+          name: campaign?.name,
+        },
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cashback-campaigns"] });
@@ -178,6 +339,14 @@ const CashbackCampaigns = () => {
       }
     >
       <div className="space-y-6">
+        <div className="mb-6 flex items-center justify-start md:justify-end">
+          <AcademicYearSelector
+            value={selectedAcademicYearId}
+            onValueChange={(value) => setSelectedAcademicYearId(value)}
+            className="w-full md:w-64"
+            allowEmpty={true}
+          />
+        </div>
         <div className="hidden lg:flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-display uppercase tracking-wide">
@@ -295,6 +464,12 @@ const CashbackCampaigns = () => {
                       {campaign.applies_to}
                     </Badge>
                   </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Academic Year</span>
+                    <Badge variant="outline">
+                      {campaign.academic_year?.name || "All Years"}
+                    </Badge>
+                  </div>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Calendar className="h-4 w-4" />
                     <span>
@@ -352,6 +527,7 @@ type CampaignFormProps = {
     start_date: string;
     end_date: string;
     max_uses?: number;
+    academic_year_id?: string | null;
   }) => void;
   onCancel: () => void;
   isSubmitting: boolean;
@@ -371,6 +547,11 @@ const CampaignForm = ({ campaign, onSubmit, onCancel, isSubmitting }: CampaignFo
     campaign?.end_date ? format(new Date(campaign.end_date), "yyyy-MM-dd") : ""
   );
   const [maxUses, setMaxUses] = useState(campaign?.max_uses?.toString() || "");
+  const [academicYearId, setAcademicYearId] = useState<string | undefined>(
+    campaign?.academic_year_id || undefined
+  );
+  
+  const { data: academicYears } = useAdminAcademicYears();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -382,6 +563,7 @@ const CampaignForm = ({ campaign, onSubmit, onCancel, isSubmitting }: CampaignFo
       start_date: startDate,
       end_date: endDate,
       max_uses: maxUses ? parseInt(maxUses) : undefined,
+      academic_year_id: academicYearId || null,
     });
   };
 
@@ -475,6 +657,29 @@ const CampaignForm = ({ campaign, onSubmit, onCancel, isSubmitting }: CampaignFo
         />
         <p className="text-xs text-muted-foreground">
           Limit the number of times this campaign can be used. Leave empty for unlimited.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="academic_year_id">Academic Year (Optional)</Label>
+        <Select 
+          value={academicYearId || "all"} 
+          onValueChange={(value) => setAcademicYearId(value === "all" ? undefined : value)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="All academic years" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Academic Years</SelectItem>
+            {academicYears?.map((year) => (
+              <SelectItem key={year.id} value={year.id}>
+                {year.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          Select a specific academic year for this campaign, or leave as "All Academic Years" to apply to all.
         </p>
       </div>
 

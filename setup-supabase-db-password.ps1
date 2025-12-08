@@ -67,3 +67,4 @@ Write-Host "1. Add SUPABASE_DB_PASSWORD to your system environment variables" -F
 Write-Host "2. Or use .env.local file (already done if you chose yes above)" -ForegroundColor White
 Write-Host ""
 
+

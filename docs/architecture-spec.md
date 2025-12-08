@@ -30,7 +30,7 @@ Deliver a data-driven accommodation booking experience where every studio-grade 
 - `profiles` – Supabase `auth` extension storing role and profile basics (roles: `student`, `staff`, `partner`, `superadmin`).
 - `partners` – partner referral program management with referral codes and commission rates.
 - `partner_referrals` – tracks which applications are referred by partners, commission calculations.
-- `cashback_campaigns` – cashback campaign definitions (amount, applies_to, dates, max_uses).
+- `cashback_campaigns` – cashback campaign definitions (amount, applies_to, dates, max_uses, academic_year_id).
 - `application_cashbacks` – applied cashbacks to student applications.
 - `student_applications` – booking pipeline state machine.
 - `student_application_steps` – JSON payload per form step.
@@ -258,6 +258,21 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
     - Detailed view of occupied studios with student information
     - Uses `studio_status_by_academic_year` view for accurate per-academic-year status
     - Exportable to CSV with comprehensive metrics
+  - **Studio Allocation Report** (`/admin/reports`):
+    - Shows studio allocation counts by studio grade and allocation type
+    - Breakdown: Total studios, Active studios, Allocated to Students, Allocated to OTA, Allocated to Keyworkers, Unallocated
+    - Status breakdown: Available, Occupied, Reserved, Maintenance
+    - Exportable to CSV
+  - **Booking Calendar** (`/admin/booking-calendar`):
+    - Airbnb-style calendar view showing studio occupancy by date
+    - **Layout**: Studios as rows, dates as columns (monthly view)
+    - **Filtering**: By allocation type (Student, OTA, Keyworkers, Unallocated), studio grade, and academic year
+    - **Date Navigation**: Previous/Next month buttons and "Today" button
+    - **Occupied Dates**: Highlighted with student name and contract information
+    - **Click to View**: Click on occupied dates to navigate to application detail page
+    - **Export**: CSV export with all booked studios and details
+    - **Mobile Responsive**: Horizontal scrolling calendar on mobile devices
+    - Uses `get_booking_calendar_data` RPC function to fetch data with student email from `auth.users`
   - **Weekly Payment Report** (`/admin/weekly-payment-report`):
     - Generates payment summaries for selected week (start date + optional end date, defaults to 7 days)
     - **Data Source**: Uses `unified_payment_history` view which includes:
@@ -324,9 +339,11 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
   - Update commission status (pending, approved, paid, cancelled)
   - Export commission reports (CSV, PDF)
 - **Cashback Campaign Management**:
-  - Create cashback campaigns (amount, applies_to: all/new/rebooking, dates, max_uses)
+  - Create cashback campaigns (amount, applies_to: all/new/rebooking, dates, max_uses, academic_year_id)
+  - Filter campaigns by academic year (shows campaigns for selected year + campaigns with no academic year)
   - Apply cashbacks to applications
   - Track campaign usage
+  - Academic year context: Campaigns can be associated with specific academic years or apply to all years (null academic_year_id)
 - **Payment History**:
   - Unified view of Stripe and manual payments
   - Payment summaries per application
@@ -456,6 +473,16 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
     - `delete_student_applications_by_academic_year(p_academic_year_id UUID)` – Deletes applications for specific academic year, returns JSONB with deletion count and details
     - All functions use `SECURITY DEFINER` and `set_config('row_security', 'off', true)` to bypass RLS
     - Functions handle cascading deletes, studio allocation cleanup, and orphaned record prevention
+  - **Database Views**:
+    - `booking_calendar_data` – View showing all studios with their bookings (confirmed applications) including date ranges from contracts. Includes studio info, student info, contract dates, and academic year. Note: `studio_status` and `application_status` are cast to TEXT to match function return types.
+    - `studio_status_by_academic_year` – Shows effective status of each studio per academic year based on applications
+    - `studio_allocation_report` – Studio allocation counts by studio grade and allocation type
+    - `unified_payment_history` – Unified view of all payments (Stripe, manual, deposits)
+    - `bank_reconciliation_report` – Bank reconciliation data with student names and payment details
+  - **RPC Functions**:
+    - `get_booking_calendar_data(p_allocation TEXT, p_studio_grade_id UUID, p_academic_year_id UUID)` – Returns booking calendar data with student email from `auth.users`. Uses `SECURITY DEFINER` to access `auth.users` table. Filters by allocation, studio grade, and academic year. Returns TEXT types for enum columns (`studio_status`, `application_status`).
+    - `get_revenue_summary(p_start_date DATE, p_end_date DATE, p_group_by TEXT)` – Revenue summary grouped by month or quarter
+    - `get_admin_dashboard_stats(p_academic_year_id UUID)` – Dashboard statistics for admin portal
 - **Stripe** – capture payment method, deposit, instalment payments, webhook for payment updates, refund processing.
 - **DocuSign** – agreement creation, embedded signing, status polling, signed document retrieval, envelope management.
 - **Email Service (Resend)** – transactional notifications, bulk messaging, template-based emails with variable replacement. Configured with dedicated sending domain `send.portal.urbanhub.uk` for high deliverability. Enhanced error handling with HTML response detection, detailed logging, and API key validation. See `docs/SYSTEM_IMPROVEMENTS_AND_CONFIG.md` for complete setup instructions.
@@ -663,7 +690,10 @@ All brand colors, fonts, and assets are centralized in the `branding_settings` t
 
 ### 9.10 Cashback System ✅ IMPLEMENTED
 - **Campaign Management**:
-  - Create cashback campaigns (amount, applies_to: all/new/rebooking, dates, max_uses)
+  - Create cashback campaigns (amount, applies_to: all/new/rebooking, dates, max_uses, academic_year_id)
+  - Academic year context: Campaigns can be associated with specific academic years or apply to all years (null academic_year_id)
+  - Filter campaigns by academic year in admin interface
+  - Dashboard displays active campaigns filtered by selected academic year
   - Admin can apply cashbacks to applications
   - Campaign usage tracking
 - **Application Integration**:
@@ -672,6 +702,9 @@ All brand colors, fonts, and assets are centralized in the `branding_settings` t
   - Student portal displays cashback information
   - Payment summary accounts for cashback
 - **Auto-Application**: Eligible cashbacks automatically applied when application is confirmed
+- **Academic Year Filtering**:
+  - When an academic year is selected, shows campaigns for that year OR campaigns with no academic year (applies to all)
+  - AcademicYearSelector auto-selects default year on page load to ensure campaigns display immediately
 
 ### 9.11 Name Synchronization System
 - **Multi-Source Name Resolution**: `useStudentName` hook that checks multiple sources in priority order:
@@ -870,7 +903,32 @@ See `COMPREHENSIVE_SYSTEM_ANALYSIS.md` for complete system assessment and gap an
 
 ## 15. Recent Implementations
 
-### 15.1 Targeted Messages Feature
+### 15.1 Booking Calendar Feature
+- **Status:** ✅ Implemented & Deployed (2025-01-27)
+- **Overview**: Airbnb-style calendar view for viewing studio occupancy and bookings by date
+- **Location**: `/admin/booking-calendar`
+- **Features**:
+  - **Calendar Layout**: Studios as rows, dates as columns (monthly view)
+  - **Filtering**: By allocation type (Student, OTA, Keyworkers, Unallocated), studio grade, and academic year
+  - **Date Navigation**: Previous/Next month buttons and "Today" button
+  - **Occupied Dates**: Highlighted with student name and contract information
+  - **Click to View**: Click on occupied dates to navigate to application detail page
+  - **Export**: CSV export with all booked studios and details
+  - **Mobile Responsive**: Horizontal scrolling calendar on mobile devices
+- **Technical Implementation**:
+  - Database view: `booking_calendar_data` - Joins studios with confirmed applications, includes contract dates
+  - RPC function: `get_booking_calendar_data(p_allocation TEXT, p_studio_grade_id UUID, p_academic_year_id UUID)` - Uses `SECURITY DEFINER` to access `auth.users` for student email
+  - React hook: `useBookingCalendar` - Fetches and filters booking calendar data
+  - Component: `BookingCalendar.tsx` - Main calendar component with filtering and export
+- **Files**:
+  - `supabase/migrations/20250127_booking_calendar_view.sql` - Database view and function
+  - `src/hooks/useBookingCalendar.ts` - Data fetching hook
+  - `src/pages/admin/BookingCalendar.tsx` - Main component
+  - `src/App.tsx` - Route configuration
+  - `src/components/admin/AdminLayout.tsx` - Navigation menu
+- **See**: `docs/BOOKING_CALENDAR_IMPLEMENTATION.md` for complete documentation
+
+### 15.2 Targeted Messages Feature
 - **Status:** ✅ Implemented & Deployed (2025-11-25)
 - **Overview**: Separate feature from bulk messages that allows staff to send messages to specific students or students matching particular criteria
 - **Location**: `/admin/targeted-messages`
@@ -895,7 +953,7 @@ See `COMPREHENSIVE_SYSTEM_ANALYSIS.md` for complete system assessment and gap an
   - `supabase/functions/send-bulk-message/index.ts` - Updated to support both modes
   - `supabase/migrations/20250222_add_bulk_messages_filters_index.sql` - Optional GIN index for performance
 
-### 15.2 Bulk Message Filters
+### 15.3 Bulk Message Filters
 - **Status:** ✅ Implemented & Deployed
 - Filter bulk messages by:
   - Contract ID
@@ -904,7 +962,7 @@ See `COMPREHENSIVE_SYSTEM_ANALYSIS.md` for complete system assessment and gap an
 - Filters applied before sending emails
 - See `supabase/functions/send-bulk-message/index.ts`
 
-### 14.2 DocuSign Signed Document Download
+### 15.4 DocuSign Signed Document Download
 - **Status:** ✅ Implemented & Deployed
 - Automatically fetches signed PDFs from DocuSign API
 - Saves to Supabase Storage (`contracts` bucket)
@@ -912,7 +970,7 @@ See `COMPREHENSIVE_SYSTEM_ANALYSIS.md` for complete system assessment and gap an
 - Returns signed URLs for immediate access
 - See `supabase/functions/download-signed-document/index.ts`
 
-### 14.3 Partner Password Reset System
+### 15.5 Partner Password Reset System
 - **Status:** ✅ Implemented & Deployed (2025-11-20)
 - **Features:**
   - **Request Password Reset Page** (`/partner/request-password-reset`):

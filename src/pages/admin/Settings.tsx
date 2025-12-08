@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
-import { CheckCircle2, XCircle, Loader2, RefreshCw, ExternalLink, Save, Trash2, AlertTriangle, Eye, EyeOff, Lock } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, RefreshCw, ExternalLink, Save, Trash2, AlertTriangle, Eye, EyeOff, Lock, Download, Database, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { logActivity } from "@/utils/auditLog";
@@ -54,6 +54,11 @@ const Settings = () => {
   const [showApiKey, setShowApiKey] = useState(false);
   const [isSavingCredentials, setIsSavingCredentials] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [isExportingDatabase, setIsExportingDatabase] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [isImportingDatabase, setIsImportingDatabase] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
 
   const checkIntegrations = async () => {
     try {
@@ -486,6 +491,103 @@ const Settings = () => {
         Not Connected
       </Badge>
     );
+  };
+
+  const handleExportDatabase = async () => {
+    setIsExportingDatabase(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("export-database");
+
+      if (error) {
+        throw error;
+      }
+
+      // Create a blob and download
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `supabase-export-${new Date().toISOString().split("T")[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      await logActivity({
+        action: "export",
+        entityType: "database",
+        payload: { type: "full_migration_export" },
+      });
+
+      toast({
+        title: "Export successful",
+        description: "Database export has been downloaded successfully.",
+      });
+
+      setExportDialogOpen(false);
+    } catch (error) {
+      console.error("Failed to export database:", error);
+      toast({
+        title: "Export failed",
+        description: error instanceof Error ? error.message : "Failed to export database. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExportingDatabase(false);
+    }
+  };
+
+  const handleImportDatabase = async () => {
+    if (!importFile) {
+      toast({
+        title: "No file selected",
+        description: "Please select an export JSON file to import.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsImportingDatabase(true);
+    try {
+      // Read the file
+      const fileContent = await importFile.text();
+      const exportPackage = JSON.parse(fileContent);
+
+      // Call import function
+      const { data, error } = await supabase.functions.invoke("import-database", {
+        body: { exportPackage },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      await logActivity({
+        action: "import",
+        entityType: "database",
+        payload: {
+          source_export_date: exportPackage.metadata?.export_date,
+          storage_buckets_imported: data?.imported?.storage_buckets || 0,
+        },
+      });
+
+      toast({
+        title: "Import successful",
+        description: `Successfully imported ${data?.imported?.storage_buckets || 0} storage bucket(s). See notes for next steps.`,
+      });
+
+      setImportDialogOpen(false);
+      setImportFile(null);
+    } catch (error) {
+      console.error("Failed to import database:", error);
+      toast({
+        title: "Import failed",
+        description: error instanceof Error ? error.message : "Failed to import database. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsImportingDatabase(false);
+    }
   };
 
   return (
@@ -1053,6 +1155,205 @@ const Settings = () => {
                         </>
                       ) : (
                         "Delete"
+                      )}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Database Export Section */}
+        <Card className="rounded-3xl border-blue-200 dark:border-blue-800">
+          <CardHeader>
+            <CardTitle className="text-base md:text-lg font-semibold flex items-center gap-2">
+              <Database className="h-5 w-5" />
+              Database Migration Export
+            </CardTitle>
+            <CardDescription className="text-xs md:text-sm">
+              Export complete database schema, functions, storage buckets, and configuration for migration to a new Supabase project.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 p-4">
+              <h4 className="text-sm font-semibold mb-2">What's Included:</h4>
+              <ul className="text-xs md:text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                <li>Complete database schema (tables, columns, constraints, indexes)</li>
+                <li>All database functions and triggers</li>
+                <li>Views and custom types (enums)</li>
+                <li>Row Level Security (RLS) policies</li>
+                <li>Storage bucket configurations and policies</li>
+                <li>Edge functions metadata</li>
+                <li>Required secrets checklist</li>
+                <li>Migration guide</li>
+              </ul>
+            </div>
+
+            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                <div className="text-sm">
+                  <p className="font-semibold text-amber-900 dark:text-amber-100 mb-1">Important Notes:</p>
+                  <ul className="text-xs text-amber-800 dark:text-amber-200 space-y-1 list-disc list-inside">
+                    <li>This export contains <strong>schema and configuration only</strong> - actual data is not included</li>
+                    <li>Storage files must be downloaded separately using Supabase CLI or Dashboard</li>
+                    <li>Edge function source code is in your repository at <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">supabase/functions/</code></li>
+                    <li>Secrets must be manually configured in the new project's dashboard</li>
+                    <li>This action is logged in the audit trail</li>
+                  </ul>
+                  <p className="mt-2 text-xs text-amber-800 dark:text-amber-200">
+                    📖 See <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">docs/DATABASE_MIGRATION_GUIDE.md</code> for complete migration instructions
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <AlertDialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="default"
+                    className="w-full rounded-full uppercase tracking-wide gap-2"
+                    disabled={isExportingDatabase}
+                  >
+                    {isExportingDatabase ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Exporting...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="h-4 w-4" />
+                        Export Database
+                      </>
+                    )}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent className="rounded-3xl">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Export Database for Migration?</AlertDialogTitle>
+                    <AlertDialogDescription asChild>
+                      <div className="text-sm space-y-2">
+                        <p>
+                          This will generate a complete export of your database schema, functions, storage configurations, and migration metadata.
+                        </p>
+                        <p className="font-semibold">The export will include:</p>
+                        <ul className="list-disc list-inside mt-2 space-y-1">
+                          <li>All database tables, columns, constraints, and indexes</li>
+                          <li>Database functions, triggers, views, and enums</li>
+                          <li>Row Level Security (RLS) policies</li>
+                          <li>Storage bucket configurations and policies</li>
+                          <li>Edge functions list and secrets checklist</li>
+                          <li>Step-by-step migration guide</li>
+                        </ul>
+                        <p className="mt-3 text-muted-foreground">
+                          <strong>Note:</strong> This export contains schema only. Actual data and storage files are not included.
+                        </p>
+                      </div>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel className="rounded-full">Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleExportDatabase}
+                      className="rounded-full"
+                      disabled={isExportingDatabase}
+                    >
+                      {isExportingDatabase ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Exporting...
+                        </>
+                      ) : (
+                        <>
+                          <Download className="h-4 w-4 mr-2" />
+                          Export Database
+                        </>
+                      )}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+
+              <AlertDialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full rounded-full uppercase tracking-wide gap-2"
+                    disabled={isImportingDatabase}
+                  >
+                    {isImportingDatabase ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Importing...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4" />
+                        Import Database Config
+                      </>
+                    )}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent className="rounded-3xl">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Import Database Configuration?</AlertDialogTitle>
+                    <AlertDialogDescription asChild>
+                      <div className="text-sm space-y-2">
+                        <p>
+                          This will import storage bucket configurations from an export file.
+                        </p>
+                        <p className="font-semibold text-amber-600 dark:text-amber-400">
+                          <strong>Important:</strong> Database schema must be imported via migrations. This function only imports storage buckets.
+                        </p>
+                        <div className="mt-4">
+                          <Label htmlFor="import-file" className="text-sm font-medium">
+                            Select Export JSON File
+                          </Label>
+                          <Input
+                            id="import-file"
+                            type="file"
+                            accept=".json"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                setImportFile(file);
+                              }
+                            }}
+                            className="mt-2"
+                          />
+                          {importFile && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Selected: {importFile.name}
+                            </p>
+                          )}
+                        </div>
+                        <p className="mt-3 text-muted-foreground text-xs">
+                          See the migration guide for complete instructions on importing database schema.
+                        </p>
+                      </div>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel className="rounded-full" onClick={() => setImportFile(null)}>
+                      Cancel
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleImportDatabase}
+                      className="rounded-full"
+                      disabled={isImportingDatabase || !importFile}
+                    >
+                      {isImportingDatabase ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Importing...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-4 w-4 mr-2" />
+                          Import
+                        </>
                       )}
                     </AlertDialogAction>
                   </AlertDialogFooter>

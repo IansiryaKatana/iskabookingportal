@@ -28,6 +28,7 @@ import ManualPaymentDialog from "@/components/admin/ManualPaymentDialog";
 import { useCreateNotification } from "@/hooks/useNotifications";
 import { useApplicationCashback, useActiveCashbackCampaigns, useApplyCashback } from "@/hooks/useCashback";
 import { useApplicationPartnerReferral, usePartners, useCreatePartnerReferral } from "@/hooks/usePartners";
+import { logActivity } from "@/utils/auditLog";
 
 const getStatusBadge = (status: string) => {
   const statusConfig: Record<string, { className: string; label: string }> = {
@@ -131,6 +132,13 @@ const ApplicationDetail = () => {
         throw new Error("User not authenticated");
       }
 
+      // Get current document to log old status
+      const { data: currentDoc } = await supabase
+        .from("student_documents")
+        .select("status, document_type, application_id")
+        .eq("id", documentId)
+        .single();
+
       const updateData: any = {
         status,
         verified_by: user.id,
@@ -151,6 +159,22 @@ const ApplicationDetail = () => {
         console.error("Document verification error:", error);
         throw error;
       }
+
+      // Log document verification
+      await logActivity({
+        action: status === "approved" ? "approve" : "reject",
+        entityType: "document",
+        entityId: documentId,
+        payload: {
+          application_id: currentDoc?.application_id,
+          document_type: currentDoc?.document_type,
+          status_change: {
+            from: currentDoc?.status,
+            to: status,
+          },
+          notes: notes || null,
+        },
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["application-documents", applicationId] });
@@ -175,6 +199,21 @@ const ApplicationDetail = () => {
     mutationFn: async (studioId: string) => {
       if (!applicationId) throw new Error("Application ID required");
       
+      const oldStudioId = application?.assigned_studio_id;
+      
+      // Get studio details for logging
+      const { data: oldStudio } = oldStudioId ? await supabase
+        .from("studios")
+        .select("studio_number, status")
+        .eq("id", oldStudioId)
+        .single() : { data: null };
+      
+      const { data: newStudio } = await supabase
+        .from("studios")
+        .select("studio_number, status")
+        .eq("id", studioId)
+        .single();
+
       const { error } = await supabase
         .from("student_applications")
         .update({ assigned_studio_id: studioId })
@@ -183,11 +222,11 @@ const ApplicationDetail = () => {
       if (error) throw error;
 
       // Update old studio to available if it exists
-      if (application?.assigned_studio_id) {
+      if (oldStudioId) {
         await supabase
           .from("studios")
           .update({ status: "available" })
-          .eq("id", application.assigned_studio_id);
+          .eq("id", oldStudioId);
       }
 
       // Update new studio to occupied
@@ -195,6 +234,27 @@ const ApplicationDetail = () => {
         .from("studios")
         .update({ status: "occupied" })
         .eq("id", studioId);
+
+      // Log studio reassignment
+      await logActivity({
+        action: "reassign",
+        entityType: "student_application",
+        entityId: applicationId,
+        payload: {
+          studio_reassignment: {
+            from: oldStudioId ? {
+              studio_id: oldStudioId,
+              studio_number: oldStudio?.studio_number,
+              status: oldStudio?.status,
+            } : null,
+            to: {
+              studio_id: studioId,
+              studio_number: newStudio?.studio_number,
+              status: newStudio?.status,
+            },
+          },
+        },
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["student-application", applicationId] });

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { logActivity } from "@/utils/auditLog";
 
 type EmailTemplate = Database["public"]["Tables"]["email_templates"]["Row"];
 
@@ -88,6 +89,19 @@ export const useCreateEmailTemplate = () => {
         .single();
 
       if (error) throw error;
+
+      // Log email template creation
+      await logActivity({
+        action: "create",
+        entityType: "email_template",
+        entityId: data.id,
+        payload: {
+          name: payload.name,
+          template_type: payload.template_type,
+          is_active: payload.is_active ?? true,
+        },
+      });
+
       return data;
     },
     onSuccess: () => {
@@ -116,6 +130,13 @@ export const useUpdateEmailTemplate = () => {
         updateData.variables = JSON.stringify(payload.variables);
       }
 
+      // Get old template data for logging
+      const { data: oldTemplate } = await supabase
+        .from("email_templates")
+        .select("name, is_active")
+        .eq("id", id)
+        .single();
+
       const { data, error } = await supabase
         .from("email_templates")
         .update(updateData)
@@ -124,6 +145,24 @@ export const useUpdateEmailTemplate = () => {
         .single();
 
       if (error) throw error;
+
+      // Log email template update
+      await logActivity({
+        action: "update",
+        entityType: "email_template",
+        entityId: id,
+        payload: {
+          changes: {
+            name: payload.name !== undefined
+              ? { from: oldTemplate?.name, to: payload.name }
+              : undefined,
+            is_active: payload.is_active !== undefined
+              ? { from: oldTemplate?.is_active, to: payload.is_active }
+              : undefined,
+          },
+        },
+      });
+
       return data;
     },
     onSuccess: () => {
@@ -136,12 +175,29 @@ export const useDeleteEmailTemplate = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (templateId: string) => {
+      // Get template name for logging
+      const { data: template } = await supabase
+        .from("email_templates")
+        .select("name")
+        .eq("id", templateId)
+        .single();
+
       const { error } = await supabase
         .from("email_templates")
         .delete()
         .eq("id", templateId);
 
       if (error) throw error;
+
+      // Log email template deletion
+      await logActivity({
+        action: "delete",
+        entityType: "email_template",
+        entityId: templateId,
+        payload: {
+          name: template?.name,
+        },
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["email-templates"] });

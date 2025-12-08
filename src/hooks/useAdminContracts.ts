@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { logActivity } from "@/utils/auditLog";
 
 type ContractRow = Database["public"]["Tables"]["contracts"]["Row"];
 type PaymentPlanRow = Database["public"]["Tables"]["payment_plans"]["Row"];
@@ -93,6 +94,22 @@ export const useCreateContract = () => {
         if (linkError) throw linkError;
       }
 
+      // Log contract creation
+      await logActivity({
+        action: "create",
+        entityType: "contract",
+        entityId: contract.id,
+        payload: {
+          name: contractData.name,
+          slug: contract.slug,
+          academic_year_id: contractData.academic_year_id,
+          studio_grade_id: contractData.studio_grade_id,
+          contract_start: contractData.contract_start,
+          contract_end: contractData.contract_end,
+          payment_plans_count: payment_plan_ids?.length || 0,
+        },
+      });
+
       return contract;
     },
     onSuccess: () => {
@@ -112,6 +129,14 @@ export const useUpdateContract = () => {
       },
     ) => {
       const { id, payment_plan_ids, payment_plan_orders, ...rest } = payload;
+      
+      // Get old contract data for logging
+      const { data: oldContract } = await supabase
+        .from("contracts")
+        .select("name, is_active, weekly_price_override, deposit_override")
+        .eq("id", id)
+        .single();
+
       const { error } = await supabase
         .from("contracts")
         .update({
@@ -137,6 +162,28 @@ export const useUpdateContract = () => {
           .insert(insertPayload);
         if (linkError) throw linkError;
       }
+
+      // Log contract update
+      await logActivity({
+        action: "update",
+        entityType: "contract",
+        entityId: id,
+        payload: {
+          changes: {
+            name: rest.name !== undefined ? { from: oldContract?.name, to: rest.name } : undefined,
+            is_active: rest.is_active !== undefined
+              ? { from: oldContract?.is_active, to: rest.is_active }
+              : undefined,
+            weekly_price_override: rest.weekly_price_override !== undefined
+              ? { from: oldContract?.weekly_price_override, to: rest.weekly_price_override }
+              : undefined,
+            deposit_override: rest.deposit_override !== undefined
+              ? { from: oldContract?.deposit_override, to: rest.deposit_override }
+              : undefined,
+          },
+          payment_plans_count: payment_plan_ids?.length || 0,
+        },
+      });
 
       return { id, ...rest };
     },

@@ -1,116 +1,141 @@
-# Urban Hub Booking Portal - Documentation Index
+# Documentation Index
+
+Welcome to the STUCOMMS Booking Portal documentation. This directory contains comprehensive documentation for the entire system.
 
 ## 📚 Documentation Files
 
-### Core Documentation
-1. **[Architecture Specification](./architecture-spec.md)**
-   - Original system specification
-   - Database schema
-   - Workflows and user journeys
-   - Technical requirements
+### Getting Started
 
-2. **[System Improvements & Configuration](./SYSTEM_IMPROVEMENTS_AND_CONFIG.md)** ⭐ **NEW**
-   - All improvements beyond original spec
-   - Complete Resend email configuration guide
-   - UI/UX enhancements
-   - Feature additions
-   - Technical improvements
-   - System documentation
+- **[Setup Guide](./SETUP_GUIDE.md)** - Step-by-step guide to set up the system from scratch
+- **[Complete System & Database Documentation](./SYSTEM_AND_DATABASE_COMPLETE.md)** - Comprehensive system documentation covering architecture, database schema, setup, and deployment
 
-3. **[Comprehensive Roadmap](./COMPREHENSIVE_ROADMAP.md)**
-   - Detailed roadmap and recommendations
-   - Scalability assessment
-   - Post-confirmation workflow
-   - Finance department features
-   - Implementation priorities
+### Reference Documentation
 
-4. **[Assessment Document](./ASSESSMENT.md)**
-   - System assessment and analysis
-   - Feature completeness review
+- **[Database Schema Quick Reference](./DATABASE_SCHEMA_QUICK_REFERENCE.md)** - Quick reference for database tables, relationships, and common queries
+- **[Architecture Specification](./architecture-spec.md)** - Detailed system architecture and data model specification
 
-5. **[Financial Forecasting](./FINANCIAL_FORECASTING.md)**
-   - Financial forecasting feature documentation
-   - Calculation methods
-   - Usage guide
+### Feature Documentation
 
-6. **[Contracts Page Improvements (2025-01-25)](./CONTRACTS_PAGE_IMPROVEMENTS_COMPLETED.md)** ⭐ **NEW**
-   - Complete documentation of contract management enhancements
-   - Academic year filter implementation
-   - Payment plan order persistence
-   - Weeks calculation fixes
-   - Technical implementation details
-
----
+- **[Bulk Application Import Proposal](./BULK_APPLICATION_IMPORT_PROPOSAL.md)** - System for bulk importing student applications
+- **[Comprehensive Bulk Import System](./COMPREHENSIVE_BULK_IMPORT_SYSTEM.md)** - Complete bulk import system for client onboarding
+- **[Booking Calendar Implementation](./BOOKING_CALENDAR_IMPLEMENTATION.md)** - Airbnb-style calendar view for studio occupancy and bookings
 
 ## 🚀 Quick Start
 
-### For Developers
-1. Read [Architecture Specification](./architecture-spec.md) for system overview
-2. Review [System Improvements](./SYSTEM_IMPROVEMENTS_AND_CONFIG.md) for all enhancements
-3. Check [Comprehensive Roadmap](./COMPREHENSIVE_ROADMAP.md) for implementation details
+1. **New to the project?** Start with [Setup Guide](./SETUP_GUIDE.md)
+2. **Need database info?** Check [Database Schema Quick Reference](./DATABASE_SCHEMA_QUICK_REFERENCE.md)
+3. **Want full details?** Read [Complete System & Database Documentation](./SYSTEM_AND_DATABASE_COMPLETE.md)
 
-### For System Administrators
-1. **Email Configuration**: See [Resend Setup Guide](./SYSTEM_IMPROVEMENTS_AND_CONFIG.md#22-domain-setup-process) in System Improvements document
-2. **Environment Variables**: See [Environment Variables](./SYSTEM_IMPROVEMENTS_AND_CONFIG.md#64-environment-variables) section
-3. **Deployment**: See [Deployment](./SYSTEM_IMPROVEMENTS_AND_CONFIG.md#65-deployment) section
+## 📖 Documentation Structure
+
+```
+docs/
+├── README.md (this file)
+├── SETUP_GUIDE.md                    # Getting started guide
+├── SYSTEM_AND_DATABASE_COMPLETE.md    # Complete system documentation
+├── DATABASE_SCHEMA_QUICK_REFERENCE.md # Database quick reference
+├── architecture-spec.md              # Architecture specification
+├── BULK_APPLICATION_IMPORT_PROPOSAL.md
+├── COMPREHENSIVE_BULK_IMPORT_SYSTEM.md
+└── BOOKING_CALENDAR_IMPLEMENTATION.md # Booking calendar feature
+```
+
+## 🔍 Finding What You Need
+
+### I want to...
+
+**Set up the system for the first time**
+→ [Setup Guide](./SETUP_GUIDE.md)
+
+**Understand the database structure**
+→ [Database Schema Quick Reference](./DATABASE_SCHEMA_QUICK_REFERENCE.md)
+→ [Complete System & Database Documentation - Database Schema](./SYSTEM_AND_DATABASE_COMPLETE.md#database-schema)
+
+**Deploy to production**
+→ [Complete System & Database Documentation - Deployment Guide](./SYSTEM_AND_DATABASE_COMPLETE.md#deployment-guide)
+
+**Understand the system architecture**
+→ [Architecture Specification](./architecture-spec.md)
+→ [Complete System & Database Documentation - System Architecture](./SYSTEM_AND_DATABASE_COMPLETE.md#system-architecture)
+
+**Import bulk data**
+→ [Comprehensive Bulk Import System](./COMPREHENSIVE_BULK_IMPORT_SYSTEM.md)
+→ [Bulk Application Import Proposal](./BULK_APPLICATION_IMPORT_PROPOSAL.md)
+
+**Find a specific database table or function**
+→ [Database Schema Quick Reference](./DATABASE_SCHEMA_QUICK_REFERENCE.md)
+
+**Understand integrations (Stripe, DocuSign, etc.)**
+→ [Complete System & Database Documentation - Integration Points](./SYSTEM_AND_DATABASE_COMPLETE.md#integration-points)
+
+## 📊 System Overview
+
+The STUCOMMS Booking Portal is a comprehensive student accommodation booking and management system with:
+
+- **Student Portal**: Application wizard, payments, document management
+- **Admin Portal**: Full management system for staff
+- **Partner Portal**: Referral and commission tracking
+- **Public Pages**: Studio browsing and information
+
+### Key Technologies
+
+- **Frontend**: React 18 + TypeScript + Vite
+- **Backend**: Supabase (PostgreSQL + Auth + Storage)
+- **Payments**: Stripe
+- **E-Signatures**: DocuSign
+- **UI**: Tailwind CSS + shadcn/ui
+
+### Database
+
+- **104+ migrations** covering all system features
+- **40+ tables** for comprehensive data management
+- **Row Level Security (RLS)** for data protection
+- **Functions & Views** for complex queries
+
+## 🛠️ Common Tasks
+
+### Database Tasks
+
+- **Apply migrations**: `npx supabase db push`
+- **Generate types**: `npx supabase gen types typescript --linked > src/integrations/supabase/types.generated.ts`
+- **Seed data**: `npm run seed`
+- **Reset database** (dev only): `npx supabase db reset`
+
+### Development Tasks
+
+- **Start dev server**: `npm run dev`
+- **Build for production**: `npm run build`
+- **Run tests**: `npm test`
+- **Lint code**: `npm run lint`
+
+## 📝 Contributing
+
+When adding new features:
+
+1. Create database migrations in `supabase/migrations/`
+2. Update TypeScript types: `npx supabase gen types typescript --linked > src/integrations/supabase/types.generated.ts`
+3. Update relevant documentation
+4. Test thoroughly
+
+## 🔗 External Resources
+
+- [Supabase Documentation](https://supabase.com/docs)
+- [Stripe Documentation](https://stripe.com/docs)
+- [DocuSign API Documentation](https://developers.docusign.com/)
+- [React Documentation](https://react.dev/)
+- [TypeScript Documentation](https://www.typescriptlang.org/docs/)
+
+## 📞 Support
+
+For questions or issues:
+
+1. Check the relevant documentation file
+2. Review Supabase logs
+3. Check browser console for errors
+4. Review application logs
 
 ---
 
-## 📋 Important Configuration Notes
-
-### Email System (Resend)
-**Current Configuration**:
-- Sending Domain: `send.portal.urbanhub.uk`
-- Default Sender: `noreply@send.portal.urbanhub.uk`
-- **Action Required**: Set `RESEND_FROM_EMAIL` environment variable in Supabase Dashboard
-
-**To Configure**:
-1. Go to Supabase Dashboard → Project Settings → Edge Functions → Secrets
-2. Add/Update: `RESEND_FROM_EMAIL` = `noreply@send.portal.urbanhub.uk`
-3. Ensure DNS records are configured (see System Improvements doc)
-
----
-
-## 🔧 System Status
-
-**Current Version**: 1.0  
-**Status**: Production Ready  
 **Last Updated**: January 2025
-
-### ✅ Completed Features
-- Complete student portal (all post-confirmation features)
-- Comprehensive admin management tools
-- Email system with Resend integration
-- Mobile-responsive design
-- Payment and refund workflows
-- Document and signature management
-- Notification and communication system
-- Reporting and analytics
-- Financial forecasting
-- Audit logging
-
----
-
-## 📖 Documentation Updates
-
-This documentation is maintained as the system evolves. When adding new features or making significant changes:
-
-1. Update relevant documentation files
-2. Add entries to [System Improvements](./SYSTEM_IMPROVEMENTS_AND_CONFIG.md) if beyond spec
-3. Update this README if new documentation files are added
-
----
-
-## 🆘 Support
-
-For technical questions or issues:
-1. Check relevant documentation files
-2. Review Edge Function logs in Supabase Dashboard
-3. Check environment variable configuration
-4. Verify DNS records for email domain
-
----
-
-**Maintained by**: Development Team  
-**Last Documentation Update**: January 2025
-
+**System Version**: 1.0.0
+**Database Migrations**: 104+

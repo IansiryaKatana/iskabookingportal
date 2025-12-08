@@ -27,6 +27,7 @@ import AdminStudents from "./pages/admin/Students";
 import AdminStudentDetail from "./pages/admin/StudentDetail";
 import AdminReports from "./pages/admin/Reports";
 import AdminAccountingReports from "./pages/admin/AccountingReports";
+import AdminBookingCalendar from "./pages/admin/BookingCalendar";
 import AdminBulkMessages from "./pages/admin/BulkMessages";
 import AdminTargetedMessages from "./pages/admin/TargetedMessages";
 import AdminEmailTemplates from "./pages/admin/EmailTemplates";
@@ -248,6 +249,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
                   <AdminAccountingReports />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/booking-calendar"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                  <AdminBookingCalendar />
                 </ProtectedRoute>
               }
             />

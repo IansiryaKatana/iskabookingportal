@@ -200,6 +200,21 @@ serve(async (req) => {
         }
       }
 
+      // Log user invitation
+      await supabaseAdmin
+        .from("staff_activity_logs")
+        .insert({
+          staff_id: user.id,
+          action: "create",
+          entity_type: "user",
+          entity_id: inviteData.user?.id || null,
+          payload: {
+            email: normalizedEmail,
+            role,
+            action_type: "invite",
+          },
+        });
+
       return new Response(
         JSON.stringify({
           success: true,
@@ -244,6 +259,23 @@ serve(async (req) => {
           },
         );
       }
+
+      // Log user deletion
+      await supabaseAdmin
+        .from("staff_activity_logs")
+        .insert({
+          staff_id: user.id,
+          action: "delete",
+          entity_type: "user",
+          entity_id: userId,
+          payload: {
+            deleted_user: {
+              first_name: userProfile?.first_name,
+              last_name: userProfile?.last_name,
+              role: userProfile?.role,
+            },
+          },
+        });
 
       return new Response(
         JSON.stringify({

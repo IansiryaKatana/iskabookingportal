@@ -33,7 +33,8 @@ export type ReportType =
   | "awaiting_deposit"
   | "overdue_payments"
   | "debtors"
-  | "occupancy";
+  | "occupancy"
+  | "studio-allocation";
 
 export type OccupancyReportItem = {
   studio_grade_id: string;
@@ -54,6 +55,22 @@ export type OccupancyReportItem = {
     contract_end: string | null;
     application_id: string;
   }>;
+};
+
+export type StudioAllocationReportItem = {
+  studio_grade_id: string;
+  studio_grade_name: string;
+  studio_grade_slug: string;
+  total_studios: number;
+  active_studios: number;
+  allocated_to_students: number;
+  allocated_to_ota: number;
+  allocated_to_keyworkers: number;
+  unallocated: number;
+  status_available: number;
+  status_occupied: number;
+  status_reserved: number;
+  status_maintenance: number;
 };
 
 export type OccupancyReport = {
@@ -624,4 +641,24 @@ export const useOccupancyReport = (academicYearId?: string) => {
     queryFn: () => fetchOccupancyReport(academicYearId),
   });
 };
+
+const fetchStudioAllocationReport = async (): Promise<StudioAllocationReportItem[]> => {
+  const { data, error } = await supabase
+    .from("studio_allocation_report")
+    .select("*")
+    .order("studio_grade_name", { ascending: true });
+
+  if (error) {
+    console.error("Failed to fetch studio allocation report:", error);
+    throw error;
+  }
+
+  return (data || []) as StudioAllocationReportItem[];
+};
+
+export const useStudioAllocationReport = () =>
+  useQuery({
+    queryKey: ["studio-allocation-report"],
+    queryFn: fetchStudioAllocationReport,
+  });
 

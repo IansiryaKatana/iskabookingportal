@@ -200,6 +200,11 @@ const navSections: NavSection[] = [
         to: "/admin/accounting-reports",
         icon: FileSpreadsheet,
       },
+      {
+        label: "Booking Calendar",
+        to: "/admin/booking-calendar",
+        icon: Calendar,
+      },
     ],
   },
   {

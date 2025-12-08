@@ -94,22 +94,10 @@ BEGIN
     SELECT 
       CASE 
         WHEN p_group_by = 'quarter' THEN 
-          'Q' || TO_CHAR(payment_date, 'Q') || ' ' || TO_CHAR(payment_date, 'YYYY')
-        ELSE 
-          TO_CHAR(payment_date, 'Month YYYY')
-      END AS period_label,
-      CASE 
-        WHEN p_group_by = 'quarter' THEN 
           DATE_TRUNC('quarter', payment_date)::DATE
         ELSE 
           DATE_TRUNC('month', payment_date)::DATE
       END AS period_start,
-      CASE 
-        WHEN p_group_by = 'quarter' THEN 
-          (DATE_TRUNC('quarter', payment_date) + INTERVAL '3 months - 1 day')::DATE
-        ELSE 
-          (DATE_TRUNC('month', payment_date) + INTERVAL '1 month - 1 day')::DATE
-      END AS period_end,
       SUM(CASE WHEN payment_type = 'deposit' THEN amount_paid ELSE 0 END) AS deposit_revenue,
       SUM(CASE WHEN payment_type = 'installment' THEN amount_paid ELSE 0 END) AS installment_revenue,
       SUM(amount_paid) AS total_revenue,
@@ -124,9 +112,29 @@ BEGIN
         ELSE 
           DATE_TRUNC('month', payment_date)::DATE
       END
-    ORDER BY period_start
   )
-  SELECT * FROM period_data;
+  SELECT 
+    CASE 
+      WHEN p_group_by = 'quarter' THEN 
+        'Q' || TO_CHAR(period_start, 'Q') || ' ' || TO_CHAR(period_start, 'YYYY')
+      ELSE 
+        TO_CHAR(period_start, 'Month YYYY')
+    END AS period_label,
+    period_start,
+    CASE 
+      WHEN p_group_by = 'quarter' THEN 
+        (period_start + INTERVAL '3 months - 1 day')::DATE
+      ELSE 
+        (period_start + INTERVAL '1 month - 1 day')::DATE
+    END AS period_end,
+    deposit_revenue,
+    installment_revenue,
+    total_revenue,
+    payment_count,
+    stripe_revenue,
+    manual_revenue
+  FROM period_data
+  ORDER BY period_start;
 END;
 $$;
 

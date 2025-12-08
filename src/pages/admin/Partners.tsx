@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { Partner } from "@/hooks/usePartners";
+import { logActivity } from "@/utils/auditLog";
 
 const Partners = () => {
   const { toast } = useToast();
@@ -71,9 +72,23 @@ const Partners = () => {
       referral_code?: string;
       notes?: string;
     }) => {
-      const { error } = await supabase.from("partners").insert(data);
+      const { data: result, error } = await supabase.from("partners").insert(data).select("*").single();
 
       if (error) throw error;
+
+      // Log partner creation
+      await logActivity({
+        action: "create",
+        entityType: "partner",
+        entityId: result.id,
+        payload: {
+          name: data.name,
+          commission_percentage: data.commission_percentage,
+          referral_code: data.referral_code || null,
+        },
+      });
+
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["partners"] });
@@ -94,9 +109,34 @@ const Partners = () => {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<Partner> }) => {
+      // Get old values for logging
+      const { data: oldPartner } = await supabase
+        .from("partners")
+        .select("name, commission_percentage, is_active")
+        .eq("id", id)
+        .single();
+
       const { error } = await supabase.from("partners").update(data).eq("id", id);
 
       if (error) throw error;
+
+      // Log partner update
+      await logActivity({
+        action: "update",
+        entityType: "partner",
+        entityId: id,
+        payload: {
+          changes: {
+            name: data.name !== undefined ? { from: oldPartner?.name, to: data.name } : undefined,
+            commission_percentage: data.commission_percentage !== undefined
+              ? { from: oldPartner?.commission_percentage, to: data.commission_percentage }
+              : undefined,
+            is_active: data.is_active !== undefined
+              ? { from: oldPartner?.is_active, to: data.is_active }
+              : undefined,
+          },
+        },
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["partners"] });
@@ -118,12 +158,29 @@ const Partners = () => {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      // Get partner name for logging
+      const { data: partner } = await supabase
+        .from("partners")
+        .select("name")
+        .eq("id", id)
+        .single();
+
       const { error } = await supabase
         .from("partners")
         .update({ is_active: false })
         .eq("id", id);
 
       if (error) throw error;
+
+      // Log partner deactivation
+      await logActivity({
+        action: "deactivate",
+        entityType: "partner",
+        entityId: id,
+        payload: {
+          name: partner?.name,
+        },
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["partners"] });

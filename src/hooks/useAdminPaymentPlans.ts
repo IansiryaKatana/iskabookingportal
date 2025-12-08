@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { logActivity } from "@/utils/auditLog";
 
 type PaymentPlanRow = Database["public"]["Tables"]["payment_plans"]["Row"];
 type PaymentPlanInstallmentRow =
@@ -201,7 +202,34 @@ export const useUpdatePaymentPlan = () => {
 
       if (error) throw error;
 
+      // Get old plan data for logging
+      const { data: oldPlan } = await supabase
+        .from("payment_plans")
+        .select("name, deposit_amount, is_active")
+        .eq("id", id)
+        .single();
+
       await upsertInstallments(plan.id, installments);
+
+      // Log payment plan update
+      await logActivity({
+        action: "update",
+        entityType: "payment_plan",
+        entityId: plan.id,
+        payload: {
+          changes: {
+            name: planData.name !== undefined ? { from: oldPlan?.name, to: planData.name } : undefined,
+            deposit_amount: planData.deposit_amount !== undefined
+              ? { from: oldPlan?.deposit_amount, to: planData.deposit_amount }
+              : undefined,
+            is_active: planData.is_active !== undefined
+              ? { from: oldPlan?.is_active, to: planData.is_active }
+              : undefined,
+          },
+          installments_count: installments.length,
+        },
+      });
+
       return plan;
     },
     onSuccess: () => {
@@ -214,11 +242,29 @@ export const useDeletePaymentPlan = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      // Get plan name for logging
+      const { data: plan } = await supabase
+        .from("payment_plans")
+        .select("name")
+        .eq("id", id)
+        .single();
+
       const { error } = await supabase
         .from("payment_plans")
         .delete()
         .eq("id", id);
       if (error) throw error;
+
+      // Log payment plan deletion
+      await logActivity({
+        action: "delete",
+        entityType: "payment_plan",
+        entityId: id,
+        payload: {
+          name: plan?.name,
+        },
+      });
+
       return id;
     },
     onSuccess: () => {

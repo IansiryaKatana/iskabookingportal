@@ -1,6 +1,6 @@
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Search, Download } from "lucide-react";
+import { Search, Download, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import {
   Table,
@@ -21,6 +21,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const AuditLogs = () => {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [actionFilter, setActionFilter] = useState<string>("all");
   const [staffFilter, setStaffFilter] = useState<string>("all");
@@ -33,7 +34,7 @@ const AuditLogs = () => {
         .from("staff_activity_logs")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(100);
+        .limit(1000);
 
       if (actionFilter !== "all") {
         query = query.eq("action", actionFilter);
@@ -45,7 +46,30 @@ const AuditLogs = () => {
 
       const { data: logs, error } = await query;
 
-      if (error) throw error;
+      if (error) {
+        console.error("❌ Error fetching audit logs:", error);
+        throw error;
+      }
+
+      console.log("📊 Fetched audit logs:", {
+        count: logs?.length || 0,
+        actionFilter,
+        staffFilter,
+        search,
+        sampleLog: logs?.[0],
+      });
+
+      // Filter by search term if provided (client-side filtering for better UX)
+      let filteredLogs = logs || [];
+      if (search.trim()) {
+        const searchLower = search.toLowerCase();
+        filteredLogs = filteredLogs.filter((log) => {
+          const actionMatch = log.action?.toLowerCase().includes(searchLower);
+          const entityTypeMatch = log.entity_type?.toLowerCase().includes(searchLower);
+          const payloadMatch = log.payload ? JSON.stringify(log.payload).toLowerCase().includes(searchLower) : false;
+          return actionMatch || entityTypeMatch || payloadMatch;
+        });
+      }
 
       // Fetch staff profiles separately and join
       const staffIds = [...new Set((logs || []).map((log) => log.staff_id).filter((id): id is string => Boolean(id)))];
@@ -66,7 +90,7 @@ const AuditLogs = () => {
       }
 
       // Join staff profiles with logs
-      return (logs || []).map((log) => ({
+      return filteredLogs.map((log) => ({
         ...log,
         staff: staffProfiles[log.staff_id] || null,
       }));
@@ -180,16 +204,18 @@ const AuditLogs = () => {
                   <SelectTrigger id="action" className="mt-2">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                    <SelectContent>
                     <SelectItem value="all">All Actions</SelectItem>
                     <SelectItem value="create">Create</SelectItem>
                     <SelectItem value="update">Update</SelectItem>
                     <SelectItem value="delete">Delete</SelectItem>
+                    <SelectItem value="export">Export</SelectItem>
                     <SelectItem value="verify">Verify</SelectItem>
                     <SelectItem value="approve">Approve</SelectItem>
                     <SelectItem value="reject">Reject</SelectItem>
                     <SelectItem value="confirm">Confirm</SelectItem>
                     <SelectItem value="cancel">Cancel</SelectItem>
+                    <SelectItem value="process_refund">Process Refund</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -225,16 +251,27 @@ const AuditLogs = () => {
                   {logs ? `${logs.length} log${logs.length !== 1 ? "s" : ""} found` : "Loading..."}
                 </CardDescription>
               </div>
-              {logs && logs.length > 0 && (
+              <div className="flex gap-2">
                 <Button
-                  onClick={exportToCSV}
+                  onClick={() => queryClient.invalidateQueries({ queryKey: ["audit-logs"] })}
                   variant="outline"
-                  className="rounded-full uppercase tracking-wide gap-2 hidden lg:flex"
+                  size="sm"
+                  className="rounded-full uppercase tracking-wide gap-2"
                 >
-                  <Download className="h-4 w-4" />
-                  Export CSV
+                  <RefreshCw className="h-4 w-4" />
+                  Refresh
                 </Button>
-              )}
+                {logs && logs.length > 0 && (
+                  <Button
+                    onClick={exportToCSV}
+                    variant="outline"
+                    className="rounded-full uppercase tracking-wide gap-2 hidden lg:flex"
+                  >
+                    <Download className="h-4 w-4" />
+                    Export CSV
+                  </Button>
+                )}
+              </div>
             </div>
           </CardHeader>
           <CardContent className="p-0">

@@ -264,18 +264,20 @@ XYZ Consultancy,info@xyzconsult.com,+44 20 9876 5432,XYZ2025,5.00,true
 
 **CSV Template**:
 ```csv
-name,amount,applies_to,start_date,end_date,max_uses,is_active
-Welcome Bonus 2026,50.00,all,2026-01-01,2026-12-31,1000,true
-Rebooking Incentive 2026,25.00,rebooking,2026-06-01,2026-08-31,500,true
+name,amount,applies_to,start_date,end_date,max_uses,is_active,academic_year_id
+Welcome Bonus 2026,50.00,all,2026-01-01,2026-12-31,1000,true,<academic_year_uuid>
+Rebooking Incentive 2026,25.00,rebooking,2026-06-01,2026-08-31,500,true,
 ```
 
 **Database Table**: `cashback_campaigns`
 - `applies_to` - Enum: all, new, rebooking
+- `academic_year_id` - Optional UUID reference to `academic_years` table. If null/empty, campaign applies to all academic years
 
 **Validation**:
 - Date range validation
 - Amount > 0
 - Applies_to enum validation
+- Academic year ID must exist in `academic_years` table if provided
 
 ### 9. Applications Import
 

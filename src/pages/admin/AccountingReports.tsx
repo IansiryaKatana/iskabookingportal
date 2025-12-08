@@ -345,35 +345,37 @@ const AccountingReports = () => {
         {/* Report Type Selector */}
         <Card className="rounded-3xl">
           <CardHeader>
-            <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide">
+            <CardTitle className="text-sm md:text-xl font-display font-bold uppercase tracking-wide">
               Select Report Type
             </CardTitle>
-            <CardDescription>Choose an accounting report to view and export</CardDescription>
+            <CardDescription className="text-xs md:text-base">Choose an accounting report to view and export</CardDescription>
           </CardHeader>
           <CardContent>
             <Tabs value={selectedReport} onValueChange={(value) => setSelectedReport(value as ReportType)}>
-              <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 mb-4">
-                <TabsTrigger value="accounts-receivable" className="text-xs md:text-sm">
-                  <CreditCard className="h-4 w-4 mr-2" />
-                  AR Report
-                </TabsTrigger>
-                <TabsTrigger value="revenue-summary" className="text-xs md:text-sm">
-                  <TrendingUp className="h-4 w-4 mr-2" />
-                  Revenue
-                </TabsTrigger>
-                <TabsTrigger value="outstanding-balances" className="text-xs md:text-sm">
-                  <AlertCircle className="h-4 w-4 mr-2" />
-                  Outstanding
-                </TabsTrigger>
-                <TabsTrigger value="deposit-installment" className="text-xs md:text-sm">
-                  <Receipt className="h-4 w-4 mr-2" />
-                  Breakdown
-                </TabsTrigger>
-                <TabsTrigger value="bank-reconciliation" className="text-xs md:text-sm">
-                  <FileText className="h-4 w-4 mr-2" />
-                  Reconciliation
-                </TabsTrigger>
-              </TabsList>
+              <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 mb-4 scrollbar-hide scroll-smooth">
+                <TabsList className="inline-flex w-auto min-w-full md:grid md:w-full md:grid-cols-5 h-auto gap-1 md:gap-0">
+                  <TabsTrigger value="accounts-receivable" className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 md:whitespace-normal">
+                    <CreditCard className="h-4 w-4 mr-2" />
+                    AR Report
+                  </TabsTrigger>
+                  <TabsTrigger value="revenue-summary" className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 md:whitespace-normal">
+                    <TrendingUp className="h-4 w-4 mr-2" />
+                    Revenue
+                  </TabsTrigger>
+                  <TabsTrigger value="outstanding-balances" className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 md:whitespace-normal">
+                    <AlertCircle className="h-4 w-4 mr-2" />
+                    Outstanding
+                  </TabsTrigger>
+                  <TabsTrigger value="deposit-installment" className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 md:whitespace-normal">
+                    <Receipt className="h-4 w-4 mr-2" />
+                    Breakdown
+                  </TabsTrigger>
+                  <TabsTrigger value="bank-reconciliation" className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 md:whitespace-normal">
+                    <FileText className="h-4 w-4 mr-2" />
+                    Reconciliation
+                  </TabsTrigger>
+                </TabsList>
+              </div>
 
               {/* Date Filters for Revenue Summary and Bank Reconciliation */}
               {(selectedReport === "revenue-summary" || selectedReport === "bank-reconciliation") && (
@@ -423,14 +425,14 @@ const AccountingReports = () => {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide">
+                <CardTitle className="text-sm md:text-xl font-display font-bold uppercase tracking-wide">
                   {selectedReport === "accounts-receivable" && "Accounts Receivable Report"}
                   {selectedReport === "revenue-summary" && "Revenue Summary Report"}
                   {selectedReport === "outstanding-balances" && "Outstanding Balances Report"}
                   {selectedReport === "deposit-installment" && "Deposit vs Installment Breakdown"}
                   {selectedReport === "bank-reconciliation" && "Bank Reconciliation Report"}
                 </CardTitle>
-                <CardDescription className="mt-1">
+                <CardDescription className="mt-1 text-xs md:text-sm">
                   {selectedReport === "accounts-receivable" &&
                     (arLoading
                       ? "Loading..."
@@ -484,13 +486,13 @@ const AccountingReports = () => {
                       <CardContent className="p-6">
                         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                           <div className="flex-1 space-y-2">
-                            <div className="flex items-center gap-3">
-                              <h3 className="text-base md:text-lg font-bold">{item.student_name}</h3>
-                              <Badge variant="outline" className="uppercase">
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <h3 className="text-sm md:text-lg font-bold">{item.student_name}</h3>
+                              <Badge variant="outline" className="uppercase text-xs">
                                 {item.application_status}
                               </Badge>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-muted-foreground">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs md:text-sm text-muted-foreground">
                               <div>
                                 <span className="font-medium">Contract:</span> {item.contract_name}
                               </div>
@@ -504,7 +506,7 @@ const AccountingReports = () => {
                                 <span className="font-medium">Total Paid:</span> {formatCurrency(item.total_paid)}
                               </div>
                             </div>
-                            <div className="text-lg font-bold text-destructive">
+                            <div className="text-base md:text-lg font-bold text-destructive">
                               Outstanding Balance: {formatCurrency(item.outstanding_balance)}
                             </div>
                           </div>
@@ -532,25 +534,25 @@ const AccountingReports = () => {
                     <table className="w-full">
                       <thead>
                         <tr className="border-b">
-                          <th className="text-left py-3 px-4 text-sm font-semibold uppercase">Period</th>
-                          <th className="text-right py-3 px-4 text-sm font-semibold uppercase">Deposit Revenue</th>
-                          <th className="text-right py-3 px-4 text-sm font-semibold uppercase">Installment Revenue</th>
-                          <th className="text-right py-3 px-4 text-sm font-semibold uppercase">Total Revenue</th>
-                          <th className="text-right py-3 px-4 text-sm font-semibold uppercase">Payments</th>
-                          <th className="text-right py-3 px-4 text-sm font-semibold uppercase">Stripe</th>
-                          <th className="text-right py-3 px-4 text-sm font-semibold uppercase">Manual</th>
+                          <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Period</th>
+                          <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Deposit Revenue</th>
+                          <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Installment Revenue</th>
+                          <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Total Revenue</th>
+                          <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Payments</th>
+                          <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Stripe</th>
+                          <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Manual</th>
                         </tr>
                       </thead>
                       <tbody>
                         {revenueData.map((item, index) => (
                           <tr key={item.period_start} className={index % 2 === 0 ? "bg-muted/30" : ""}>
-                            <td className="py-3 px-4 font-medium">{item.period_label}</td>
-                            <td className="py-3 px-4 text-right">{formatCurrency(item.deposit_revenue)}</td>
-                            <td className="py-3 px-4 text-right">{formatCurrency(item.installment_revenue)}</td>
-                            <td className="py-3 px-4 text-right font-semibold">{formatCurrency(item.total_revenue)}</td>
-                            <td className="py-3 px-4 text-right">{item.payment_count}</td>
-                            <td className="py-3 px-4 text-right">{formatCurrency(item.stripe_revenue)}</td>
-                            <td className="py-3 px-4 text-right">{formatCurrency(item.manual_revenue)}</td>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-medium">{item.period_label}</td>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm text-right">{formatCurrency(item.deposit_revenue)}</td>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm text-right">{formatCurrency(item.installment_revenue)}</td>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm text-right font-semibold">{formatCurrency(item.total_revenue)}</td>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm text-right">{item.payment_count}</td>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm text-right">{formatCurrency(item.stripe_revenue)}</td>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm text-right">{formatCurrency(item.manual_revenue)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -577,18 +579,18 @@ const AccountingReports = () => {
                       <CardContent className="p-6">
                         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                           <div className="flex-1 space-y-2">
-                            <div className="flex items-center gap-3">
-                              <h3 className="text-base md:text-lg font-bold">{item.student_name}</h3>
-                              <Badge variant="outline" className="uppercase">
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <h3 className="text-sm md:text-lg font-bold">{item.student_name}</h3>
+                              <Badge variant="outline" className="uppercase text-xs">
                                 {item.application_status}
                               </Badge>
                               {item.days_overdue > 0 && (
-                                <Badge variant="destructive">
+                                <Badge variant="destructive" className="text-xs">
                                   {item.days_overdue} day{item.days_overdue !== 1 ? "s" : ""} overdue
                                 </Badge>
                               )}
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-muted-foreground">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs md:text-sm text-muted-foreground">
                               <div>
                                 <span className="font-medium">Contract:</span> {item.contract_name}
                               </div>
@@ -631,13 +633,13 @@ const AccountingReports = () => {
                       <CardContent className="p-6">
                         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                           <div className="flex-1 space-y-2">
-                            <div className="flex items-center gap-3">
-                              <h3 className="text-base md:text-lg font-bold">{item.student_name}</h3>
-                              <Badge variant="outline" className="uppercase">
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <h3 className="text-sm md:text-lg font-bold">{item.student_name}</h3>
+                              <Badge variant="outline" className="uppercase text-xs">
                                 {item.status}
                               </Badge>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs md:text-sm">
                               <div>
                                 <span className="font-medium text-muted-foreground">Deposit Paid:</span>{" "}
                                 <span className="font-bold">{formatCurrency(item.deposit_paid)}</span> /{" "}
@@ -684,27 +686,27 @@ const AccountingReports = () => {
                     <table className="w-full">
                       <thead>
                         <tr className="border-b">
-                          <th className="text-left py-3 px-4 text-sm font-semibold uppercase">Date</th>
-                          <th className="text-left py-3 px-4 text-sm font-semibold uppercase">Student</th>
-                          <th className="text-right py-3 px-4 text-sm font-semibold uppercase">Amount</th>
-                          <th className="text-left py-3 px-4 text-sm font-semibold uppercase">Method</th>
-                          <th className="text-left py-3 px-4 text-sm font-semibold uppercase">Type</th>
-                          <th className="text-left py-3 px-4 text-sm font-semibold uppercase">Invoice #</th>
+                          <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Date</th>
+                          <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Student</th>
+                          <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Amount</th>
+                          <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Method</th>
+                          <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Type</th>
+                          <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Invoice #</th>
                         </tr>
                       </thead>
                       <tbody>
                         {bankData.map((item, index) => (
                           <tr key={item.payment_id} className={index % 2 === 0 ? "bg-muted/30" : ""}>
-                            <td className="py-3 px-4">
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">
                               {format(new Date(item.payment_date), "MMM d, yyyy")}
                             </td>
-                            <td className="py-3 px-4">{item.student_name}</td>
-                            <td className="py-3 px-4 text-right font-semibold">{formatCurrency(item.amount_paid)}</td>
-                            <td className="py-3 px-4">
-                              <Badge variant="outline">{item.payment_method}</Badge>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-medium">{item.student_name || "—"}</td>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm text-right font-semibold">{formatCurrency(item.amount_paid)}</td>
+                            <td className="py-2 md:py-3 px-2 md:px-4">
+                              <Badge variant="outline" className="text-xs">{item.payment_method}</Badge>
                             </td>
-                            <td className="py-3 px-4">{item.payment_type}</td>
-                            <td className="py-3 px-4">{item.invoice_number || "—"}</td>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">{item.payment_type}</td>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">{item.invoice_number || "—"}</td>
                           </tr>
                         ))}
                       </tbody>

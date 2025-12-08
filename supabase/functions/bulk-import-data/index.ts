@@ -473,6 +473,24 @@ serve(async (req) => {
           .eq("id", importHistoryId);
       }
 
+      // Log bulk import activity
+      await supabaseAdmin
+        .from("staff_activity_logs")
+        .insert({
+          staff_id: user.id,
+          action: "import",
+          entity_type: import_type,
+          entity_id: null,
+          payload: {
+            import_type,
+            file_name: file_name || "unknown.csv",
+            total_rows: rows.length,
+            succeeded,
+            failed,
+            import_history_id: importHistoryId,
+          },
+        });
+
       return new Response(
         JSON.stringify({
           success: true,

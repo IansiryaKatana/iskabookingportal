@@ -1,9 +1,10 @@
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Calendar, CheckCircle2, Users, FileText, TrendingUp, AlertCircle } from "lucide-react";
+import { ArrowRight, Calendar, CheckCircle2, Users, FileText, TrendingUp, AlertCircle, Gift } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDashboardStats } from "@/hooks/useDashboardStats";
+import { useActiveCashbackCampaigns } from "@/hooks/useCashback";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { formatCurrency } from "@/lib/utils";
@@ -35,8 +36,12 @@ const quickLinks = [
 const Dashboard = () => {
   const { loading, profile } = useAuth();
   const navigate = useNavigate();
-  const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string | undefined>();
+  const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string | undefined>(undefined);
   const { data: stats, isLoading: statsLoading } = useDashboardStats(selectedAcademicYearId);
+  const { data: activeCampaigns, isLoading: campaignsLoading } = useActiveCashbackCampaigns(
+    undefined, 
+    selectedAcademicYearId
+  );
   
   // Only show skeleton while auth is actually loading
   // Once loading is false, show content (even if profile is null, it will show empty state)
@@ -50,8 +55,9 @@ const Dashboard = () => {
       <div className="mb-6 flex items-center justify-start md:justify-end">
         <AcademicYearSelector
           value={selectedAcademicYearId}
-          onValueChange={setSelectedAcademicYearId}
+          onValueChange={(value) => setSelectedAcademicYearId(value)}
           className="w-full md:w-64"
+          allowEmpty={true}
         />
       </div>
       {isLoading ? (
@@ -69,16 +75,16 @@ const Dashboard = () => {
                 <div className="h-3 w-40 bg-primary-foreground/20 animate-pulse rounded mt-2" />
               </CardContent>
             </Card>
-            {/* Upcoming Instalments Skeleton */}
-            <Card className="rounded-3xl shadow-md">
+            {/* Active Cashback Campaign Skeleton */}
+            <Card className="rounded-3xl shadow-md bg-yellow-50 dark:bg-yellow-950/20">
               <CardHeader>
-                <div className="h-6 w-40 bg-muted animate-pulse rounded" />
-                <div className="h-4 w-full bg-muted animate-pulse rounded mt-2" />
-                <div className="h-4 w-2/3 bg-muted animate-pulse rounded mt-1" />
+                <div className="h-6 w-40 bg-yellow-100 dark:bg-yellow-900/30 animate-pulse rounded" />
+                <div className="h-4 w-full bg-yellow-100 dark:bg-yellow-900/30 animate-pulse rounded mt-2" />
+                <div className="h-4 w-2/3 bg-yellow-100 dark:bg-yellow-900/30 animate-pulse rounded mt-1" />
               </CardHeader>
               <CardContent>
-                <div className="h-4 w-full bg-muted animate-pulse rounded" />
-                <div className="h-4 w-5/6 bg-muted animate-pulse rounded mt-2" />
+                <div className="h-4 w-full bg-yellow-100 dark:bg-yellow-900/30 animate-pulse rounded" />
+                <div className="h-4 w-5/6 bg-yellow-100 dark:bg-yellow-900/30 animate-pulse rounded mt-2" />
               </CardContent>
             </Card>
             {/* Pending Verifications Skeleton */}
@@ -144,38 +150,90 @@ const Dashboard = () => {
                 </p>
               </CardContent>
             </Card>
-            <Card className="rounded-3xl shadow-md border border-border/60">
+            <Card className="rounded-3xl shadow-md border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950/20">
               <CardHeader>
                 <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide flex items-center gap-2">
-                  <Calendar className="h-4 w-4 md:h-5 md:w-5" />
-                  Upcoming Instalments
+                  <Gift className="h-4 w-4 md:h-5 md:w-5 text-yellow-600 dark:text-yellow-400" />
+                  Active Cashback Campaign
                 </CardTitle>
                 <CardDescription>
-                  {stats?.upcomingInstalments.count ? (
+                  {campaignsLoading ? (
+                    "Loading campaign data..."
+                  ) : activeCampaigns && activeCampaigns.length > 0 ? (
                     <>
-                      {stats.upcomingInstalments.count} instalment{stats.upcomingInstalments.count !== 1 ? "s" : ""} due in next 30 days
+                      {activeCampaigns.length} active campaign{activeCampaigns.length !== 1 ? "s" : ""} running
                     </>
                   ) : (
-                    "Payment schedules will appear here when configured"
+                    "No active cashback campaigns at the moment"
                   )}
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {stats?.upcomingInstalments.count ? (
+                {campaignsLoading ? (
                   <div className="space-y-2">
-                    <p className="text-2xl font-bold font-display">
-                      {formatCurrency(stats.upcomingInstalments.totalAmount)}
-                    </p>
-                    {stats.upcomingInstalments.nextDueDate && (
-                      <p className="text-sm text-muted-foreground">
-                        Next due: {format(new Date(stats.upcomingInstalments.nextDueDate), "MMM dd, yyyy")}
-                      </p>
+                    <Skeleton className="h-8 w-32" />
+                    <Skeleton className="h-4 w-48" />
+                  </div>
+                ) : activeCampaigns && activeCampaigns.length > 0 ? (
+                  <div className="space-y-3">
+                    {activeCampaigns.slice(0, 2).map((campaign) => (
+                      <div key={campaign.id} className="space-y-2 pb-3 border-b border-yellow-200 dark:border-yellow-800 last:border-0 last:pb-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1">
+                            <p className="font-bold text-base md:text-lg text-yellow-900 dark:text-yellow-100">
+                              {campaign.name}
+                            </p>
+                            <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
+                              {formatCurrency(campaign.cashback_amount)} cashback
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs font-semibold text-yellow-600 dark:text-yellow-400">
+                              {campaign.current_uses}
+                              {campaign.max_uses ? ` / ${campaign.max_uses}` : ""} uses
+                            </p>
+                            {campaign.max_uses && (
+                              <div className="mt-1 w-20 h-1.5 bg-yellow-200 dark:bg-yellow-900/50 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-yellow-500 dark:bg-yellow-400 rounded-full transition-all"
+                                  style={{
+                                    width: `${Math.min((campaign.current_uses / campaign.max_uses) * 100, 100)}%`,
+                                  }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-xs text-yellow-600 dark:text-yellow-400">
+                          {format(new Date(campaign.start_date), "MMM d")} - {format(new Date(campaign.end_date), "MMM d, yyyy")}
+                        </p>
+                      </div>
+                    ))}
+                    {activeCampaigns.length > 2 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full text-yellow-700 dark:text-yellow-300 hover:text-yellow-900 dark:hover:text-yellow-100 hover:bg-yellow-100 dark:hover:bg-yellow-900/30"
+                        onClick={() => navigate("/admin/cashback-campaigns")}
+                      >
+                        View all {activeCampaigns.length} campaigns
+                      </Button>
                     )}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No instalments scheduled yet. Configure payment plans to see automatic reminders.
-                  </p>
+                  <div className="space-y-2">
+                    <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                      No active campaigns. Create one to incentivize bookings.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full uppercase tracking-wide border-yellow-300 dark:border-yellow-700 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-100 dark:hover:bg-yellow-900/30"
+                      onClick={() => navigate("/admin/cashback-campaigns")}
+                    >
+                      Create Campaign
+                    </Button>
+                  </div>
                 )}
               </CardContent>
             </Card>

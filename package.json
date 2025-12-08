@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "seed": "node scripts/seed-data.mjs",
+    "setup:db": "node -e \"console.log('Run: bash scripts/setup-database.sh (Linux/Mac) or .\\scripts\\setup-database.ps1 (Windows)')\"",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage"

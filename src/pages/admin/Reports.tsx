@@ -4,8 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { useReport, useOccupancyReport, type ReportType } from "@/hooks/useReports";
-import { Download, FileText, AlertCircle, CreditCard, Users, Building2 } from "lucide-react";
+import { useReport, useOccupancyReport, useStudioAllocationReport, type ReportType } from "@/hooks/useReports";
+import { Download, FileText, AlertCircle, CreditCard, Users, Building2, LayoutGrid } from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +44,12 @@ const reportTypes: Array<{ value: ReportType; label: string; icon: typeof FileTe
     label: "Occupancy",
     icon: Building2,
     description: "All confirmed bookings and occupancy status",
+  },
+  {
+    value: "studio-allocation",
+    label: "Studio Allocation",
+    icon: LayoutGrid,
+    description: "Studio allocation counts by grade and allocation type",
   },
 ];
 
@@ -120,6 +126,7 @@ const Reports = () => {
   const { data: occupancyReport, isLoading: isLoadingOccupancy } = useOccupancyReport(
     selectedReport === "occupancy" ? selectedAcademicYearId : undefined
   );
+  const { data: studioAllocationReport, isLoading: isLoadingStudioAllocation } = useStudioAllocationReport();
 
   const formatCurrency = (amount: number | null) => {
     if (!amount) return "—";
@@ -132,6 +139,67 @@ const Reports = () => {
   };
 
   const exportToCSV = () => {
+    if (selectedReport === "studio-allocation") {
+      if (!studioAllocationReport || studioAllocationReport.length === 0) {
+        toast({
+          title: "No data to export",
+          description: "There is no studio allocation data available for this report.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Export studio allocation report
+      const headers = [
+        "Studio Grade",
+        "Total Studios",
+        "Active Studios",
+        "Allocated to Students",
+        "Allocated to OTA",
+        "Allocated to Keyworkers",
+        "Unallocated",
+        "Status: Available",
+        "Status: Occupied",
+        "Status: Reserved",
+        "Status: Maintenance",
+      ];
+
+      const rows = studioAllocationReport.map((item) => [
+        item.studio_grade_name,
+        item.total_studios.toString(),
+        item.active_studios.toString(),
+        item.allocated_to_students.toString(),
+        item.allocated_to_ota.toString(),
+        item.allocated_to_keyworkers.toString(),
+        item.unallocated.toString(),
+        item.status_available.toString(),
+        item.status_occupied.toString(),
+        item.status_reserved.toString(),
+        item.status_maintenance.toString(),
+      ]);
+
+      const csvContent = [
+        headers.join(","),
+        ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
+      ].join("\n");
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", `studio_allocation_report_${format(new Date(), "yyyy-MM-dd")}.csv`);
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast({
+        title: "Report exported",
+        description: `Successfully exported studio allocation report to CSV.`,
+      });
+      return;
+    }
+
     if (selectedReport === "occupancy") {
       if (!occupancyReport || occupancyReport.by_grade.length === 0) {
         toast({
@@ -410,7 +478,13 @@ const Reports = () => {
                   {currentReport?.label}
                 </CardTitle>
                 <CardDescription className="mt-1">
-                  {selectedReport === "occupancy"
+                  {selectedReport === "studio-allocation"
+                    ? isLoadingStudioAllocation
+                      ? "Loading studio allocation data..."
+                      : studioAllocationReport
+                        ? `${studioAllocationReport.length} studio grade${studioAllocationReport.length !== 1 ? "s" : ""} • ${studioAllocationReport.reduce((sum, g) => sum + g.total_studios, 0)} total studios`
+                        : "No studio allocation data available"
+                    : selectedReport === "occupancy"
                     ? isLoadingOccupancy
                       ? "Loading occupancy data..."
                       : occupancyReport
@@ -423,8 +497,9 @@ const Reports = () => {
                         : "No data available"}
                 </CardDescription>
               </div>
-              {((selectedReport === "occupancy" && occupancyReport && occupancyReport.by_grade.length > 0) ||
-                (selectedReport !== "occupancy" && reportData && reportData.length > 0)) && (
+              {((selectedReport === "studio-allocation" && studioAllocationReport && studioAllocationReport.length > 0) ||
+                (selectedReport === "occupancy" && occupancyReport && occupancyReport.by_grade.length > 0) ||
+                (selectedReport !== "occupancy" && selectedReport !== "studio-allocation" && reportData && reportData.length > 0)) && (
                 <Button
                   onClick={exportToCSV}
                   className="rounded-full uppercase tracking-wide gap-2 hidden lg:flex"
@@ -436,7 +511,113 @@ const Reports = () => {
             </div>
           </CardHeader>
           <CardContent>
-            {selectedReport === "occupancy" ? (
+            {selectedReport === "studio-allocation" ? (
+              isLoadingStudioAllocation ? (
+                <ReportSkeleton />
+              ) : studioAllocationReport && studioAllocationReport.length > 0 ? (
+                <div className="space-y-6">
+                  {/* Overall Summary */}
+                  <Card className="rounded-2xl bg-primary/5">
+                    <CardHeader>
+                      <CardTitle className="text-base md:text-lg font-display font-bold uppercase">
+                        Overall Allocation Summary
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Total Studios</p>
+                          <p className="text-xl md:text-2xl font-bold">
+                            {studioAllocationReport.reduce((sum, g) => sum + g.total_studios, 0)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Allocated to Students</p>
+                          <p className="text-xl md:text-2xl font-bold text-primary">
+                            {studioAllocationReport.reduce((sum, g) => sum + g.allocated_to_students, 0)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Allocated to OTA</p>
+                          <p className="text-xl md:text-2xl font-bold text-blue-600">
+                            {studioAllocationReport.reduce((sum, g) => sum + g.allocated_to_ota, 0)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Allocated to Keyworkers</p>
+                          <p className="text-xl md:text-2xl font-bold text-purple-600">
+                            {studioAllocationReport.reduce((sum, g) => sum + g.allocated_to_keyworkers, 0)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Unallocated</p>
+                          <p className="text-xl md:text-2xl font-bold text-gray-600">
+                            {studioAllocationReport.reduce((sum, g) => sum + g.unallocated, 0)}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* By Studio Grade */}
+                  <div className="space-y-4">
+                    <h3 className="text-base md:text-lg font-bold">By Studio Grade</h3>
+                    {studioAllocationReport.map((grade) => (
+                      <Card key={grade.studio_grade_id} className="rounded-2xl">
+                        <CardHeader>
+                          <CardTitle className="text-base md:text-lg font-display font-bold uppercase">
+                            {grade.studio_grade_name}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                            <div>
+                              <p className="text-xs md:text-sm text-muted-foreground">Total Studios</p>
+                              <p className="text-lg md:text-xl font-bold">{grade.total_studios}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs md:text-sm text-muted-foreground">Active Studios</p>
+                              <p className="text-lg md:text-xl font-bold">{grade.active_studios}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs md:text-sm text-muted-foreground">Allocated to Students</p>
+                              <p className="text-lg md:text-xl font-bold text-primary">{grade.allocated_to_students}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs md:text-sm text-muted-foreground">Allocated to OTA</p>
+                              <p className="text-lg md:text-xl font-bold text-blue-600">{grade.allocated_to_ota}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs md:text-sm text-muted-foreground">Allocated to Keyworkers</p>
+                              <p className="text-lg md:text-xl font-bold text-purple-600">{grade.allocated_to_keyworkers}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs md:text-sm text-muted-foreground">Unallocated</p>
+                              <p className="text-lg md:text-xl font-bold text-gray-600">{grade.unallocated}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs md:text-sm text-muted-foreground">Status: Available</p>
+                              <p className="text-lg md:text-xl font-bold text-green-600">{grade.status_available}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs md:text-sm text-muted-foreground">Status: Occupied</p>
+                              <p className="text-lg md:text-xl font-bold text-orange-600">{grade.status_occupied}</p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <Card className="rounded-3xl border-dashed">
+                  <CardHeader>
+                    <CardTitle>No Data Found</CardTitle>
+                    <CardDescription>There is no studio allocation data available.</CardDescription>
+                  </CardHeader>
+                </Card>
+              )
+            ) : selectedReport === "occupancy" ? (
               isLoadingOccupancy ? (
                 <ReportSkeleton />
               ) : occupancyReport ? (
