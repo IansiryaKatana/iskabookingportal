@@ -983,12 +983,30 @@ serve(async (req) => {
       let existingGuarantorEnvelopeId: string | null = null;
 
       if (!existingGuarantor) {
+        // Build textTabs for guarantor agreement
+        // Student/Contract fields
+        const guarantorTextTabs = [
+          ...(tenantNameForDoc ? [{ tabLabel: "student_name", value: tenantNameForDoc }] : []),
+          ...(totalRent ? [{ tabLabel: "total_rent", value: totalRent }] : []),
+          ...(tenancyPeriod ? [{ tabLabel: "tenancy_period", value: tenancyPeriod }] : []),
+          ...(roomNumber ? [{ tabLabel: "room_number", value: String(roomNumber) }] : []),
+          // Guarantor fields
+          ...(guarantor.name ? [{ tabLabel: "guarantor_name", value: guarantor.name }] : []),
+          ...(guarantor.email ? [{ tabLabel: "guarantor_email", value: guarantor.email }] : []),
+          ...(guarantor.phone ? [{ tabLabel: "guarantor_phone", value: guarantor.phone }] : []),
+          ...(guarantor.relationship ? [{ tabLabel: "guarantor_relationship", value: guarantor.relationship }] : []),
+          ...(guarantor.dob ? [{ tabLabel: "guarantor_dob", value: guarantor.dob }] : []),
+        ].filter((tab) => tab.value && tab.value.trim().length > 0);
+
         const guarantorRecipients = [
           {
             roleName: guarantorRole,
             name: guarantor.name,
             email: guarantor.email,
             routingOrder: "1",
+            tabs: {
+              textTabs: guarantorTextTabs.length > 0 ? guarantorTextTabs : undefined,
+            },
           },
         ];
         const guarantorBody = {
