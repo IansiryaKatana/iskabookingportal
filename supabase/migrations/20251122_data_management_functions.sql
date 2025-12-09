@@ -216,10 +216,52 @@ BEGIN
     END;
   END LOOP;
   
+  -- Cleanup orphaned records after deleting all applications
+  -- 1. Clear studio allocations that reference deleted applications (UUID allocations)
+  --    These are temporary reservations that should be cleared
+  UPDATE public.studios
+  SET 
+    allocation = NULL,
+    reservation_expires_at = NULL,
+    status = CASE 
+      WHEN status = 'reserved' THEN 'available'
+      ELSE status
+    END
+  WHERE 
+    allocation IS NOT NULL
+    AND allocation ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' -- UUID format
+    AND allocation::UUID NOT IN (
+      SELECT id FROM public.student_applications
+    );
+  
+  -- 2. Clear all expired reservations
+  UPDATE public.studios
+  SET 
+    reservation_expires_at = NULL,
+    status = CASE 
+      WHEN status = 'reserved' AND reservation_expires_at < NOW() THEN 'available'
+      ELSE status
+    END
+  WHERE 
+    reservation_expires_at IS NOT NULL
+    AND reservation_expires_at < NOW();
+  
+  -- 3. Reset any studios that are still marked as reserved but have no allocation
+  UPDATE public.studios
+  SET 
+    status = 'available',
+    allocation = NULL,
+    reservation_expires_at = NULL
+  WHERE 
+    status = 'reserved'
+    AND (allocation IS NULL OR allocation = '');
+  
   -- Return as JSONB object instead of TABLE
   RETURN jsonb_build_object(
     'deleted_count', v_total_deleted,
-    'details', v_details
+    'details', v_details,
+    'cleanup_performed', true,
+    'message', format('Deleted %s applications and cleaned up orphaned studio allocations', v_total_deleted)
   );
 END;
 $$;
@@ -328,10 +370,51 @@ BEGIN
     END;
   END LOOP;
   
+  -- Cleanup orphaned records after deleting applications for this academic year
+  -- 1. Clear studio allocations that reference deleted applications (UUID allocations)
+  UPDATE public.studios
+  SET 
+    allocation = NULL,
+    reservation_expires_at = NULL,
+    status = CASE 
+      WHEN status = 'reserved' THEN 'available'
+      ELSE status
+    END
+  WHERE 
+    allocation IS NOT NULL
+    AND allocation ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' -- UUID format
+    AND allocation::UUID NOT IN (
+      SELECT id FROM public.student_applications
+    );
+  
+  -- 2. Clear all expired reservations
+  UPDATE public.studios
+  SET 
+    reservation_expires_at = NULL,
+    status = CASE 
+      WHEN status = 'reserved' AND reservation_expires_at < NOW() THEN 'available'
+      ELSE status
+    END
+  WHERE 
+    reservation_expires_at IS NOT NULL
+    AND reservation_expires_at < NOW();
+  
+  -- 3. Reset any studios that are still marked as reserved but have no allocation
+  UPDATE public.studios
+  SET 
+    status = 'available',
+    allocation = NULL,
+    reservation_expires_at = NULL
+  WHERE 
+    status = 'reserved'
+    AND (allocation IS NULL OR allocation = '');
+  
   -- Return as JSONB object instead of TABLE
   RETURN jsonb_build_object(
     'deleted_count', v_total_deleted,
-    'details', v_details
+    'details', v_details,
+    'cleanup_performed', true,
+    'message', format('Deleted %s applications for academic year and cleaned up orphaned studio allocations', v_total_deleted)
   );
 END;
 $$;
