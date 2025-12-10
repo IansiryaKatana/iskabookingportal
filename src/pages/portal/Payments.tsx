@@ -88,8 +88,18 @@ const Payments = () => {
 
       await Promise.all(paymentStatusPromises);
       
-      // Set the paid IDs immediately
-      setPaidInstalmentIds(allPaidIds);
+      // Only update state if data actually changed (invisible polling)
+      // This prevents unnecessary re-renders when polling finds no changes
+      setPaidInstalmentIds((prevIds) => {
+        const prevArray = Array.from(prevIds).sort();
+        const newArray = Array.from(allPaidIds).sort();
+        // Compare arrays - only update if different
+        if (prevArray.length !== newArray.length || 
+            prevArray.some((id, idx) => id !== newArray[idx])) {
+          return allPaidIds; // Data changed, update state
+        }
+        return prevIds; // No changes, keep existing state (no re-render = invisible)
+      });
       setIsLoadingPaidStatus(false);
     };
 
@@ -490,9 +500,12 @@ const PaymentCard = ({
   const { data: instalments, isLoading, refetch } = useStudentPayments(application.id);
   const { data: cashback } = useApplicationCashback(application.id);
   // Only fetch payment summary for confirmed applications (they have payment schedules)
-  const { data: paymentSummary } = usePaymentSummary(
+  // Use isRefetching for background updates (invisible polling) instead of isLoading
+  const { data: paymentSummary, isRefetching: isRefetchingSummary } = usePaymentSummary(
     application.status === "confirmed" ? application.id : null
   );
+  // Also get isRefetching for unified payments to show skeleton when updating
+  const { data: unifiedPayments, isRefetching: isRefetchingPayments } = useUnifiedPayments(application.id);
   const contract = application.contract;
   const gradeName = contract?.studio_grade?.name ?? "Studio Grade";
 
@@ -590,8 +603,21 @@ const PaymentCard = ({
     return null;
   }
 
+  // Show skeleton overlay when refetching in background (granular loading)
+  // Only show when refetching (background update), not on initial load
+  const isRefetching = isRefetchingSummary || isRefetchingPayments;
+
   return (
-    <Card className="rounded-3xl border border-border/60 shadow-xl">
+    <Card className={`rounded-3xl border border-border/60 shadow-xl relative ${isRefetching ? "opacity-75" : ""}`}>
+      {/* Skeleton overlay when refetching in background - only on affected card */}
+      {isRefetching && (
+        <div className="absolute inset-0 bg-background/50 backdrop-blur-sm z-10 rounded-3xl flex items-center justify-center">
+          <div className="flex flex-col items-center gap-2">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">Updating...</span>
+          </div>
+        </div>
+      )}
       <CardHeader>
         <CardTitle className="text-xl font-display uppercase tracking-wide">
           {contract?.name ?? "Contract"}

@@ -64,6 +64,8 @@ const Branding = () => {
 
   // Form states
   const [companyName, setCompanyName] = useState("");
+  const [metaDescription, setMetaDescription] = useState("");
+  const [twitterHandle, setTwitterHandle] = useState("");
   const [logoPath, setLogoPath] = useState("");
   const [faviconPath, setFaviconPath] = useState("");
   const [heroImagePath, setHeroImagePath] = useState("");
@@ -92,6 +94,8 @@ const Branding = () => {
   useEffect(() => {
     if (settings) {
       setCompanyName(settings.company_name || "");
+      setMetaDescription(settings.meta_description || "");
+      setTwitterHandle(settings.twitter_handle || "");
       setLogoPath(settings.logo_path || "");
       setFaviconPath(settings.favicon_path || "");
       setHeroImagePath(settings.studio_catalog_hero_image || "");
@@ -348,6 +352,8 @@ const Branding = () => {
     mutationFn: async () => {
       const updates = [
         { setting_key: "company_name", setting_value: companyName, setting_type: "text" },
+        { setting_key: "meta_description", setting_value: metaDescription, setting_type: "text" },
+        { setting_key: "twitter_handle", setting_value: twitterHandle, setting_type: "text" },
         { setting_key: "logo_path", setting_value: logoPath, setting_type: "url" },
         { setting_key: "favicon_path", setting_value: faviconPath, setting_type: "url" },
         { setting_key: "studio_catalog_hero_image", setting_value: heroImagePath, setting_type: "url" },
@@ -672,6 +678,70 @@ const Branding = () => {
                 <>
                   <Save className="h-4 w-4" />
                   <span className="hidden sm:inline">Save Company Name</span>
+                  <span className="sm:hidden">Save</span>
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* SEO & Social Media */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">
+              SEO & Social Media
+            </CardTitle>
+            <CardDescription className="text-xs md:text-sm">
+              Meta tags for search engines and social media sharing
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="meta_description" className="text-sm font-medium">
+                Meta Description
+              </Label>
+              <Textarea
+                id="meta_description"
+                placeholder="Modern student accommodation. Book your studio apartment for the academic year. Premium amenities and convenient location."
+                value={metaDescription}
+                onChange={(e) => setMetaDescription(e.target.value)}
+                className="text-sm md:text-base min-h-[80px]"
+                rows={3}
+              />
+              <p className="text-xs text-muted-foreground">
+                This description appears in search engine results and when sharing on social media. Keep it under 160 characters for best results.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="twitter_handle" className="text-sm font-medium">
+                Twitter Handle
+              </Label>
+              <Input
+                id="twitter_handle"
+                type="text"
+                placeholder="@UrbanHubBooking"
+                value={twitterHandle}
+                onChange={(e) => setTwitterHandle(e.target.value)}
+                className="text-sm md:text-base"
+              />
+              <p className="text-xs text-muted-foreground">
+                Your Twitter/X handle (e.g., @YourCompany). Used in Twitter Card meta tags.
+              </p>
+            </div>
+            <Button
+              onClick={() => saveSettingsMutation.mutate()}
+              disabled={saveSettingsMutation.isPending}
+              className="rounded-full uppercase tracking-wide text-xs md:text-sm h-9 md:h-10 px-4 md:px-6 gap-2"
+            >
+              {saveSettingsMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="hidden sm:inline">Saving...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  <span className="hidden sm:inline">Save SEO Settings</span>
                   <span className="sm:hidden">Save</span>
                 </>
               )}

@@ -1,0 +1,53 @@
+// BACKUP: Original polling code from ApplicationWizard.tsx
+// Lines 2329-2375 (approximately)
+// Date: 2025-01-28
+// Purpose: Rollback if webhook implementation causes issues
+
+  // Auto-poll envelope status when on Step 6
+  useEffect(() => {
+    if (currentStep !== 6 || !application?.id) return;
+    
+    let mounted = true;
+    
+    const performCheck = async () => {
+      if (!mounted || checkingStatus) return;
+      
+      setCheckingStatus(true);
+      try {
+        const { error } = await supabase.functions.invoke(
+          "docusign-check-status",
+          {
+            body: { applicationId: application.id },
+          },
+        );
+
+        if (error) {
+          console.error("Error checking envelope status:", error);
+          return;
+        }
+
+        // Refetch application to get updated envelope status
+        await refetchApplication();
+      } catch (error) {
+        console.error("Error checking envelope status:", error);
+      } finally {
+        if (mounted) {
+          setCheckingStatus(false);
+        }
+      }
+    };
+    
+    // Check immediately
+    performCheck();
+    
+    // Then poll every 30 seconds
+    const interval = setInterval(() => {
+      performCheck();
+    }, 30000);
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [currentStep, application?.id, refetchApplication]);
+

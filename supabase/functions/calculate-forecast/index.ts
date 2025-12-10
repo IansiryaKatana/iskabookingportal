@@ -99,27 +99,127 @@ async function calculateForecast(input: ForecastInput): Promise<ForecastResult> 
     };
   }
 
-  // 2. Calculate current revenue from confirmed bookings
-  const { data: currentBookings, error: bookingsError } = await supabaseAdmin
-    .from("student_applications")
-    .select("id, contract_id, total_contract_value, studio_grade_id")
-    .eq("status", "confirmed")
-    .in(
-      "contract_id",
-      contracts.map((c) => c.id),
-    );
+  // 1.5. Fetch studio grade prices for contracts (needed for revenue calculation)
+  const studioGradeIds = [...new Set(contracts.map((c) => c.studio_grade_id))];
+  const { data: prices, error: pricesError } = await supabaseAdmin
+    .from("studio_grade_prices")
+    .select("studio_grade_id, weekly_price")
+    .eq("academic_year_id", input.academicYearId)
+    .in("studio_grade_id", studioGradeIds);
 
-  if (bookingsError) {
-    console.warn("Error fetching current bookings:", bookingsError);
+  if (pricesError) {
+    console.warn("Error fetching prices:", pricesError);
   }
 
-  const currentRevenue = (currentBookings || []).reduce((sum, booking) => {
-    // Use total_contract_value if available, otherwise calculate
-    if (booking.total_contract_value) {
-      return sum + Number(booking.total_contract_value);
+  const pricesMap = new Map(
+    (prices || []).map((p) => [p.studio_grade_id, Number(p.weekly_price)]),
+  );
+
+  // 2. Calculate current revenue from confirmed bookings
+  // First, get all confirmed bookings for this academic year (via contract join)
+  // This ensures we catch all confirmed bookings even if contract_id doesn't match exactly
+  const contractIds = contracts.map((c) => c.id);
+  
+  console.log("🔍 Forecast Debug:", {
+    academicYearId: input.academicYearId,
+    contractsFound: contracts.length,
+    contractIds: contractIds,
+  });
+
+  // Query confirmed bookings that belong to contracts in this academic year
+  // Use a join approach to ensure we get all bookings for the academic year
+  const { data: currentBookings, error: bookingsError } = await supabaseAdmin
+    .from("student_applications")
+    .select(
+      `
+      id, 
+      contract_id, 
+      total_contract_value, 
+      studio_grade_id,
+      status,
+      contract:contracts!inner(
+        id,
+        weeks,
+        weekly_price_override,
+        studio_grade_id,
+        academic_year_id
+      )
+    `,
+    )
+    .eq("status", "confirmed")
+    .eq("contract.academic_year_id", input.academicYearId);
+
+  if (bookingsError) {
+    console.error("❌ Error fetching current bookings:", bookingsError);
+  } else {
+    console.log("✅ Current bookings found:", currentBookings?.length || 0);
+    if (currentBookings && currentBookings.length > 0) {
+      console.log("📊 Booking details:", currentBookings.map((b: any) => ({
+        id: b.id,
+        contract_id: b.contract_id,
+        total_contract_value: b.total_contract_value,
+        contract_weeks: (b.contract as any)?.weeks,
+        contract_weekly_price_override: (b.contract as any)?.weekly_price_override,
+      })));
     }
-    return sum;
-  }, 0);
+  }
+
+  // Create a map of contract_id to contract details for quick lookup
+  const contractsMap = new Map(
+    contracts.map((c) => [
+      c.id,
+      {
+        weeks: c.weeks,
+        weekly_price_override: c.weekly_price_override,
+        studio_grade_id: c.studio_grade_id,
+      },
+    ]),
+  );
+
+  let currentRevenue = 0;
+  
+  if (currentBookings && currentBookings.length > 0) {
+    currentRevenue = currentBookings.reduce((sum: number, booking: any) => {
+      let bookingRevenue = 0;
+      
+      // Use total_contract_value if available
+      if (booking.total_contract_value) {
+        bookingRevenue = Number(booking.total_contract_value);
+        console.log(`💰 Using total_contract_value: £${bookingRevenue} for booking ${booking.id}`);
+      } else {
+        // Otherwise, calculate from contract details
+        // Try to get contract from the joined data first
+        const joinedContract = booking.contract;
+        const contract = joinedContract 
+          ? {
+              weeks: joinedContract.weeks,
+              weekly_price_override: joinedContract.weekly_price_override,
+              studio_grade_id: joinedContract.studio_grade_id,
+            }
+          : contractsMap.get(booking.contract_id);
+
+        if (contract) {
+          // Get weekly price (override or from prices map)
+          const weeklyPrice = contract.weekly_price_override
+            ? Number(contract.weekly_price_override)
+            : pricesMap.get(contract.studio_grade_id) || 0;
+
+          bookingRevenue = weeklyPrice * contract.weeks;
+          console.log(`💰 Calculated revenue: £${bookingRevenue} (${weeklyPrice} × ${contract.weeks}) for booking ${booking.id}`);
+        } else {
+          // If no contract found, log warning and skip
+          console.warn(`⚠️ No contract found for booking ${booking.id} with contract_id ${booking.contract_id}`);
+          bookingRevenue = 0;
+        }
+      }
+      
+      const newSum = sum + bookingRevenue;
+      console.log(`💰 Accumulated revenue: £${sum} + £${bookingRevenue} = £${newSum}`);
+      return newSum;
+    }, 0);
+  }
+
+  console.log(`💰 Total current revenue calculated: £${currentRevenue}`);
 
   // 3. Calculate revenue gap
   const revenueGap = input.targetRevenue - (input.includeExistingBookings ? 0 : currentRevenue);
@@ -136,22 +236,6 @@ async function calculateForecast(input: ForecastInput): Promise<ForecastResult> 
 
   const totalStudios = studios?.length || 0;
   const currentBookingsCount = currentBookings?.length || 0;
-
-  // 4.5. Fetch studio grade prices for contracts
-  const studioGradeIds = [...new Set(contracts.map((c) => c.studio_grade_id))];
-  const { data: prices, error: pricesError } = await supabaseAdmin
-    .from("studio_grade_prices")
-    .select("studio_grade_id, weekly_price")
-    .eq("academic_year_id", input.academicYearId)
-    .in("studio_grade_id", studioGradeIds);
-
-  if (pricesError) {
-    console.warn("Error fetching prices:", pricesError);
-  }
-
-  const pricesMap = new Map(
-    (prices || []).map((p) => [p.studio_grade_id, Number(p.weekly_price)]),
-  );
 
   // 5. For each contract, calculate students needed
   const breakdown: ContractBreakdown[] = contracts.map((contract) => {
@@ -206,9 +290,20 @@ async function calculateForecast(input: ForecastInput): Promise<ForecastResult> 
     : 0;
   const availableCapacity = totalStudios - currentBookingsCount;
 
+  // Determine final current revenue based on includeExistingBookings flag
+  const finalCurrentRevenue = input.includeExistingBookings ? 0 : currentRevenue;
+  
+  console.log("📊 Final Revenue Calculation:", {
+    calculatedRevenue: currentRevenue,
+    includeExistingBookings: input.includeExistingBookings,
+    finalCurrentRevenue: finalCurrentRevenue,
+    revenueGap: revenueGap,
+    targetRevenue: input.targetRevenue,
+  });
+
   return {
     targetRevenue: input.targetRevenue,
-    currentRevenue: input.includeExistingBookings ? 0 : currentRevenue,
+    currentRevenue: finalCurrentRevenue,
     revenueGap,
     breakdown,
     totalStudentsNeeded,
@@ -266,6 +361,13 @@ serve(async (req) => {
     }
 
     const result = await calculateForecast(input);
+    
+    console.log("📤 Returning forecast result:", {
+      targetRevenue: result.targetRevenue,
+      currentRevenue: result.currentRevenue,
+      revenueGap: result.revenueGap,
+      totalStudentsNeeded: result.totalStudentsNeeded,
+    });
 
     return new Response(JSON.stringify(result), {
       status: 200,

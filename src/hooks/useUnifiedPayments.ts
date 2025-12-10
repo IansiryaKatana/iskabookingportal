@@ -56,6 +56,13 @@ export const useUnifiedPayments = (applicationId: string) => {
       if (error) throw error;
       return (data || []) as UnifiedPayment[];
     },
+    // Optimize for invisible polling - only update if data actually changed
+    staleTime: 30000, // Consider data fresh for 30s (matches polling interval)
+    cacheTime: 300000, // Keep in cache for 5 minutes
+    refetchOnMount: false, // Don't refetch on mount if data is fresh
+    refetchOnWindowFocus: false, // Don't refetch on window focus
+    refetchOnReconnect: false, // Don't refetch on reconnect
+    // React Query automatically compares data - no re-render if unchanged
   });
 };
 
@@ -84,6 +91,13 @@ export const usePaymentSummary = (applicationId: string | null | undefined) => {
     },
     enabled: !!applicationId,
     retry: false, // Don't retry on error to prevent spam
+    // Optimize for invisible polling - only update if data actually changed
+    staleTime: 30000, // Consider data fresh for 30s (matches polling interval)
+    cacheTime: 300000, // Keep in cache for 5 minutes
+    refetchOnMount: false, // Don't refetch on mount if data is fresh
+    refetchOnWindowFocus: false, // Don't refetch on window focus
+    refetchOnReconnect: false, // Don't refetch on reconnect
+    // React Query automatically compares data - no re-render if unchanged
   });
 };
 

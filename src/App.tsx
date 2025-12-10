@@ -42,6 +42,7 @@ import AdminPartners from "./pages/admin/Partners";
 import AdminPartnerCommissions from "./pages/admin/PartnerCommissions";
 import AdminWeeklyPaymentReport from "./pages/admin/WeeklyPaymentReport";
 import AdminDataImport from "./pages/admin/DataImport";
+import AdminManualPaymentEntry from "./pages/admin/ManualPaymentEntry";
 import PartnerLogin from "./pages/partner/Login";
 import PartnerRegister from "./pages/partner/Register";
 import PartnerResetPassword from "./pages/partner/ResetPassword";
@@ -66,6 +67,7 @@ import PortalProfile from "./pages/portal/Profile";
 import PortalNotifications from "./pages/portal/Notifications";
 import PageTitle from "./components/PageTitle";
 import FaviconUpdater from "./components/FaviconUpdater";
+import MetaTagsUpdater from "./components/MetaTagsUpdater";
 
 const queryClient = new QueryClient();
 
@@ -85,6 +87,7 @@ const App = () => (
             <ErrorBoundary>
               <PageTitle />
               <FaviconUpdater />
+              <MetaTagsUpdater />
               <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/studios" element={<StudiosCatalog />} />
@@ -393,6 +396,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
                   <AdminDataImport />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/manual-payment-entry"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                  <AdminManualPaymentEntry />
                 </ProtectedRoute>
               }
             />

@@ -23,6 +23,8 @@ import {
 } from "@/hooks/useStudentApplication";
 import { useRebookingData } from "@/hooks/useRebooking";
 import { useValidateReferralCode } from "@/hooks/useReferralCode";
+import { useVerifyPayment } from "@/hooks/useVerifyPayment";
+import { useLinkPaymentToApplication } from "@/hooks/useManualPayment";
 import PortalLayout from "@/components/portal/PortalLayout";
 import {
   Loader2,
@@ -265,6 +267,9 @@ const documentationSchema = z.object({
 
 const paymentSchema = z.object({
   selected_plan_id: z.string().trim().optional().or(z.literal("")),
+  deposit_paid: z.boolean().optional(),
+  already_paid_deposit: z.boolean().optional(),
+  receipt_number: optionalText(100),
   guarantor_name: optionalText(),
   guarantor_email: optionalEmail(),
   guarantor_phone: optionalText(),
@@ -904,6 +909,9 @@ const StudentApplicationWizard = () => {
       "";
     return {
       selected_plan_id: initialPlanId,
+      deposit_paid: Boolean(payload.deposit_paid),
+      already_paid_deposit: Boolean(payload.already_paid_deposit),
+      receipt_number: (payload.receipt_number as string) || "",
       guarantor_name: (payload.guarantor_name as string) || "",
       guarantor_email: (payload.guarantor_email as string) || "",
       guarantor_phone: (payload.guarantor_phone as string) || "",
@@ -1543,12 +1551,19 @@ useEffect(() => {
     await handleStepSubmit(4, sanitized);
   };
 
+  const linkPayment = useLinkPaymentToApplication();
+
   const handlePaymentSubmit = async (
     event: React.FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault();
     if (!application) return;
-    if (!depositPaid) {
+    
+    // Check if deposit is paid OR payment is verified (but not yet linked)
+    const depositIsPaidOrVerified = depositPaid || 
+      (paymentValues.already_paid_deposit && paymentVerification && !paymentVerification.is_linked);
+    
+    if (!depositIsPaidOrVerified) {
       toast({
         variant: "destructive",
         title: "Pay deposit to continue",
@@ -1626,6 +1641,55 @@ useEffect(() => {
 
     setPaymentValues(sanitized);
     setPaymentErrors({});
+    
+    // Link payment if "Already Paid Deposit" is checked and receipt number is verified
+    if (sanitized.already_paid_deposit && sanitized.receipt_number?.trim() && paymentVerification) {
+      if (paymentVerification.is_linked) {
+        toast({
+          variant: "destructive",
+          title: "Payment already linked",
+          description: "This payment has already been linked to another application.",
+        });
+        return;
+      }
+      
+      if (paymentVerification.payment_type !== "deposit") {
+        toast({
+          variant: "destructive",
+          title: "Invalid payment type",
+          description: "This receipt number is for an instalment payment, not a deposit.",
+        });
+        return;
+      }
+
+      try {
+        await linkPayment.mutateAsync({
+          receiptNumber: sanitized.receipt_number.trim(),
+          applicationId: application.id,
+        });
+        
+        // Update local state and sanitized data to mark deposit as paid
+        setPaymentValues((prev) => ({
+          ...prev,
+          deposit_paid: true,
+        }));
+        sanitized.deposit_paid = true;
+        
+        toast({
+          title: "Payment verified",
+          description: `Deposit payment of £${paymentVerification.amount.toLocaleString("en-GB", { minimumFractionDigits: 2 })} verified and linked successfully.`,
+        });
+      } catch (error: any) {
+        console.error("Failed to link payment:", error);
+        toast({
+          variant: "destructive",
+          title: "Failed to link payment",
+          description: error?.message || "Please try again or contact support.",
+        });
+        return;
+      }
+    }
+    
     let planPersisted = true;
     if (sanitized.selected_plan_id) {
       planPersisted = await persistSelectedPlan(
@@ -2187,10 +2251,23 @@ useEffect(() => {
     return formatter.format(depositValue);
   }, [depositValue]);
 
+  // Payment verification hook
+  const receiptNumberToVerify = paymentValues.already_paid_deposit && paymentValues.receipt_number?.trim()
+    ? paymentValues.receipt_number.trim()
+    : null;
+  const { data: paymentVerification, isLoading: isValidatingPayment } = useVerifyPayment(
+    receiptNumberToVerify || undefined
+  );
+
   const depositPaid = useMemo(() => {
     // Check local state first (for immediate updates)
     if (paymentValues.deposit_paid === true) {
       return true;
+    }
+    
+    // Check if payment was verified via receipt number
+    if (paymentValues.already_paid_deposit && paymentVerification && !paymentVerification.is_linked) {
+      return true; // Payment verified but not yet linked (will be linked on submit)
     }
     
     if (!application) return false;
@@ -2209,7 +2286,7 @@ useEffect(() => {
       typeof stepFive.payload === "object" &&
       (stepFive.payload as Record<string, unknown>).deposit_paid === true;
     return Boolean(depositFlag);
-  }, [application, paymentValues.deposit_paid]);
+  }, [application, paymentValues.deposit_paid, paymentValues.already_paid_deposit, paymentVerification]);
 
   const checkEnvelopeStatus = async () => {
     if (!application?.id || checkingStatus) return;
@@ -2286,10 +2363,11 @@ useEffect(() => {
     // Check immediately
     performCheck();
     
-    // Then poll every 30 seconds
+    // Then poll every 5 minutes as backup (webhooks handle real-time updates)
+    // Reduced from 30 seconds to 5 minutes since webhooks provide instant updates
     const interval = setInterval(() => {
       performCheck();
-    }, 30000);
+    }, 300000); // 5 minutes = 300,000 milliseconds
 
     return () => {
       mounted = false;
@@ -3471,6 +3549,102 @@ useEffect(() => {
                   </div>
                 </div>
 
+                {/* Already Paid Deposit Option */}
+                {!depositPaid && (
+                  <div className="space-y-3 rounded-2xl border border-border/60 bg-muted/20 p-4">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        id="already_paid_deposit"
+                        checked={paymentValues.already_paid_deposit || false}
+                        onChange={(event) =>
+                          handlePaymentChange("already_paid_deposit", event.target.checked)
+                        }
+                        className="size-4 rounded border-border"
+                      />
+                      <Label htmlFor="already_paid_deposit" className="text-sm font-medium cursor-pointer">
+                        I've already paid the deposit
+                      </Label>
+                    </div>
+                    
+                    {paymentValues.already_paid_deposit && (
+                      <div className="space-y-2 pl-7">
+                        <div>
+                          <Label htmlFor="receipt_number" className="text-xs">
+                            Receipt/Cheque Number *
+                          </Label>
+                          <div className="relative mt-1">
+                            <Input
+                              id="receipt_number"
+                              value={paymentValues.receipt_number || ""}
+                              onChange={(event) =>
+                                handlePaymentChange("receipt_number", event.target.value)
+                              }
+                              placeholder="Enter your receipt or cheque number"
+                              className={cn(
+                                paymentValues.receipt_number?.trim() &&
+                                  (paymentVerification
+                                    ? paymentVerification.is_linked
+                                      ? "border-red-500 focus-visible:ring-red-500"
+                                      : "border-green-500 focus-visible:ring-green-500"
+                                    : paymentVerification === null && paymentValues.receipt_number?.trim()
+                                    ? "border-red-500 focus-visible:ring-red-500"
+                                    : ""),
+                              )}
+                            />
+                            {paymentValues.receipt_number?.trim() && (
+                              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                {isValidatingPayment ? (
+                                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                ) : paymentVerification ? (
+                                  paymentVerification.is_linked ? (
+                                    <Info className="h-4 w-4 text-red-500" />
+                                  ) : (
+                                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                  )
+                                ) : paymentVerification === null && paymentValues.receipt_number?.trim() ? (
+                                  <Info className="h-4 w-4 text-red-500" />
+                                ) : null}
+                              </div>
+                            )}
+                          </div>
+                          {paymentValues.receipt_number?.trim() && paymentVerification && (
+                            <p
+                              className={cn(
+                                "mt-1 text-xs",
+                                paymentVerification.is_linked
+                                  ? "text-red-600"
+                                  : "text-green-600",
+                              )}
+                            >
+                              {paymentVerification.is_linked ? (
+                                "⚠ This payment has already been linked to another application."
+                              ) : (
+                                `✓ Payment verified: £${paymentVerification.amount.toLocaleString("en-GB", { minimumFractionDigits: 2 })} paid on ${format(new Date(paymentVerification.payment_date), "dd MMM yyyy")} via ${paymentVerification.payment_method}`
+                              )}
+                            </p>
+                          )}
+                          {paymentValues.receipt_number?.trim() && paymentVerification === null && !isValidatingPayment && (
+                            <p className="mt-1 text-xs text-destructive">
+                              Payment not found. Please check your receipt number and try again.
+                            </p>
+                          )}
+                        </div>
+                        {!paymentValues.receipt_number?.trim() && (
+                          <p className="text-xs text-muted-foreground pl-7">
+                            Enter the receipt or cheque number provided when you made your payment.
+                          </p>
+                        )}
+                        {paymentErrors.receipt_number && (
+                          <p className="mt-1 text-xs text-destructive pl-7">
+                            {paymentErrors.receipt_number}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {depositPaid ? (
                   <div className="rounded-2xl border border-green-500/40 bg-green-500/10 px-4 py-3 text-sm text-green-700">
                     <p className="font-semibold uppercase tracking-wide">
@@ -3524,7 +3698,11 @@ useEffect(() => {
               <Button
                 type="submit"
                 className="rounded-full uppercase tracking-wide"
-                disabled={isSaving || sendingAgreements || !depositPaid}
+                disabled={
+                  isSaving || 
+                  sendingAgreements || 
+                  (!depositPaid && !(paymentValues.already_paid_deposit && paymentVerification && !paymentVerification.is_linked))
+                }
               >
                 {isSaving ? (
                   <>

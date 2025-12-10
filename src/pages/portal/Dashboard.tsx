@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, PlusCircle, CalendarRange, ArrowRightCircle, CreditCard, FileText, FolderOpen, CheckCircle2, RotateCcw } from "lucide-react";
+import { Loader2, CalendarRange, ArrowRightCircle, CreditCard, FileText, FolderOpen, CheckCircle2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -328,16 +328,6 @@ const Dashboard = () => {
   return (
     <PortalLayout
       subtitle={`Welcome back, ${profile?.first_name ?? "student"}`}
-      mobileHeaderActions={
-        <Button
-          size="icon"
-          className="h-10 w-10 rounded-full bg-red-500 hover:bg-red-600 text-white shadow-lg"
-          onClick={() => navigate("/")}
-          title="New Booking"
-        >
-          <PlusCircle className="h-5 w-5" />
-        </Button>
-      }
     >
       <section className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
         <div>
@@ -345,17 +335,9 @@ const Dashboard = () => {
             Your Applications
           </h2>
           <p className="text-muted-foreground text-sm">
-            Resume your booking journey or start a new application.
+            Resume your booking journey.
           </p>
         </div>
-        <Button
-          variant="outline"
-          className="rounded-full uppercase tracking-wide gap-2"
-          onClick={() => navigate("/")}
-        >
-          <PlusCircle className="h-4 w-4" />
-          New Booking
-        </Button>
       </section>
 
       {renderContent()}

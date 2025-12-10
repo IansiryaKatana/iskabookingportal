@@ -102,6 +102,11 @@ const navSections: NavSection[] = [
         icon: FileSpreadsheet,
       },
       {
+        label: "Manual Payment Entry",
+        to: "/admin/manual-payment-entry",
+        icon: FileText,
+      },
+      {
         label: "Payment History",
         to: "/admin/payment-history",
         icon: CreditCard,

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,15 @@ import { useStudents } from "@/hooks/useStudents";
 import { useAdminAcademicYears } from "@/hooks/useAdminAcademicYears";
 import { useAdminStudioGrades } from "@/hooks/useAdminStudioGrades";
 import { Search, ExternalLink, Calendar, Building2, PoundSterling, User } from "lucide-react";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from "@/components/ui/pagination";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -22,12 +31,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+const ITEMS_PER_PAGE = 20;
+
 const Students = () => {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [academicYearFilter, setAcademicYearFilter] = useState<string>("all");
   const [gradeFilter, setGradeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const { data: academicYears } = useAdminAcademicYears();
   const { data: studioGradesData } = useAdminStudioGrades();
@@ -196,13 +208,14 @@ const Students = () => {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <p className="text-sm text-muted-foreground">
-                Showing {students.length} student{students.length !== 1 ? "s" : ""}
+                Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to{" "}
+                {Math.min(currentPage * ITEMS_PER_PAGE, students.length)} of {students.length} student{students.length !== 1 ? "s" : ""}
               </p>
             </div>
             
             {/* Mobile Card View */}
             <div className="lg:hidden space-y-3">
-              {students.map((student) => {
+              {paginatedStudents.map((student) => {
                 const fullName = student.profile?.first_name && student.profile?.last_name
                   ? `${student.profile.first_name} ${student.profile.last_name}`
                   : student.profile?.first_name || student.profile?.last_name || "—";

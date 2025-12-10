@@ -19,6 +19,7 @@ Welcome to the STUCOMMS Booking Portal documentation. This directory contains co
 - **[Bulk Application Import Proposal](./BULK_APPLICATION_IMPORT_PROPOSAL.md)** - System for bulk importing student applications
 - **[Comprehensive Bulk Import System](./COMPREHENSIVE_BULK_IMPORT_SYSTEM.md)** - Complete bulk import system for client onboarding
 - **[Booking Calendar Implementation](./BOOKING_CALENDAR_IMPLEMENTATION.md)** - Airbnb-style calendar view for studio occupancy and bookings
+- **[Manual Payment Entry System](./MANUAL_PAYMENT_ENTRY_IMPLEMENTATION.md)** - Pre-application payment recording and student verification system
 
 ## 🚀 Quick Start
 
@@ -37,7 +38,8 @@ docs/
 ├── architecture-spec.md              # Architecture specification
 ├── BULK_APPLICATION_IMPORT_PROPOSAL.md
 ├── COMPREHENSIVE_BULK_IMPORT_SYSTEM.md
-└── BOOKING_CALENDAR_IMPLEMENTATION.md # Booking calendar feature
+├── BOOKING_CALENDAR_IMPLEMENTATION.md # Booking calendar feature
+└── MANUAL_PAYMENT_ENTRY_IMPLEMENTATION.md # Manual payment entry system
 ```
 
 ## 🔍 Finding What You Need

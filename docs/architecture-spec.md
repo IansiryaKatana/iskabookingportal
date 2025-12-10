@@ -36,6 +36,7 @@ Deliver a data-driven accommodation booking experience where every studio-grade 
 - `student_application_steps` – JSON payload per form step.
 - `student_documents` – uploads metadata & verification status.
 - `student_signatures` – signature audit trail (student/guarantor).
+- `manual_payments` – manual payment records (cash, card, bank transfer, cheque). Supports orphaned payments (application_id can be NULL) for pre-application payment recording. Unique receipt_number for student verification.
 - `staff_activity_logs` – immutable audit log.
 - `notifications` – in-app notifications with email template support, starring, read/unread status.
 - `email_templates` – HTML email templates with dynamic variable replacement.
@@ -483,6 +484,8 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
     - `get_booking_calendar_data(p_allocation TEXT, p_studio_grade_id UUID, p_academic_year_id UUID)` – Returns booking calendar data with student email from `auth.users`. Uses `SECURITY DEFINER` to access `auth.users` table. Filters by allocation, studio grade, and academic year. Returns TEXT types for enum columns (`studio_status`, `application_status`).
     - `get_revenue_summary(p_start_date DATE, p_end_date DATE, p_group_by TEXT)` – Revenue summary grouped by month or quarter
     - `get_admin_dashboard_stats(p_academic_year_id UUID)` – Dashboard statistics for admin portal
+    - `verify_payment_by_receipt(p_receipt_number TEXT)` – Verifies a payment by receipt/cheque number. Returns payment details including whether it's already linked to an application. Used for student self-service payment verification in Step 5.
+    - `link_payment_to_application(p_receipt_number TEXT, p_application_id UUID)` – Links an unlinked payment (identified by receipt number) to an application. Only works if payment is not already linked. Automatically updates deposit status when linking deposit payments.
 - **Stripe** – capture payment method, deposit, instalment payments, webhook for payment updates, refund processing.
 - **DocuSign** – agreement creation, embedded signing, status polling, signed document retrieval, envelope management.
 - **Email Service (Resend)** – transactional notifications, bulk messaging, template-based emails with variable replacement. Configured with dedicated sending domain `send.portal.urbanhub.uk` for high deliverability. Enhanced error handling with HTML response detection, detailed logging, and API key validation. See `docs/SYSTEM_IMPROVEMENTS_AND_CONFIG.md` for complete setup instructions.
@@ -622,9 +625,28 @@ All brand colors, fonts, and assets are centralized in the `branding_settings` t
 - **Refund History**: Complete refund history display
 
 ### 9.6 Manual Payment Recording
-- **In-Person Payments**: Support for recording in-person payments
-- **Payment History**: Integrated with payment schedules
-- **Manual Payment Dialog**: Easy-to-use interface for staff
+
+**Admin Manual Payment Entry Page** (`/admin/manual-payment-entry`):
+- Allows accountants to record payments before applications exist
+- Form fields: Payment type (deposit/instalment), amount, payment method (cash/card/bank_transfer/cheque), receipt/cheque number (required, unique), payment date, notes
+- List view of unlinked payments (orphaned payments waiting for student verification)
+- Search functionality by receipt number
+- Payments stored with `application_id = NULL` until student verifies
+
+**Student Payment Verification (Step 5)**:
+- "I've already paid the deposit" checkbox option
+- Receipt/cheque number input field with real-time validation
+- Visual indicators: ✓ for valid unlinked payment, ✗ for invalid/already linked
+- Shows payment details when verified (amount, date, payment method)
+- Automatic payment linking on Step 5 submission
+- Updates deposit status and allows application submission without online payment
+
+**Database Features**:
+- `application_id` is nullable in `manual_payments` table (allows orphaned payments)
+- Unique index on `receipt_number` (where not null) for fast lookup and duplicate prevention
+- Index for orphaned payments (`application_id IS NULL`)
+- RPC functions: `verify_payment_by_receipt()` and `link_payment_to_application()`
+- RLS policies: Staff can view all payments (including orphaned), students can only view payments linked to their applications
 
 ### 9.7 Mobile Responsiveness
 - **Mobile Menus**: Collapsible navigation for both portals
@@ -632,7 +654,7 @@ All brand colors, fonts, and assets are centralized in the `branding_settings` t
 - **Touch-Friendly**: Optimized button sizes and spacing
 - **Mobile Forms**: Bottom-sheet dialogs, zero bottom margin
 
-### 9.8 Academic Year Tabs UI Pattern
+### 9.9 Academic Year Tabs UI Pattern
 - **Design**: Red-themed segmented control with compact width
 - **Container**: Lighter red background (`bg-primary/60`), rounded-full, auto width
 - **Active State**: Darker red (`bg-primary`) with shadow for visual prominence
@@ -641,7 +663,7 @@ All brand colors, fonts, and assets are centralized in the `branding_settings` t
 - **Location**: Studio catalog page for academic year selection
 - **Reference**: See `docs/UI_UX_STANDARDS.md` for detailed implementation
 
-### 9.9 Additional Features
+### 9.10 Additional Features
 - **Skeleton Loaders**: Component-specific loaders on all pages
 - **Color-Coded Badges**: Status indicators throughout the system
 - **Studio Roster Filters**: 
