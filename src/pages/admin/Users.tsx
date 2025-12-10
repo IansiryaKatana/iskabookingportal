@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,6 +51,8 @@ const Users = () => {
   const queryClient = useQueryClient();
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteFirstName, setInviteFirstName] = useState("");
+  const [inviteLastName, setInviteLastName] = useState("");
   const [inviteRole, setInviteRole] = useState<"staff" | "superadmin">("staff");
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -63,14 +65,19 @@ const Users = () => {
   const { data: users, isLoading } = useQuery({
     queryKey: ["admin-users"],
     queryFn: async () => {
-      // Fetch profiles
+      // Fetch profiles - use .in() instead of .or() for more reliable filtering
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
         .select("id, role, first_name, last_name")
-        .or("role.eq.staff,role.eq.superadmin")
+        .in("role", ["staff", "superadmin"])
         .order("created_at", { ascending: false });
 
-      if (profilesError) throw profilesError;
+      if (profilesError) {
+        console.error("Error fetching profiles:", profilesError);
+        throw profilesError;
+      }
+
+      console.log("Fetched profiles:", profiles?.length || 0, profiles);
 
       // Fetch user emails from auth via Edge Function
       const profileIds = (profiles || []).map((p) => p.id);
@@ -100,14 +107,16 @@ const Users = () => {
     },
   });
 
-  // Invite user mutation
+  // Create user mutation (changed from invite)
   const inviteUser = useMutation({
-    mutationFn: async ({ email, role }: { email: string; role: "staff" | "superadmin" }) => {
-      // Call Edge Function to invite user
+    mutationFn: async ({ email, firstName, lastName, role }: { email: string; firstName: string; lastName: string; role: "staff" | "superadmin" }) => {
+      // Call Edge Function to create user
       const { data, error } = await supabase.functions.invoke("manage-users", {
         body: {
-          action: "invite",
+          action: "create",
           email,
+          first_name: firstName.trim() || null,
+          last_name: lastName.trim() || null,
           role,
         },
       });
@@ -123,7 +132,7 @@ const Users = () => {
       }
 
       if (!data || !data.success) {
-        throw new Error(data?.message || "Failed to invite user");
+        throw new Error(data?.message || "Failed to create user");
       }
 
       // Log activity
@@ -131,7 +140,7 @@ const Users = () => {
         action: "create",
         entityType: "user",
         entityId: data?.user?.id,
-        payload: { email, role },
+        payload: { email, first_name: firstName, last_name: lastName, role },
       });
 
       return data;
@@ -139,17 +148,19 @@ const Users = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
       toast({
-        title: "Invitation sent",
-        description: `Invitation email sent to ${inviteEmail}`,
+        title: "User created",
+        description: `User created successfully. They can use 'Forgot Password' to set their password.`,
       });
       setInviteDialogOpen(false);
       setInviteEmail("");
+      setInviteFirstName("");
+      setInviteLastName("");
       setInviteRole("staff");
     },
     onError: (error: Error) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to send invitation",
+        description: error.message || "Failed to create user",
         variant: "destructive",
       });
     },
@@ -189,29 +200,40 @@ const Users = () => {
     },
   });
 
-  // Update user mutation
+  // Update user mutation - use edge function to bypass RLS
   const updateUser = useMutation({
     mutationFn: async ({ userId, firstName, lastName, role }: { userId: string; firstName: string; lastName: string; role: "staff" | "superadmin" }) => {
-      const { error } = await supabase
-        .from("profiles")
-        .update({ 
-          first_name: firstName,
-          last_name: lastName,
-          role 
-        })
-        .eq("id", userId);
-
-      if (error) throw error;
-
-      // Log activity
-      await logActivity({
-        action: "update",
-        entityType: "user",
-        entityId: userId,
-        payload: { first_name: firstName, last_name: lastName, role },
+      console.log("Updating user via edge function:", { userId, firstName, lastName, role });
+      
+      // Call Edge Function to update user (bypasses RLS)
+      const { data, error } = await supabase.functions.invoke("manage-users", {
+        body: {
+          action: "update",
+          userId,
+          first_name: firstName.trim() || null,
+          last_name: lastName.trim() || null,
+          role,
+        },
       });
+
+      if (error) {
+        console.error("Edge function invoke error:", error);
+        throw new Error(error.message || "Failed to invoke manage-users function");
+      }
+
+      if (data?.error) {
+        console.error("Edge function returned error:", data.error);
+        throw new Error(data.error);
+      }
+
+      if (!data || !data.success) {
+        throw new Error(data?.message || "Failed to update user");
+      }
+
+      console.log("User updated successfully:", data);
     },
     onSuccess: () => {
+      // Invalidate and refetch
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
       toast({
         title: "User updated",
@@ -219,11 +241,15 @@ const Users = () => {
       });
       setEditDialogOpen(false);
       setSelectedUser(null);
+      setEditFirstName("");
+      setEditLastName("");
+      setEditRole("staff");
     },
-    onError: () => {
+    onError: (error: Error) => {
+      console.error("Update user error:", error);
       toast({
         title: "Error",
-        description: "Failed to update user",
+        description: error.message || "Failed to update user",
         variant: "destructive",
       });
     },
@@ -285,12 +311,25 @@ const Users = () => {
   });
 
   const handleEdit = (user: typeof users[0]) => {
+    console.log("Editing user:", user);
     setSelectedUser(user);
     setEditFirstName(user.first_name || "");
     setEditLastName(user.last_name || "");
     setEditRole((user.role as "staff" | "superadmin") || "staff");
     setEditDialogOpen(true);
   };
+
+  // Debug: Log when edit dialog opens
+  useEffect(() => {
+    if (editDialogOpen && selectedUser) {
+      console.log("Edit dialog opened with user:", selectedUser);
+      console.log("Edit form values:", {
+        firstName: editFirstName,
+        lastName: editLastName,
+        role: editRole,
+      });
+    }
+  }, [editDialogOpen, selectedUser, editFirstName, editLastName, editRole]);
 
   const handleDelete = (user: typeof users[0]) => {
     setSelectedUser(user);
@@ -379,7 +418,7 @@ const Users = () => {
               Users
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Invite staff members and manage user roles
+              Create staff members and manage user roles
             </p>
           </div>
           <Button
@@ -387,7 +426,7 @@ const Users = () => {
             className="rounded-full uppercase tracking-wide gap-2"
           >
             <Plus className="h-4 w-4" />
-            Invite User
+            Create User
           </Button>
         </div>
 
@@ -557,7 +596,7 @@ const Users = () => {
                 No Users Found
               </CardTitle>
               <CardDescription>
-                Invite your first staff member to get started.
+                Create your first staff member to get started.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -566,7 +605,7 @@ const Users = () => {
                 className="rounded-full uppercase tracking-wide gap-2"
               >
                 <Plus className="h-4 w-4" />
-                Invite User
+                Create User
               </Button>
             </CardContent>
           </Card>
@@ -577,10 +616,10 @@ const Users = () => {
         <DialogContent className="sm:max-w-[500px] rounded-3xl">
           <DialogHeader>
             <DialogTitle className="text-xl font-display uppercase tracking-wide">
-              Invite User
+              Create User
             </DialogTitle>
             <DialogDescription>
-              Send an invitation email to a new staff member.
+              Create a new staff member account. A password reset email will be sent to set their password.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -594,6 +633,30 @@ const Users = () => {
                 className="mt-2"
                 placeholder="staff@urbanhub.com"
               />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="first-name">First Name *</Label>
+                <Input
+                  id="first-name"
+                  type="text"
+                  value={inviteFirstName}
+                  onChange={(e) => setInviteFirstName(e.target.value)}
+                  className="mt-2"
+                  placeholder="John"
+                />
+              </div>
+              <div>
+                <Label htmlFor="last-name">Last Name *</Label>
+                <Input
+                  id="last-name"
+                  type="text"
+                  value={inviteLastName}
+                  onChange={(e) => setInviteLastName(e.target.value)}
+                  className="mt-2"
+                  placeholder="Doe"
+                />
+              </div>
             </div>
             <div>
               <Label htmlFor="role">Role *</Label>
@@ -613,11 +676,16 @@ const Users = () => {
               Cancel
             </Button>
             <Button
-              onClick={() => inviteUser.mutate({ email: inviteEmail, role: inviteRole })}
-              disabled={!inviteEmail || inviteUser.isPending}
+              onClick={() => inviteUser.mutate({ 
+                email: inviteEmail, 
+                firstName: inviteFirstName,
+                lastName: inviteLastName,
+                role: inviteRole 
+              })}
+              disabled={!inviteEmail || !inviteFirstName.trim() || !inviteLastName.trim() || inviteUser.isPending}
               className="rounded-full uppercase tracking-wide"
             >
-              {inviteUser.isPending ? "Sending..." : "Send Invitation"}
+              {inviteUser.isPending ? "Creating..." : "Create User"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -683,7 +751,7 @@ const Users = () => {
                   });
                 }
               }}
-              disabled={!editFirstName || !editLastName || updateUser.isPending}
+              disabled={!editFirstName.trim() || !editLastName.trim() || updateUser.isPending}
               className="rounded-full uppercase tracking-wide"
             >
               {updateUser.isPending ? "Updating..." : "Update User"}

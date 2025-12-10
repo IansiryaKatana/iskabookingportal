@@ -88,11 +88,11 @@ serve(async (req) => {
       );
     }
 
-    const { action, email, role, userId } = requestBody;
+    const { action, email, role, userId, first_name, last_name } = requestBody;
 
-    if (!action || (action !== "invite" && action !== "delete")) {
+    if (!action || (action !== "invite" && action !== "create" && action !== "delete" && action !== "update")) {
       return new Response(
-        JSON.stringify({ error: "Invalid action. Must be 'invite' or 'delete'." }),
+        JSON.stringify({ error: "Invalid action. Must be 'create', 'invite', 'update', or 'delete'." }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -100,11 +100,11 @@ serve(async (req) => {
       );
     }
 
-    // Handle invite action
-    if (action === "invite") {
+    // Handle create action (changed from invite to create)
+    if (action === "invite" || action === "create") {
       if (!email) {
         return new Response(
-          JSON.stringify({ error: "Email is required for invite action." }),
+          JSON.stringify({ error: "Email is required for create action." }),
           {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -134,14 +134,14 @@ serve(async (req) => {
         );
       }
 
-      // Check if user already exists by listing users and filtering by email
-      // Note: This is less efficient but getUserByEmail may not be available in all Supabase versions
       const normalizedEmail = email.toLowerCase().trim();
+
+      // Check if user already exists by listing users and filtering by email
       const { data: usersList, error: listError } = await supabaseAdmin.auth.admin.listUsers();
       
       if (listError) {
-        console.error("Error listing users:", listError);
-        // Continue anyway - we'll catch the error when trying to invite
+        console.warn("Error listing users:", listError);
+        // Continue anyway - we'll catch the error when trying to create
       } else {
         const existingUser = usersList?.users?.find(u => u.email?.toLowerCase() === normalizedEmail);
         
@@ -156,30 +156,24 @@ serve(async (req) => {
         }
       }
 
-      // Invite user by email
-      const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-        normalizedEmail,
-        {
-          data: { role },
-        }
-      );
+      // Generate a random temporary password
+      const tempPassword = crypto.randomUUID() + crypto.randomUUID().replace(/-/g, '');
 
-      if (inviteError) {
-        // Check if error is due to user already existing
-        if (inviteError.message?.includes("already registered") || 
-            inviteError.message?.includes("already exists") ||
-            inviteError.message?.includes("User already registered")) {
-          return new Response(
-            JSON.stringify({ error: "User with this email already exists." }),
-            {
-              status: 400,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            },
-          );
-        }
-        
+      // Create user directly with email confirmed
+      const { data: createData, error: createError } = await supabaseAdmin.auth.admin.createUser({
+        email: normalizedEmail,
+        password: tempPassword,
+        email_confirm: true, // Mark email as confirmed
+        user_metadata: {
+          role,
+          first_name: first_name || null,
+          last_name: last_name || null,
+        },
+      });
+
+      if (createError) {
         return new Response(
-          JSON.stringify({ error: inviteError.message || "Failed to invite user" }),
+          JSON.stringify({ error: createError.message || "Failed to create user" }),
           {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -187,39 +181,190 @@ serve(async (req) => {
         );
       }
 
-      // Update profile role if user was created
-      if (inviteData.user) {
-        const { error: profileError } = await supabaseAdmin
-          .from("profiles")
-          .update({ role })
-          .eq("id", inviteData.user.id);
+      if (!createData.user) {
+        return new Response(
+          JSON.stringify({ error: "User creation failed - no user returned" }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
 
-        if (profileError) {
-          console.warn("Failed to update profile role:", profileError);
-          // Don't fail the whole operation, invitation was sent
+      // Insert or update profile with role and names
+      // Use upsert to handle both new profiles (from trigger) and existing ones
+      const { error: profileError } = await supabaseAdmin
+        .from("profiles")
+        .upsert({
+          id: createData.user.id,
+          role: role,
+          first_name: first_name?.trim() || null,
+          last_name: last_name?.trim() || null,
+        }, {
+          onConflict: "id",
+        });
+
+      if (profileError) {
+        console.error("Failed to upsert profile:", profileError);
+        // This is critical - try to update as fallback
+        const { error: updateError } = await supabaseAdmin
+          .from("profiles")
+          .update({
+            role: role,
+            first_name: first_name?.trim() || null,
+            last_name: last_name?.trim() || null,
+          })
+          .eq("id", createData.user.id);
+
+        if (updateError) {
+          console.error("Failed to update profile as fallback:", updateError);
+          return new Response(
+            JSON.stringify({ error: "User created but failed to set profile. Please update manually." }),
+            {
+              status: 500,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            },
+          );
         }
       }
 
-      // Log user invitation
+      // Note: Password reset email will be sent automatically by Supabase
+      // when the user requests it via the "Forgot Password" flow
+      // For now, we create the user and they can request password reset manually
+      console.log("User created successfully. They can request password reset via the portal.");
+
+      // Log user creation
       await supabaseAdmin
         .from("staff_activity_logs")
         .insert({
           staff_id: user.id,
           action: "create",
           entity_type: "user",
-          entity_id: inviteData.user?.id || null,
+          entity_id: createData.user.id,
           payload: {
             email: normalizedEmail,
+            first_name: first_name?.trim() || null,
+            last_name: last_name?.trim() || null,
             role,
-            action_type: "invite",
+            action_type: "create",
           },
         });
 
       return new Response(
         JSON.stringify({
           success: true,
-          user: inviteData.user,
-          message: "Invitation sent successfully",
+          user: createData.user,
+          message: "User created successfully. They can use 'Forgot Password' to set their password.",
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    // Handle update action
+    if (action === "update") {
+      if (!userId) {
+        return new Response(
+          JSON.stringify({ error: "userId is required for update action." }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      if (!first_name && !last_name && !role) {
+        return new Response(
+          JSON.stringify({ error: "At least one field (first_name, last_name, or role) is required for update." }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      if (role && role !== "staff" && role !== "superadmin") {
+        return new Response(
+          JSON.stringify({ error: "Role must be 'staff' or 'superadmin'." }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      // Get current profile to preserve existing values
+      const { data: currentProfile, error: fetchError } = await supabaseAdmin
+        .from("profiles")
+        .select("first_name, last_name, role")
+        .eq("id", userId)
+        .single();
+
+      if (fetchError || !currentProfile) {
+        return new Response(
+          JSON.stringify({ error: "User profile not found." }),
+          {
+            status: 404,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      // Update profile with new values
+      const updateData: any = {};
+      if (first_name !== undefined) {
+        updateData.first_name = first_name?.trim() || null;
+      }
+      if (last_name !== undefined) {
+        updateData.last_name = last_name?.trim() || null;
+      }
+      if (role) {
+        updateData.role = role;
+      }
+
+      const { data: updatedProfile, error: updateError } = await supabaseAdmin
+        .from("profiles")
+        .update(updateData)
+        .eq("id", userId)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error("Error updating profile:", updateError);
+        return new Response(
+          JSON.stringify({ error: updateError.message || "Failed to update user profile" }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      // Log user update
+      await supabaseAdmin
+        .from("staff_activity_logs")
+        .insert({
+          staff_id: user.id,
+          action: "update",
+          entity_type: "user",
+          entity_id: userId,
+          payload: {
+            updated_fields: updateData,
+            previous_values: {
+              first_name: currentProfile.first_name,
+              last_name: currentProfile.last_name,
+              role: currentProfile.role,
+            },
+          },
+        });
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "User updated successfully",
+          user: updatedProfile,
         }),
         {
           status: 200,

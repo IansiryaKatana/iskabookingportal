@@ -1,5 +1,5 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import {
   SignJWT,
   importPKCS8,
@@ -8,27 +8,35 @@ import {
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST,OPTIONS",
 };
 
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response("ok", {
+      status: 200,
+      headers: corsHeaders,
+    });
   }
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
+    // Parse request body first, before any other operations
+    let requestBody: { envelopeId?: string; applicationId?: string };
+    try {
+      requestBody = await req.json();
+    } catch (parseError) {
+      console.error("Error parsing request body:", parseError);
+      return new Response(
+        JSON.stringify({ error: "Invalid JSON in request body" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         },
-      },
-    );
+      );
+    }
 
-    const { envelopeId, applicationId } = await req.json();
+    const { envelopeId, applicationId } = requestBody;
 
     if (!envelopeId || !applicationId) {
       return new Response(
@@ -39,6 +47,18 @@ serve(async (req) => {
         },
       );
     }
+
+    // Create Supabase client
+    const supabaseClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      },
+    );
 
     // Get DocuSign credentials
     const DOCUSIGN_CLIENT_ID = Deno.env.get("DOCUSIGN_CLIENT_ID");
@@ -52,8 +72,7 @@ serve(async (req) => {
       throw new Error("DocuSign credentials not fully configured");
     }
 
-    // Generate JWT token (simplified - use jose library in production)
-    // For now, we'll use the existing envelope data
+    // Get envelope data
     const { data: envelope, error: envelopeError } = await supabaseClient
       .from("docusign_envelopes")
       .select("*")
@@ -86,16 +105,6 @@ serve(async (req) => {
     }
 
     // Fetch the signed document from DocuSign API
-    const DOCUSIGN_CLIENT_ID = Deno.env.get("DOCUSIGN_CLIENT_ID");
-    const DOCUSIGN_USER_ID = Deno.env.get("DOCUSIGN_USER_ID");
-    const DOCUSIGN_ACCOUNT_ID = Deno.env.get("DOCUSIGN_ACCOUNT_ID");
-    const DOCUSIGN_BASE_URL = Deno.env.get("DOCUSIGN_BASE_URL") || "https://demo.docusign.net/restapi";
-    const DOCUSIGN_AUTH_SERVER = Deno.env.get("DOCUSIGN_AUTH_SERVER") || "https://account-d.docusign.com";
-    const DOCUSIGN_PRIVATE_KEY = (Deno.env.get("DOCUSIGN_PRIVATE_KEY") || "").replace(/\\n/g, "\n");
-
-    if (!DOCUSIGN_CLIENT_ID || !DOCUSIGN_USER_ID || !DOCUSIGN_ACCOUNT_ID || !DOCUSIGN_PRIVATE_KEY) {
-      throw new Error("DocuSign credentials not fully configured");
-    }
 
     // Get access token using JWT
     const importedKey = await importPKCS8(DOCUSIGN_PRIVATE_KEY, "RS256");

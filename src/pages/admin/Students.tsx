@@ -71,6 +71,20 @@ const Students = () => {
 
   const { data: students, isLoading } = useStudents(filters);
 
+  // Paginate students
+  const totalPages = students ? Math.ceil(students.length / ITEMS_PER_PAGE) : 0;
+  const paginatedStudents = useMemo(() => {
+    if (!students) return [];
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    return students.slice(startIndex, endIndex);
+  }, [students, currentPage]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, academicYearFilter, gradeFilter, statusFilter]);
+
   const formatCurrency = (amount: number | null) => {
     if (!amount) return "—";
     return new Intl.NumberFormat("en-GB", {
@@ -304,7 +318,7 @@ const Students = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {students.map((student) => (
+                    {paginatedStudents.map((student) => (
                       <TableRow key={student.id} className="hover:bg-muted/50">
                         <TableCell className="font-medium">
                           {student.profile?.first_name && student.profile?.last_name
@@ -342,6 +356,70 @@ const Students = () => {
                 </Table>
               </CardContent>
             </Card>
+
+            {/* Pagination */}
+            {students && students.length > ITEMS_PER_PAGE && (
+              <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="text-sm text-muted-foreground">
+                  Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to{" "}
+                  {Math.min(currentPage * ITEMS_PER_PAGE, students.length)} of {students.length} student{students.length !== 1 ? "s" : ""}
+                </div>
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (currentPage > 1) setCurrentPage(currentPage - 1);
+                        }}
+                        className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                      />
+                    </PaginationItem>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                      if (
+                        page === 1 ||
+                        page === totalPages ||
+                        (page >= currentPage - 1 && page <= currentPage + 1)
+                      ) {
+                        return (
+                          <PaginationItem key={page}>
+                            <PaginationLink
+                              href="#"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setCurrentPage(page);
+                              }}
+                              isActive={currentPage === page}
+                              className="cursor-pointer"
+                            >
+                              {page}
+                            </PaginationLink>
+                          </PaginationItem>
+                        );
+                      } else if (page === currentPage - 2 || page === currentPage + 2) {
+                        return (
+                          <PaginationItem key={page}>
+                            <PaginationEllipsis />
+                          </PaginationItem>
+                        );
+                      }
+                      return null;
+                    })}
+                    <PaginationItem>
+                      <PaginationNext
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+                        }}
+                        className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              </div>
+            )}
           </div>
         ) : (
           <Card className="rounded-3xl border-dashed">
