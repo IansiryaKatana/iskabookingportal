@@ -409,6 +409,20 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
     - Application statistics display (total applications and breakdown by academic year)
     - **Delete All Applications**: One-click deletion of all student applications and all related records
     - **Delete by Academic Year**: Select specific academic year and delete all applications for that year
+    - **Smart Deletion Feature** (Implemented 2025-01-28):
+      - Optional intelligent user account deletion when applications are deleted
+      - Checkbox option in delete dialogs: "Also delete orphaned user accounts (Smart Deletion)"
+      - Automatically determines which user accounts can be safely deleted
+      - **Safety Rules** (users are preserved if any rule applies):
+        1. **Staff Protection**: Never deletes staff or superadmin accounts
+        2. **Remaining Applications**: Preserves users who still have other applications
+        3. **Refund Records**: Preserves users with refund records (accounting requirement)
+        4. **Maintenance Requests**: Preserves users with maintenance request history (service history)
+        5. **Utility Payments**: Preserves users who created utility payment records (financial audit)
+        6. **Activity Logs**: Preserves users with activity log entries (audit trail)
+      - Only deletes users who pass all safety checks (truly orphaned accounts)
+      - Returns detailed report with user deletion/preservation counts and reasons
+      - Maintains data integrity and compliance (accounting, audit trails, service history)
     - Comprehensive deletion includes:
       - Application records and all steps (`student_application_steps`)
       - Uploaded documents and signatures (`student_documents`, `student_signatures`)
@@ -417,17 +431,21 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
       - DocuSign envelopes (`docusign_envelopes`)
       - Studio allocations (automatically frees studios: sets `status = 'available'`, `allocation = NULL`)
       - Updates refunds and rebooking references (sets `application_id` to NULL where appropriate)
+      - User accounts (optional, via Smart Deletion feature)
     - Safety features:
       - Confirmation dialogs with detailed warnings
       - Statistics display showing what will be deleted
-      - Audit logging of all deletions
+      - Audit logging of all deletions (including user deletion decisions)
       - Error handling with detailed error messages
+      - Smart Deletion with multiple safety checks
+      - Hard database constraints prevent unsafe deletions
     - Database functions:
       - `delete_student_application(p_application_id UUID)`: Deletes single application and all related records
-      - `delete_all_student_applications()`: Deletes all applications in the system
-      - `delete_student_applications_by_academic_year(p_academic_year_id UUID)`: Deletes applications for specific academic year
+      - `delete_all_student_applications(p_delete_orphaned_users BOOLEAN DEFAULT false)`: Deletes all applications in the system, optionally with Smart Deletion
+      - `delete_student_applications_by_academic_year(p_academic_year_id UUID, p_delete_orphaned_users BOOLEAN DEFAULT false)`: Deletes applications for specific academic year, optionally with Smart Deletion
     - All functions use `SECURITY DEFINER` and disable RLS to ensure complete deletion
-    - Functions return JSONB with deletion counts and detailed results
+    - Functions return JSONB with deletion counts, user deletion/preservation details, and comprehensive results
+    - Smart Deletion returns detailed user-level decisions with preservation reasons
 
 ### 6.3 Partner Portal ✅ IMPLEMENTED
 
@@ -486,6 +504,43 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
   - Collapsible mobile menu
   - Sign-out confirmation dialog
   - Responsive design throughout
+- **Command Palette Search** (Implemented 2025-01-28):
+  - **Location**: Search button in sidebar header (desktop) and mobile header
+  - **Purpose**: Quick navigation and page search functionality
+  - **Features**:
+    - Fuzzy search through all navigation items
+    - Results grouped by section (Overview, Academic, Finance, Students, etc.)
+    - Current page indicator ("Current" badge for active route)
+    - Keyboard-first navigation (arrow keys, Enter to select)
+    - Auto-close after navigation
+  - **Keyboard Shortcuts**:
+    - `Ctrl+K` (Windows/Linux) or `Cmd+K` (Mac) - Open command palette
+    - `Esc` - Close command palette
+    - `↑` / `↓` - Navigate results
+    - `Enter` - Select item / Navigate
+  - **Search Capabilities**:
+    - Search by page name (e.g., "bulk" finds "Bulk Messages", "Bulk Invitations")
+    - Search by route path (e.g., "/admin/bulk")
+    - Search by section name (e.g., "finance" shows all Finance section items)
+    - Case-insensitive fuzzy matching
+  - **UI Components**:
+    - Search button in sidebar header with keyboard shortcut hint (⌘K)
+    - Search button in mobile header (icon-only on small screens)
+    - Modal dialog with search input and grouped results
+    - Icons displayed for each navigation item
+  - **Technical Implementation**:
+    - Component: `src/components/admin/CommandPalette.tsx`
+    - Uses existing `Command` component from `src/components/ui/command.tsx`
+    - Integrates with `AdminLayout` component
+    - Exports `navSections` from `AdminLayout` for searchable items
+    - Global keyboard event listener (only active in admin routes)
+    - Prevents keyboard shortcut when typing in input fields
+  - **Accessibility**:
+    - Full keyboard navigation support
+    - Screen reader compatible
+    - Focus management
+    - ARIA labels
+    - High contrast support
 
 ## 7. Integrations
 
@@ -506,6 +561,21 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
     - **Targeted mode**: Sends to specific students (via `student_ids`) or filtered groups (via `application_status`, `studio_grade_id`, `academic_year_id`, etc.)
     - Enhanced error handling with HTML response detection and detailed logging
     - Debug logging for troubleshooting targeted vs bulk message flows
+    - **Rate Limiting** (Implemented 2025-01-28): Sequential email sending with 650ms delay between emails to respect Resend API limit of 2 requests/second. Supports sending 500+ emails in queue.
+    - **Retry Logic**: Automatic retry with exponential backoff for 429 rate limit errors. Respects `retry-after` header from Resend API.
+    - **Template Variable Replacement**: Comprehensive replacement supporting `{variable}` and `[variable]` formats, case-insensitive. Includes `{company_name}`, `{COMPANY_NAME}`, `{student_name}`, `{portal_url}`, and other variables from branding settings.
+    - **Progress Tracking**: Logs progress every 10 emails with percentage complete
+  - `bulk-invite-students` – Bulk account activation invitation system for students with placeholder accounts (created during bulk import). Supports sending invitations to specific applications or filtered groups:
+    - **Targeted invitations**: Send to specific applications via `application_ids`
+    - **Filtered invitations**: Send to applications matching filters (contract_id, academic_year_id, status, imported_after)
+    - **Email template support**: Uses email templates with variable replacement (student_name, portal_url, invitation_link, contract_name, academic_year, expiration_date, company_name, COMPANY_NAME, current_year)
+    - **Resend option**: Can resend invitations to already invited users (via `resend` parameter)
+    - **Rate Limiting** (Implemented 2025-01-28): Sequential email sending with 650ms delay between emails to respect Resend API limit of 2 requests/second. Supports sending 500+ invitations in queue.
+    - **Retry Logic**: Automatic retry with exponential backoff for 429 rate limit errors. Respects `retry-after` header from Resend API. Up to 3 retries per email.
+    - **Template Variable Replacement**: Comprehensive replacement supporting `{variable}` and `[variable]` formats, case-insensitive. Includes company name from branding settings.
+    - **Account Status Tracking**: Updates user metadata with `account_status: "invited"`, `invitation_sent_at`, and `invitation_expires_at` (30 days from send date)
+    - **Skip Logic**: Automatically skips already invited or activated accounts (unless `resend` is true)
+    - **Invitation Link Generation**: Creates secure, time-limited activation links using Supabase magic link system
   - `send-transactional-email` – Transactional email sending for specific events, enhanced error handling with HTML response detection and detailed logging
   - `process-refund` – Refund processing with Stripe integration, audit logging, and notifications
   - `get-payment-intent-details` – Fetches payment intent details from Stripe for refund processing
@@ -523,10 +593,28 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
   - `manage-users` – Admin function to create and update users, bypasses RLS for user management
   - Data Management Functions (Development/Testing):
     - `delete_student_application(p_application_id UUID)` – Deletes single application and all related records, returns deletion statistics
-    - `delete_all_student_applications()` – Deletes all applications in the system, returns JSONB with deletion count and details
-    - `delete_student_applications_by_academic_year(p_academic_year_id UUID)` – Deletes applications for specific academic year, returns JSONB with deletion count and details
+    - `delete_all_student_applications(p_delete_orphaned_users BOOLEAN DEFAULT false)` – Deletes all applications in the system, optionally with Smart Deletion for orphaned user accounts. Returns JSONB with:
+      - `deleted_count`: Number of applications deleted
+      - `users_deleted`: Number of user accounts deleted (if Smart Deletion enabled)
+      - `users_preserved`: Number of user accounts preserved (if Smart Deletion enabled)
+      - `user_details`: Array of user-level decisions with preservation reasons
+      - `details`: Application deletion details
+      - `message`: Summary message
+    - `delete_student_applications_by_academic_year(p_academic_year_id UUID, p_delete_orphaned_users BOOLEAN DEFAULT false)` – Deletes applications for specific academic year, optionally with Smart Deletion. Returns same JSONB structure as above.
+    - **Smart Deletion Logic** (when `p_delete_orphaned_users = true`):
+      - Collects all unique `student_id` values from deleted applications
+      - For each user, performs 6 safety checks:
+        1. Checks if user is staff/superadmin (never deleted)
+        2. Checks for remaining applications (preserved if found)
+        3. Checks for refund records (preserved for accounting)
+        4. Checks for maintenance requests (preserved for service history)
+        5. Checks for utility payments created by user (preserved for financial audit)
+        6. Checks for activity logs (preserved for audit trail)
+      - Deletes only users who pass all checks (truly orphaned accounts)
+      - Returns detailed preservation reasons for each preserved user
     - All functions use `SECURITY DEFINER` and `set_config('row_security', 'off', true)` to bypass RLS
     - Functions handle cascading deletes, studio allocation cleanup, and orphaned record prevention
+    - Smart Deletion maintains data integrity and compliance requirements
   - **Database Views**:
     - `booking_calendar_data` – View showing all studios with their bookings (confirmed applications) including date ranges from contracts. Includes studio info, student info, contract dates, and academic year. Note: `studio_status` and `application_status` are cast to TEXT to match function return types.
     - `studio_status_by_academic_year` – Shows effective status of each studio per academic year based on applications
@@ -1011,7 +1099,53 @@ See `COMPREHENSIVE_SYSTEM_ANALYSIS.md` for complete system assessment and gap an
   - `src/components/admin/AdminLayout.tsx` - Navigation menu
 - **See**: `docs/BOOKING_CALENDAR_IMPLEMENTATION.md` for complete documentation
 
-### 15.2 Targeted Messages Feature
+### 15.2 Command Palette Search Feature
+- **Status:** ✅ Implemented & Deployed (2025-01-28)
+- **Overview**: Quick navigation and page search functionality for the admin portal, similar to VS Code's command palette or Notion's quick find
+- **Location**: Search button in sidebar header (desktop) and mobile header
+- **Features**:
+  - **Fuzzy Search**: Search through all navigation items with intelligent matching
+  - **Section Grouping**: Results organized by navigation sections (Overview, Academic, Finance, Students, Partners, Communications, Reports, System)
+  - **Current Page Indicator**: Shows "Current" badge for the active route
+  - **Keyboard-First Navigation**: Full keyboard support (arrow keys, Enter to select)
+  - **Auto-Close**: Automatically closes after navigation
+- **Keyboard Shortcuts**:
+  - `Ctrl+K` (Windows/Linux) or `Cmd+K` (Mac) - Open command palette
+  - `Esc` - Close command palette
+  - `↑` / `↓` - Navigate results
+  - `Enter` - Select item / Navigate
+- **Search Capabilities**:
+  - Search by page name (e.g., "bulk" finds "Bulk Messages", "Bulk Invitations")
+  - Search by route path (e.g., "/admin/bulk")
+  - Search by section name (e.g., "finance" shows all Finance section items)
+  - Case-insensitive fuzzy matching
+- **UI Components**:
+  - Search button in sidebar header with keyboard shortcut hint (⌘K)
+  - Search button in mobile header (icon-only on small screens, "Search" text on larger screens)
+  - Modal dialog with search input and grouped results
+  - Icons displayed for each navigation item
+- **Technical Implementation**:
+  - Component: `src/components/admin/CommandPalette.tsx` - Main command palette component
+  - Uses existing `Command` component from `src/components/ui/command.tsx` (cmdk library)
+  - Integrates with `AdminLayout` component
+  - Exports `navSections` from `AdminLayout` for searchable items
+  - Global keyboard event listener (only active in admin routes)
+  - Prevents keyboard shortcut when typing in input fields (except command palette input)
+  - Flattens navigation sections into searchable items
+  - Groups results by section for organized display
+- **Accessibility**:
+  - Full keyboard navigation support
+  - Screen reader compatible
+  - Focus management
+  - ARIA labels
+  - High contrast support
+- **Files**:
+  - `src/components/admin/CommandPalette.tsx` - Command palette component
+  - `src/components/admin/AdminLayout.tsx` - Updated with search button and keyboard shortcut handler
+  - `src/components/ui/command.tsx` - Command component (already existed)
+- **See**: `docs/COMMAND_PALETTE_SEARCH_RECOMMENDATION.md` for design recommendations and implementation details
+
+### 15.3 Targeted Messages Feature
 - **Status:** ✅ Implemented & Deployed (2025-11-25)
 - **Overview**: Separate feature from bulk messages that allows staff to send messages to specific students or students matching particular criteria
 - **Location**: `/admin/targeted-messages`

@@ -150,9 +150,17 @@ const PortalResetPassword = () => {
     setIsSubmitting(true);
 
     try {
-      // Update password using Supabase auth
+      // Get current user to preserve existing metadata
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      
+      // Update password and account status using Supabase auth
       const { error: updateError } = await supabase.auth.updateUser({
         password: password,
+        data: {
+          ...(currentUser?.user_metadata || {}),
+          account_status: "activated",
+          activated_at: new Date().toISOString(),
+        },
       });
 
       if (updateError) {

@@ -254,10 +254,40 @@ const DataImport = () => {
       });
 
       if (response.error) {
-        throw response.error;
+        console.error("Edge Function error:", response.error);
+        // If error has a message, use it; otherwise stringify the whole error
+        const errorMessage = response.error.message || JSON.stringify(response.error);
+        throw new Error(errorMessage);
       }
 
       const result = response.data;
+      
+      // Check if result itself indicates an error
+      if (!result || (result.success === false)) {
+        console.error("Import failed:", result);
+        const errorMessage = result?.error || result?.message || "Unknown error occurred";
+        const userErrors = result?.user_creation_errors || [];
+        const missingUsers = result?.missing_users || [];
+        
+        let fullErrorMessage = errorMessage;
+        if (userErrors.length > 0) {
+          fullErrorMessage += `\n\nUser creation errors:\n${userErrors.map((e: any) => `- ${e.email}: ${e.error}`).join("\n")}`;
+        }
+        if (missingUsers.length > 0) {
+          fullErrorMessage += `\n\nMissing users: ${missingUsers.join(", ")}`;
+        }
+        
+        setImportResults(result);
+        setStatus("error");
+        toast({
+          variant: "destructive",
+          title: "Import failed",
+          description: fullErrorMessage,
+          duration: 10000, // Show longer for detailed errors
+        });
+        return;
+      }
+
       setImportResults(result);
       setStatus(result.success ? "completed" : "error");
 
@@ -276,10 +306,22 @@ const DataImport = () => {
     } catch (error: any) {
       console.error("Import error:", error);
       setStatus("error");
+      
+      // Extract detailed error message
+      let errorMessage = "An error occurred during import";
+      if (error?.message) {
+        errorMessage = error.message;
+      } else if (typeof error === "string") {
+        errorMessage = error;
+      } else if (error?.error) {
+        errorMessage = error.error;
+      }
+      
       toast({
         variant: "destructive",
         title: "Import failed",
-        description: error.message || "An error occurred during import",
+        description: errorMessage,
+        duration: 10000, // Show longer for detailed errors
       });
     } finally {
       setImporting(false);

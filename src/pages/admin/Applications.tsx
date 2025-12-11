@@ -25,6 +25,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from "@/components/ui/pagination";
 
 const statusLabels: Record<string, string> = {
   draft: "Draft",

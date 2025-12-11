@@ -475,6 +475,7 @@ serve(async (req) => {
           }
 
           // Function to replace template variables for a specific student
+          // Uses comprehensive replacement logic consistent with other email functions
           const replaceVariables = (text: string, studentId: string): string => {
             if (!text) return "";
             
@@ -493,28 +494,124 @@ serve(async (req) => {
             const portalUrl = Deno.env.get("PORTAL_URL") || 
               `${Deno.env.get("SUPABASE_URL")?.replace("/rest/v1", "") || "https://iskabookingportal.netlify.app"}/portal`;
 
-            // Replace all template variables
-            const replacements: Record<string, string> = {
-              "{student_name}": studentName,
-              "{title}": title,
-              "{message}": message,
-              "{date}": new Date().toLocaleDateString(),
-              "{studio_number}": studioNumber,
-              "{contract_start}": contractStart,
-              "{contract_end}": contractEnd,
-              "{application_id}": applicationId,
-              "{portal_url}": portalUrl,
+            // Build comprehensive variables object (keys without braces for flexible replacement)
+            const vars: Record<string, string> = {
+              student_name: studentName,
+              title: title,
+              message: message,
+              date: new Date().toLocaleDateString(),
+              studio_number: studioNumber,
+              contract_start: contractStart,
+              contract_end: contractEnd,
+              application_id: applicationId,
+              portal_url: portalUrl,
+              company_name: companyName,
+              COMPANY_NAME: companyName.toUpperCase(),
+              current_year: new Date().getFullYear().toString(),
             };
 
-            Object.entries(replacements).forEach(([key, value]) => {
-              result = result.replace(new RegExp(key.replace(/[{}]/g, "\\$&"), "g"), value);
-            });
+            // Comprehensive replacement function - runs multiple passes to catch all variations
+            // Supports both {variable} and [variable] formats, case-insensitive
+            for (let pass = 0; pass < 3; pass++) {
+              Object.entries(vars).forEach(([key, value]) => {
+                const stringValue = String(value || "").trim();
+                if (!stringValue) return; // Skip empty values
+                
+                // Escape only special regex characters in the key name itself (not the braces/brackets)
+                const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                
+                // Replace {variable} format - case insensitive, global replace
+                result = result.replace(new RegExp(`\\{${escapedKey}\\}`, "gi"), stringValue);
+                
+                // Replace [variable] format - case insensitive, global replace
+                result = result.replace(new RegExp(`\\[${escapedKey}\\]`, "gi"), stringValue);
+              });
+            }
 
             return result;
           };
 
-          // Send personalized emails to each student
-          for (const studentId of studentIds) {
+          // Helper function to delay execution (for rate limiting)
+          const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+          // Helper function to send email with retry logic for rate limiting
+          const sendEmailWithRetry = async (
+            emailPayload: any,
+            userEmail: string,
+            maxRetries: number = 3
+          ): Promise<boolean> => {
+            for (let attempt = 0; attempt < maxRetries; attempt++) {
+              try {
+                const resendResponse = await fetch("https://api.resend.com/emails", {
+                  method: "POST",
+                  headers: {
+                    "Authorization": `Bearer ${resendApiKey}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify(emailPayload),
+                });
+
+                const responseText = await resendResponse.text();
+                
+                // Check if response is HTML (error page) instead of JSON
+                if (responseText.trim().startsWith("<!DOCTYPE") || responseText.trim().startsWith("<html")) {
+                  console.error(`✗ Resend API returned HTML instead of JSON for ${userEmail}`);
+                  console.error(`Response preview: ${responseText.substring(0, 1000)}`);
+                  return false;
+                }
+
+                if (resendResponse.ok) {
+                  try {
+                    const responseData = JSON.parse(responseText);
+                    console.log(`✓ Email sent successfully to ${userEmail} (ID: ${responseData.id || "N/A"})`);
+                    return true;
+                  } catch (parseError) {
+                    console.error(`✗ Error parsing response for ${userEmail}:`, parseError);
+                    return false;
+                  }
+                } else {
+                  try {
+                    const errorData = JSON.parse(responseText);
+                    
+                    // Handle rate limiting (429) with exponential backoff
+                    if (resendResponse.status === 429) {
+                      const retryAfter = resendResponse.headers.get("retry-after");
+                      const waitTime = retryAfter 
+                        ? parseInt(retryAfter) * 1000 
+                        : Math.min(1000 * Math.pow(2, attempt), 10000); // Exponential backoff, max 10s
+                      
+                      console.warn(`⚠ Rate limit hit for ${userEmail}. Waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
+                      await delay(waitTime);
+                      continue; // Retry
+                    }
+                    
+                    // For other errors, log and return false
+                    console.error(`✗ Resend API error for ${userEmail}:`, JSON.stringify(errorData, null, 2));
+                    console.error(`Response status: ${resendResponse.status}`);
+                    return false;
+                  } catch (parseError) {
+                    console.error(`✗ Error parsing error response for ${userEmail}:`, parseError);
+                    return false;
+                  }
+                }
+              } catch (fetchError) {
+                console.error(`✗ Network error sending email to ${userEmail} (attempt ${attempt + 1}):`, fetchError);
+                if (attempt < maxRetries - 1) {
+                  await delay(1000 * Math.pow(2, attempt)); // Exponential backoff
+                }
+              }
+            }
+            return false; // All retries failed
+          };
+
+          // Send personalized emails to each student with rate limiting
+          // Resend allows 2 requests per second, so we'll send at max 1.5 per second (650ms delay) to be safe
+          const RATE_LIMIT_DELAY_MS = 650; // Slightly less than 500ms to account for processing time
+          
+          console.log(`Starting to send ${studentIds.length} emails with rate limiting (${RATE_LIMIT_DELAY_MS}ms delay between emails)`);
+          
+          for (let i = 0; i < studentIds.length; i++) {
+            const studentId = studentIds[i];
             const user = users.find((u) => u.id === studentId);
             if (!user?.email) {
               console.log(`Skipping student ${studentId} - no email found`);
@@ -522,30 +619,41 @@ serve(async (req) => {
             }
 
             try {
-            // Replace variables for this specific student
-            const emailSubject = replaceVariables(emailTemplate.subject, studentId);
-            let emailBodyHtml = replaceVariables(
-              emailTemplate.body_html || emailTemplate.body_text || "",
-              studentId
-            );
-            // Replace logo URL placeholder with actual logo URL
-            // Use PORTAL_URL for logo URL, fallback to SUPABASE_URL
-            const baseUrl = Deno.env.get("PORTAL_URL")?.replace("/portal", "") || 
-              Deno.env.get("SUPABASE_URL")?.replace("/rest/v1", "") || 
-              "https://iskabookingportal.netlify.app";
-            const logoUrl = `${baseUrl}/storage/v1/object/public/studio-media/favicon.png`;
-            emailBodyHtml = emailBodyHtml.replace(/{logo_url}/g, logoUrl);
-            
-            const emailBodyText = replaceVariables(
-              emailTemplate.body_text || emailTemplate.body_html?.replace(/<[^>]*>/g, "") || "",
-              studentId
-            );
-
-              // Format from email properly (Resend accepts both formats, but let's be explicit)
-              const formattedFromEmail = fromEmail.includes("<") ? fromEmail : `${companyName} <${fromEmail}>`;
+              // Replace variables for this specific student
+              const emailSubject = replaceVariables(emailTemplate.subject, studentId);
+              let emailBodyHtml = replaceVariables(
+                emailTemplate.body_html || emailTemplate.body_text || "",
+                studentId
+              );
               
-              console.log(`Attempting to send email to ${user.email} from ${formattedFromEmail}`);
-              console.log(`Email subject: ${emailSubject.substring(0, 50)}...`);
+              // Debug logging for first email (to verify company_name replacement)
+              if (i === 0) {
+                console.log("=== EMAIL TEMPLATE REPLACEMENT (First Email) ===");
+                console.log("Company name value:", companyName);
+                console.log("Company name type:", typeof companyName);
+                console.log("Template subject (before):", emailTemplate.subject);
+                console.log("Template subject (after):", emailSubject);
+                console.log("Template body_html contains {company_name}:", (emailTemplate.body_html || "").includes("{company_name}"));
+                console.log("Template body_html contains {COMPANY_NAME}:", (emailTemplate.body_html || "").includes("{COMPANY_NAME}"));
+                console.log("Replaced body_html contains {company_name}:", emailBodyHtml.includes("{company_name}"));
+                console.log("Replaced body_html contains {COMPANY_NAME}:", emailBodyHtml.includes("{COMPANY_NAME}"));
+                console.log("=== END REPLACEMENT ===");
+              }
+              
+              // Replace logo URL placeholder with actual logo URL
+              const baseUrl = Deno.env.get("PORTAL_URL")?.replace("/portal", "") || 
+                Deno.env.get("SUPABASE_URL")?.replace("/rest/v1", "") || 
+                "https://iskabookingportal.netlify.app";
+              const logoUrl = `${baseUrl}/storage/v1/object/public/studio-media/favicon.png`;
+              emailBodyHtml = emailBodyHtml.replace(/{logo_url}/gi, logoUrl);
+              
+              const emailBodyText = replaceVariables(
+                emailTemplate.body_text || emailTemplate.body_html?.replace(/<[^>]*>/g, "") || "",
+                studentId
+              );
+
+              // Format from email properly
+              const formattedFromEmail = fromEmail.includes("<") ? fromEmail : `${companyName} <${fromEmail}>`;
               
               // Prepare email payload
               const emailPayload = {
@@ -556,61 +664,22 @@ serve(async (req) => {
                 text: emailBodyText,
               };
               
-              console.log(`Sending email payload:`, JSON.stringify({
-                from: emailPayload.from,
-                to: emailPayload.to,
-                subject: emailPayload.subject.substring(0, 50),
-                html_length: emailPayload.html.length,
-                text_length: emailPayload.text.length,
-              }));
+              // Send email with retry logic
+              const success = await sendEmailWithRetry(emailPayload, user.email);
               
-              const resendResponse = await fetch("https://api.resend.com/emails", {
-                method: "POST",
-                headers: {
-                  "Authorization": `Bearer ${resendApiKey}`,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify(emailPayload),
-              });
-
-              const responseText = await resendResponse.text();
-              console.log(`Resend API response status: ${resendResponse.status}`);
-              console.log(`Resend API response type: ${resendResponse.headers.get("content-type")}`);
-              console.log(`Resend API response length: ${responseText.length} characters`);
-              
-              // Check if response is HTML (error page) instead of JSON
-              if (responseText.trim().startsWith("<!DOCTYPE") || responseText.trim().startsWith("<html")) {
-                console.error(`✗ Resend API returned HTML instead of JSON for ${user.email}`);
-                console.error(`This usually indicates an authentication error or API endpoint issue`);
-                console.error(`Response preview: ${responseText.substring(0, 1000)}`);
-                // Don't increment emailsSent, continue to next email
-                continue;
-              }
-
-              if (resendResponse.ok) {
-                try {
-                  const responseData = JSON.parse(responseText);
-                  emailsSent++;
-                  console.log(`✓ Email sent successfully to ${user.email} (ID: ${responseData.id || "N/A"})`);
-                  if (emailsSent % 10 === 0) {
-                    console.log(`Sent ${emailsSent} emails so far...`);
-                  }
-                } catch (parseError) {
-                  console.error(`✗ Error parsing response for ${user.email}:`, parseError);
-                  console.error(`Response text (first 500 chars): ${responseText.substring(0, 500)}`);
-                }
-              } else {
-                try {
-                  const errorData = JSON.parse(responseText);
-                  console.error(`✗ Resend API error for ${user.email}:`, JSON.stringify(errorData, null, 2));
-                  console.error(`Response status: ${resendResponse.status}`);
-                } catch (parseError) {
-                  console.error(`✗ Error parsing error response for ${user.email}:`, parseError);
-                  console.error(`Response is not valid JSON. First 1000 chars: ${responseText.substring(0, 1000)}`);
-                  console.error(`Response status: ${resendResponse.status}`);
-                  console.error(`Content-Type: ${resendResponse.headers.get("content-type")}`);
+              if (success) {
+                emailsSent++;
+                // Log progress every 10 emails
+                if (emailsSent % 10 === 0) {
+                  console.log(`Progress: Sent ${emailsSent}/${studentIds.length} emails (${Math.round(emailsSent / studentIds.length * 100)}%)`);
                 }
               }
+              
+              // Rate limiting: Wait before sending next email (except for the last one)
+              if (i < studentIds.length - 1) {
+                await delay(RATE_LIMIT_DELAY_MS);
+              }
+              
             } catch (emailError) {
               console.error(`✗ Exception sending email to student ${studentId} (${user.email}):`, emailError);
             }

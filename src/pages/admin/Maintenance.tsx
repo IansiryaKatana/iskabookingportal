@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
-import { Wrench, Clock, CheckCircle2, XCircle, AlertCircle, Loader2, ExternalLink, Filter } from "lucide-react";
+import { Wrench, Clock, CheckCircle2, XCircle, AlertCircle, Loader2, ExternalLink, Filter, Plus, Minus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   Select,
@@ -29,9 +29,32 @@ import {
 } from "@/components/ui/dialog";
 import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { MaintenanceImagePreview } from "@/components/MaintenanceImagePreview";
 
-// Component to display maintenance images with signed URLs
-const MaintenanceImage = ({ imagePath, index }: { imagePath: string; index: number }) => {
+// Component to display maintenance images with signed URLs (clickable thumbnails)
+const MaintenanceImage = ({ 
+  imagePath, 
+  index, 
+  onClick 
+}: { 
+  imagePath: string; 
+  index: number;
+  onClick: () => void;
+}) => {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -62,7 +85,10 @@ const MaintenanceImage = ({ imagePath, index }: { imagePath: string; index: numb
   }, [imagePath]);
 
   return (
-    <div className="relative w-20 h-20 rounded-lg overflow-hidden border border-border/60">
+    <button
+      onClick={onClick}
+      className="relative w-20 h-20 rounded-lg overflow-hidden border border-border/60 hover:ring-2 hover:ring-primary transition-all cursor-pointer"
+    >
       {loading ? (
         <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground text-xs">
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -82,7 +108,7 @@ const MaintenanceImage = ({ imagePath, index }: { imagePath: string; index: numb
           Error
         </div>
       )}
-    </div>
+    </button>
   );
 };
 
@@ -101,6 +127,10 @@ const Maintenance = () => {
     priority: "normal" as "low" | "normal" | "high" | "urgent",
     resolution_notes: "",
   });
+  const [previewImages, setPreviewImages] = useState<string[]>([]);
+  const [previewIndex, setPreviewIndex] = useState(0);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [expandedRow, setExpandedRow] = useState<string | undefined>(undefined);
 
   const { data: requests, isLoading } = useMaintenanceRequests();
   const updateRequest = useUpdateMaintenanceRequest();
@@ -336,7 +366,7 @@ const Maintenance = () => {
         {/* Filters */}
         <Card className="rounded-3xl border border-border/60 shadow-xl">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+            <CardTitle className="flex items-center gap-2 text-base md:text-lg font-display font-bold uppercase tracking-wide">
               <Filter className="h-4 w-4 md:h-5 md:w-5" />
               Filters
             </CardTitle>
@@ -412,12 +442,12 @@ const Maintenance = () => {
         {/* Requests List */}
         <Card className="rounded-3xl border border-border/60 shadow-xl">
           <CardHeader>
-            <CardTitle className="text-base md:text-lg">All Requests</CardTitle>
+            <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">All Requests</CardTitle>
             <CardDescription className="text-xs md:text-sm">
               {filteredRequests.length} request{filteredRequests.length !== 1 ? "s" : ""} found
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent>
             {filteredRequests.length === 0 ? (
               <div className="text-center py-12">
                 <Wrench className="h-10 w-10 md:h-12 md:w-12 text-muted-foreground mx-auto mb-4" />
@@ -429,90 +459,269 @@ const Maintenance = () => {
                 </p>
               </div>
             ) : (
-              filteredRequests.map((request) => (
-                <div
-                  key={request.id}
-                  className="rounded-2xl border border-border/60 p-3 md:p-4 space-y-3 hover:bg-accent/50 transition-colors"
-                >
-                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-start gap-3">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-base md:text-lg">{request.title}</h3>
-                          <p className="text-xs md:text-sm text-muted-foreground mt-1">{request.description}</p>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2 md:gap-3">
-                        {getStatusBadge(request.status)}
-                        {getPriorityBadge(request.priority)}
-                        <Badge variant="outline" className="rounded-full text-xs">
-                          {getTypeLabel(request.request_type)}
-                        </Badge>
-                        {request.studio && (
-                          <Badge variant="outline" className="rounded-full text-xs">
-                            Studio {request.studio.studio_number}
-                          </Badge>
-                        )}
-                        {request.academic_year && (
-                          <Badge variant="outline" className="rounded-full text-xs">
-                            {request.academic_year.name}
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2 md:gap-4 text-xs md:text-sm text-muted-foreground">
-                        <span>Created {format(new Date(request.created_at), "MMM d, yyyy 'at' h:mm a")}</span>
-                        {request.updated_at !== request.created_at && (
-                          <span>Updated {format(new Date(request.updated_at), "MMM d, yyyy 'at' h:mm a")}</span>
-                        )}
-                        {request.resolved_at && (
-                          <span className="text-green-600">
-                            Resolved {format(new Date(request.resolved_at), "MMM d, yyyy")}
-                          </span>
-                        )}
-                      </div>
-                      {request.images && request.images.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {request.images.map((imagePath, idx) => (
-                            <MaintenanceImage key={idx} imagePath={imagePath} index={idx} />
-                          ))}
-                        </div>
-                      )}
-                      {request.resolution_notes && (
-                        <div className="mt-3 p-2 md:p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-900">
-                          <p className="text-xs md:text-sm font-medium text-green-900 dark:text-green-100 mb-1">
-                            Resolution Notes:
-                          </p>
-                          <p className="text-xs md:text-sm text-green-800 dark:text-green-200">
-                            {request.resolution_notes}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                      {request.application && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => navigate(`/admin/applications/${request.application?.id}`)}
-                          className="rounded-full gap-2 text-xs md:text-sm"
-                        >
-                          <ExternalLink className="h-3 w-3 md:h-4 md:w-4" />
-                          <span className="hidden sm:inline">View Application</span>
-                          <span className="sm:hidden">View</span>
-                        </Button>
-                      )}
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={() => openUpdateDialog(request.id)}
-                        className="rounded-full uppercase tracking-wide gap-2 text-xs md:text-sm"
+              <>
+                {/* Desktop: Table with Accordion */}
+                <div className="hidden md:block">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs md:text-sm">Title</TableHead>
+                        <TableHead className="text-xs md:text-sm">Status</TableHead>
+                        <TableHead className="text-xs md:text-sm">Priority</TableHead>
+                        <TableHead className="text-xs md:text-sm">Type</TableHead>
+                        <TableHead className="text-xs md:text-sm">Created</TableHead>
+                        <TableHead className="text-xs md:text-sm">Actions</TableHead>
+                        <TableHead className="text-xs md:text-sm w-[60px]"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <Accordion 
+                        type="single" 
+                        collapsible 
+                        className="w-full"
+                        value={expandedRow}
+                        onValueChange={setExpandedRow}
                       >
-                        Update
-                      </Button>
-                    </div>
-                  </div>
+                        {filteredRequests.map((request) => {
+                          const isOpen = expandedRow === request.id;
+                          return (
+                            <AccordionItem key={request.id} value={request.id} className="border-b">
+                              <AccordionTrigger className="hidden" />
+                              <TableRow 
+                                className="hover:bg-accent/50 cursor-pointer [&>td]:py-4"
+                                onClick={() => setExpandedRow(isOpen ? undefined : request.id)}
+                              >
+                                <TableCell className="align-middle">
+                                  <div className="font-semibold text-sm">{request.title}</div>
+                                  <div className="text-xs text-muted-foreground line-clamp-1 mt-1">
+                                    {request.description}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="align-middle">{getStatusBadge(request.status)}</TableCell>
+                                <TableCell className="align-middle">{getPriorityBadge(request.priority)}</TableCell>
+                                <TableCell className="align-middle">
+                                  <Badge variant="outline" className="rounded-full text-xs">
+                                    {getTypeLabel(request.request_type)}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="align-middle text-xs text-muted-foreground">
+                                  {format(new Date(request.created_at), "MMM d, yyyy")}
+                                </TableCell>
+                                <TableCell className="align-middle">
+                                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                    {request.application && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          navigate(`/admin/applications/${request.application?.id}`);
+                                        }}
+                                        className="rounded-full gap-2 text-xs h-7 px-2"
+                                      >
+                                        <ExternalLink className="h-3 w-3" />
+                                      </Button>
+                                    )}
+                                    <Button
+                                      variant="default"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openUpdateDialog(request.id);
+                                      }}
+                                      className="rounded-full uppercase tracking-wide gap-2 text-xs h-7 px-2"
+                                    >
+                                      Update
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="align-middle w-[60px]">
+                                  <Plus className={`h-4 w-4 shrink-0 transition-transform duration-200 mx-auto ${isOpen ? 'rotate-45' : ''}`} />
+                                </TableCell>
+                              </TableRow>
+                            <AccordionContent asChild>
+                              <TableRow>
+                                <TableCell colSpan={7} className="p-4">
+                                  <div className="space-y-4">
+                                    <div>
+                                      <h4 className="text-xs font-semibold mb-2">Description</h4>
+                                      <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+                                        {request.description}
+                                      </p>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                      {request.studio && (
+                                        <Badge variant="outline" className="rounded-full text-xs">
+                                          Studio {request.studio.studio_number}
+                                        </Badge>
+                                      )}
+                                      {request.academic_year && (
+                                        <Badge variant="outline" className="rounded-full text-xs">
+                                          {request.academic_year.name}
+                                        </Badge>
+                                      )}
+                                      <span>Created {format(new Date(request.created_at), "MMM d, yyyy 'at' h:mm a")}</span>
+                                      {request.updated_at !== request.created_at && (
+                                        <span>Updated {format(new Date(request.updated_at), "MMM d, yyyy 'at' h:mm a")}</span>
+                                      )}
+                                      {request.resolved_at && (
+                                        <span className="text-green-600">
+                                          Resolved {format(new Date(request.resolved_at), "MMM d, yyyy")}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {request.images && request.images.length > 0 && (
+                                      <div>
+                                        <h4 className="text-xs font-semibold mb-2">Images</h4>
+                                        <div className="flex flex-wrap gap-2">
+                                          {request.images.map((imagePath, idx) => (
+                                            <MaintenanceImage
+                                              key={idx}
+                                              imagePath={imagePath}
+                                              index={idx}
+                                              onClick={() => {
+                                                setPreviewImages(request.images || []);
+                                                setPreviewIndex(idx);
+                                                setPreviewOpen(true);
+                                              }}
+                                            />
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                    {request.resolution_notes && (
+                                      <div className="p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-900">
+                                        <p className="text-xs font-medium text-green-900 dark:text-green-100 mb-1">
+                                          Resolution Notes:
+                                        </p>
+                                        <p className="text-xs text-green-800 dark:text-green-200 whitespace-pre-wrap">
+                                          {request.resolution_notes}
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            </AccordionContent>
+                          </AccordionItem>
+                        );
+                      })}
+                      </Accordion>
+                    </TableBody>
+                  </Table>
                 </div>
-              ))
+
+                {/* Mobile: Cards */}
+                <div className="md:hidden space-y-4">
+                  {filteredRequests.map((request) => (
+                    <Card key={request.id} className="rounded-2xl border border-border/60">
+                      <CardContent className="p-4">
+                        <Accordion type="single" collapsible className="w-full">
+                          <AccordionItem value={request.id} className="border-0">
+                            <AccordionTrigger className="hover:no-underline py-2">
+                              <div className="flex-1 text-left space-y-2">
+                                <h3 className="text-sm font-semibold">{request.title}</h3>
+                                <p className="text-xs text-muted-foreground line-clamp-2">
+                                  {request.description}
+                                </p>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  {getStatusBadge(request.status)}
+                                  {getPriorityBadge(request.priority)}
+                                  <Badge variant="outline" className="rounded-full text-xs">
+                                    {getTypeLabel(request.request_type)}
+                                  </Badge>
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {format(new Date(request.created_at), "MMM d, yyyy")}
+                                </div>
+                              </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="pt-4 space-y-4">
+                              <div>
+                                <h4 className="text-xs font-semibold mb-2">Description</h4>
+                                <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+                                  {request.description}
+                                </p>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                {request.studio && (
+                                  <Badge variant="outline" className="rounded-full text-xs">
+                                    Studio {request.studio.studio_number}
+                                  </Badge>
+                                )}
+                                {request.academic_year && (
+                                  <Badge variant="outline" className="rounded-full text-xs">
+                                    {request.academic_year.name}
+                                  </Badge>
+                                )}
+                                <span>Created {format(new Date(request.created_at), "MMM d, yyyy 'at' h:mm a")}</span>
+                                {request.updated_at !== request.created_at && (
+                                  <span>Updated {format(new Date(request.updated_at), "MMM d, yyyy 'at' h:mm a")}</span>
+                                )}
+                                {request.resolved_at && (
+                                  <span className="text-green-600">
+                                    Resolved {format(new Date(request.resolved_at), "MMM d, yyyy")}
+                                  </span>
+                                )}
+                              </div>
+                              {request.images && request.images.length > 0 && (
+                                <div>
+                                  <h4 className="text-xs font-semibold mb-2">Images</h4>
+                                  <div className="flex flex-wrap gap-2">
+                                    {request.images.map((imagePath, idx) => (
+                                      <MaintenanceImage
+                                        key={idx}
+                                        imagePath={imagePath}
+                                        index={idx}
+                                        onClick={() => {
+                                          setPreviewImages(request.images || []);
+                                          setPreviewIndex(idx);
+                                          setPreviewOpen(true);
+                                        }}
+                                      />
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {request.resolution_notes && (
+                                <div className="p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-900">
+                                  <p className="text-xs font-medium text-green-900 dark:text-green-100 mb-1">
+                                    Resolution Notes:
+                                  </p>
+                                  <p className="text-xs text-green-800 dark:text-green-200 whitespace-pre-wrap">
+                                    {request.resolution_notes}
+                                  </p>
+                                </div>
+                              )}
+                              <div className="flex flex-col gap-2 pt-2">
+                                {request.application && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => navigate(`/admin/applications/${request.application?.id}`)}
+                                    className="rounded-full gap-2 text-xs w-full"
+                                  >
+                                    <ExternalLink className="h-3 w-3" />
+                                    View Application
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => openUpdateDialog(request.id)}
+                                  className="rounded-full uppercase tracking-wide gap-2 text-xs w-full"
+                                >
+                                  Update
+                                </Button>
+                              </div>
+                            </AccordionContent>
+                          </AccordionItem>
+                        </Accordion>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
@@ -521,7 +730,7 @@ const Maintenance = () => {
         <Dialog open={updateDialogOpen} onOpenChange={setUpdateDialogOpen}>
           <DialogContent className="sm:max-w-[500px] rounded-3xl">
             <DialogHeader>
-              <DialogTitle className="text-base md:text-lg">Update Maintenance Request</DialogTitle>
+              <DialogTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">Update Maintenance Request</DialogTitle>
               <DialogDescription className="text-xs md:text-sm">
                 Update the status, priority, and resolution notes for this request.
               </DialogDescription>
@@ -606,6 +815,14 @@ const Maintenance = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Image Preview Modal */}
+        <MaintenanceImagePreview
+          images={previewImages}
+          initialIndex={previewIndex}
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+        />
       </div>
     </AdminLayout>
   );

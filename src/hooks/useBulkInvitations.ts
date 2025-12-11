@@ -40,11 +40,12 @@ const fetchApplicationsWithPlaceholders = async (
       student_id,
       status,
       created_at,
+      contract_id,
       contract:contracts (
         id,
         name,
         academic_year_id,
-        academic_years:academic_years (
+        academic_year:academic_years (
           id,
           name
         )
@@ -78,27 +79,89 @@ const fetchApplicationsWithPlaceholders = async (
     return [];
   }
 
+  // Get unique contract IDs that need to be fetched (for applications missing contract data)
+  const contractIds = [...new Set(applications.map((app: any) => app.contract_id).filter(Boolean))];
+  
+  // Fetch contracts separately if some are missing (fallback)
+  let contractsMap: Map<string, any> = new Map();
+  if (contractIds.length > 0) {
+    try {
+      const { data: contractsData, error: contractsError } = await supabase
+        .from("contracts")
+        .select(`
+          id,
+          name,
+          academic_year_id,
+          academic_year:academic_years (
+            id,
+            name
+          )
+        `)
+        .in("id", contractIds);
+
+      if (!contractsError && contractsData) {
+        contractsData.forEach((contract: any) => {
+          contractsMap.set(contract.id, contract);
+        });
+      }
+    } catch (err) {
+      console.warn("Could not fetch contracts separately:", err);
+    }
+  }
+
   // Get user metadata to check account status
   const studentIds = [...new Set(applications.map((app: any) => app.student_id))];
   
-  // Fetch user metadata from auth.users (via admin API would be better, but we'll use profiles as proxy)
-  // For now, we'll extract email from step 2 and check if we can determine status
+  // Fetch user metadata from auth.users via Edge Function
+  let metadataMap: Record<string, { account_status?: string; invitation_sent_at?: string; invitation_expires_at?: string }> = {};
+  if (studentIds.length > 0) {
+    try {
+      const { data: metadataData, error: metadataError } = await supabase.functions.invoke("get-user-metadata", {
+        body: { userIds: studentIds },
+      });
+
+      if (!metadataError && metadataData?.metadata) {
+        metadataMap = metadataData.metadata;
+      } else if (metadataError) {
+        console.warn("Could not fetch user metadata via edge function:", metadataError);
+      }
+    } catch (err) {
+      console.warn("Could not fetch user metadata:", err);
+    }
+  }
+
+  // Enrich applications with metadata and ensure contracts are populated
   const enriched = applications.map((app: any) => {
     const step2 = app.student_application_steps?.find((s: any) => s.step_number === 2);
     const email = step2?.payload?.email || "";
     const firstName = step2?.payload?.first_name || "";
     const lastName = step2?.payload?.last_name || "";
+    const metadata = metadataMap[app.student_id] || {};
+
+    // Use contract from query if available, otherwise fetch from map
+    let contract = app.contract;
+    if (!contract && app.contract_id) {
+      contract = contractsMap.get(app.contract_id) || null;
+    }
 
     return {
       id: app.id,
       student_id: app.student_id,
       status: app.status,
       created_at: app.created_at,
-      contract: app.contract,
+      contract: contract,
       student_email: email,
       student_name: `${firstName} ${lastName}`.trim() || email,
-      // We'll fetch account_status from a separate query or Edge Function
-      account_status: "pending_activation" as InvitationStatus, // Default, will be updated
+      // Determine account status:
+      // 1. If metadata has account_status, use it (this is the source of truth)
+      // 2. If no metadata, default to "pending_activation" (bulk imported users start as pending)
+      // Note: Bulk imported users are created with account_status: "pending_activation" in metadata
+      // Only users who actually activated will have account_status: "activated"
+      account_status: (metadata.account_status && metadata.account_status !== "" 
+        ? (metadata.account_status as InvitationStatus)
+        : "pending_activation") as InvitationStatus,
+      invitation_sent_at: metadata.invitation_sent_at || undefined,
+      invitation_expires_at: metadata.invitation_expires_at || undefined,
     };
   });
 

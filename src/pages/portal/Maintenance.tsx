@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Wrench, Plus, Clock, CheckCircle2, XCircle, AlertCircle, Loader2, Image as ImageIcon, X } from "lucide-react";
+import { Wrench, Plus, Clock, CheckCircle2, XCircle, AlertCircle, Loader2, Image as ImageIcon, X, Minus } from "lucide-react";
 import PortalLayout from "@/components/portal/PortalLayout";
 import { useMaintenanceRequests, useCreateMaintenanceRequest } from "@/hooks/useMaintenanceRequests";
 import { useAuth } from "@/contexts/AuthContext";
@@ -29,9 +29,32 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { MaintenanceImagePreview } from "@/components/MaintenanceImagePreview";
 
-// Component to display maintenance images with signed URLs
-const MaintenanceImage = ({ imagePath, index }: { imagePath: string; index: number }) => {
+// Component to display maintenance images with signed URLs (clickable thumbnails)
+const MaintenanceImage = ({ 
+  imagePath, 
+  index, 
+  onClick 
+}: { 
+  imagePath: string; 
+  index: number;
+  onClick: () => void;
+}) => {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -62,7 +85,10 @@ const MaintenanceImage = ({ imagePath, index }: { imagePath: string; index: numb
   }, [imagePath]);
 
   return (
-    <div className="relative w-20 h-20 rounded-lg overflow-hidden border border-border/60">
+    <button
+      onClick={onClick}
+      className="relative w-20 h-20 rounded-lg overflow-hidden border border-border/60 hover:ring-2 hover:ring-primary transition-all cursor-pointer"
+    >
       {loading ? (
         <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground text-xs">
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -82,7 +108,7 @@ const MaintenanceImage = ({ imagePath, index }: { imagePath: string; index: numb
           Error
         </div>
       )}
-    </div>
+    </button>
   );
 };
 
@@ -94,6 +120,10 @@ const Maintenance = () => {
   const [uploadingImages, setUploadingImages] = useState<string[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [previewImages, setPreviewImages] = useState<string[]>([]);
+  const [previewIndex, setPreviewIndex] = useState(0);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [expandedRow, setExpandedRow] = useState<string | undefined>(undefined);
 
   const { data: requests, isLoading } = useMaintenanceRequests(user?.id);
   const { data: applications } = useStudentApplicationsList(user?.id);
@@ -373,8 +403,8 @@ const Maintenance = () => {
       <div className="space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="space-y-2">
-            <h1 className="text-2xl md:text-3xl font-display font-black uppercase tracking-wide">Maintenance Requests</h1>
-            <p className="text-sm text-muted-foreground">
+            <h1 className="text-base md:text-lg font-display font-bold uppercase tracking-wide">Maintenance Requests</h1>
+            <p className="text-xs md:text-sm text-muted-foreground">
               Submit and track maintenance, cleaning, and general requests
             </p>
           </div>
@@ -426,71 +456,213 @@ const Maintenance = () => {
         ) : (
           <Card className="rounded-3xl border border-border/60 shadow-xl">
             <CardHeader>
-              <CardTitle>Your Requests</CardTitle>
-              <CardDescription>
+              <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">Your Requests</CardTitle>
+              <CardDescription className="text-xs md:text-sm">
                 {filteredRequests.length} request{filteredRequests.length !== 1 ? "s" : ""} found
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {filteredRequests.map((request) => (
-                <div
-                  key={request.id}
-                  className="rounded-2xl border border-border/60 p-4 space-y-3 hover:bg-accent/50 transition-colors"
-                >
-                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-start gap-3">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-base md:text-lg">{request.title}</h3>
-                          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                            {request.description}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-3">
-                        {getStatusBadge(request.status)}
-                        {getPriorityBadge(request.priority)}
-                        <Badge variant="outline" className="rounded-full">
-                          {getTypeLabel(request.request_type)}
-                        </Badge>
-                        {request.studio && (
-                          <Badge variant="outline" className="rounded-full">
-                            Studio {request.studio.studio_number}
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-                        <span>Created {format(new Date(request.created_at), "MMM d, yyyy")}</span>
-                        {request.updated_at !== request.created_at && (
-                          <span>Updated {format(new Date(request.updated_at), "MMM d, yyyy")}</span>
-                        )}
-                        {request.resolved_at && (
-                          <span className="text-green-600">
-                            Resolved {format(new Date(request.resolved_at), "MMM d, yyyy")}
-                          </span>
-                        )}
-                      </div>
-                      {request.images && request.images.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {request.images.map((imagePath, idx) => (
-                            <MaintenanceImage key={idx} imagePath={imagePath} index={idx} />
-                          ))}
-                        </div>
-                      )}
-                      {request.resolution_notes && (
-                        <div className="mt-3 p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-900">
-                          <p className="text-sm font-medium text-green-900 dark:text-green-100 mb-1">
-                            Resolution Notes:
-                          </p>
-                          <p className="text-sm text-green-800 dark:text-green-200">
-                            {request.resolution_notes}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
+            <CardContent>
+              {/* Desktop: Table with Accordion */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs md:text-sm text-left">Title</TableHead>
+                      <TableHead className="text-xs md:text-sm text-center">Status</TableHead>
+                      <TableHead className="text-xs md:text-sm text-center">Priority</TableHead>
+                      <TableHead className="text-xs md:text-sm text-center">Type</TableHead>
+                      <TableHead className="text-xs md:text-sm text-right">Created</TableHead>
+                      <TableHead className="text-xs md:text-sm w-[60px] text-center"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <Accordion 
+                      type="single" 
+                      collapsible 
+                      className="w-full"
+                      value={expandedRow}
+                      onValueChange={setExpandedRow}
+                    >
+                      {filteredRequests.map((request) => {
+                        const isOpen = expandedRow === request.id;
+                        return (
+                          <AccordionItem key={request.id} value={request.id} className="border-b">
+                            <AccordionTrigger className="hidden" />
+                            <TableRow 
+                              className="hover:bg-accent/50 cursor-pointer [&>td]:py-4"
+                              onClick={() => setExpandedRow(isOpen ? undefined : request.id)}
+                            >
+                              <TableCell className="align-middle text-left">
+                                <div className="font-semibold text-sm">{request.title}</div>
+                                <div className="text-xs text-muted-foreground line-clamp-1 mt-1">
+                                  {request.description}
+                                </div>
+                              </TableCell>
+                              <TableCell className="align-middle text-center">{getStatusBadge(request.status)}</TableCell>
+                              <TableCell className="align-middle text-center">{getPriorityBadge(request.priority)}</TableCell>
+                              <TableCell className="align-middle text-center">
+                                <Badge variant="outline" className="rounded-full text-xs">
+                                  {getTypeLabel(request.request_type)}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="align-middle text-right text-xs text-muted-foreground">
+                                {format(new Date(request.created_at), "MMM d, yyyy")}
+                              </TableCell>
+                              <TableCell className="align-middle text-center w-[60px]">
+                                <Plus className={`h-4 w-4 shrink-0 transition-transform duration-200 mx-auto ${isOpen ? 'rotate-45' : ''}`} />
+                              </TableCell>
+                            </TableRow>
+                            <AccordionContent asChild>
+                              <TableRow>
+                                <TableCell colSpan={6} className="p-4">
+                                  <div className="space-y-4">
+                                    <div>
+                                      <h4 className="text-xs font-semibold mb-2">Description</h4>
+                                      <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+                                        {request.description}
+                                      </p>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                      {request.studio && (
+                                        <Badge variant="outline" className="rounded-full text-xs">
+                                          Studio {request.studio.studio_number}
+                                        </Badge>
+                                      )}
+                                      <span>Created {format(new Date(request.created_at), "MMM d, yyyy 'at' h:mm a")}</span>
+                                      {request.updated_at !== request.created_at && (
+                                        <span>Updated {format(new Date(request.updated_at), "MMM d, yyyy 'at' h:mm a")}</span>
+                                      )}
+                                      {request.resolved_at && (
+                                        <span className="text-green-600">
+                                          Resolved {format(new Date(request.resolved_at), "MMM d, yyyy")}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {request.images && request.images.length > 0 && (
+                                      <div>
+                                        <h4 className="text-xs font-semibold mb-2">Images</h4>
+                                        <div className="flex flex-wrap gap-2">
+                                          {request.images.map((imagePath, idx) => (
+                                            <MaintenanceImage
+                                              key={idx}
+                                              imagePath={imagePath}
+                                              index={idx}
+                                              onClick={() => {
+                                                setPreviewImages(request.images || []);
+                                                setPreviewIndex(idx);
+                                                setPreviewOpen(true);
+                                              }}
+                                            />
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                    {request.resolution_notes && (
+                                      <div className="p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-900">
+                                        <p className="text-xs font-medium text-green-900 dark:text-green-100 mb-1">
+                                          Resolution Notes:
+                                        </p>
+                                        <p className="text-xs text-green-800 dark:text-green-200 whitespace-pre-wrap">
+                                          {request.resolution_notes}
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            </AccordionContent>
+                          </AccordionItem>
+                        );
+                      })}
+                    </Accordion>
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Mobile: Cards */}
+              <div className="md:hidden space-y-4">
+                {filteredRequests.map((request) => (
+                  <Card key={request.id} className="rounded-2xl border border-border/60">
+                    <CardContent className="p-4">
+                      <Accordion type="single" collapsible className="w-full">
+                        <AccordionItem value={request.id} className="border-0">
+                          <AccordionTrigger className="hover:no-underline py-2">
+                            <div className="flex-1 text-left space-y-2">
+                              <h3 className="text-sm font-semibold">{request.title}</h3>
+                              <p className="text-xs text-muted-foreground line-clamp-2">
+                                {request.description}
+                              </p>
+                              <div className="flex flex-wrap items-center gap-2">
+                                {getStatusBadge(request.status)}
+                                {getPriorityBadge(request.priority)}
+                                <Badge variant="outline" className="rounded-full text-xs">
+                                  {getTypeLabel(request.request_type)}
+                                </Badge>
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {format(new Date(request.created_at), "MMM d, yyyy")}
+                              </div>
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent className="pt-4 space-y-4">
+                            <div>
+                              <h4 className="text-xs font-semibold mb-2">Description</h4>
+                              <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+                                {request.description}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                              {request.studio && (
+                                <Badge variant="outline" className="rounded-full text-xs">
+                                  Studio {request.studio.studio_number}
+                                </Badge>
+                              )}
+                              <span>Created {format(new Date(request.created_at), "MMM d, yyyy 'at' h:mm a")}</span>
+                              {request.updated_at !== request.created_at && (
+                                <span>Updated {format(new Date(request.updated_at), "MMM d, yyyy 'at' h:mm a")}</span>
+                              )}
+                              {request.resolved_at && (
+                                <span className="text-green-600">
+                                  Resolved {format(new Date(request.resolved_at), "MMM d, yyyy")}
+                                </span>
+                              )}
+                            </div>
+                            {request.images && request.images.length > 0 && (
+                              <div>
+                                <h4 className="text-xs font-semibold mb-2">Images</h4>
+                                <div className="flex flex-wrap gap-2">
+                                  {request.images.map((imagePath, idx) => (
+                                    <MaintenanceImage
+                                      key={idx}
+                                      imagePath={imagePath}
+                                      index={idx}
+                                      onClick={() => {
+                                        setPreviewImages(request.images || []);
+                                        setPreviewIndex(idx);
+                                        setPreviewOpen(true);
+                                      }}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {request.resolution_notes && (
+                              <div className="p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-900">
+                                <p className="text-xs font-medium text-green-900 dark:text-green-100 mb-1">
+                                  Resolution Notes:
+                                </p>
+                                <p className="text-xs text-green-800 dark:text-green-200 whitespace-pre-wrap">
+                                  {request.resolution_notes}
+                                </p>
+                              </div>
+                            )}
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             </CardContent>
           </Card>
         )}
@@ -662,6 +834,14 @@ const Maintenance = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Image Preview Modal */}
+        <MaintenanceImagePreview
+          images={previewImages}
+          initialIndex={previewIndex}
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+        />
       </div>
     </PortalLayout>
   );

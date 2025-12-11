@@ -3,6 +3,7 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +48,7 @@ const Settings = () => {
   const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>("");
   const [deleteAllOpen, setDeleteAllOpen] = useState(false);
   const [deleteByYearOpen, setDeleteByYearOpen] = useState(false);
+  const [deleteOrphanedUsers, setDeleteOrphanedUsers] = useState(false);
   const [credentials, setCredentials] = useState<{ resend_api_key: string; resend_from_email: string }>({
     resend_api_key: "",
     resend_from_email: "",
@@ -357,7 +359,9 @@ const Settings = () => {
   // Delete all applications mutation
   const deleteAllApplications = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.rpc("delete_all_student_applications", {});
+      const { data, error } = await supabase.rpc("delete_all_student_applications", {
+        p_delete_orphaned_users: deleteOrphanedUsers,
+      });
 
       if (error) {
         console.error("Delete all applications error:", error);
@@ -367,17 +371,23 @@ const Settings = () => {
     },
     onSuccess: async (data) => {
       const deletedCount = data?.deleted_count || 0;
+      const usersDeleted = data?.users_deleted || 0;
+      const usersPreserved = data?.users_preserved || 0;
       const message = data?.message;
       const debug = data?.debug;
       const totalFound = data?.total_found;
       const details = data?.details || [];
+      const userDetails = data?.user_details || [];
       
       console.log("Delete all applications result:", { 
         data, 
         deletedCount, 
+        usersDeleted,
+        usersPreserved,
         totalFound, 
         debug,
         details,
+        userDetails,
         detailsCount: details.length,
         firstDetail: details[0],
         allDetails: details
@@ -392,7 +402,14 @@ const Settings = () => {
       await logActivity({
         action: "delete",
         entityType: "student_applications",
-        payload: { type: "all", count: deletedCount, total_found: totalFound },
+        payload: { 
+          type: "all", 
+          count: deletedCount, 
+          total_found: totalFound,
+          delete_orphaned_users: deleteOrphanedUsers,
+          users_deleted: usersDeleted,
+          users_preserved: usersPreserved,
+        },
       });
       queryClient.invalidateQueries({ queryKey: ["application-stats"] });
       queryClient.invalidateQueries({ queryKey: ["student-applications"] });
@@ -404,12 +421,17 @@ const Settings = () => {
           variant: "default",
         });
       } else {
+        let description = `Successfully deleted ${deletedCount} application(s) and all related records.`;
+        if (deleteOrphanedUsers) {
+          description += ` Users: ${usersDeleted} deleted, ${usersPreserved} preserved.`;
+        }
         toast({
           title: "Applications deleted",
-          description: `Successfully deleted ${deletedCount} application(s) and all related records.`,
+          description,
         });
       }
       setDeleteAllOpen(false);
+      setDeleteOrphanedUsers(false);
     },
     onError: (error: Error) => {
       toast({
@@ -425,6 +447,7 @@ const Settings = () => {
     mutationFn: async (academicYearId: string) => {
       const { data, error } = await supabase.rpc("delete_student_applications_by_academic_year", {
         p_academic_year_id: academicYearId,
+        p_delete_orphaned_users: deleteOrphanedUsers,
       });
 
       if (error) throw error;
@@ -432,13 +455,22 @@ const Settings = () => {
     },
     onSuccess: async (data, academicYearId) => {
       const deletedCount = data?.deleted_count || 0;
+      const usersDeleted = data?.users_deleted || 0;
+      const usersPreserved = data?.users_preserved || 0;
       const yearName = academicYears?.find((y) => y.id === academicYearId)?.name || "Unknown";
       const message = data?.message;
       
       await logActivity({
         action: "delete",
         entityType: "student_applications",
-        payload: { type: "by_academic_year", academic_year_id: academicYearId, count: deletedCount },
+        payload: { 
+          type: "by_academic_year", 
+          academic_year_id: academicYearId, 
+          count: deletedCount,
+          delete_orphaned_users: deleteOrphanedUsers,
+          users_deleted: usersDeleted,
+          users_preserved: usersPreserved,
+        },
       });
       queryClient.invalidateQueries({ queryKey: ["application-stats"] });
       queryClient.invalidateQueries({ queryKey: ["student-applications"] });
@@ -450,13 +482,18 @@ const Settings = () => {
           variant: "default",
         });
       } else {
+        let description = `Successfully deleted ${deletedCount} application(s) for ${yearName} and all related records.`;
+        if (deleteOrphanedUsers) {
+          description += ` Users: ${usersDeleted} deleted, ${usersPreserved} preserved.`;
+        }
         toast({
           title: "Applications deleted",
-          description: `Successfully deleted ${deletedCount} application(s) for ${yearName} and all related records.`,
+          description,
         });
       }
       setDeleteByYearOpen(false);
       setSelectedAcademicYear("");
+      setDeleteOrphanedUsers(false);
     },
     onError: (error: Error) => {
       toast({
@@ -1047,11 +1084,33 @@ const Settings = () => {
                           <li>Studio allocations</li>
                         </ul>
                         <p className="mt-3 font-semibold text-destructive">This action cannot be undone.</p>
+                        <div className="mt-4 pt-4 border-t space-y-3">
+                          <div className="flex items-start space-x-3">
+                            <Checkbox
+                              id="delete-orphaned-users-all"
+                              checked={deleteOrphanedUsers}
+                              onCheckedChange={(checked) => setDeleteOrphanedUsers(checked === true)}
+                              className="mt-1"
+                            />
+                            <div className="space-y-1 flex-1">
+                              <Label
+                                htmlFor="delete-orphaned-users-all"
+                                className="text-sm font-medium cursor-pointer"
+                              >
+                                Also delete orphaned user accounts (Smart Deletion)
+                              </Label>
+                              <p className="text-xs text-muted-foreground">
+                                Users will only be deleted if they have no important data (refunds, maintenance requests, etc.). 
+                                Staff accounts are never deleted. This helps clean up orphaned accounts automatically.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel className="rounded-full">Cancel</AlertDialogCancel>
+                    <AlertDialogCancel className="rounded-full" onClick={() => setDeleteOrphanedUsers(false)}>Cancel</AlertDialogCancel>
                     <AlertDialogAction
                       onClick={() => deleteAllApplications.mutate()}
                       className="rounded-full bg-destructive hover:bg-destructive/90"
@@ -1138,11 +1197,33 @@ const Settings = () => {
                           <li>Studio allocations</li>
                         </ul>
                         <p className="mt-3 font-semibold text-destructive">This action cannot be undone.</p>
+                        <div className="mt-4 pt-4 border-t space-y-3">
+                          <div className="flex items-start space-x-3">
+                            <Checkbox
+                              id="delete-orphaned-users-year"
+                              checked={deleteOrphanedUsers}
+                              onCheckedChange={(checked) => setDeleteOrphanedUsers(checked === true)}
+                              className="mt-1"
+                            />
+                            <div className="space-y-1 flex-1">
+                              <Label
+                                htmlFor="delete-orphaned-users-year"
+                                className="text-sm font-medium cursor-pointer"
+                              >
+                                Also delete orphaned user accounts (Smart Deletion)
+                              </Label>
+                              <p className="text-xs text-muted-foreground">
+                                Users will only be deleted if they have no important data (refunds, maintenance requests, etc.). 
+                                Staff accounts are never deleted. This helps clean up orphaned accounts automatically.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel className="rounded-full">Cancel</AlertDialogCancel>
+                    <AlertDialogCancel className="rounded-full" onClick={() => setDeleteOrphanedUsers(false)}>Cancel</AlertDialogCancel>
                     <AlertDialogAction
                       onClick={() => selectedAcademicYear && deleteByAcademicYear.mutate(selectedAcademicYear)}
                       className="rounded-full bg-destructive hover:bg-destructive/90"

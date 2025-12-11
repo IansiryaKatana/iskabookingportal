@@ -180,17 +180,42 @@ async function ensureUserExists(
 
   if (existingUser) {
     console.log(`User already exists: ${normalizedEmail} (${existingUser.id})`);
-    // Update profile if needed
-    if (firstName || lastName) {
-      await supabaseAdmin
-        .from("profiles")
-        .update({
-          first_name: firstName || null,
-          last_name: lastName || null,
-          role: "student",
-        })
-        .eq("id", existingUser.id);
+    
+    // Ensure profile exists (upsert to handle cases where profile was deleted)
+    const { error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .upsert({
+        id: existingUser.id,
+        first_name: firstName || null,
+        last_name: lastName || null,
+        role: "student",
+      }, {
+        onConflict: "id"
+      });
+
+    if (profileError) {
+      console.error(`Failed to upsert profile for ${normalizedEmail}:`, profileError);
+      // Don't fail - profile might exist, just log the error
     }
+    
+    // Update account_status to pending_activation if it's not already set or if it's an old import
+    // This ensures bulk imported users start as pending
+    const currentMetadata = (existingUser.user_metadata as any) || {};
+    if (!currentMetadata.account_status || currentMetadata.account_status === "active") {
+      try {
+        await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
+          user_metadata: {
+            ...currentMetadata,
+            account_status: "pending_activation",
+            imported_at: new Date().toISOString(),
+          },
+        });
+      } catch (updateError) {
+        console.warn(`Failed to update user metadata for ${normalizedEmail}:`, updateError);
+        // Don't fail - continue with existing metadata
+      }
+    }
+    
     return { userId: existingUser.id, created: false };
   }
 

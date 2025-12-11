@@ -27,6 +27,7 @@ import {
   Upload,
   Wrench,
   Receipt,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -44,20 +45,21 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { CommandPalette } from "./CommandPalette";
 
-type NavItem = {
+export type NavItem = {
   label: string;
   to: string;
   icon: React.ComponentType<{ className?: string }>;
 };
 
-type NavSection = {
+export type NavSection = {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   items: NavItem[];
 };
 
-const navSections: NavSection[] = [
+export const navSections: NavSection[] = [
   {
     label: "Overview",
     icon: LayoutDashboard,
@@ -286,6 +288,7 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [scrollProgress, setScrollProgress] = useState(0);
   const [canScroll, setCanScroll] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const navRef = useRef<HTMLElement | null>(null);
 
   const handleSignOut = async () => {
@@ -369,6 +372,32 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
     };
   }, [openSections]);
 
+  // Keyboard shortcut handler for command palette (Ctrl+K / Cmd+K)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check if we're in an input, textarea, or contenteditable element
+      const target = e.target as HTMLElement;
+      const isInput = 
+        target.tagName === "INPUT" || 
+        target.tagName === "TEXTAREA" || 
+        target.isContentEditable;
+      
+      // Only trigger if not in an input field (unless it's the search input itself)
+      if (isInput && !target.closest('[cmdk-input-wrapper]')) {
+        return;
+      }
+
+      // Check for Ctrl+K (Windows/Linux) or Cmd+K (Mac)
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        setCommandPaletteOpen((prev) => !prev);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   return (
     <div className="min-h-screen bg-muted flex flex-col lg:flex-row">
       {/* Desktop Sidebar - Fixed height, only nav scrolls */}
@@ -381,6 +410,17 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
           <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
             Staff Console
           </p>
+          <Button
+            variant="outline"
+            className="w-full justify-start text-left text-muted-foreground mt-4 h-9"
+            onClick={() => setCommandPaletteOpen(true)}
+          >
+            <Search className="mr-2 h-4 w-4 shrink-0" />
+            <span className="flex-1">Search pages...</span>
+            <kbd className="pointer-events-none hidden sm:inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">
+              <span className="text-xs">⌘</span>K
+            </kbd>
+          </Button>
         </div>
         {/* Sidebar Nav - Scrollable if needed */}
         <div className="flex-1 relative min-h-0 flex flex-col">
@@ -536,6 +576,15 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
                 variant="outline"
                 size="sm"
                 className="rounded-full uppercase tracking-wide gap-2 flex-shrink-0"
+                onClick={() => setCommandPaletteOpen(true)}
+              >
+                <Search className="h-4 w-4" />
+                <span className="hidden sm:inline">Search</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full uppercase tracking-wide gap-2 flex-shrink-0"
                 onClick={() => setMobileNavOpen(!mobileNavOpen)}
               >
                 <Menu className="h-4 w-4" />
@@ -683,6 +732,9 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
         </header>
         <main className="px-4 py-6 md:px-8 md:py-10">{children}</main>
       </div>
+
+      {/* Command Palette */}
+      <CommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
 
       {/* Sign Out Confirmation Dialog */}
       <AlertDialog open={showSignOutDialog} onOpenChange={setShowSignOutDialog}>
