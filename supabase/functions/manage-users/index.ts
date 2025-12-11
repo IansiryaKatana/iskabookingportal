@@ -88,7 +88,10 @@ serve(async (req) => {
       );
     }
 
-    const { action, email, role, userId, first_name, last_name, staff_subrole } = requestBody;
+    const { action, email, role, userId, first_name, last_name, staff_subrole, password: rawPassword } = requestBody;
+    
+    // Normalize password: convert empty string to undefined
+    const password = rawPassword && rawPassword.trim().length > 0 ? rawPassword.trim() : undefined;
 
     if (!action || (action !== "invite" && action !== "create" && action !== "delete" && action !== "update")) {
       return new Response(
@@ -179,13 +182,24 @@ serve(async (req) => {
         }
       }
 
-      // Generate a random temporary password
-      const tempPassword = crypto.randomUUID() + crypto.randomUUID().replace(/-/g, '');
+      // Use provided password or generate a random temporary password
+      const userPassword = password || (crypto.randomUUID() + crypto.randomUUID().replace(/-/g, ''));
+
+      // Validate password if provided
+      if (password && password.length < 6) {
+        return new Response(
+          JSON.stringify({ error: "Password must be at least 6 characters long" }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
 
       // Create user directly with email confirmed
       const { data: createData, error: createError } = await supabaseAdmin.auth.admin.createUser({
         email: normalizedEmail,
-        password: tempPassword,
+        password: userPassword,
         email_confirm: true, // Mark email as confirmed
         user_metadata: {
           role,
@@ -268,11 +282,6 @@ serve(async (req) => {
         }
       }
 
-      // Note: Password reset email will be sent automatically by Supabase
-      // when the user requests it via the "Forgot Password" flow
-      // For now, we create the user and they can request password reset manually
-      console.log("User created successfully. They can request password reset via the portal.");
-
       // Log user creation
       await supabaseAdmin
         .from("staff_activity_logs")
@@ -288,14 +297,19 @@ serve(async (req) => {
             role,
             staff_subrole: role === "staff" ? staff_subrole || null : null,
             action_type: "create",
+            password_set: !!password,
           },
         });
+
+      const successMessage = password 
+        ? "User created successfully with password set."
+        : "User created successfully. They can use 'Forgot Password' to set their password.";
 
       return new Response(
         JSON.stringify({
           success: true,
           user: createData.user,
-          message: "User created successfully. They can use 'Forgot Password' to set their password.",
+          message: successMessage,
         }),
         {
           status: 200,
@@ -316,9 +330,20 @@ serve(async (req) => {
         );
       }
 
-      if (!first_name && !last_name && !role) {
+      if (!first_name && !last_name && !role && !password) {
         return new Response(
-          JSON.stringify({ error: "At least one field (first_name, last_name, or role) is required for update." }),
+          JSON.stringify({ error: "At least one field (first_name, last_name, role, or password) is required for update." }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      // Validate password if provided
+      if (password && password.length < 6) {
+        return new Response(
+          JSON.stringify({ error: "Password must be at least 6 characters long" }),
           {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -376,7 +401,34 @@ serve(async (req) => {
         );
       }
 
-      // Update profile with new values
+      // Update password if provided
+      if (password && password.length >= 6) {
+        const { error: passwordError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+          password: password,
+        });
+
+        if (passwordError) {
+          console.error("Password update error:", passwordError);
+          return new Response(
+            JSON.stringify({ error: `Failed to update password: ${passwordError.message}` }),
+            {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            },
+          );
+        }
+      } else if (password && password.length > 0 && password.length < 6) {
+        // This should have been caught by validation, but double-check
+        return new Response(
+          JSON.stringify({ error: "Password must be at least 6 characters long" }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      // Update profile with new values (only if there are changes to make)
       const updateData: any = {};
       if (first_name !== undefined) {
         updateData.first_name = first_name?.trim() || null;
@@ -399,22 +451,27 @@ serve(async (req) => {
         }
       }
 
-      const { data: updatedProfile, error: updateError } = await supabaseAdmin
-        .from("profiles")
-        .update(updateData)
-        .eq("id", userId)
-        .select()
-        .single();
+      // Only update profile if there are changes to make (besides password)
+      let updatedProfile = currentProfile;
+      if (Object.keys(updateData).length > 0) {
+        const { data: profileData, error: updateError } = await supabaseAdmin
+          .from("profiles")
+          .update(updateData)
+          .eq("id", userId)
+          .select()
+          .single();
 
-      if (updateError) {
-        console.error("Error updating profile:", updateError);
-        return new Response(
-          JSON.stringify({ error: updateError.message || "Failed to update user profile" }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          },
-        );
+        if (updateError) {
+          console.error("Error updating profile:", updateError);
+          return new Response(
+            JSON.stringify({ error: updateError.message || "Failed to update user profile" }),
+            {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            },
+          );
+        }
+        updatedProfile = profileData;
       }
 
       // Log user update
@@ -433,14 +490,18 @@ serve(async (req) => {
               role: currentProfile.role,
               staff_subrole: currentProfile.staff_subrole,
             },
-            updated_fields: updateData,
+            password_updated: !!password,
           },
         });
+
+      const successMessage = password 
+        ? "User updated successfully. Password has been changed."
+        : "User updated successfully.";
 
       return new Response(
         JSON.stringify({
           success: true,
-          message: "User updated successfully",
+          message: successMessage,
           user: updatedProfile,
         }),
         {

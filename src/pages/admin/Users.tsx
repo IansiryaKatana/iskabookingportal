@@ -3,7 +3,7 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Mail, User, Shield, AtSign, MoreVertical, Pencil, Trash2, Eye } from "lucide-react";
+import { Plus, Mail, User, Shield, AtSign, MoreVertical, Pencil, Trash2, Eye, EyeOff } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -65,6 +65,8 @@ const Users = () => {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteFirstName, setInviteFirstName] = useState("");
   const [inviteLastName, setInviteLastName] = useState("");
+  const [invitePassword, setInvitePassword] = useState("");
+  const [showInvitePassword, setShowInvitePassword] = useState(false);
   const [inviteRole, setInviteRole] = useState<"staff" | "superadmin" | "admin">("staff");
   const [inviteStaffSubrole, setInviteStaffSubrole] = useState<StaffSubrole>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -72,6 +74,8 @@ const Users = () => {
   const [selectedUser, setSelectedUser] = useState<{ id: string; first_name: string; last_name: string; email: string; role: string; staff_subrole?: string | null } | null>(null);
   const [editFirstName, setEditFirstName] = useState("");
   const [editLastName, setEditLastName] = useState("");
+  const [editPassword, setEditPassword] = useState("");
+  const [showEditPassword, setShowEditPassword] = useState(false);
   const [editRole, setEditRole] = useState<"staff" | "superadmin" | "admin">("staff");
   const [editStaffSubrole, setEditStaffSubrole] = useState<StaffSubrole>(null);
 
@@ -164,12 +168,14 @@ const Users = () => {
       email, 
       firstName, 
       lastName, 
+      password,
       role, 
       staffSubrole 
     }: { 
       email: string; 
       firstName: string; 
       lastName: string; 
+      password?: string;
       role: "staff" | "superadmin" | "admin";
       staffSubrole?: StaffSubrole;
     }) => {
@@ -184,6 +190,7 @@ const Users = () => {
           email,
           first_name: firstName.trim() || null,
           last_name: lastName.trim() || null,
+          password: password || undefined,
           role,
           staff_subrole: role === "staff" ? staffSubrole || null : null,
         },
@@ -223,6 +230,7 @@ const Users = () => {
       setInviteEmail("");
       setInviteFirstName("");
       setInviteLastName("");
+      setInvitePassword("");
       setInviteRole("staff");
       setInviteStaffSubrole(null);
     },
@@ -286,12 +294,14 @@ const Users = () => {
       userId, 
       firstName, 
       lastName, 
+      password,
       role, 
       staffSubrole 
     }: { 
       userId: string; 
       firstName: string; 
       lastName: string; 
+      password?: string;
       role: "staff" | "superadmin" | "admin";
       staffSubrole?: StaffSubrole;
     }) => {
@@ -308,6 +318,7 @@ const Users = () => {
           userId,
           first_name: firstName.trim() || null,
           last_name: lastName.trim() || null,
+          password: password || undefined,
           role,
           staff_subrole: role === "staff" ? staffSubrole || null : null,
         },
@@ -340,6 +351,7 @@ const Users = () => {
       setSelectedUser(null);
       setEditFirstName("");
       setEditLastName("");
+      setEditPassword("");
       setEditRole("staff");
       setEditStaffSubrole(null);
     },
@@ -792,7 +804,7 @@ const Users = () => {
               Create User
             </DialogTitle>
             <DialogDescription>
-              Create a new staff member account. A password reset email will be sent to set their password.
+              Create a new staff member account. You can optionally set a password now, or leave it blank to let them set it via "Forgot Password".
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -830,6 +842,34 @@ const Users = () => {
                   placeholder="Doe"
                 />
               </div>
+            </div>
+            <div>
+              <Label htmlFor="password">Password (Optional)</Label>
+              <div className="relative mt-2">
+                <Input
+                  id="password"
+                  type={showInvitePassword ? "text" : "password"}
+                  value={invitePassword}
+                  onChange={(e) => setInvitePassword(e.target.value)}
+                  placeholder="Leave blank for user to set via 'Forgot Password'"
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowInvitePassword(!showInvitePassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label={showInvitePassword ? "Hide password" : "Show password"}
+                >
+                  {showInvitePassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+              {invitePassword && invitePassword.length > 0 && invitePassword.length < 6 && (
+                <p className="text-sm text-destructive mt-1">Password must be at least 6 characters</p>
+              )}
             </div>
             <div>
               <Label htmlFor="role">Role *</Label>
@@ -879,10 +919,11 @@ const Users = () => {
                 email: inviteEmail, 
                 firstName: inviteFirstName,
                 lastName: inviteLastName,
+                password: invitePassword.trim() || undefined,
                 role: inviteRole,
                 staffSubrole: inviteRole === "staff" ? inviteStaffSubrole : undefined
               })}
-              disabled={!inviteEmail || !inviteFirstName.trim() || !inviteLastName.trim() || inviteUser.isPending}
+              disabled={!inviteEmail || !inviteFirstName.trim() || !inviteLastName.trim() || (invitePassword.length > 0 && invitePassword.length < 6) || inviteUser.isPending}
               className="rounded-full uppercase tracking-wide"
             >
               {inviteUser.isPending ? "Creating..." : "Create User"}
@@ -899,7 +940,7 @@ const Users = () => {
               Edit User
             </DialogTitle>
             <DialogDescription>
-              Update user information and role.
+              Update user information, role, and password. Leave password blank to keep current password.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -922,6 +963,34 @@ const Users = () => {
                 className="mt-2"
                 placeholder="Doe"
               />
+            </div>
+            <div>
+              <Label htmlFor="edit-password">New Password (Optional)</Label>
+              <div className="relative mt-2">
+                <Input
+                  id="edit-password"
+                  type={showEditPassword ? "text" : "password"}
+                  value={editPassword}
+                  onChange={(e) => setEditPassword(e.target.value)}
+                  placeholder="Leave blank to keep current password"
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowEditPassword(!showEditPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label={showEditPassword ? "Hide password" : "Show password"}
+                >
+                  {showEditPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+              {editPassword && editPassword.length > 0 && editPassword.length < 6 && (
+                <p className="text-sm text-destructive mt-1">Password must be at least 6 characters</p>
+              )}
             </div>
             <div>
               <Label htmlFor="edit-role">Role *</Label>
@@ -973,12 +1042,13 @@ const Users = () => {
                     userId: selectedUser.id,
                     firstName: editFirstName,
                     lastName: editLastName,
+                    password: editPassword.trim() || undefined,
                     role: editRole,
                     staffSubrole: editRole === "staff" ? editStaffSubrole : undefined,
                   });
                 }
               }}
-              disabled={!editFirstName.trim() || !editLastName.trim() || updateUser.isPending}
+              disabled={!editFirstName.trim() || !editLastName.trim() || (editPassword.length > 0 && editPassword.length < 6) || updateUser.isPending}
               className="rounded-full uppercase tracking-wide"
             >
               {updateUser.isPending ? "Updating..." : "Update User"}

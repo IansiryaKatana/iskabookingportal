@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 type ProtectedRouteProps = {
   children: React.ReactNode;
-  allowedRoles: Array<"student" | "staff" | "superadmin" | "partner" | "admin">;
+  allowedRoles: Array<"student" | "staff" | "superadmin" | "partner" | "admin" | "operations_manager" | "reservationist" | "accountant" | "front_desk">;
   checkDatabase?: boolean; // Optional: if false, skips database check and uses allowedRoles only
 };
 
@@ -24,46 +24,91 @@ const ProtectedRoute = ({ children, allowedRoles, checkDatabase = true }: Protec
         return allowedRoles.includes(role);
       }
       
-      // For staff sub-roles, check both the sub-role and "staff" role
-      const rolesToCheck = [role];
-      if (role === "operations_manager" || role === "reservationist" || role === "accountant" || role === "front_desk") {
-        rolesToCheck.push("staff");
-      }
-
-      // Check if any of the roles have permission in database
-      const { data, error } = await supabase
+      // Check permission for the specific role first
+      const { data: specificRoleData, error: specificError } = await supabase
         .from("route_permissions")
         .select("allowed")
         .eq("route_path", location.pathname)
-        .in("role", rolesToCheck)
-        .eq("allowed", true)
-        .limit(1);
+        .eq("role", role)
+        .maybeSingle();
 
-      if (error) {
-        console.error("Error checking route permission:", error);
+      if (specificError && specificError.code !== "PGRST116") {
+        // PGRST116 = no rows returned, which is fine
+        console.error("Error checking route permission:", specificError);
         // Fallback to allowedRoles on error (safe default)
         return allowedRoles.includes(role);
       }
 
-      // If no permission record exists in database, fallback to allowedRoles (safe default)
-      if (!data || data.length === 0) {
-        return allowedRoles.includes(role);
+      // For sub-roles: Check staff permission first (if staff is denied, deny all sub-roles)
+      if (role === "operations_manager" || role === "reservationist" || role === "accountant" || role === "front_desk") {
+        const { data: staffData, error: staffError } = await supabase
+          .from("route_permissions")
+          .select("allowed")
+          .eq("route_path", location.pathname)
+          .eq("role", "staff")
+          .maybeSingle();
+
+        if (staffError && staffError.code !== "PGRST116") {
+          console.error("Error checking staff route permission:", staffError);
+          return allowedRoles.includes(role);
+        }
+
+        // If staff is explicitly denied, deny all sub-roles
+        if (staffData && !staffData.allowed) {
+          return false;
+        }
       }
 
-      // Database has a record - use it
-      return data.length > 0;
+      // If specific role has a record, use it (allows per-sub-role control)
+      if (specificRoleData) {
+        return specificRoleData.allowed === true;
+      }
+
+      // If no specific role record, check "staff" role for staff sub-roles
+      if (role === "operations_manager" || role === "reservationist" || role === "accountant" || role === "front_desk") {
+        const { data: staffData, error: staffError } = await supabase
+          .from("route_permissions")
+          .select("allowed")
+          .eq("route_path", location.pathname)
+          .eq("role", "staff")
+          .maybeSingle();
+
+        if (staffError && staffError.code !== "PGRST116") {
+          console.error("Error checking staff route permission:", staffError);
+          return allowedRoles.includes(role);
+        }
+
+        // If staff role has a record, use it
+        if (staffData) {
+          return staffData.allowed === true;
+        }
+      }
+
+      // If no permission record exists in database, fallback to allowedRoles (safe default)
+      return allowedRoles.includes(role);
     },
     enabled: checkDatabase && !!role && !loading,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes for performance
+    staleTime: 30 * 1000, // Cache for 30 seconds to reduce flickering
+    gcTime: 60 * 1000, // Keep in cache for 60 seconds
     retry: 1, // Retry once on failure, then fallback to allowedRoles
   });
 
-  if (loading || (checkDatabase && checkingPermission)) {
+  // Show loading only if auth is loading, not if permission check is loading
+  // This prevents flickering when navigating between pages
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
       </div>
     );
+  }
+  
+  // If permission check is loading, show children (optimistic rendering)
+  // The permission check will redirect if access is denied
+  if (checkDatabase && checkingPermission) {
+    // Return children optimistically to prevent flicker
+    // ProtectedRoute will redirect if access is denied once check completes
+    return <>{children}</>;
   }
 
   if (!user) {
@@ -93,7 +138,20 @@ const ProtectedRoute = ({ children, allowedRoles, checkDatabase = true }: Protec
     : allowedRoles.includes(role);
 
   if (!hasAccess) {
-    return <Navigate to="/" replace />;
+    // Redirect to appropriate dashboard based on role to avoid infinite loops
+    const isAdminRoute = location.pathname.startsWith("/admin");
+    const isPortalRoute = location.pathname.startsWith("/portal");
+    const isPartnerRoute = location.pathname.startsWith("/partner");
+    
+    if (isAdminRoute) {
+      return <Navigate to="/admin" replace />;
+    } else if (isPortalRoute) {
+      return <Navigate to="/portal" replace />;
+    } else if (isPartnerRoute) {
+      return <Navigate to="/partner" replace />;
+    }
+    
+    return <Navigate to="/admin" replace />;
   }
 
   return <>{children}</>;

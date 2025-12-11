@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   CommandDialog,
@@ -22,23 +22,35 @@ type SearchableItem = {
 interface CommandPaletteProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  routePermissions?: Record<string, boolean>;
 }
 
-export const CommandPalette = ({ open, onOpenChange }: CommandPaletteProps) => {
+export const CommandPalette = ({ open, onOpenChange, routePermissions = {} }: CommandPaletteProps) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Flatten navSections into searchable items
-  const searchableItems: SearchableItem[] = navSections.flatMap((section) =>
-    section.items.map((item) => ({
-      id: item.to,
-      label: item.label,
-      route: item.to,
-      icon: item.icon,
-      section: section.label,
-      sectionIcon: section.icon,
-    }))
-  );
+  // Flatten navSections into searchable items, filtered by permissions
+  const searchableItems: SearchableItem[] = useMemo(() => {
+    return navSections.flatMap((section) =>
+      section.items
+        .filter((item) => {
+          // Always allow dashboard
+          if (item.to === "/admin") return true;
+          // Only show route if permission is explicitly true
+          // Hide if false or undefined (no record yet)
+          const hasPermission = routePermissions[item.to];
+          return hasPermission === true;
+        })
+        .map((item) => ({
+          id: item.to,
+          label: item.label,
+          route: item.to,
+          icon: item.icon,
+          section: section.label,
+          sectionIcon: section.icon,
+        }))
+    );
+  }, [routePermissions]);
 
   // Group items by section for display
   const groupedItems = searchableItems.reduce(

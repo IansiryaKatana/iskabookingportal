@@ -11,9 +11,11 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Session, User } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 
-type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
-type Role = "student" | "staff" | "superadmin" | "partner" | "admin";
-export type StaffSubrole = "operations_manager" | "reservationist" | "accountant" | "front_desk" | null;
+type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"] & {
+  staff_subrole?: StaffSubrole | null;
+};
+type Role = "student" | "staff" | "superadmin" | "partner" | "admin" | StaffSubrole;
+export type StaffSubrole = "operations_manager" | "reservationist" | "accountant" | "front_desk";
 
 type AuthContextValue = {
   user: User | null;
@@ -291,20 +293,32 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, [updateUser]);
 
   const value = useMemo(
-    () => ({
-      user,
-      profile,
-      role:
-        (profile?.role as Role | undefined) ??
-        (user?.app_metadata?.role as Role | undefined) ??
-        "student",
-      session,
-      loading,
-      signIn,
-      signUp,
-      signOut,
-      refreshProfile,
-    }),
+    () => {
+      // For staff with sub-roles, use the sub-role as the role
+      // Otherwise, use the profile role or fallback to student
+      let computedRole: Role = "student";
+      
+      if (profile?.staff_subrole) {
+        // User has a staff sub-role, use that as the role
+        computedRole = profile.staff_subrole;
+      } else if (profile?.role) {
+        computedRole = profile.role as Role;
+      } else if (user?.app_metadata?.role) {
+        computedRole = user.app_metadata.role as Role;
+      }
+      
+      return {
+        user,
+        profile,
+        role: computedRole,
+        session,
+        loading,
+        signIn,
+        signUp,
+        signOut,
+        refreshProfile,
+      };
+    },
     [user, profile, session, loading, signIn, signUp, signOut, refreshProfile],
   );
 

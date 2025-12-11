@@ -125,8 +125,13 @@ const Permissions = () => {
       if (!updated[routePath]) {
         updated[routePath] = {};
       }
+      // Get the existing permission ID from original data if not already in state
+      const existingPerm = routePermissions?.find(
+        (p) => p.route_path === routePath && p.role === role
+      );
+      const currentPerm = updated[routePath][role];
       updated[routePath][role] = {
-        ...updated[routePath][role],
+        id: currentPerm?.id || existingPerm?.id || "",
         allowed,
       };
       return updated;
@@ -179,11 +184,24 @@ const Permissions = () => {
         },
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["route-permissions"] });
+    onSuccess: async () => {
+      // Invalidate all route permission queries to force refresh
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["route-permissions"] }),
+        queryClient.invalidateQueries({ queryKey: ["route-permission"] }),
+        queryClient.invalidateQueries({ queryKey: ["route-permission-check"] }),
+        queryClient.invalidateQueries({ queryKey: ["route-permissions-batch"] }),
+      ]);
+      
+      // Force refetch all route permission queries immediately
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ["route-permissions-batch"] }),
+        queryClient.refetchQueries({ queryKey: ["route-permission-check"] }),
+      ]);
+      
       toast({
         title: "Permissions updated",
-        description: "Route permissions have been saved successfully.",
+        description: "Route permissions have been saved successfully. Navigation will update shortly.",
       });
       setHasChanges(false);
     },
@@ -215,7 +233,7 @@ const Permissions = () => {
     <AdminLayout pageTitle="Route Permissions" subtitle="Manage which roles can access which pages">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div>
+          <div className="hidden lg:block">
             <h2 className="text-2xl font-display font-bold uppercase tracking-wide">
               Route Permissions
             </h2>

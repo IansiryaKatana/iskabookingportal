@@ -33,8 +33,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBrandingSettings } from "@/hooks/useBranding";
+import { useRoutePermissions } from "@/hooks/useRoutePermission";
 import clsx from "clsx";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   AlertDialog,
@@ -297,6 +298,37 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const navRef = useRef<HTMLElement | null>(null);
 
+  // Get all route paths from nav sections
+  const allRoutePaths = useMemo(() => {
+    return navSections.flatMap((section) => section.items.map((item) => item.to));
+  }, []);
+
+  // Check permissions for all routes
+  const { data: routePermissions = {}, isLoading: permissionsLoading } = useRoutePermissions(allRoutePaths);
+
+  // Filter nav sections based on permissions
+  const filteredNavSections = useMemo(() => {
+    // If permissions are still loading and we have no cached data, show all routes (to avoid flickering)
+    // But if we have cached data, use it immediately
+    if (permissionsLoading && Object.keys(routePermissions).length === 0) {
+      return navSections;
+    }
+
+    return navSections
+      .map((section) => ({
+        ...section,
+        items: section.items.filter((item) => {
+          // Always allow dashboard
+          if (item.to === "/admin") return true;
+          // Only show route if permission is explicitly true
+          // Hide if false or undefined (no record yet)
+          const hasPermission = routePermissions[item.to];
+          return hasPermission === true;
+        }),
+      }))
+      .filter((section) => section.items.length > 0); // Remove empty sections
+  }, [routePermissions, permissionsLoading]);
+
   const handleSignOut = async () => {
     setShowSignOutDialog(false);
     await signOut();
@@ -318,10 +350,10 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
     return section.items.some((item) => isActiveRoute(item.to));
   };
 
-  // Initialize open sections based on active routes
+    // Initialize open sections based on active routes
   useEffect(() => {
     const initialOpen: Record<string, boolean> = {};
-    navSections.forEach((section) => {
+    filteredNavSections.forEach((section) => {
       // Open section if it has an active child
       if (isSectionActive(section)) {
         initialOpen[section.label] = true;
@@ -334,7 +366,7 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
       );
       return hasChanges ? { ...prev, ...initialOpen } : prev;
     });
-  }, [location.pathname]);
+  }, [location.pathname, filteredNavSections]);
 
   const toggleSection = (sectionLabel: string) => {
     setOpenSections((prev) => ({
@@ -451,7 +483,7 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
             ref={navRef}
             className="flex-1 overflow-y-auto px-4 py-6 space-y-1 min-h-0 scrollbar-hide"
           >
-          {navSections.map((section) => {
+          {filteredNavSections.map((section) => {
             const SectionIcon = section.icon;
             const isActive = isSectionActive(section);
             const isOpen = openSections[section.label] ?? false;
@@ -600,7 +632,7 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
           </div>
           {mobileNavOpen && (
             <nav className="px-4 py-4 border-t border-border space-y-1 bg-background max-h-[calc(100vh-80px)] overflow-y-auto">
-              {navSections.map((section) => {
+              {filteredNavSections.map((section) => {
                 const SectionIcon = section.icon;
                 const isActive = isSectionActive(section);
                 const isOpen = openSections[section.label] ?? false;
@@ -740,7 +772,11 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
       </div>
 
       {/* Command Palette */}
-      <CommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
+      <CommandPalette 
+        open={commandPaletteOpen} 
+        onOpenChange={setCommandPaletteOpen}
+        routePermissions={routePermissions}
+      />
 
       {/* Sign Out Confirmation Dialog */}
       <AlertDialog open={showSignOutDialog} onOpenChange={setShowSignOutDialog}>
