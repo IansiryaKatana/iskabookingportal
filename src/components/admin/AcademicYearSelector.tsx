@@ -79,10 +79,15 @@ export const AcademicYearSelector = ({
   }
 
   // Ensure value is always a string (controlled component)
-  // Use empty string if no value is provided and no default is available
-  const controlledValue = value || defaultYear?.id || (allowEmpty ? "all" : "");
+  // Never use empty string - use defaultYear or a placeholder to keep component controlled
+  // If no value and no defaultYear yet, use a placeholder that won't match any real ID
+  const controlledValue = value || defaultYear?.id || (allowEmpty ? "all" : "__placeholder__");
 
   const handleValueChange = (newValue: string) => {
+    // Ignore placeholder value
+    if (newValue === "__placeholder__") {
+      return;
+    }
     if (allowEmpty && newValue === "all") {
       onValueChange(undefined);
     } else {

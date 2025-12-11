@@ -46,6 +46,11 @@ Deliver a data-driven accommodation booking experience where every studio-grade 
 - `branding_settings` – branding assets paths, text content, colors, and fonts (logo, favicon, contact info, footer text, 17 color settings, 4 font settings). All system colors and fonts centralized here for easy brand management.
 - `navigation_items` – navigation items for header and footer with ordering and active status.
 - `opening_hours` – structured opening hours for each day of the week.
+- `maintenance_requests` – student maintenance and general requests (title, description, status, priority, type, images, resolution notes, check-in/check-out dates and notes).
+- `maintenance_request_comments` – comments on maintenance requests from students or staff.
+- `maintenance_request_images` – storage paths for maintenance request images.
+- `utility_payments` – utility payments and operational expenses tracked per academic year (expense category, description, amount, payment date, vendor, invoice number, receipt image).
+- `student_message_reads` – tracks when a student has seen a bulk or targeted message (ensures login dialog shows only once per message).
 
 ### 3.2 Storage Buckets
 
@@ -53,6 +58,8 @@ Deliver a data-driven accommodation booking experience where every studio-grade 
 - `documents/{student_id}/{application_id}/{type}/{uuid}` – private.
 - `contracts/{application_id}/signed-{timestamp}.pdf` – private.
 - `branding/` – branding assets (logo, favicon) – public read access.
+- `maintenance-images/{user_id}/{uuid}.{ext}` – private, students can upload to their own folder, staff can view all.
+- `expense-receipts/{academic_year_id}/{category}/{uuid}.{ext}` – private, staff only.
 
 ### 3.3 Roles & RLS
 
@@ -203,6 +210,19 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
   - Form validation
   - Skeleton loaders
   - **Name Synchronization**: Automatic sync of first_name and last_name from multiple sources (profiles table, user.app_metadata, application step 1) with fallback logic. Names are synced during registration, application step 1 submission, and on profile page load if missing.
+- **Maintenance Requests Page** (`/portal/maintenance`):
+  - Submit maintenance, cleaning, and general requests
+  - Upload up to 5 images per request
+  - Track request status (pending, in_progress, resolved, cancelled)
+  - Set priority (low, normal, high, urgent)
+  - View request history with status badges
+  - Mobile-responsive with bottom-sheet dialogs
+  - "New Request" button in mobile header
+- **Login Message Dialog**:
+  - Shows dialog once at login if student has unread bulk or targeted messages
+  - Displays messages one at a time with "Next Message" or "Got It!" button
+  - Automatically marks messages as read when dismissed
+  - Prevents duplicate dialogs (only shows once per message)
 - **Mobile Navigation**: 
   - Collapsible mobile menu
   - Sign-out confirmation dialog
@@ -270,9 +290,14 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
     - **Filtering**: By allocation type (Student, OTA, Keyworkers, Unallocated), studio grade, and academic year
     - **Date Navigation**: Previous/Next month buttons and "Today" button
     - **Occupied Dates**: Highlighted with student name and contract information
-    - **Click to View**: Click on occupied dates to navigate to application detail page
+    - **Click to View**: Click on occupied dates to open check-in/check-out dialog (or navigate to applications page if no booking)
+    - **Check-in/Check-out Management**: 
+      - Set actual check-in and check-out dates regardless of contract dates
+      - Add check-in and check-out notes
+      - Calendar displays effective dates (actual if set, otherwise contract dates)
+      - Dialog to manage check-in/check-out for each booking
     - **Export**: CSV export with all booked studios and details
-    - **Mobile Responsive**: Horizontal scrolling calendar on mobile devices
+    - **Mobile Responsive**: Horizontal scrolling calendar on mobile devices with drag scrolling
     - Uses `get_booking_calendar_data` RPC function to fetch data with student email from `auth.users`
   - **Weekly Payment Report** (`/admin/weekly-payment-report`):
     - Generates payment summaries for selected week (start date + optional end date, defaults to 7 days)
@@ -349,6 +374,33 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
   - Unified view of Stripe and manual payments
   - Payment summaries per application
   - Export functionality
+- **Maintenance Management** (`/admin/maintenance`):
+  - View all student maintenance requests
+  - Filter by status, priority, type, academic year
+  - Search functionality
+  - Update request status and priority
+  - Add resolution notes
+  - View uploaded images (with signed URLs)
+  - Statistics cards (total, pending, in progress, urgent)
+  - Mobile-responsive with optimized font sizes
+- **Expenses Management** (`/admin/expenses`):
+  - Track utility payments and operational expenses per academic year
+  - Expense categories: electricity, gas, water, internet, council_tax, maintenance, cleaning, insurance, salaries, marketing, other
+  - Upload receipt/invoice images
+  - Filter by academic year, category, date range
+  - Search functionality
+  - Export to CSV
+  - Statistics cards (total expenses, total amount, categories)
+  - Mobile-responsive with optimized font sizes
+- **Booking Calendar** (`/admin/booking-calendar`):
+  - **Check-in/Check-out Management**: 
+    - Set actual check-in and check-out dates regardless of contract dates
+    - Add check-in and check-out notes
+    - Calendar displays effective dates (actual if set, otherwise contract dates)
+    - Dialog to manage check-in/check-out for each booking
+    - Updates `actual_check_in_date`, `actual_check_out_date`, `check_in_notes`, `check_out_notes` fields
+  - **Date Navigation**: Previous/Next month buttons and "Today" button
+  - **Mobile Drag Scrolling**: Mouse drag scrolling for dates section on desktop, touch scrolling on mobile
 - **Settings** (`/admin/settings`):
   - **Social Media Links**: Manage social media profile URLs (Instagram, TikTok, LinkedIn, Facebook, WhatsApp) with enable/disable toggles
   - **Integrations Status**: View connection status for Stripe, DocuSign, and Resend with refresh functionality
@@ -468,6 +520,7 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
     - Handles existing accounts (sends reset if already linked, returns error if linked to different partner)
     - Redirects to `/partner/reset-password` for password setup
   - `weekly-payment-report` – Weekly payment report generation
+  - `manage-users` – Admin function to create and update users, bypasses RLS for user management
   - Data Management Functions (Development/Testing):
     - `delete_student_application(p_application_id UUID)` – Deletes single application and all related records, returns deletion statistics
     - `delete_all_student_applications()` – Deletes all applications in the system, returns JSONB with deletion count and details
@@ -481,7 +534,7 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
     - `unified_payment_history` – Unified view of all payments (Stripe, manual, deposits)
     - `bank_reconciliation_report` – Bank reconciliation data with student names and payment details
   - **RPC Functions**:
-    - `get_booking_calendar_data(p_allocation TEXT, p_studio_grade_id UUID, p_academic_year_id UUID)` – Returns booking calendar data with student email from `auth.users`. Uses `SECURITY DEFINER` to access `auth.users` table. Filters by allocation, studio grade, and academic year. Returns TEXT types for enum columns (`studio_status`, `application_status`).
+    - `get_booking_calendar_data(p_allocation TEXT, p_studio_grade_id UUID, p_academic_year_id UUID)` – Returns booking calendar data with student email from `auth.users`. Uses `SECURITY DEFINER` to access `auth.users` table. Filters by allocation, studio grade, and academic year. Returns TEXT types for enum columns (`studio_status`, `application_status`). Includes `actual_check_in_date`, `actual_check_out_date`, `check_in_notes`, `check_out_notes`, and calculates `effective_check_in_date` and `effective_check_out_date` (actual if set, otherwise contract dates). Includes `actual_check_in_date`, `actual_check_out_date`, `check_in_notes`, `check_out_notes`, and calculates `effective_check_in_date` and `effective_check_out_date` (actual if set, otherwise contract dates).
     - `get_revenue_summary(p_start_date DATE, p_end_date DATE, p_group_by TEXT)` – Revenue summary grouped by month or quarter
     - `get_admin_dashboard_stats(p_academic_year_id UUID)` – Dashboard statistics for admin portal
     - `verify_payment_by_receipt(p_receipt_number TEXT)` – Verifies a payment by receipt/cheque number. Returns payment details including whether it's already linked to an application. Used for student self-service payment verification in Step 5.
@@ -926,7 +979,7 @@ See `COMPREHENSIVE_SYSTEM_ANALYSIS.md` for complete system assessment and gap an
 ## 15. Recent Implementations
 
 ### 15.1 Booking Calendar Feature
-- **Status:** ✅ Implemented & Deployed (2025-01-27)
+- **Status:** ✅ Implemented & Deployed (2025-01-27), Enhanced (2025-01-30)
 - **Overview**: Airbnb-style calendar view for viewing studio occupancy and bookings by date
 - **Location**: `/admin/booking-calendar`
 - **Features**:
@@ -934,17 +987,25 @@ See `COMPREHENSIVE_SYSTEM_ANALYSIS.md` for complete system assessment and gap an
   - **Filtering**: By allocation type (Student, OTA, Keyworkers, Unallocated), studio grade, and academic year
   - **Date Navigation**: Previous/Next month buttons and "Today" button
   - **Occupied Dates**: Highlighted with student name and contract information
-  - **Click to View**: Click on occupied dates to navigate to application detail page
+  - **Click to View**: Click on occupied dates to open check-in/check-out dialog (or navigate to applications page if no booking)
+  - **Check-in/Check-out Management** (Added 2025-01-30):
+    - Set actual check-in and check-out dates regardless of contract dates
+    - Add check-in and check-out notes
+    - Calendar displays effective dates (actual if set, otherwise contract dates)
+    - Dialog to manage check-in/check-out for each booking
   - **Export**: CSV export with all booked studios and details
-  - **Mobile Responsive**: Horizontal scrolling calendar on mobile devices
+  - **Mobile Responsive**: Horizontal scrolling calendar on mobile devices with drag scrolling
 - **Technical Implementation**:
   - Database view: `booking_calendar_data` - Joins studios with confirmed applications, includes contract dates
-  - RPC function: `get_booking_calendar_data(p_allocation TEXT, p_studio_grade_id UUID, p_academic_year_id UUID)` - Uses `SECURITY DEFINER` to access `auth.users` for student email
+  - RPC function: `get_booking_calendar_data(p_allocation TEXT, p_studio_grade_id UUID, p_academic_year_id UUID)` - Uses `SECURITY DEFINER` to access `auth.users` for student email. Includes `actual_check_in_date`, `actual_check_out_date`, `check_in_notes`, `check_out_notes`, and calculates `effective_check_in_date` and `effective_check_out_date`
   - React hook: `useBookingCalendar` - Fetches and filters booking calendar data
-  - Component: `BookingCalendar.tsx` - Main calendar component with filtering and export
+  - React hook: `useCheckInCheckOut` - Mutations for updating check-in/check-out dates and notes
+  - Component: `BookingCalendar.tsx` - Main calendar component with filtering, export, and check-in/check-out dialog
 - **Files**:
   - `supabase/migrations/20250127_booking_calendar_view.sql` - Database view and function
+  - `supabase/migrations/20251210_check_in_check_out_system.sql` - Check-in/check-out fields and function updates
   - `src/hooks/useBookingCalendar.ts` - Data fetching hook
+  - `src/hooks/useCheckInCheckOut.ts` - Check-in/check-out mutations
   - `src/pages/admin/BookingCalendar.tsx` - Main component
   - `src/App.tsx` - Route configuration
   - `src/components/admin/AdminLayout.tsx` - Navigation menu
@@ -974,6 +1035,98 @@ See `COMPREHENSIVE_SYSTEM_ANALYSIS.md` for complete system assessment and gap an
   - `src/hooks/useTargetedMessages.ts` - Hooks for targeted messages
   - `supabase/functions/send-bulk-message/index.ts` - Updated to support both modes
   - `supabase/migrations/20250222_add_bulk_messages_filters_index.sql` - Optional GIN index for performance
+
+### 15.3 Maintenance Requests System
+- **Status:** ✅ Implemented & Deployed (2025-01-30)
+- **Overview**: Complete system for students to log maintenance, cleaning, and general requests
+- **Student Portal** (`/portal/maintenance`):
+  - Submit requests with title, description, type (maintenance, cleaning, general, other), priority (low, normal, high, urgent)
+  - Upload up to 5 images per request
+  - View request history with status tracking
+  - Filter by status, priority, type
+  - Mobile-responsive with optimized font sizes
+  - "New Request" button in mobile header
+- **Admin Portal** (`/admin/maintenance`):
+  - View all student requests
+  - Filter by status, priority, type, academic year
+  - Search functionality
+  - Update request status and priority
+  - Add resolution notes
+  - View uploaded images (with signed URLs for private bucket)
+  - Statistics dashboard (total, pending, in progress, urgent)
+  - Mobile-responsive with optimized font sizes
+- **Database**:
+  - `maintenance_requests` table with RLS policies (students manage own, staff manage all)
+  - `maintenance_request_comments` table for comments
+  - `maintenance-images` storage bucket (private, students upload to own folder, staff can view all)
+- **Files**:
+  - `supabase/migrations/20251210_maintenance_requests_system.sql` - Database schema
+  - `src/pages/portal/Maintenance.tsx` - Student portal page
+  - `src/pages/admin/Maintenance.tsx` - Admin portal page
+  - `src/hooks/useMaintenanceRequests.ts` - React hooks
+  - `SETUP_STORAGE_POLICIES.sql` - Storage bucket policies
+  - `docs/STORAGE_BUCKET_SETUP_INSTRUCTIONS.md` - Setup guide
+
+### 15.4 Check-in/Check-out System
+- **Status:** ✅ Implemented & Deployed (2025-01-30)
+- **Overview**: System for tracking actual student check-in and check-out dates, independent of contract dates
+- **Features**:
+  - Set actual check-in and check-out dates regardless of contract dates
+  - Add check-in and check-out notes
+  - Calendar displays effective dates (actual if set, otherwise contract dates)
+  - Dialog in booking calendar to manage check-in/check-out for each booking
+  - Updates `actual_check_in_date`, `actual_check_out_date`, `check_in_notes`, `check_out_notes` fields
+- **Database**:
+  - Added fields to `student_applications`: `actual_check_in_date`, `actual_check_out_date`, `check_in_notes`, `check_out_notes`
+  - Updated `get_booking_calendar_data` RPC function to include these fields and calculate effective dates
+- **Files**:
+  - `supabase/migrations/20251210_check_in_check_out_system.sql` - Database schema
+  - `src/hooks/useCheckInCheckOut.ts` - React hooks
+  - `src/pages/admin/BookingCalendar.tsx` - Updated with check-in/check-out dialog
+
+### 15.5 Utility Payments/Expenses System
+- **Status:** ✅ Implemented & Deployed (2025-01-30)
+- **Overview**: System for tracking utility payments and operational expenses per academic year
+- **Admin Portal** (`/admin/expenses`):
+  - Create, edit, delete expense records
+  - Expense categories: electricity, gas, water, internet, council_tax, maintenance, cleaning, insurance, salaries, marketing, other
+  - Upload receipt/invoice images (images or PDFs)
+  - Filter by academic year, category, date range
+  - Search functionality
+  - Export to CSV
+  - Statistics dashboard (total expenses, total amount, categories)
+  - Mobile-responsive with optimized font sizes
+- **Database**:
+  - `utility_payments` table with RLS policies (staff only)
+  - `expense-receipts` storage bucket (private, staff only)
+- **Files**:
+  - `supabase/migrations/20251210_utility_payments_system.sql` - Database schema
+  - `src/pages/admin/Expenses.tsx` - Admin portal page
+  - `src/hooks/useUtilityPayments.ts` - React hooks
+  - `SETUP_STORAGE_POLICIES.sql` - Storage bucket policies
+
+### 15.6 Login Message Dialog
+- **Status:** ✅ Implemented & Deployed (2025-01-30)
+- **Overview**: Dialog shown once at login if student has unread bulk or targeted messages
+- **Features**:
+  - Shows dialog once per unread message
+  - Displays messages one at a time with "Next Message" or "Got It!" button
+  - Automatically marks messages as read when dismissed
+  - Prevents duplicate dialogs (only shows once per message)
+  - Tracks message reads in `student_message_reads` table
+- **Database**:
+  - `student_message_reads` table to track when a student has seen a message
+- **Files**:
+  - `supabase/migrations/20251210_login_dialog_tracking.sql` - Database schema
+  - `src/components/portal/LoginMessageDialog.tsx` - Dialog component
+  - `src/pages/portal/Dashboard.tsx` - Integrated dialog
+
+### 15.7 Contract Payment Plans RLS Fix
+- **Status:** ✅ Implemented & Deployed (2025-01-30)
+- **Issue**: Missing GRANT statements for `contract_payment_plans` table causing 403 errors when editing contracts
+- **Fix**: Added GRANT statements and ensured `is_staff()` function is properly configured with SECURITY DEFINER
+- **Files**:
+  - `supabase/migrations/20250130_fix_contract_payment_plans_rls.sql` - Migration fix
 
 ### 15.3 Bulk Message Filters
 - **Status:** ✅ Implemented & Deployed

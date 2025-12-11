@@ -35,6 +35,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   getTemplateGenerator,
   downloadCSV,
+  generateApplicationsReferenceFile,
   type CSVTemplateOptions,
 } from "@/utils/csvTemplateGenerator";
 
@@ -147,10 +148,31 @@ const DataImport = () => {
       const filename = `${importType}_template.csv`;
       downloadCSV(csv, filename);
 
-      toast({
-        title: "Template downloaded",
-        description: `Downloaded ${filename} with all current data`,
-      });
+      // For applications import, also download reference file with contract slugs and payment plan names
+      if (importType === "applications") {
+        try {
+          const referenceFile = await generateApplicationsReferenceFile();
+          const referenceFilename = `applications_reference_contracts_and_payment_plans.csv`;
+          downloadCSV(referenceFile, referenceFilename);
+          
+          toast({
+            title: "Templates downloaded",
+            description: `Downloaded ${filename} and ${referenceFilename} with current contract slugs and payment plan names`,
+          });
+        } catch (refError: any) {
+          console.warn("Error generating reference file:", refError);
+          // Don't fail the whole operation if reference file fails
+          toast({
+            title: "Template downloaded",
+            description: `Downloaded ${filename}. Reference file generation failed: ${refError.message}`,
+          });
+        }
+      } else {
+        toast({
+          title: "Template downloaded",
+          description: `Downloaded ${filename} with all current data`,
+        });
+      }
     } catch (error: any) {
       console.error("Error generating template:", error);
       toast({
@@ -221,6 +243,12 @@ const DataImport = () => {
             validate_only: false,
             skip_duplicates: false,
             dry_run: false,
+            // For applications import: create placeholder users (no emails sent)
+            // Admin can send invitations later via bulk invitation system
+            ...(importType === "applications" && {
+              create_users: true,
+              send_welcome_email: false, // Create placeholders, send invitations later
+            }),
           },
         },
       });
@@ -373,9 +401,14 @@ const DataImport = () => {
                       Download a template with <strong>all current system data</strong> as examples. 
                       Use this as a reference for the CSV format and required fields.
                       {importType === "applications" && (
-                        <span className="block mt-2 text-xs">
-                          <strong>Note:</strong> The <code className="px-1 py-0.5 bg-muted rounded">academic_year_name</code> column shows which academic year each contract belongs to. Academic year is automatically assigned based on the contract.
-                        </span>
+                        <>
+                          <span className="block mt-2 text-xs">
+                            <strong>Note:</strong> The <code className="px-1 py-0.5 bg-muted rounded">academic_year_name</code> column shows which academic year each contract belongs to. Academic year is automatically assigned based on the contract.
+                          </span>
+                          <span className="block mt-2 text-xs font-semibold text-primary">
+                            📋 A reference file with all current contract slugs and payment plan names will also be downloaded automatically.
+                          </span>
+                        </>
                       )}
                     </p>
                   </div>

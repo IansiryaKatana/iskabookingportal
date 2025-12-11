@@ -15,6 +15,7 @@ import {
   Mail,
   MessageSquare,
   UserCog,
+  Send,
   Menu,
   CheckCircle2,
   Gift,
@@ -24,6 +25,8 @@ import {
   ChevronRight,
   Image,
   Upload,
+  Wrench,
+  Receipt,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -127,6 +130,11 @@ const navSections: NavSection[] = [
         icon: TrendingUp,
       },
       {
+        label: "Expenses",
+        to: "/admin/expenses",
+        icon: Receipt,
+      },
+      {
         label: "Refunds",
         to: "/admin/refunds",
         icon: CreditCard,
@@ -146,6 +154,11 @@ const navSections: NavSection[] = [
         label: "Students",
         to: "/admin/students",
         icon: Users,
+      },
+      {
+        label: "Maintenance",
+        to: "/admin/maintenance",
+        icon: Wrench,
       },
     ],
   },
@@ -173,6 +186,11 @@ const navSections: NavSection[] = [
         label: "Bulk Messages",
         to: "/admin/bulk-messages",
         icon: MessageSquare,
+      },
+      {
+        label: "Bulk Invitations",
+        to: "/admin/bulk-invitations",
+        icon: Send,
       },
       {
         label: "Targeted Messages",
@@ -502,7 +520,7 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
           <div className="px-4 py-3 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <div className="flex-1 min-w-0">
-                <h1 className="text-lg font-display font-bold uppercase tracking-wide truncate">
+                <h1 className="text-lg font-display font-black uppercase tracking-wide truncate">
                   {pageTitle || "Admin Dashboard"}
                 </h1>
                 {subtitle && (
@@ -650,7 +668,7 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
                 </>
               ) : (
                 <>
-                  <h2 className="text-2xl font-display font-bold uppercase tracking-wide">
+                  <h2 className="text-2xl md:text-3xl font-display font-black uppercase tracking-wide">
                     {pageTitle ?? "Dashboard"}
                   </h2>
                   {subtitle && (

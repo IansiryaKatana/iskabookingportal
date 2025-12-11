@@ -160,19 +160,26 @@ async function ensureUserExists(
   lastName: string,
   createUsers: boolean,
   sendWelcomeEmail: boolean
-): Promise<{ userId: string; created: boolean } | null> {
+): Promise<{ userId: string; created: boolean; isPlaceholder?: boolean } | null> {
   const normalizedEmail = email.toLowerCase().trim();
 
   if (!normalizedEmail || !normalizedEmail.includes("@")) {
     throw new Error(`Invalid email: ${email}`);
   }
 
-  // Check if user exists
-  const { data: existingUser } = await supabaseAdmin.auth.admin.getUserByEmail(
-    normalizedEmail
-  );
+  // Check if user exists - use listUsers and filter by email
+  // Note: getUserByEmail doesn't exist in this Supabase JS version
+  const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+  
+  if (listError) {
+    console.error(`Error listing users:`, listError);
+    throw new Error(`Failed to check if user exists: ${listError.message}`);
+  }
 
-  if (existingUser?.user) {
+  const existingUser = users?.find((u) => u.email?.toLowerCase() === normalizedEmail);
+
+  if (existingUser) {
+    console.log(`User already exists: ${normalizedEmail} (${existingUser.id})`);
     // Update profile if needed
     if (firstName || lastName) {
       await supabaseAdmin
@@ -182,17 +189,19 @@ async function ensureUserExists(
           last_name: lastName || null,
           role: "student",
         })
-        .eq("id", existingUser.user.id);
+        .eq("id", existingUser.id);
     }
-    return { userId: existingUser.user.id, created: false };
+    return { userId: existingUser.id, created: false };
   }
 
   if (!createUsers) {
     throw new Error(`User with email ${normalizedEmail} does not exist and user creation is disabled`);
   }
 
-  // Create new user
+  // Create new user (placeholder if sendWelcomeEmail is false)
   const tempPassword = generateRandomPassword();
+  console.log(`Attempting to create user: ${normalizedEmail}`);
+  
   const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
     email: normalizedEmail,
     password: tempPassword,
@@ -200,12 +209,22 @@ async function ensureUserExists(
     user_metadata: {
       first_name: firstName,
       last_name: lastName,
+      account_status: sendWelcomeEmail ? "active" : "pending_activation", // Placeholder flag
+      imported_at: new Date().toISOString(),
     },
   });
 
-  if (createError || !newUser.user) {
-    throw new Error(`Failed to create user ${normalizedEmail}: ${createError?.message || "Unknown error"}`);
+  if (createError) {
+    console.error(`User creation error for ${normalizedEmail}:`, createError);
+    throw new Error(`Failed to create user ${normalizedEmail}: ${createError.message || "Unknown error"}`);
   }
+
+  if (!newUser?.user) {
+    console.error(`User creation returned no user for ${normalizedEmail}`);
+    throw new Error(`Failed to create user ${normalizedEmail}: User object is null`);
+  }
+
+  console.log(`User created successfully: ${newUser.user.id} for ${normalizedEmail}`);
 
   // Update profile
   await supabaseAdmin
@@ -217,7 +236,7 @@ async function ensureUserExists(
     })
     .eq("id", newUser.user.id);
 
-  // Send password reset email if requested
+  // Send password reset email if requested (only for immediate activation)
   if (sendWelcomeEmail) {
     try {
       await supabaseAdmin.auth.admin.generateLink({
@@ -225,13 +244,21 @@ async function ensureUserExists(
         email: normalizedEmail,
       });
       // Note: The link generation sends the email automatically
+      // Update metadata to indicate invitation sent
+      await supabaseAdmin.auth.admin.updateUserById(newUser.user.id, {
+        user_metadata: {
+          ...newUser.user.user_metadata,
+          account_status: "invited",
+          invitation_sent_at: new Date().toISOString(),
+        },
+      });
     } catch (emailError) {
       console.warn(`Failed to send welcome email to ${normalizedEmail}:`, emailError);
       // Don't fail the import if email fails
     }
   }
 
-  return { userId: newUser.user.id, created: true };
+  return { userId: newUser.user.id, created: true, isPlaceholder: !sendWelcomeEmail };
 }
 
 // Map import type to database function name
@@ -380,18 +407,28 @@ serve(async (req) => {
       // Special handling for applications: create users first
       if (import_type === "applications") {
         const createUsers = options?.create_users !== false; // Default to true
-        const sendWelcomeEmail = options?.send_welcome_email !== false; // Default to true
+        // For bulk imports, default to NOT sending emails (create placeholders)
+        // Admin can send invitations later via bulk invitation system
+        const sendWelcomeEmail = options?.send_welcome_email === true; // Default to false
 
         // Create users for applications that don't have them
         const usersCreated: Record<string, string> = {};
         const usersCreatedCount = { count: 0 };
+        const userCreationErrors: Array<{ email: string; error: string }> = [];
 
         for (const row of jsonbData) {
           const email = row.email?.toLowerCase().trim();
-          if (!email) continue;
+          if (!email) {
+            userCreationErrors.push({
+              email: row.email || "unknown",
+              error: "Email is missing or invalid",
+            });
+            continue;
+          }
 
           if (!usersCreated[email]) {
             try {
+              console.log(`Creating user for email: ${email}`);
               const userResult = await ensureUserExists(
                 email,
                 row.first_name || "",
@@ -401,17 +438,85 @@ serve(async (req) => {
               );
 
               if (userResult) {
+                console.log(`User created/found for ${email}: ${userResult.userId}`);
                 usersCreated[email] = userResult.userId;
                 if (userResult.created) {
                   usersCreatedCount.count++;
+                  // Small delay to ensure user is committed to database
+                  await new Promise((resolve) => setTimeout(resolve, 100));
                 }
+              } else {
+                console.error(`User creation returned null for ${email}`);
+                userCreationErrors.push({
+                  email,
+                  error: "User creation returned null (user may not exist and creation disabled)",
+                });
               }
             } catch (userError: any) {
-              console.error(`Failed to create user for ${email}:`, userError);
-              // Continue processing - database function will handle the error
+              const errorMessage = userError?.message || userError?.toString() || "Unknown error during user creation";
+              console.error(`Failed to create user for ${email}:`, errorMessage);
+              console.error(`Error type:`, typeof userError);
+              console.error(`Error keys:`, userError ? Object.keys(userError) : 'null');
+              userCreationErrors.push({
+                email,
+                error: errorMessage,
+              });
+              // Don't continue - fail this row
             }
           }
         }
+
+        // If user creation is enabled and we have errors, fail early
+        if (userCreationErrors.length > 0 && createUsers) {
+          console.error(`User creation errors:`, JSON.stringify(userCreationErrors, null, 2));
+          
+          // If ANY users failed to create, fail the entire import
+          // This ensures data integrity - we don't want partial imports
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: `Failed to create ${userCreationErrors.length} user(s). Import aborted to maintain data integrity.`,
+              user_creation_errors: userCreationErrors,
+              users_created: usersCreatedCount.count,
+              import_history_id: importHistoryId,
+            }),
+            {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+          );
+        }
+
+        // Verify all users were created before proceeding
+        console.log(`User creation summary: ${usersCreatedCount.count} created, ${Object.keys(usersCreated).length} total`);
+        
+        // Check that we have user IDs for all emails
+        const emailsNeedingUsers = jsonbData
+          .map((row: any) => row.email?.toLowerCase().trim())
+          .filter((email: string) => email && email.includes("@") && !usersCreated[email]);
+        
+        if (emailsNeedingUsers.length > 0) {
+          console.error(`Missing users for ${emailsNeedingUsers.length} emails:`, emailsNeedingUsers);
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: `Failed to create users for ${emailsNeedingUsers.length} email(s). Please check the logs for details.`,
+              missing_users: emailsNeedingUsers,
+              users_created_count: usersCreatedCount.count,
+              import_history_id: importHistoryId,
+            }),
+            {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+          );
+        }
+        
+        console.log(`✓ All users created successfully`);
+        
+        // Add a delay to ensure all users are committed to database
+        console.log(`Waiting 1 second for users to be committed...`);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
 
       if (options?.dry_run || options?.validate_only) {
@@ -433,6 +538,9 @@ serve(async (req) => {
 
       // Call database function
       const functionName = getFunctionName(import_type);
+      console.log(`Calling database function: ${functionName}`);
+      console.log(`Data rows: ${jsonbData.length}`);
+      
       const { data: results, error: functionError } = await supabaseAdmin.rpc(
         functionName,
         {
@@ -442,8 +550,19 @@ serve(async (req) => {
       );
 
       if (functionError) {
-        throw functionError;
+        console.error(`Database function error:`, functionError);
+        console.error(`Error message:`, functionError.message);
+        console.error(`Error details:`, functionError.details);
+        console.error(`Error hint:`, functionError.hint);
+        throw new Error(`Database function failed: ${functionError.message || "Unknown error"}`);
       }
+
+      if (!results) {
+        console.error(`Database function returned no results`);
+        throw new Error("Database function returned no results");
+      }
+
+      console.log(`Database function returned ${results.length} results`);
 
       // Process results
       const succeeded = results?.filter((r: any) => r.status === "success").length || 0;
@@ -507,24 +626,35 @@ serve(async (req) => {
         }
       );
     } catch (error: any) {
-      console.error("Import error:", error);
+      const errorMessage = error?.message || error?.toString() || "Import failed";
+      const errorStack = error?.stack || "No stack trace";
+      
+      console.error("Import error:", errorMessage);
+      console.error("Error stack:", errorStack);
+      console.error("Error type:", typeof error);
+      console.error("Error keys:", error ? Object.keys(error) : 'null');
 
       // Update import history with error
       if (importHistoryId) {
-        await supabaseAdmin
-          .from("import_history")
-          .update({
-            status: "failed",
-            completed_at: new Date().toISOString(),
-            errors: [{ error: error.message }],
-          })
-          .eq("id", importHistoryId);
+        try {
+          await supabaseAdmin
+            .from("import_history")
+            .update({
+              status: "failed",
+              completed_at: new Date().toISOString(),
+              errors: [{ error: errorMessage }],
+            })
+            .eq("id", importHistoryId);
+        } catch (historyError) {
+          console.error("Failed to update import history:", historyError);
+        }
       }
 
       return new Response(
         JSON.stringify({
           success: false,
-          error: error.message || "Import failed",
+          error: errorMessage,
+          error_type: typeof error,
           import_history_id: importHistoryId,
         }),
         {

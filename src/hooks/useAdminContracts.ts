@@ -64,11 +64,50 @@ export const useCreateContract = () => {
       const { payment_plan_ids, payment_plan_orders, ...contractData } = payload;
       
       // Generate slug from name if not provided
-      const slug = contractData.slug || 
-        contractData.name
+      // Format: {studio-type}-{weeks}-weeks-{academic-year}
+      // Example: "Platinum Studio · 45 Weeks · 25/26" → "platinum-45-weeks-25-26"
+      let slug = contractData.slug;
+      if (!slug && contractData.name) {
+        // Get academic year name for the slug
+        let academicYearName = "";
+        if (contractData.academic_year_id) {
+          const { data: academicYear } = await supabase
+            .from("academic_years")
+            .select("name")
+            .eq("id", contractData.academic_year_id)
+            .single();
+          if (academicYear?.name) {
+            // Convert "2024/2025" to "24-25" or "25/26" to "25-26"
+            // Handle both formats: "2024/2025" and "25/26"
+            const yearMatch = academicYear.name.match(/(\d{2})\/(\d{2})/);
+            if (yearMatch) {
+              academicYearName = `${yearMatch[1]}-${yearMatch[2]}`;
+            } else {
+              academicYearName = academicYear.name.replace(/\//g, "-");
+            }
+          }
+        }
+        
+        // Generate slug from name: "Platinum Studio · 45 Weeks · 25/26" → "platinum-45-weeks-25-26"
+        // This matches the format used in STANDARDIZE_CONTRACT_SLUGS_AUTO.sql
+        slug = contractData.name
           .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/\s*studio\s*·\s*/i, "-")
+          .replace(/\s*weeks\s*·\s*/i, "-weeks-")
+          .replace(/\s*\/\s*/g, "-")
+          .replace(/[^a-z0-9-]+/g, "-")
           .replace(/(^-|-$)/g, "");
+        
+        // If we have academic year from database, ensure it's in the slug
+        if (academicYearName) {
+          // Replace the academic year part at the end if it exists, or append it
+          if (slug.match(/-\d{2}-\d{2}$/)) {
+            slug = slug.replace(/-\d{2}-\d{2}$/, `-${academicYearName}`);
+          } else {
+            slug = `${slug}-${academicYearName}`;
+          }
+        }
+      }
 
       const { data: contract, error } = await supabase
         .from("contracts")

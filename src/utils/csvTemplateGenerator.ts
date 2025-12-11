@@ -360,10 +360,172 @@ export function downloadCSV(csvContent: string, filename: string): void {
 
 /**
  * Generate Applications CSV template from current data
+ * Creates comprehensive example rows with all contract/payment plan permutations
  */
 export async function generateApplicationsTemplate(
   options: CSVTemplateOptions = {}
 ): Promise<string> {
+  const PLACEHOLDER_DOCUMENT_PATH = "documents/PLACEHOLDER.pdf";
+
+  // Fetch all contracts with their payment plans for generating examples
+  const { data: contracts } = await supabase
+    .from("contracts")
+    .select(`
+      slug,
+      name,
+      academic_years!inner(name),
+      contract_payment_plans:contract_payment_plans (
+        payment_plan:payment_plans (
+          name
+        )
+      ),
+      payment_plans:payment_plan_id (
+        name
+      )
+    `)
+    .eq("is_active", true)
+    .order("academic_years(name)", { ascending: false })
+    .order("slug", { ascending: true });
+
+  // Fetch some studios for examples
+  const { data: studios } = await supabase
+    .from("studios")
+    .select("studio_number")
+    .eq("is_active", true)
+    .limit(50)
+    .order("studio_number", { ascending: true });
+
+  const studioNumbers = (studios || []).map((s: any) => s.studio_number);
+
+  // Generate example data with all permutations
+  const exampleRows: any[] = [];
+
+  if (contracts && contracts.length > 0) {
+    // Realistic dummy data pool
+    const firstNames = [
+      "John", "Sarah", "Michael", "Emily", "David", "Jessica", "James", "Emma",
+      "Daniel", "Olivia", "Matthew", "Sophia", "Christopher", "Isabella", "Andrew", "Charlotte"
+    ];
+    const lastNames = [
+      "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis",
+      "Rodriguez", "Martinez", "Hernandez", "Lopez", "Wilson", "Anderson", "Thomas", "Taylor"
+    ];
+    const ethnicities = ["White British", "Asian", "Black", "Mixed", "Other"];
+    const genders = ["Male", "Female", "Other", "Prefer not to say"];
+    const countries = ["United Kingdom", "India", "China", "Nigeria", "Pakistan", "United States"];
+    const yearsOfStudy = ["1", "2", "3", "4", "Postgraduate"];
+    const fieldsOfStudy = [
+      "Computer Science", "Business Management", "Engineering", "Medicine",
+      "Law", "Psychology", "Economics", "Architecture"
+    ];
+    const entryIntoUK = ["Student Visa", "UK Citizen", "EU Settlement", "Work Visa"];
+
+    let exampleCounter = 0;
+
+    contracts.forEach((contract: any, contractIndex: number) => {
+      const contractSlug = contract.slug || "";
+      const contractName = contract.name || "";
+      const academicYearName = contract.academic_years?.name || "";
+
+      // Get payment plans for this contract
+      const paymentPlanNames: string[] = [];
+      if (contract.contract_payment_plans && contract.contract_payment_plans.length > 0) {
+        contract.contract_payment_plans.forEach((cpp: any) => {
+          if (cpp.payment_plan?.name) {
+            paymentPlanNames.push(cpp.payment_plan.name);
+          }
+        });
+      }
+      if (contract.payment_plans?.name) {
+        paymentPlanNames.push(contract.payment_plans.name);
+      }
+
+      // Generate 2-3 examples per contract
+      const examplesPerContract = paymentPlanNames.length > 0 ? Math.min(3, paymentPlanNames.length + 1) : 2;
+
+      for (let i = 0; i < examplesPerContract; i++) {
+        const firstName = firstNames[exampleCounter % firstNames.length];
+        const lastName = lastNames[exampleCounter % lastNames.length];
+        const email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}${exampleCounter}@example.com`;
+        
+        // Calculate date of birth (age 18-25)
+        const age = 18 + (exampleCounter % 8);
+        const birthYear = new Date().getFullYear() - age;
+        const birthMonth = String(1 + (exampleCounter % 12)).padStart(2, "0");
+        const birthDay = String(1 + (exampleCounter % 28)).padStart(2, "0");
+        const dateOfBirth = `${birthYear}-${birthMonth}-${birthDay}`;
+
+        // Select payment plan (rotate through available plans, or empty for one example)
+        const paymentPlanName = i < paymentPlanNames.length 
+          ? paymentPlanNames[i] 
+          : (paymentPlanNames.length > 0 ? paymentPlanNames[0] : "");
+
+        // Select studio (rotate through available studios)
+        const studioNumber = studioNumbers.length > 0 
+          ? studioNumbers[exampleCounter % studioNumbers.length] 
+          : "";
+
+        // All examples have deposits (ongoing confirmed applications)
+        const depositAmount = "99";
+        const depositPaidDate = "2024-09-01";
+
+        // Calculate submitted date (recent past)
+        const submittedDate = new Date();
+        submittedDate.setDate(submittedDate.getDate() - (exampleCounter % 30));
+        const submittedAt = submittedDate.toISOString();
+
+        exampleRows.push({
+          email,
+          first_name: firstName,
+          last_name: lastName,
+          date_of_birth: dateOfBirth,
+          ethnicity: ethnicities[exampleCounter % ethnicities.length],
+          gender: genders[exampleCounter % genders.length],
+          ucas_id: `UCAS${String(1000000 + exampleCounter).padStart(7, "0")}`,
+          country: countries[exampleCounter % countries.length],
+          mobile: `+44 7${String(100000000 + exampleCounter).slice(-9)}`,
+          address_line_1: `${10 + (exampleCounter % 90)} High Street`,
+          address_line_2: exampleCounter % 3 === 0 ? "Flat 2B" : "",
+          postcode: ["SW1A 1AA", "M1 1AA", "B1 1AA", "LS1 1AA", "S1 1AA"][exampleCounter % 5],
+          town: ["London", "Manchester", "Birmingham", "Leeds", "Sheffield"][exampleCounter % 5],
+          year_of_study: yearsOfStudy[exampleCounter % yearsOfStudy.length],
+          field_of_study: fieldsOfStudy[exampleCounter % fieldsOfStudy.length],
+          disabled: exampleCounter % 10 === 0 ? "yes" : "no",
+          smoker: exampleCounter % 5 === 0 ? "yes" : "no",
+          medical_requirements: exampleCounter % 4 === 0 ? "None" : "",
+          entry_into_uk: entryIntoUK[exampleCounter % entryIntoUK.length],
+          uk_citizen: exampleCounter % 3 === 0 ? "yes" : "no",
+          academic_year_name: academicYearName,
+          contract_slug: contractSlug,
+          studio_number: studioNumber,
+          payment_plan_name: paymentPlanName,
+          guarantor_name: exampleCounter % 2 === 0 ? `${firstName} ${lastName} Senior` : "",
+          guarantor_email: exampleCounter % 2 === 0 ? `guarantor.${email}` : "",
+          guarantor_phone: exampleCounter % 2 === 0 ? `+44 7${String(200000000 + exampleCounter).slice(-9)}` : "",
+          guarantor_relationship: exampleCounter % 2 === 0 ? "Parent" : "",
+          guarantor_dob: exampleCounter % 2 === 0 ? `${birthYear - 25}-${birthMonth}-${birthDay}` : "",
+          witness_name: exampleCounter % 2 === 0 ? "Jane Witness" : "",
+          witness_email: exampleCounter % 2 === 0 ? "witness@example.com" : "",
+          witness_phone: exampleCounter % 2 === 0 ? "+44 7123456789" : "",
+          status: "confirmed",
+          submitted_at: submittedAt,
+          passport_path: PLACEHOLDER_DOCUMENT_PATH,
+          visa_path: exampleCounter % 3 !== 0 ? PLACEHOLDER_DOCUMENT_PATH : "",
+          utility_bill_path: PLACEHOLDER_DOCUMENT_PATH,
+          id_document_path: PLACEHOLDER_DOCUMENT_PATH,
+          bank_statement_path: PLACEHOLDER_DOCUMENT_PATH,
+          contract_pdf_path: PLACEHOLDER_DOCUMENT_PATH,
+          referral_code: "",
+          deposit_amount: depositAmount,
+          deposit_paid_date: depositPaidDate,
+        });
+
+        exampleCounter++;
+      }
+    });
+  }
+
+  // If we have existing applications, use them; otherwise use generated examples
   const { data: applications } = await supabase
     .from("student_applications")
     .select(`
@@ -395,59 +557,66 @@ export async function generateApplicationsTemplate(
       )
     `)
     .order("created_at", { ascending: false })
-    .limit(50); // Limit to recent 50 for template
+    .limit(50);
 
+  const headers = [
+    "email",
+    "first_name",
+    "last_name",
+    "date_of_birth",
+    "ethnicity",
+    "gender",
+    "ucas_id",
+    "country",
+    "mobile",
+    "address_line_1",
+    "address_line_2",
+    "postcode",
+    "town",
+    "year_of_study",
+    "field_of_study",
+    "disabled",
+    "smoker",
+    "medical_requirements",
+    "entry_into_uk",
+    "uk_citizen",
+    "academic_year_name",
+    "contract_slug",
+    "studio_number",
+    "payment_plan_name",
+    "guarantor_name",
+    "guarantor_email",
+    "guarantor_phone",
+    "guarantor_relationship",
+    "guarantor_dob",
+    "witness_name",
+    "witness_email",
+    "witness_phone",
+    "status",
+    "submitted_at",
+    "passport_path",
+    "visa_path",
+    "utility_bill_path",
+    "id_document_path",
+    "bank_statement_path",
+    "contract_pdf_path",
+    "referral_code",
+    "deposit_amount",
+    "deposit_paid_date",
+  ];
+
+  // Always use generated comprehensive examples when includeExampleData is true
+  // Otherwise, use existing applications if available
+  if (options.includeExampleData && exampleRows.length > 0) {
+    return arrayToCSV(exampleRows, headers, options);
+  }
+
+  // If no examples generated and no existing applications, return empty template
   if (!applications || applications.length === 0) {
-    // Return template with headers only if no data
-    const headers = [
-      "email",
-      "first_name",
-      "last_name",
-      "date_of_birth",
-      "ethnicity",
-      "gender",
-      "ucas_id",
-      "country",
-      "mobile",
-      "address_line_1",
-      "address_line_2",
-      "postcode",
-      "town",
-      "year_of_study",
-      "field_of_study",
-      "disabled",
-      "smoker",
-      "medical_requirements",
-      "entry_into_uk",
-      "uk_citizen",
-      "academic_year_name",
-      "contract_slug",
-      "studio_number",
-      "payment_plan_name",
-      "guarantor_name",
-      "guarantor_email",
-      "guarantor_phone",
-      "guarantor_relationship",
-      "guarantor_dob",
-      "witness_name",
-      "witness_email",
-      "witness_phone",
-      "status",
-      "submitted_at",
-      "confirmed_at",
-      "passport_path",
-      "visa_path",
-      "utility_bill_path",
-      "id_document_path",
-      "bank_statement_path",
-      "contract_pdf_path",
-      "referral_code",
-      "deposit_amount",
-      "deposit_paid_date",
-    ];
     return arrayToCSV([], headers, options);
   }
 
+  // If we have existing applications, use them as examples
   // Note: Email will come from step2 payload or needs to be filled in manually
 
   const applicationsData = applications.map((app: any) => {
@@ -518,10 +687,6 @@ export async function generateApplicationsTemplate(
       submitted_at: app.submitted_at
         ? new Date(app.submitted_at).toISOString()
         : "",
-      confirmed_at:
-        app.status === "confirmed" && app.submitted_at
-          ? new Date(app.submitted_at).toISOString()
-          : "",
       passport_path: documents.passport || step4.passport_document || "",
       visa_path: documents.visa || step4.visa_document || "",
       utility_bill_path: documents.utility_bill || step5.utility_bill || "",
@@ -534,54 +699,152 @@ export async function generateApplicationsTemplate(
     };
   });
 
-  const headers = [
-    "email",
-    "first_name",
-    "last_name",
-    "date_of_birth",
-    "ethnicity",
-    "gender",
-    "ucas_id",
-    "country",
-    "mobile",
-    "address_line_1",
-    "address_line_2",
-    "postcode",
-    "town",
-    "year_of_study",
-    "field_of_study",
-    "disabled",
-    "smoker",
-    "medical_requirements",
-    "entry_into_uk",
-    "uk_citizen",
-    "academic_year_name",
-    "contract_slug",
-    "studio_number",
-    "payment_plan_name",
-    "guarantor_name",
-    "guarantor_email",
-    "guarantor_phone",
-    "guarantor_relationship",
-    "guarantor_dob",
-    "witness_name",
-    "witness_email",
-    "witness_phone",
-    "status",
-    "submitted_at",
-    "confirmed_at",
-    "passport_path",
-    "visa_path",
-    "utility_bill_path",
-    "id_document_path",
-    "bank_statement_path",
-    "contract_pdf_path",
-    "referral_code",
-    "deposit_amount",
-    "deposit_paid_date",
-  ];
-
   return arrayToCSV(applicationsData, headers, options);
+}
+
+/**
+ * Generate reference file with contract slugs and payment plan names for applications import
+ */
+export async function generateApplicationsReferenceFile(): Promise<string> {
+  // Fetch all contracts with their payment plans
+  const { data: contracts } = await supabase
+    .from("contracts")
+    .select(`
+      slug,
+      name,
+      academic_years!inner(name),
+      contract_payment_plans:contract_payment_plans (
+        payment_plan:payment_plans (
+          name
+        )
+      ),
+      payment_plans:payment_plan_id (
+        name
+      )
+    `)
+    .eq("is_active", true)
+    .order("slug", { ascending: true });
+
+  // Fetch all payment plans grouped by academic year
+  const { data: paymentPlans } = await supabase
+    .from("payment_plans")
+    .select(`
+      name,
+      academic_years!inner(name)
+    `)
+    .eq("is_active", true)
+    .order("name", { ascending: true });
+
+  // Build reference data
+  const contractData: Array<{
+    contract_slug: string;
+    contract_name: string;
+    academic_year: string;
+    payment_plan_names: string;
+  }> = [];
+
+  const paymentPlanData: Array<{
+    payment_plan_name: string;
+    academic_year: string;
+  }> = [];
+
+  // Process contracts
+  if (contracts) {
+    contracts.forEach((contract: any) => {
+      const paymentPlanNames: string[] = [];
+
+      // Get payment plans from junction table
+      if (contract.contract_payment_plans && contract.contract_payment_plans.length > 0) {
+        contract.contract_payment_plans.forEach((cpp: any) => {
+          if (cpp.payment_plan?.name) {
+            paymentPlanNames.push(cpp.payment_plan.name);
+          }
+        });
+      }
+
+      // Get payment plan from legacy field
+      if (contract.payment_plans?.name) {
+        paymentPlanNames.push(contract.payment_plans.name);
+      }
+
+      contractData.push({
+        contract_slug: contract.slug || "",
+        contract_name: contract.name || "",
+        academic_year: contract.academic_years?.name || "",
+        payment_plan_names: paymentPlanNames.join(", ") || "None",
+      });
+    });
+
+    // Sort by academic year (descending) then by contract slug
+    contractData.sort((a, b) => {
+      if (a.academic_year !== b.academic_year) {
+        return b.academic_year.localeCompare(a.academic_year); // Descending
+      }
+      return a.contract_slug.localeCompare(b.contract_slug);
+    });
+  }
+
+  // Process payment plans
+  if (paymentPlans) {
+    paymentPlans.forEach((plan: any) => {
+      paymentPlanData.push({
+        payment_plan_name: plan.name || "",
+        academic_year: plan.academic_years?.name || "",
+      });
+    });
+
+    // Sort by academic year (descending) then by payment plan name
+    paymentPlanData.sort((a, b) => {
+      if (a.academic_year !== b.academic_year) {
+        return b.academic_year.localeCompare(a.academic_year); // Descending
+      }
+      return a.payment_plan_name.localeCompare(b.payment_plan_name);
+    });
+  }
+
+  // Build CSV content
+  const csvRows: string[] = [];
+
+  // Header
+  csvRows.push("APPLICATIONS IMPORT REFERENCE FILE");
+  csvRows.push(`Generated: ${new Date().toISOString()}`);
+  csvRows.push("");
+
+  // Contracts section
+  csvRows.push("=== CONTRACT SLUGS ===");
+  csvRows.push("Use these exact contract_slug values in your CSV:");
+  csvRows.push("");
+  csvRows.push("contract_slug,contract_name,academic_year,available_payment_plans");
+  contractData.forEach((contract) => {
+    csvRows.push(
+      `"${contract.contract_slug}","${contract.contract_name}","${contract.academic_year}","${contract.payment_plan_names}"`
+    );
+  });
+
+  csvRows.push("");
+  csvRows.push("");
+
+  // Payment plans section
+  csvRows.push("=== PAYMENT PLAN NAMES ===");
+  csvRows.push("Use these exact payment_plan_name values in your CSV:");
+  csvRows.push("");
+  csvRows.push("payment_plan_name,academic_year");
+  paymentPlanData.forEach((plan) => {
+    csvRows.push(`"${plan.payment_plan_name}","${plan.academic_year}"`);
+  });
+
+  csvRows.push("");
+  csvRows.push("");
+
+  // Instructions
+  csvRows.push("=== INSTRUCTIONS ===");
+  csvRows.push("1. Use contract_slug from the CONTRACT SLUGS section above");
+  csvRows.push("2. Use payment_plan_name from the PAYMENT PLAN NAMES section above");
+  csvRows.push("3. Ensure the payment plan belongs to the same academic year as the contract");
+  csvRows.push("4. Values are case-sensitive - use exact values as shown");
+  csvRows.push("5. If a contract shows 'None' for payment plans, leave payment_plan_name empty in your CSV");
+
+  return csvRows.join("\n");
 }
 
 /**

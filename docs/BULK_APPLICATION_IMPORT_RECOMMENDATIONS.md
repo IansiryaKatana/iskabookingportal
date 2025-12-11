@@ -178,28 +178,39 @@ documents/abc123-def456-ghi789/jkl012-mno345-pqr678/passport/passport-john-doe.p
 
 ## 🔐 User Creation Strategy for Historical Applications
 
-### Recommendation: Auto-Create Users with Password Reset
+### ✅ IMPLEMENTED: Placeholder Users + Post-Import Bulk Invitations
 
 **Process:**
-1. **Check if user exists** (by email, case-insensitive)
-   - If exists: Use existing user ID
-   - If not: Create new user
+1. **During Import (Phase 1):**
+   - Check if user exists (by email, case-insensitive) using `listUsers()` and filter
+   - If exists: Use existing user ID, update profile if needed
+   - If not: Create **placeholder auth user** with:
+     - Temporary random password
+     - `account_status: 'pending_activation'` in user metadata
+     - Email marked as verified (`email_confirm: true`)
+     - Profile: `role = 'student'`, sync name from CSV
+   - **NO emails sent during import** (creates placeholders only)
 
-2. **For new users:**
-   - Create auth user with **temporary random password**
-   - Set profile: `role = 'student'`, sync name from CSV
-   - **Send password reset email** (user sets password on first login)
-   - Mark email as verified (since historical)
+2. **After Import (Phase 2 - Manual Trigger):**
+   - Admin reviews imported applications
+   - Admin goes to `/admin/bulk-invitations`
+   - Selects applications to invite
+   - Triggers bulk invitation emails
+   - System sends password reset links to selected students
+   - Updates user metadata: `account_status: 'invited'`
 
-3. **For existing users:**
-   - Link application to existing account
-   - Don't modify existing profile data
+3. **User Activation:**
+   - Student receives invitation email
+   - Clicks link to set password
+   - Account activated, can access portal immediately
 
 **Why this approach?**
 - ✅ Secure (no default passwords)
-- ✅ User-friendly (password reset email)
+- ✅ Better control (review before inviting)
+- ✅ Clean separation (import data first, activate accounts second)
 - ✅ Works for both new and existing students
-- ✅ Historical users can access their data
+- ✅ Leverages existing bulk messaging infrastructure
+- ✅ No partial failures (all data imported, then all accounts created)
 
 ---
 

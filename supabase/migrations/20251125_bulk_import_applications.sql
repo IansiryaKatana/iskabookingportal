@@ -50,7 +50,6 @@ DECLARE
   v_studio_id UUID;
   v_status TEXT;
   v_submitted_at TIMESTAMPTZ;
-  v_confirmed_at TIMESTAMPTZ;
   
   -- Step payloads
   v_step1_payload JSONB;
@@ -123,12 +122,23 @@ BEGIN
       
       -- Get payment plan if provided
       IF v_row->>'payment_plan_name' IS NOT NULL AND v_row->>'payment_plan_name' != '' THEN
+        -- First try direct lookup via contract's academic year
         SELECT pp.id INTO v_payment_plan_id
         FROM public.payment_plans pp
         INNER JOIN public.contracts c ON c.academic_year_id = pp.academic_year_id
         WHERE pp.name = v_row->>'payment_plan_name'
         AND c.id = v_contract_id
         LIMIT 1;
+        
+        -- If not found, check contract_payment_plans junction table
+        IF v_payment_plan_id IS NULL THEN
+          SELECT cpp.payment_plan_id INTO v_payment_plan_id
+          FROM public.contract_payment_plans cpp
+          INNER JOIN public.payment_plans pp ON pp.id = cpp.payment_plan_id
+          WHERE cpp.contract_id = v_contract_id
+            AND pp.name = v_row->>'payment_plan_name'
+          LIMIT 1;
+        END IF;
       END IF;
       
       -- Determine status
@@ -142,17 +152,20 @@ BEGIN
         v_submitted_at := (v_row->>'submitted_at')::TIMESTAMPTZ;
       END IF;
       
-      IF v_row->>'confirmed_at' IS NOT NULL AND v_row->>'confirmed_at' != '' THEN
-        v_confirmed_at := (v_row->>'confirmed_at')::TIMESTAMPTZ;
-      END IF;
-      
       -- Build step payloads
       -- Step 1: Personal Details
+      -- Auto-calculate age from date_of_birth if age not provided
       v_step1_payload := jsonb_build_object(
         'first_name', NULLIF(TRIM(v_row->>'first_name'), ''),
         'last_name', NULLIF(TRIM(v_row->>'last_name'), ''),
         'date_of_birth', NULLIF(TRIM(v_row->>'date_of_birth'), ''),
-        'age', NULLIF(TRIM(v_row->>'age'), ''),
+        'age', CASE 
+          WHEN v_row->>'age' IS NOT NULL AND v_row->>'age' != '' 
+            THEN v_row->>'age'
+          WHEN v_row->>'date_of_birth' IS NOT NULL AND v_row->>'date_of_birth' != '' 
+            THEN EXTRACT(YEAR FROM AGE((v_row->>'date_of_birth')::DATE))::TEXT
+          ELSE NULL
+        END,
         'ethnicity', NULLIF(TRIM(v_row->>'ethnicity'), ''),
         'gender', NULLIF(TRIM(v_row->>'gender'), ''),
         'ucas_id', NULLIF(TRIM(v_row->>'ucas_id'), ''),
@@ -227,7 +240,8 @@ BEGIN
         assigned_studio_id,
         status,
         submitted_at,
-        reserved_studio_expires_at
+        reserved_studio_expires_at,
+        selected_payment_plan_id
       )
       VALUES (
         v_student_id,
@@ -236,17 +250,10 @@ BEGIN
         v_studio_id,
         v_status::public.application_status,
         COALESCE(v_submitted_at, NOW()),
-        NULL -- No reservation expiry for historical imports
+        NULL, -- No reservation expiry for historical imports
+        v_payment_plan_id
       )
       RETURNING id INTO v_record_id;
-      
-      -- Update confirmed_at if status is confirmed
-      IF v_status = 'confirmed' AND v_confirmed_at IS NOT NULL THEN
-        -- Note: We can't directly update cancelled_at, but we can set it via update
-        UPDATE public.student_applications
-        SET updated_at = v_confirmed_at
-        WHERE id = v_record_id;
-      END IF;
       
       -- Create application steps
       INSERT INTO public.student_application_steps (application_id, step_number, payload, is_complete)
@@ -394,14 +401,16 @@ BEGIN
           amount,
           payment_date,
           payment_type,
-          description,
-          created_by
+          payment_method,
+          notes,
+          recorded_by
         )
         VALUES (
           v_record_id,
           v_deposit_amount,
           COALESCE(v_deposit_paid_date, v_submitted_at::DATE, CURRENT_DATE),
           'deposit',
+          'bank_transfer', -- Default payment method for historical imports
           'Historical deposit payment (imported)',
           p_imported_by
         )

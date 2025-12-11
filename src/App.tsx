@@ -29,11 +29,14 @@ import AdminReports from "./pages/admin/Reports";
 import AdminAccountingReports from "./pages/admin/AccountingReports";
 import AdminBookingCalendar from "./pages/admin/BookingCalendar";
 import AdminBulkMessages from "./pages/admin/BulkMessages";
+import AdminBulkInvitations from "./pages/admin/BulkInvitations";
 import AdminTargetedMessages from "./pages/admin/TargetedMessages";
 import AdminEmailTemplates from "./pages/admin/EmailTemplates";
 import AdminApplicationDetail from "./pages/admin/ApplicationDetail";
 import AdminUsers from "./pages/admin/Users";
 import AdminRefunds from "./pages/admin/Refunds";
+import AdminMaintenance from "./pages/admin/Maintenance";
+import AdminExpenses from "./pages/admin/Expenses";
 import AdminAuditLogs from "./pages/admin/AuditLogs";
 import AdminPaymentHistory from "./pages/admin/PaymentHistory";
 import AdminFullyPaidStudents from "./pages/admin/FullyPaidStudents";
@@ -65,6 +68,7 @@ import PortalContracts from "./pages/portal/Contracts";
 import PortalDocuments from "./pages/portal/Documents";
 import PortalProfile from "./pages/portal/Profile";
 import PortalNotifications from "./pages/portal/Notifications";
+import PortalMaintenance from "./pages/portal/Maintenance";
 import PageTitle from "./components/PageTitle";
 import FaviconUpdater from "./components/FaviconUpdater";
 import MetaTagsUpdater from "./components/MetaTagsUpdater";
@@ -137,6 +141,14 @@ const App = () => (
                     element={
                       <ProtectedRoute allowedRoles={["student", "superadmin"]}>
                         <PortalNotifications />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/portal/maintenance"
+                    element={
+                      <ProtectedRoute allowedRoles={["student", "superadmin"]}>
+                        <PortalMaintenance />
                       </ProtectedRoute>
                     }
                   />
@@ -232,6 +244,14 @@ const App = () => (
               }
             />
             <Route
+              path="/admin/maintenance"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                  <AdminMaintenance />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/admin/students/:applicationId"
               element={
                 <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
@@ -272,6 +292,14 @@ const App = () => (
               }
             />
             <Route
+              path="/admin/bulk-invitations"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                  <AdminBulkInvitations />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/admin/targeted-messages"
               element={
                 <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
@@ -292,6 +320,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["superadmin"]}>
                   <AdminUsers />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/expenses"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                  <AdminExpenses />
                 </ProtectedRoute>
               }
             />

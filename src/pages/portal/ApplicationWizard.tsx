@@ -1432,7 +1432,45 @@ useEffect(() => {
     const sanitized = parsed.data;
     setContactValues(sanitized);
     setContactErrors({});
+    
+    // Save to application steps (existing workflow)
     await handleStepSubmit(2, sanitized);
+    
+    // Sync email to auth user if changed and user is the student
+    if (sanitized.email && user?.email && sanitized.email !== user.email && application?.student_id === user.id) {
+      try {
+        const { error: emailError } = await supabase.auth.updateUser({
+          email: sanitized.email,
+        });
+
+        if (emailError) {
+          console.error("Failed to sync email to auth user:", emailError);
+          // Don't fail step submission, just log the error - step still saves successfully
+          toast({
+            variant: "destructive",
+            title: "Email update warning",
+            description: "Contact information saved, but email update failed. Please update your email in profile settings.",
+          });
+        } else {
+          // Refresh profile to update UI if available
+          if (refreshProfile) {
+            await refreshProfile();
+          }
+          toast({
+            title: "Email updated",
+            description: "Your contact information and email have been updated successfully.",
+          });
+        }
+      } catch (err) {
+        console.error("Error updating email from application step:", err);
+        // Don't fail step submission, just log the error
+        toast({
+          variant: "destructive",
+          title: "Email update warning",
+          description: "Contact information saved, but email update failed. Please update your email in profile settings.",
+        });
+      }
+    }
   };
 
   const handleAcademicSubmit = async (
@@ -3979,7 +4017,14 @@ useEffect(() => {
                 <Button
                   type="button"
                   className="rounded-full uppercase tracking-wide"
-                  onClick={() => navigate("/portal")}
+                  onClick={() => {
+                    // Navigate based on user role
+                    if (profile?.role === "staff" || profile?.role === "superadmin") {
+                      navigate("/admin");
+                    } else {
+                      navigate("/portal");
+                    }
+                  }}
                 >
                   Return to dashboard
                 </Button>
