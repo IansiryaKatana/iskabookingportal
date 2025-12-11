@@ -65,7 +65,7 @@ serve(async (req) => {
       );
     }
 
-    if (!profile || (profile.role !== "staff" && profile.role !== "superadmin")) {
+    if (!profile || (profile.role !== "staff" && profile.role !== "superadmin" && profile.role !== "admin")) {
       return new Response(
         JSON.stringify({ error: "Forbidden. Admin access required." }),
         {
@@ -88,7 +88,7 @@ serve(async (req) => {
       );
     }
 
-    const { action, email, role, userId, first_name, last_name } = requestBody;
+    const { action, email, role, userId, first_name, last_name, staff_subrole } = requestBody;
 
     if (!action || (action !== "invite" && action !== "create" && action !== "delete" && action !== "update")) {
       return new Response(
@@ -112,9 +112,32 @@ serve(async (req) => {
         );
       }
 
-      if (!role || (role !== "staff" && role !== "superadmin")) {
+      if (!role || (role !== "staff" && role !== "superadmin" && role !== "admin")) {
         return new Response(
-          JSON.stringify({ error: "Role must be 'staff' or 'superadmin'." }),
+          JSON.stringify({ error: "Role must be 'staff', 'admin', or 'superadmin'." }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      // Validate staff_subrole - only allowed for staff role
+      if (staff_subrole && role !== "staff") {
+        return new Response(
+          JSON.stringify({ error: "staff_subrole can only be set for staff role." }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      // Validate staff_subrole values
+      const validSubroles = ["operations_manager", "reservationist", "accountant", "front_desk"];
+      if (staff_subrole && !validSubroles.includes(staff_subrole)) {
+        return new Response(
+          JSON.stringify({ error: `Invalid staff_subrole. Must be one of: ${validSubroles.join(", ")}` }),
           {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -191,29 +214,46 @@ serve(async (req) => {
         );
       }
 
-      // Insert or update profile with role and names
+      // Insert or update profile with role, names, and staff_subrole
       // Use upsert to handle both new profiles (from trigger) and existing ones
+      const profileData: any = {
+        id: createData.user.id,
+        role: role,
+        first_name: first_name?.trim() || null,
+        last_name: last_name?.trim() || null,
+      };
+
+      // Only set staff_subrole if role is staff
+      if (role === "staff") {
+        profileData.staff_subrole = staff_subrole || null;
+      } else {
+        profileData.staff_subrole = null; // Clear sub-role if not staff
+      }
+
       const { error: profileError } = await supabaseAdmin
         .from("profiles")
-        .upsert({
-          id: createData.user.id,
-          role: role,
-          first_name: first_name?.trim() || null,
-          last_name: last_name?.trim() || null,
-        }, {
+        .upsert(profileData, {
           onConflict: "id",
         });
 
       if (profileError) {
         console.error("Failed to upsert profile:", profileError);
         // This is critical - try to update as fallback
+        const fallbackData: any = {
+          role: role,
+          first_name: first_name?.trim() || null,
+          last_name: last_name?.trim() || null,
+        };
+
+        if (role === "staff") {
+          fallbackData.staff_subrole = staff_subrole || null;
+        } else {
+          fallbackData.staff_subrole = null;
+        }
+
         const { error: updateError } = await supabaseAdmin
           .from("profiles")
-          .update({
-            role: role,
-            first_name: first_name?.trim() || null,
-            last_name: last_name?.trim() || null,
-          })
+          .update(fallbackData)
           .eq("id", createData.user.id);
 
         if (updateError) {
@@ -246,6 +286,7 @@ serve(async (req) => {
             first_name: first_name?.trim() || null,
             last_name: last_name?.trim() || null,
             role,
+            staff_subrole: role === "staff" ? staff_subrole || null : null,
             action_type: "create",
           },
         });
@@ -285,9 +326,32 @@ serve(async (req) => {
         );
       }
 
-      if (role && role !== "staff" && role !== "superadmin") {
+      if (role && role !== "staff" && role !== "superadmin" && role !== "admin") {
         return new Response(
-          JSON.stringify({ error: "Role must be 'staff' or 'superadmin'." }),
+          JSON.stringify({ error: "Role must be 'staff', 'admin', or 'superadmin'." }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      // Validate staff_subrole - only allowed for staff role
+      if (staff_subrole !== undefined && role !== "staff") {
+        return new Response(
+          JSON.stringify({ error: "staff_subrole can only be set for staff role." }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      // Validate staff_subrole values
+      const validSubroles = ["operations_manager", "reservationist", "accountant", "front_desk"];
+      if (staff_subrole && staff_subrole !== null && !validSubroles.includes(staff_subrole)) {
+        return new Response(
+          JSON.stringify({ error: `Invalid staff_subrole. Must be one of: ${validSubroles.join(", ")}` }),
           {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -298,7 +362,7 @@ serve(async (req) => {
       // Get current profile to preserve existing values
       const { data: currentProfile, error: fetchError } = await supabaseAdmin
         .from("profiles")
-        .select("first_name, last_name, role")
+        .select("first_name, last_name, role, staff_subrole")
         .eq("id", userId)
         .single();
 
@@ -322,6 +386,17 @@ serve(async (req) => {
       }
       if (role) {
         updateData.role = role;
+        // Handle staff_subrole based on role
+        if (role === "staff") {
+          updateData.staff_subrole = staff_subrole !== undefined ? (staff_subrole || null) : currentProfile?.staff_subrole || null;
+        } else {
+          updateData.staff_subrole = null; // Clear sub-role if not staff
+        }
+      } else if (staff_subrole !== undefined) {
+        // Only update sub-role if role is staff (from current profile)
+        if (currentProfile?.role === "staff") {
+          updateData.staff_subrole = staff_subrole || null;
+        }
       }
 
       const { data: updatedProfile, error: updateError } = await supabaseAdmin
@@ -356,7 +431,9 @@ serve(async (req) => {
               first_name: currentProfile.first_name,
               last_name: currentProfile.last_name,
               role: currentProfile.role,
+              staff_subrole: currentProfile.staff_subrole,
             },
+            updated_fields: updateData,
           },
         });
 

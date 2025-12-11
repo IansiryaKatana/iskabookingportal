@@ -28,6 +28,7 @@ import {
   Wrench,
   Receipt,
   Search,
+  Shield,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -240,6 +241,11 @@ export const navSections: NavSection[] = [
         label: "Users",
         to: "/admin/users",
         icon: UserCog,
+      },
+      {
+        label: "Permissions",
+        to: "/admin/permissions",
+        icon: Shield,
       },
       {
         label: "Audit Logs",

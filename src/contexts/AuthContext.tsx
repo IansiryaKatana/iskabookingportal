@@ -12,7 +12,8 @@ import type { Session, User } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 
 type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
-type Role = "student" | "staff" | "superadmin" | "partner";
+type Role = "student" | "staff" | "superadmin" | "partner" | "admin";
+export type StaffSubrole = "operations_manager" | "reservationist" | "accountant" | "front_desk" | null;
 
 type AuthContextValue = {
   user: User | null;
@@ -107,11 +108,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, newSession) => {
+    } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       setSession(newSession);
       updateUser(newSession?.user ?? null);
       
-      // Handle email confirmation - redirect to set password page
+      // Handle email confirmation and password reset - redirect to appropriate reset password page
       if (event === "SIGNED_IN" && newSession?.user) {
         const hash = window.location.hash;
         const isConfirmation = hash && hash.includes("type=signup");
@@ -119,14 +120,65 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         
         // If user just confirmed email or reset password, check if we're already on the reset-password page
         if ((isConfirmation || isPasswordReset) && !window.location.pathname.includes("/reset-password")) {
-          // Redirect to set password page
-          window.location.href = `/portal/reset-password${hash ? `#${hash}` : ""}`;
+          // Check user role to determine which reset password page to use
+          const { data: profileData } = await supabase
+            .from("profiles")
+            .select("role")
+            .eq("id", newSession.user.id)
+            .maybeSingle();
+          
+          const userRole = profileData?.role;
+          const isStaff = userRole === "staff" || userRole === "superadmin" || userRole === "admin" || 
+                         userRole === "operations_manager" || userRole === "reservationist" || 
+                         userRole === "accountant" || userRole === "front_desk";
+          
+          // Redirect to appropriate reset password page based on role
+          const resetPath = isStaff ? "/admin/reset-password" : "/portal/reset-password";
+          window.location.href = `${resetPath}${hash ? `#${hash}` : ""}`;
           return;
         }
       }
       
       if (newSession?.user) {
-        refreshProfile(newSession.user.id).catch((error) =>
+        refreshProfile(newSession.user.id).then(() => {
+          // After profile is loaded, check if staff user is on wrong portal and redirect
+          setTimeout(() => {
+            const currentPath = window.location.pathname;
+            const isOnPortal = currentPath.startsWith("/portal");
+            const isOnAdmin = currentPath.startsWith("/admin");
+            const isOnPartner = currentPath.startsWith("/partner");
+            
+            // Get profile to check role
+            supabase
+              .from("profiles")
+              .select("role")
+              .eq("id", newSession.user.id)
+              .maybeSingle()
+              .then(({ data: profileData }) => {
+                if (!profileData) return;
+                
+                const userRole = profileData.role;
+                const isStaff = userRole === "staff" || userRole === "superadmin" || userRole === "admin" || 
+                               userRole === "operations_manager" || userRole === "reservationist" || 
+                               userRole === "accountant" || userRole === "front_desk";
+                const isPartner = userRole === "partner";
+                const isStudent = userRole === "student";
+                
+                // Redirect staff to admin portal if they're on portal or homepage
+                if (isStaff && (isOnPortal || (!isOnAdmin && !isOnPartner && currentPath !== "/" && !currentPath.startsWith("/studios") && !currentPath.startsWith("/contracts")))) {
+                  window.location.href = "/admin";
+                }
+                // Redirect students away from admin/partner portals
+                else if (isStudent && (isOnAdmin || isOnPartner)) {
+                  window.location.href = "/portal";
+                }
+                // Redirect partners away from admin/portal
+                else if (isPartner && (isOnAdmin || isOnPortal)) {
+                  window.location.href = "/partner";
+                }
+              });
+          }, 500); // Small delay to ensure profile is loaded
+        }).catch((error) =>
           console.error("Error loading profile after auth change:", error),
         );
       } else {

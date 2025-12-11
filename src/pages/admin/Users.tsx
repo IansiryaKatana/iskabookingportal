@@ -45,31 +45,66 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { logActivity } from "@/utils/auditLog";
+import { useAuth } from "@/contexts/AuthContext";
+import type { StaffSubrole } from "@/contexts/AuthContext";
+
+// Helper function to format sub-role for display
+const formatSubrole = (subrole: string | null): string => {
+  if (!subrole) return "";
+  return subrole
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+};
 
 const Users = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { role: currentUserRole, profile: currentUserProfile } = useAuth();
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteFirstName, setInviteFirstName] = useState("");
   const [inviteLastName, setInviteLastName] = useState("");
-  const [inviteRole, setInviteRole] = useState<"staff" | "superadmin">("staff");
+  const [inviteRole, setInviteRole] = useState<"staff" | "superadmin" | "admin">("staff");
+  const [inviteStaffSubrole, setInviteStaffSubrole] = useState<StaffSubrole>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<{ id: string; first_name: string; last_name: string; email: string; role: string } | null>(null);
+  const [selectedUser, setSelectedUser] = useState<{ id: string; first_name: string; last_name: string; email: string; role: string; staff_subrole?: string | null } | null>(null);
   const [editFirstName, setEditFirstName] = useState("");
   const [editLastName, setEditLastName] = useState("");
-  const [editRole, setEditRole] = useState<"staff" | "superadmin">("staff");
+  const [editRole, setEditRole] = useState<"staff" | "superadmin" | "admin">("staff");
+  const [editStaffSubrole, setEditStaffSubrole] = useState<StaffSubrole>(null);
 
-  // Fetch all users with profiles
+  // Determine which roles the current user can see based on visibility rules
+  const getVisibleRoles = () => {
+    if (currentUserRole === "superadmin") {
+      // Superadmin can see everyone (including other superadmins)
+      return ["staff", "superadmin", "admin"];
+    } else if (currentUserRole === "admin") {
+      // Admin can see all staff roles (including sub-roles) and admin, but NOT superadmin
+      return ["staff", "admin"];
+    } else if (currentUserRole === "staff") {
+      // Staff sub-roles can only see other staff users
+      return ["staff"];
+    }
+    return [];
+  };
+
+  // Fetch all users with profiles based on visibility rules
   const { data: users, isLoading } = useQuery({
-    queryKey: ["admin-users"],
+    queryKey: ["admin-users", currentUserRole],
     queryFn: async () => {
-      // Fetch profiles - use .in() instead of .or() for more reliable filtering
+      const visibleRoles = getVisibleRoles();
+      
+      if (visibleRoles.length === 0) {
+        return [];
+      }
+
+      // Fetch profiles with staff_subrole included
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("id, role, first_name, last_name")
-        .in("role", ["staff", "superadmin"])
+        .select("id, role, first_name, last_name, staff_subrole")
+        .in("role", visibleRoles)
         .order("created_at", { ascending: false });
 
       if (profilesError) {
@@ -77,10 +112,16 @@ const Users = () => {
         throw profilesError;
       }
 
-      console.log("Fetched profiles:", profiles?.length || 0, profiles);
+      // Filter out superadmins if current user is admin
+      let filteredProfiles = profiles || [];
+      if (currentUserRole === "admin") {
+        filteredProfiles = filteredProfiles.filter((p) => p.role !== "superadmin");
+      }
+
+      console.log("Fetched profiles:", filteredProfiles?.length || 0, filteredProfiles);
 
       // Fetch user emails from auth via Edge Function
-      const profileIds = (profiles || []).map((p) => p.id);
+      const profileIds = filteredProfiles.map((p) => p.id);
       let emailMap: Record<string, string> = {};
 
       if (profileIds.length > 0) {
@@ -100,16 +141,42 @@ const Users = () => {
       }
 
       // Merge profiles with email data
-      return (profiles || []).map((profile) => ({
+      return filteredProfiles.map((profile) => ({
         ...profile,
         email: emailMap[profile.id] || "—",
       }));
     },
   });
 
+  // Check if current user can create a specific role
+  const canCreateRole = (role: "staff" | "superadmin" | "admin"): boolean => {
+    if (currentUserRole === "superadmin") {
+      return true; // Can create all roles
+    } else if (currentUserRole === "admin") {
+      return role !== "superadmin"; // Can create admin, staff, but not superadmin
+    }
+    return false; // Staff sub-roles cannot create users
+  };
+
   // Create user mutation (changed from invite)
   const inviteUser = useMutation({
-    mutationFn: async ({ email, firstName, lastName, role }: { email: string; firstName: string; lastName: string; role: "staff" | "superadmin" }) => {
+    mutationFn: async ({ 
+      email, 
+      firstName, 
+      lastName, 
+      role, 
+      staffSubrole 
+    }: { 
+      email: string; 
+      firstName: string; 
+      lastName: string; 
+      role: "staff" | "superadmin" | "admin";
+      staffSubrole?: StaffSubrole;
+    }) => {
+      if (!canCreateRole(role)) {
+        throw new Error("You do not have permission to create this role");
+      }
+
       // Call Edge Function to create user
       const { data, error } = await supabase.functions.invoke("manage-users", {
         body: {
@@ -118,6 +185,7 @@ const Users = () => {
           first_name: firstName.trim() || null,
           last_name: lastName.trim() || null,
           role,
+          staff_subrole: role === "staff" ? staffSubrole || null : null,
         },
       });
 
@@ -140,7 +208,7 @@ const Users = () => {
         action: "create",
         entityType: "user",
         entityId: data?.user?.id,
-        payload: { email, first_name: firstName, last_name: lastName, role },
+        payload: { email, first_name: firstName, last_name: lastName, role, staff_subrole: staffSubrole },
       });
 
       return data;
@@ -156,6 +224,7 @@ const Users = () => {
       setInviteFirstName("");
       setInviteLastName("");
       setInviteRole("staff");
+      setInviteStaffSubrole(null);
     },
     onError: (error: Error) => {
       toast({
@@ -168,10 +237,21 @@ const Users = () => {
 
   // Update role mutation
   const updateRole = useMutation({
-    mutationFn: async ({ userId, role }: { userId: string; role: "staff" | "superadmin" }) => {
+    mutationFn: async ({ userId, role, staffSubrole }: { userId: string; role: "staff" | "superadmin" | "admin"; staffSubrole?: StaffSubrole }) => {
+      if (!canCreateRole(role)) {
+        throw new Error("You do not have permission to assign this role");
+      }
+
+      const updateData: { role: string; staff_subrole?: StaffSubrole } = { role };
+      if (role === "staff" && staffSubrole !== undefined) {
+        updateData.staff_subrole = staffSubrole;
+      } else if (role !== "staff") {
+        updateData.staff_subrole = null; // Clear sub-role if not staff
+      }
+
       const { error } = await supabase
         .from("profiles")
-        .update({ role })
+        .update(updateData)
         .eq("id", userId);
 
       if (error) throw error;
@@ -181,7 +261,7 @@ const Users = () => {
         action: "update",
         entityType: "user",
         entityId: userId,
-        payload: { role },
+        payload: { role, staff_subrole: staffSubrole },
       });
     },
     onSuccess: () => {
@@ -191,10 +271,10 @@ const Users = () => {
         description: "User role has been updated successfully.",
       });
     },
-    onError: () => {
+    onError: (error: Error) => {
       toast({
         title: "Error",
-        description: "Failed to update user role",
+        description: error.message || "Failed to update user role",
         variant: "destructive",
       });
     },
@@ -202,8 +282,24 @@ const Users = () => {
 
   // Update user mutation - use edge function to bypass RLS
   const updateUser = useMutation({
-    mutationFn: async ({ userId, firstName, lastName, role }: { userId: string; firstName: string; lastName: string; role: "staff" | "superadmin" }) => {
-      console.log("Updating user via edge function:", { userId, firstName, lastName, role });
+    mutationFn: async ({ 
+      userId, 
+      firstName, 
+      lastName, 
+      role, 
+      staffSubrole 
+    }: { 
+      userId: string; 
+      firstName: string; 
+      lastName: string; 
+      role: "staff" | "superadmin" | "admin";
+      staffSubrole?: StaffSubrole;
+    }) => {
+      if (!canCreateRole(role)) {
+        throw new Error("You do not have permission to assign this role");
+      }
+
+      console.log("Updating user via edge function:", { userId, firstName, lastName, role, staffSubrole });
       
       // Call Edge Function to update user (bypasses RLS)
       const { data, error } = await supabase.functions.invoke("manage-users", {
@@ -213,6 +309,7 @@ const Users = () => {
           first_name: firstName.trim() || null,
           last_name: lastName.trim() || null,
           role,
+          staff_subrole: role === "staff" ? staffSubrole || null : null,
         },
       });
 
@@ -244,6 +341,7 @@ const Users = () => {
       setEditFirstName("");
       setEditLastName("");
       setEditRole("staff");
+      setEditStaffSubrole(null);
     },
     onError: (error: Error) => {
       console.error("Update user error:", error);
@@ -315,7 +413,8 @@ const Users = () => {
     setSelectedUser(user);
     setEditFirstName(user.first_name || "");
     setEditLastName(user.last_name || "");
-    setEditRole((user.role as "staff" | "superadmin") || "staff");
+    setEditRole((user.role as "staff" | "superadmin" | "admin") || "staff");
+    setEditStaffSubrole((user.staff_subrole as StaffSubrole) || null);
     setEditDialogOpen(true);
   };
 
@@ -438,6 +537,7 @@ const Users = () => {
                 const fullName = `${user.first_name || ""} ${user.last_name || ""}`.trim() || "—";
                 const email = user.email || "—";
                 const role = user.role || "staff";
+                const subrole = user.staff_subrole;
 
                 return (
                   <Card key={user.id} className="rounded-3xl border border-border/60 shadow-sm hover:shadow-md transition-shadow">
@@ -466,11 +566,16 @@ const Users = () => {
 
                         <div className="flex items-center gap-2 text-sm">
                           <Shield className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                          <div className="flex-1 min-w-0 flex items-center gap-2">
+                          <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
                             <span className="text-muted-foreground">Role:</span>
                             <Badge variant="outline" className="uppercase text-xs">
                               {role}
                             </Badge>
+                            {role === "staff" && subrole && (
+                              <Badge variant="secondary" className="text-xs">
+                                {formatSubrole(subrole)}
+                              </Badge>
+                            )}
                           </div>
                         </div>
 
@@ -478,18 +583,47 @@ const Users = () => {
                         <div className="pt-2 space-y-2">
                           <Select
                             value={role}
-                            onValueChange={(value) =>
-                              updateRole.mutate({ userId: user.id, role: value as "staff" | "superadmin" })
-                            }
+                            onValueChange={(value) => {
+                              const newRole = value as "staff" | "superadmin" | "admin";
+                              updateRole.mutate({ 
+                                userId: user.id, 
+                                role: newRole,
+                                staffSubrole: newRole === "staff" ? (subrole as StaffSubrole) || null : null
+                              });
+                            }}
                           >
                             <SelectTrigger className="w-full rounded-full">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="staff">Staff</SelectItem>
-                              <SelectItem value="superadmin">Superadmin</SelectItem>
+                              {canCreateRole("staff") && <SelectItem value="staff">Staff</SelectItem>}
+                              {canCreateRole("admin") && <SelectItem value="admin">Admin</SelectItem>}
+                              {canCreateRole("superadmin") && <SelectItem value="superadmin">Superadmin</SelectItem>}
                             </SelectContent>
                           </Select>
+                          {role === "staff" && (
+                            <Select
+                              value={subrole || "none"}
+                              onValueChange={(value) =>
+                                updateRole.mutate({ 
+                                  userId: user.id, 
+                                  role: "staff",
+                                  staffSubrole: value === "none" ? null : (value as StaffSubrole)
+                                })
+                              }
+                            >
+                              <SelectTrigger className="w-full rounded-full">
+                                <SelectValue placeholder="Select sub-role" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">No sub-role</SelectItem>
+                                <SelectItem value="operations_manager">Operations Manager</SelectItem>
+                                <SelectItem value="reservationist">Reservationist</SelectItem>
+                                <SelectItem value="accountant">Accountant</SelectItem>
+                                <SelectItem value="front_desk">Front Desk</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          )}
                           <div className="flex gap-2">
                             <Button
                               variant="outline"
@@ -531,59 +665,98 @@ const Users = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {users.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell className="font-medium">
-                          {user.first_name} {user.last_name}
-                        </TableCell>
-                        <TableCell>{user.email}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="uppercase">
-                            {user.role}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <Select
-                              value={user.role}
-                              onValueChange={(value) =>
-                                updateRole.mutate({ userId: user.id, role: value as "staff" | "superadmin" })
-                              }
-                            >
-                              <SelectTrigger className="w-40 rounded-full">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="staff">Staff</SelectItem>
-                                <SelectItem value="superadmin">Superadmin</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
-                                  <MoreVertical className="h-4 w-4" />
-                                  <span className="sr-only">Open menu</span>
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="rounded-2xl">
-                                <DropdownMenuItem onClick={() => handleEdit(user)} className="cursor-pointer">
-                                  <Pencil className="mr-2 h-4 w-4" />
-                                  Edit User
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem 
-                                  onClick={() => handleDelete(user)} 
-                                  className="cursor-pointer text-destructive focus:text-destructive"
-                                >
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  Delete User
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {users.map((user) => {
+                      const subrole = user.staff_subrole;
+                      return (
+                        <TableRow key={user.id}>
+                          <TableCell className="font-medium">
+                            {user.first_name} {user.last_name}
+                          </TableCell>
+                          <TableCell>{user.email}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Badge variant="outline" className="uppercase">
+                                {user.role}
+                              </Badge>
+                              {user.role === "staff" && subrole && (
+                                <Badge variant="secondary" className="text-xs">
+                                  {formatSubrole(subrole)}
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Select
+                                value={user.role}
+                                onValueChange={(value) => {
+                                  const newRole = value as "staff" | "superadmin" | "admin";
+                                  updateRole.mutate({ 
+                                    userId: user.id, 
+                                    role: newRole,
+                                    staffSubrole: newRole === "staff" ? (subrole as StaffSubrole) || null : null
+                                  });
+                                }}
+                              >
+                                <SelectTrigger className="w-40 rounded-full">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {canCreateRole("staff") && <SelectItem value="staff">Staff</SelectItem>}
+                                  {canCreateRole("admin") && <SelectItem value="admin">Admin</SelectItem>}
+                                  {canCreateRole("superadmin") && <SelectItem value="superadmin">Superadmin</SelectItem>}
+                                </SelectContent>
+                              </Select>
+                            {user.role === "staff" && (
+                              <Select
+                                value={subrole || "none"}
+                                onValueChange={(value) =>
+                                  updateRole.mutate({ 
+                                    userId: user.id, 
+                                    role: "staff",
+                                    staffSubrole: value === "none" ? null : (value as StaffSubrole)
+                                  })
+                                }
+                              >
+                                <SelectTrigger className="w-40 rounded-full">
+                                  <SelectValue placeholder="Sub-role" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">No sub-role</SelectItem>
+                                  <SelectItem value="operations_manager">Operations Manager</SelectItem>
+                                  <SelectItem value="reservationist">Reservationist</SelectItem>
+                                  <SelectItem value="accountant">Accountant</SelectItem>
+                                  <SelectItem value="front_desk">Front Desk</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
+                                    <MoreVertical className="h-4 w-4" />
+                                    <span className="sr-only">Open menu</span>
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="rounded-2xl">
+                                  <DropdownMenuItem onClick={() => handleEdit(user)} className="cursor-pointer">
+                                    <Pencil className="mr-2 h-4 w-4" />
+                                    Edit User
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem 
+                                    onClick={() => handleDelete(user)} 
+                                    className="cursor-pointer text-destructive focus:text-destructive"
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Delete User
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -660,19 +833,45 @@ const Users = () => {
             </div>
             <div>
               <Label htmlFor="role">Role *</Label>
-              <Select value={inviteRole} onValueChange={(value) => setInviteRole(value as "staff" | "superadmin")}>
+              <Select value={inviteRole} onValueChange={(value) => {
+                setInviteRole(value as "staff" | "superadmin" | "admin");
+                if (value !== "staff") {
+                  setInviteStaffSubrole(null);
+                }
+              }}>
                 <SelectTrigger id="role" className="mt-2">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="staff">Staff</SelectItem>
-                  <SelectItem value="superadmin">Superadmin</SelectItem>
+                  {canCreateRole("staff") && <SelectItem value="staff">Staff</SelectItem>}
+                  {canCreateRole("admin") && <SelectItem value="admin">Admin</SelectItem>}
+                  {canCreateRole("superadmin") && <SelectItem value="superadmin">Superadmin</SelectItem>}
                 </SelectContent>
               </Select>
             </div>
+            {inviteRole === "staff" && (
+              <div>
+                <Label htmlFor="staff-subrole">Staff Sub-role (Optional)</Label>
+                <Select value={inviteStaffSubrole || "none"} onValueChange={(value) => setInviteStaffSubrole(value === "none" ? null : (value as StaffSubrole))}>
+                  <SelectTrigger id="staff-subrole" className="mt-2">
+                    <SelectValue placeholder="Select sub-role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No sub-role</SelectItem>
+                    <SelectItem value="operations_manager">Operations Manager</SelectItem>
+                    <SelectItem value="reservationist">Reservationist</SelectItem>
+                    <SelectItem value="accountant">Accountant</SelectItem>
+                    <SelectItem value="front_desk">Front Desk</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setInviteDialogOpen(false)} className="rounded-full uppercase tracking-wide">
+            <Button variant="outline" onClick={() => {
+              setInviteDialogOpen(false);
+              setInviteStaffSubrole(null);
+            }} className="rounded-full uppercase tracking-wide">
               Cancel
             </Button>
             <Button
@@ -680,7 +879,8 @@ const Users = () => {
                 email: inviteEmail, 
                 firstName: inviteFirstName,
                 lastName: inviteLastName,
-                role: inviteRole 
+                role: inviteRole,
+                staffSubrole: inviteRole === "staff" ? inviteStaffSubrole : undefined
               })}
               disabled={!inviteEmail || !inviteFirstName.trim() || !inviteLastName.trim() || inviteUser.isPending}
               className="rounded-full uppercase tracking-wide"
@@ -725,19 +925,45 @@ const Users = () => {
             </div>
             <div>
               <Label htmlFor="edit-role">Role *</Label>
-              <Select value={editRole} onValueChange={(value) => setEditRole(value as "staff" | "superadmin")}>
+              <Select value={editRole} onValueChange={(value) => {
+                setEditRole(value as "staff" | "superadmin" | "admin");
+                if (value !== "staff") {
+                  setEditStaffSubrole(null);
+                }
+              }}>
                 <SelectTrigger id="edit-role" className="mt-2">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="staff">Staff</SelectItem>
-                  <SelectItem value="superadmin">Superadmin</SelectItem>
+                  {canCreateRole("staff") && <SelectItem value="staff">Staff</SelectItem>}
+                  {canCreateRole("admin") && <SelectItem value="admin">Admin</SelectItem>}
+                  {canCreateRole("superadmin") && <SelectItem value="superadmin">Superadmin</SelectItem>}
                 </SelectContent>
               </Select>
             </div>
+            {editRole === "staff" && (
+              <div>
+                <Label htmlFor="edit-staff-subrole">Staff Sub-role (Optional)</Label>
+                <Select value={editStaffSubrole || "none"} onValueChange={(value) => setEditStaffSubrole(value === "none" ? null : (value as StaffSubrole))}>
+                  <SelectTrigger id="edit-staff-subrole" className="mt-2">
+                    <SelectValue placeholder="Select sub-role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No sub-role</SelectItem>
+                    <SelectItem value="operations_manager">Operations Manager</SelectItem>
+                    <SelectItem value="reservationist">Reservationist</SelectItem>
+                    <SelectItem value="accountant">Accountant</SelectItem>
+                    <SelectItem value="front_desk">Front Desk</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)} className="rounded-full uppercase tracking-wide">
+            <Button variant="outline" onClick={() => {
+              setEditDialogOpen(false);
+              setEditStaffSubrole(null);
+            }} className="rounded-full uppercase tracking-wide">
               Cancel
             </Button>
             <Button
@@ -748,6 +974,7 @@ const Users = () => {
                     firstName: editFirstName,
                     lastName: editLastName,
                     role: editRole,
+                    staffSubrole: editRole === "staff" ? editStaffSubrole : undefined,
                   });
                 }
               }}

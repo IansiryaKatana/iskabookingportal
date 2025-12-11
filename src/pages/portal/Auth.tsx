@@ -116,8 +116,24 @@ const PortalAuth = () => {
   });
 
   useEffect(() => {
-    if (user && profile?.role === "student") {
-      navigate(redirectPath, { replace: true });
+    if (user && profile) {
+      // Redirect staff/admin to admin portal
+      const isStaff = profile.role === "staff" || profile.role === "superadmin" || profile.role === "admin" || 
+                     profile.role === "operations_manager" || profile.role === "reservationist" || 
+                     profile.role === "accountant" || profile.role === "front_desk";
+      if (isStaff) {
+        navigate("/admin", { replace: true });
+        return;
+      }
+      // Redirect partners to partner portal
+      if (profile.role === "partner") {
+        navigate("/partner", { replace: true });
+        return;
+      }
+      // Only students can access portal
+      if (profile.role === "student") {
+        navigate(redirectPath, { replace: true });
+      }
     }
   }, [user, profile, navigate, redirectPath]);
 

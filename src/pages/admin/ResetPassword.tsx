@@ -8,11 +8,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Loader2, Lock, Eye, EyeOff, CheckCircle2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { useBrandingSettings } from "@/hooks/useBranding";
+import { useAuth } from "@/contexts/AuthContext";
 
-const PortalResetPassword = () => {
+const AdminResetPassword = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { data: brandingSettings } = useBrandingSettings();
+  const { profile } = useAuth();
   const faviconPath = brandingSettings?.favicon_path;
   const faviconUrl = faviconPath || "/favicon.png";
   const companyName = brandingSettings?.company_name || "StudentStaySolutions";
@@ -27,7 +29,6 @@ const PortalResetPassword = () => {
   const [isValidToken, setIsValidToken] = useState(false);
   const [success, setSuccess] = useState(false);
   const [faviconLoaded, setFaviconLoaded] = useState(false);
-  const [isConfirmation, setIsConfirmation] = useState(false);
 
   // Preload favicon
   useEffect(() => {
@@ -41,27 +42,19 @@ const PortalResetPassword = () => {
   }, [faviconUrl]);
 
   useEffect(() => {
-    // Check if we have a valid reset token or confirmation token in the URL
+    // Check if we have a valid reset token in the URL
     const checkToken = async () => {
-      // Check for confirmation token (type=signup)
       const hash = window.location.hash;
-      const hasConfirmationToken = hash && hash.includes("type=signup");
       const hasRecoveryToken = hash && hash.includes("type=recovery");
       
       // Also check query params (some email clients strip hash)
       const queryType = searchParams.get("type");
-      const hasQueryConfirmation = queryType === "signup";
       const hasQueryRecovery = queryType === "recovery";
       
-      if (!hasConfirmationToken && !hasRecoveryToken && !hasQueryConfirmation && !hasQueryRecovery) {
+      if (!hasRecoveryToken && !hasQueryRecovery) {
         setError("Invalid or missing token. Please request a new link.");
         setIsValidating(false);
         return;
-      }
-
-      // Set flag if this is a confirmation (signup) flow
-      if (hasConfirmationToken || hasQueryConfirmation) {
-        setIsConfirmation(true);
       }
 
       // Wait a moment for Supabase to process the hash automatically
@@ -78,7 +71,7 @@ const PortalResetPassword = () => {
       }
 
       // If no session, try to manually extract and set it
-      if (hasConfirmationToken || hasRecoveryToken) {
+      if (hasRecoveryToken) {
         try {
           const hashParams = new URLSearchParams(hash.substring(1));
           const accessToken = hashParams.get("access_token");
@@ -102,7 +95,7 @@ const PortalResetPassword = () => {
       }
 
       // Try query params
-      if (hasQueryConfirmation || hasQueryRecovery) {
+      if (hasQueryRecovery) {
         try {
           const accessToken = searchParams.get("access_token");
           const refreshToken = searchParams.get("refresh_token");
@@ -169,29 +162,15 @@ const PortalResetPassword = () => {
         return;
       }
 
-      // Success!
+      // Success! Redirect to admin portal
       setSuccess(true);
-      toast.success("Password set successfully!");
+      toast.success("Password updated successfully!");
       
-      // Check user role to determine redirect destination
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", currentUser?.id)
-        .maybeSingle();
-      
-      const userRole = profileData?.role;
-      const isStaff = userRole === "staff" || userRole === "superadmin" || userRole === "admin" || 
-                     userRole === "operations_manager" || userRole === "reservationist" || 
-                     userRole === "accountant" || userRole === "front_desk";
-      
-      // Redirect to appropriate dashboard based on role
-      const redirectPath = isStaff ? "/admin" : "/portal";
-      
+      // Redirect to admin dashboard after 2 seconds
       setTimeout(() => {
-        navigate(redirectPath, { 
+        navigate("/admin", { 
           replace: true,
-          state: { message: isConfirmation ? `Account confirmed! Welcome to ${companyName}.` : "Password updated successfully." }
+          state: { message: "Password updated successfully." }
         });
       }, 2000);
 
@@ -203,7 +182,7 @@ const PortalResetPassword = () => {
 
   if (isValidating) {
     return (
-      <div className="min-h-screen bg-primary flex items-center justify-center px-4 py-12">
+      <div className="min-h-screen flex items-center justify-center px-4 py-12" style={{ backgroundColor: '#fbb37c' }}>
         <Card className="w-full max-w-lg rounded-3xl shadow-xl border border-border/50 bg-background">
           <CardContent className="pt-6">
             <div className="flex items-center justify-center py-8">
@@ -218,20 +197,17 @@ const PortalResetPassword = () => {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-primary flex items-center justify-center px-4 py-12">
+      <div className="min-h-screen flex items-center justify-center px-4 py-12" style={{ backgroundColor: '#fbb37c' }}>
         <Card className="w-full max-w-lg rounded-3xl shadow-xl border border-border/50 bg-background">
           <CardHeader className="space-y-3 text-center">
             <div className="mx-auto h-12 w-12 flex items-center justify-center rounded-full bg-green-100">
               <CheckCircle2 className="h-8 w-8 text-green-600" />
             </div>
             <CardTitle className="text-2xl font-display font-black uppercase tracking-wide">
-              {isConfirmation ? "Account Confirmed!" : "Password Updated!"}
+              Password Updated!
             </CardTitle>
             <CardDescription>
-              {isConfirmation 
-                ? "Your account has been confirmed and password set. Redirecting to dashboard..."
-                : "Your password has been successfully updated. Redirecting to dashboard..."
-              }
+              Your password has been successfully updated. Redirecting to admin dashboard...
             </CardDescription>
           </CardHeader>
         </Card>
@@ -241,7 +217,7 @@ const PortalResetPassword = () => {
 
   if (!isValidToken) {
     return (
-      <div className="min-h-screen bg-primary flex items-center justify-center px-4 py-12">
+      <div className="min-h-screen flex items-center justify-center px-4 py-12" style={{ backgroundColor: '#fbb37c' }}>
         <Card className="w-full max-w-lg rounded-3xl shadow-xl border border-border/50 bg-background">
           <CardHeader className="space-y-3 text-center">
             <CardTitle className="text-2xl font-display font-black uppercase tracking-wide">
@@ -253,7 +229,7 @@ const PortalResetPassword = () => {
           </CardHeader>
           <CardContent>
             <Button
-              onClick={() => navigate("/portal/login")}
+              onClick={() => navigate("/admin/login")}
               className="w-full rounded-full uppercase tracking-wide"
             >
               Go to Login
@@ -265,7 +241,7 @@ const PortalResetPassword = () => {
   }
 
   return (
-    <div className="min-h-screen bg-primary flex items-center justify-center px-4 py-12">
+    <div className="min-h-screen flex items-center justify-center px-4 py-12" style={{ backgroundColor: '#fbb37c' }}>
       <div className="w-full max-w-6xl flex rounded-2xl overflow-hidden shadow-2xl">
         {/* Left Section - Form (35%) */}
         <div className="w-full lg:w-[35%] bg-white p-6 md:p-8 lg:p-12 flex flex-col">
@@ -297,13 +273,10 @@ const PortalResetPassword = () => {
           {/* Form Title */}
           <div className="mb-6 md:mb-8">
             <h2 className="text-2xl md:text-3xl font-display font-black uppercase tracking-wide text-foreground mb-2">
-              {isConfirmation ? "Set Your Password" : "Reset Password"}
+              Reset Password
             </h2>
             <p className="text-sm text-muted-foreground">
-              {isConfirmation 
-                ? "Welcome! Please set a password for your account to complete registration."
-                : "Enter your new password below. Make sure it's at least 6 characters long."
-              }
+              Enter your new password below. Make sure it's at least 6 characters long.
             </p>
           </div>
 
@@ -313,7 +286,7 @@ const PortalResetPassword = () => {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="password" className="text-sm font-medium">
-                    {isConfirmation ? "Create Password" : "New Password"}
+                    New Password
                   </Label>
                   <div className="relative">
                     <Input
@@ -386,12 +359,12 @@ const PortalResetPassword = () => {
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    {isConfirmation ? "Setting Password..." : "Updating Password..."}
+                    Updating Password...
                   </>
                 ) : (
                   <>
                     <Lock className="h-4 w-4" />
-                    {isConfirmation ? "Set Password" : "Update Password"}
+                    Update Password
                   </>
                 )}
               </Button>
@@ -401,7 +374,7 @@ const PortalResetPassword = () => {
             <div className="space-y-3 text-sm text-muted-foreground mt-6">
               <div>
                 <button
-                  onClick={() => navigate("/portal/login")}
+                  onClick={() => navigate("/admin/login")}
                   className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <ArrowLeft className="h-4 w-4" />
@@ -455,5 +428,5 @@ const PortalResetPassword = () => {
   );
 };
 
-export default PortalResetPassword;
+export default AdminResetPassword;
 

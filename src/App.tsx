@@ -13,6 +13,7 @@ import ContractDetail from "./pages/ContractDetail";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminLogin from "./pages/admin/Login";
 import AdminRequestPasswordReset from "./pages/admin/RequestPasswordReset";
+import AdminResetPassword from "./pages/admin/ResetPassword";
 import AdminContracts from "./pages/admin/Contracts";
 import AdminSettings from "./pages/admin/Settings";
 import AdminBranding from "./pages/admin/Branding";
@@ -34,6 +35,7 @@ import AdminTargetedMessages from "./pages/admin/TargetedMessages";
 import AdminEmailTemplates from "./pages/admin/EmailTemplates";
 import AdminApplicationDetail from "./pages/admin/ApplicationDetail";
 import AdminUsers from "./pages/admin/Users";
+import AdminPermissions from "./pages/admin/Permissions";
 import AdminRefunds from "./pages/admin/Refunds";
 import AdminMaintenance from "./pages/admin/Maintenance";
 import AdminExpenses from "./pages/admin/Expenses";
@@ -171,6 +173,7 @@ const App = () => (
 
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin/request-password-reset" element={<AdminRequestPasswordReset />} />
+            <Route path="/admin/reset-password" element={<AdminResetPassword />} />
             <Route
               path="/admin"
               element={
@@ -318,8 +321,16 @@ const App = () => (
             <Route
               path="/admin/users"
               element={
-                <ProtectedRoute allowedRoles={["superadmin"]}>
+                <ProtectedRoute allowedRoles={["staff", "superadmin", "admin"]}>
                   <AdminUsers />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/permissions"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin", "admin"]}>
+                  <AdminPermissions />
                 </ProtectedRoute>
               }
             />
