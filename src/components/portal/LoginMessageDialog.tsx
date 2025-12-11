@@ -4,20 +4,39 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Bell, ExternalLink } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+} from "@/components/ui/sheet";
+import CardStack from "./CardStack";
+import BottomSheetCardStack from "./BottomSheetCardStack";
 import { useNavigate } from "react-router-dom";
+
+interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  type: "info" | "success" | "warning" | "error" | null;
+  created_at: string;
+}
 
 const LoginMessageDialog = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
+  const [messages, setMessages] = useState<Notification[]>([]);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect mobile viewport
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   useEffect(() => {
     if (!user?.id) {
@@ -27,33 +46,45 @@ const LoginMessageDialog = () => {
 
     const checkUnreadMessages = async () => {
       try {
-        // Check for unread notifications from bulk or targeted messages
-        // that haven't had the login dialog shown yet
+        // Fetch all unread notifications that haven't had the login dialog shown yet
+        // We'll filter for bulk/targeted messages client-side by checking metadata
+        // Use select("*") to get all columns and handle schema differences
         const { data: notifications, error } = await supabase
           .from("notifications")
-          .select("id, title, message, notification_type, source_type")
+          .select("*")
           .eq("user_id", user.id)
           .eq("is_read", false)
           .eq("login_dialog_shown", false)
-          .in("source_type", ["bulk_message", "targeted_message"])
           .order("created_at", { ascending: false })
-          .limit(1);
+          .limit(20); // Fetch more to filter, then limit to 10
 
         if (error) {
           console.error("Error checking unread messages:", error);
+          // Don't show dialog if there's an error
           return;
         }
 
         if (notifications && notifications.length > 0) {
-          setHasUnreadMessages(true);
-          setDialogOpen(true);
+          // Filter for bulk/targeted messages (those with bulk_message_id in metadata)
+          const bulkMessages = notifications.filter((n) => {
+            const metadata = n.metadata as any;
+            return metadata && metadata.bulk_message_id;
+          }).slice(0, 10); // Limit to 10 messages
 
-          // Mark these notifications as having shown the login dialog
-          const notificationIds = notifications.map((n) => n.id);
-          await supabase
-            .from("notifications")
-            .update({ login_dialog_shown: true })
-            .in("id", notificationIds);
+          if (bulkMessages.length > 0) {
+            // Map notifications to our format
+            // Handle both 'type' and 'notification_type' fields
+            const formattedMessages: Notification[] = bulkMessages.map((n: any) => ({
+              id: n.id,
+              title: n.title || "",
+              message: n.message || "",
+              type: (n.type || n.notification_type || "info") as "info" | "success" | "warning" | "error" | null,
+              created_at: n.created_at,
+            }));
+
+            setMessages(formattedMessages);
+            setDialogOpen(true);
+          }
         }
       } catch (error) {
         console.error("Error in checkUnreadMessages:", error);
@@ -68,44 +99,67 @@ const LoginMessageDialog = () => {
     return () => clearTimeout(timer);
   }, [user?.id]);
 
+  const handleAllDismissed = () => {
+    setDialogOpen(false);
+    setMessages([]);
+  };
+
+  const handleSkip = () => {
+    setDialogOpen(false);
+    setMessages([]);
+    navigate("/portal/notifications");
+  };
+
+  // Handle ESC key to close
+  useEffect(() => {
+    if (!dialogOpen) return;
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setDialogOpen(false);
+        setMessages([]);
+        navigate("/portal/notifications");
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [dialogOpen, navigate]);
+
+  // Early return after all hooks
+  if (messages.length === 0) {
+    return null;
+  }
+
+  // Mobile: Use Sheet (bottom sheet)
+  if (isMobile) {
+    return (
+      <Sheet open={dialogOpen} onOpenChange={setDialogOpen}>
+        <SheetContent 
+          side="bottom" 
+          className="rounded-t-3xl p-0 mb-0 max-h-[90vh] overflow-y-auto"
+        >
+          <div className="p-4 pb-6">
+            <BottomSheetCardStack
+              messages={messages}
+              onAllDismissed={handleAllDismissed}
+              onSkip={handleSkip}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
+    );
+  }
+
+  // Desktop: Use Dialog (centered modal)
   return (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-      <DialogContent className="sm:max-w-[500px] rounded-3xl">
-        <DialogHeader>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-full">
-              <Bell className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-            </div>
-            <DialogTitle>New Messages</DialogTitle>
-          </div>
-          <DialogDescription>
-            You have unread messages in your notifications. Check them out to stay updated!
-          </DialogDescription>
-        </DialogHeader>
-        <div className="py-4">
-          <p className="text-sm text-muted-foreground">
-            We've sent you important updates. Please check your notifications to view them.
-          </p>
-        </div>
-        <DialogFooter className="gap-2">
-          <Button
-            variant="outline"
-            onClick={() => setDialogOpen(false)}
-            className="rounded-full"
-          >
-            Dismiss
-          </Button>
-          <Button
-            onClick={() => {
-              setDialogOpen(false);
-              navigate("/portal/notifications");
-            }}
-            className="rounded-full uppercase tracking-wide gap-2"
-          >
-            <ExternalLink className="h-4 w-4" />
-            View Notifications
-          </Button>
-        </DialogFooter>
+      <DialogContent className="sm:max-w-[600px] rounded-3xl p-8">
+        <CardStack
+          messages={messages}
+          onAllDismissed={handleAllDismissed}
+          onSkip={handleSkip}
+        />
       </DialogContent>
     </Dialog>
   );

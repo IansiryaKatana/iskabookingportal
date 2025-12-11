@@ -67,13 +67,10 @@ const Dashboard = () => {
 
         if (error) throw error;
 
-        console.log("Dashboard: Found contracts for rebooking check:", contracts?.length || 0, contracts);
-
         // Check rebooking eligibility for each contract
         const opportunities = [];
         for (const contract of contracts || []) {
           try {
-            console.log("Dashboard: Checking rebooking for contract:", contract.id, contract.name);
             const { data: rebookingCheck, error: checkError } = await supabase
               .rpc("can_student_rebook", {
                 p_user_id: user.id,
@@ -85,34 +82,24 @@ const Dashboard = () => {
               continue;
             }
 
-            console.log("Dashboard: Rebooking check result for", contract.name, ":", rebookingCheck);
-
             // Only show banner if can_rebook is true AND there's a previous application
             // (excludes first-time applications where previous_application_id is null)
             if (rebookingCheck?.[0]?.can_rebook && rebookingCheck[0].previous_application_id) {
-              console.log("Dashboard: Adding rebooking opportunity:", contract.name);
               opportunities.push({
                 contract,
                 canRebook: true,
                 message: rebookingCheck[0].message,
                 previousAcademicYear: rebookingCheck[0].previous_academic_year || undefined,
               });
-            } else {
-              console.log("Dashboard: Contract not eligible - can_rebook:", rebookingCheck?.[0]?.can_rebook, "previous_application_id:", rebookingCheck?.[0]?.previous_application_id);
             }
           } catch (err) {
             console.error("Error checking rebooking for contract", contract.id, err);
           }
         }
 
-        console.log("Dashboard: Total rebooking opportunities found:", opportunities.length);
         setRebookingContracts(opportunities);
       } catch (error) {
         console.error("Error fetching rebooking opportunities:", error);
-        // Log more details for debugging
-        if (error instanceof Error) {
-          console.error("Error details:", error.message, error.stack);
-        }
       } finally {
         setLoadingRebooking(false);
       }

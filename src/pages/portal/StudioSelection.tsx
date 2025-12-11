@@ -214,7 +214,13 @@ const StudioSelection = () => {
       title="Select Studio"
       subtitle="Reserve your studio to continue your booking journey."
       backLabel="Back"
-      onBack={() => navigate(`/contracts/${application.contract_id}`)}
+      onBack={() => {
+        if (application?.contract?.slug) {
+          navigate(`/contracts/${encodeURIComponent(application.contract.slug)}`);
+        } else {
+          navigate("/portal/dashboard");
+        }
+      }}
     >
       <section className="space-y-6">
         {selectedStudio && (

@@ -38,6 +38,7 @@ import {
   generateApplicationsReferenceFile,
   type CSVTemplateOptions,
 } from "@/utils/csvTemplateGenerator";
+import ImportResultsDialog from "@/components/admin/ImportResultsDialog";
 
 const IMPORT_TYPES = [
   {
@@ -120,6 +121,7 @@ const DataImport = () => {
   const [csvContent, setCsvContent] = useState<string>("");
   const [status, setStatus] = useState<ImportStatus>("idle");
   const [importResults, setImportResults] = useState<any>(null);
+  const [showResultsDialog, setShowResultsDialog] = useState(false);
   const [loadingTemplate, setLoadingTemplate] = useState(false);
   const [importing, setImporting] = useState(false);
 
@@ -265,44 +267,15 @@ const DataImport = () => {
       // Check if result itself indicates an error
       if (!result || (result.success === false)) {
         console.error("Import failed:", result);
-        const errorMessage = result?.error || result?.message || "Unknown error occurred";
-        const userErrors = result?.user_creation_errors || [];
-        const missingUsers = result?.missing_users || [];
-        
-        let fullErrorMessage = errorMessage;
-        if (userErrors.length > 0) {
-          fullErrorMessage += `\n\nUser creation errors:\n${userErrors.map((e: any) => `- ${e.email}: ${e.error}`).join("\n")}`;
-        }
-        if (missingUsers.length > 0) {
-          fullErrorMessage += `\n\nMissing users: ${missingUsers.join(", ")}`;
-        }
-        
         setImportResults(result);
         setStatus("error");
-        toast({
-          variant: "destructive",
-          title: "Import failed",
-          description: fullErrorMessage,
-          duration: 10000, // Show longer for detailed errors
-        });
+        setShowResultsDialog(true); // Show dialog with error details
         return;
       }
 
       setImportResults(result);
       setStatus(result.success ? "completed" : "error");
-
-      if (result.success) {
-        toast({
-          title: "Import completed",
-          description: `${result.succeeded} succeeded, ${result.failed} failed`,
-        });
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Import failed",
-          description: result.error || "An error occurred during import",
-        });
-      }
+      setShowResultsDialog(true); // Always show dialog with results
     } catch (error: any) {
       console.error("Import error:", error);
       setStatus("error");
@@ -317,12 +290,15 @@ const DataImport = () => {
         errorMessage = error.error;
       }
       
-      toast({
-        variant: "destructive",
-        title: "Import failed",
-        description: errorMessage,
-        duration: 10000, // Show longer for detailed errors
+      // Set error result and show dialog
+      setImportResults({
+        success: false,
+        total_rows: 0,
+        succeeded: 0,
+        failed: 0,
+        errors: [{ reason: errorMessage }],
       });
+      setShowResultsDialog(true);
     } finally {
       setImporting(false);
     }
@@ -759,6 +735,14 @@ const DataImport = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Import Results Dialog */}
+      <ImportResultsDialog
+        open={showResultsDialog}
+        onOpenChange={setShowResultsDialog}
+        results={importResults}
+        importType={importType}
+      />
     </AdminLayout>
   );
 };

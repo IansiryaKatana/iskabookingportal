@@ -100,7 +100,7 @@ const App = () => (
             <Route path="/studios/:year" element={<StudiosCatalog />} />
             <Route path="/studios/:year/:slug" element={<StudioGradePage />} />
             <Route path="/studios/:slug" element={<StudioGradePage />} />
-            <Route path="/contracts/:slug" element={<ContractDetail />} />
+            <Route path="/contracts/*" element={<ContractDetail />} />
             <Route path="/reference/studio-grade-static" element={<StudioGradeStatic />} />
             <Route path="/portal/login" element={<PortalAuth />} />
             <Route path="/portal/request-password-reset" element={<PortalRequestPasswordReset />} />

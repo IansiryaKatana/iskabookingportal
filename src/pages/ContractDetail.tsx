@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Loader2, CalendarDays, CreditCard, FileText, MapPin, RotateCcw } from "lucide-react";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
@@ -20,7 +20,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const ContractDetail = () => {
-  const { slug } = useParams<{ slug: string }>();
+  const location = useLocation();
+  // Extract slug from pathname using wildcard route pattern
+  // Pathname will be like "/contracts/gold-45-weeks-26/27" or "/contracts/gold-45-weeks-26%2F27"
+  const pathMatch = location.pathname.match(/^\/contracts\/(.+)$/);
+  const rawSlug = pathMatch ? pathMatch[1] : undefined;
+  // Decode the slug to handle URL-encoded characters (like forward slashes)
+  const slug = rawSlug ? decodeURIComponent(rawSlug) : undefined;
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const { toast } = useToast();
@@ -218,7 +224,7 @@ const ContractDetail = () => {
 
     if (!user) {
       navigate("/portal/login", {
-        state: { redirect: `/contracts/${contract.slug}` },
+        state: { redirect: `/contracts/${encodeURIComponent(contract.slug)}` },
       });
       return;
     }
@@ -291,7 +297,7 @@ const ContractDetail = () => {
 
     if (!user) {
       navigate("/portal/login", {
-        state: { redirect: `/contracts/${contract.slug}` },
+        state: { redirect: `/contracts/${encodeURIComponent(contract.slug)}` },
       });
       return;
     }

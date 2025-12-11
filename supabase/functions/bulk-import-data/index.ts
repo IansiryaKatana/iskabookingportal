@@ -161,10 +161,23 @@ async function ensureUserExists(
   createUsers: boolean,
   sendWelcomeEmail: boolean
 ): Promise<{ userId: string; created: boolean; isPlaceholder?: boolean } | null> {
-  const normalizedEmail = email.toLowerCase().trim();
+  // Clean email: remove quotes, trim, lowercase
+  let normalizedEmail = email
+    ?.toString()
+    .replace(/^["']+|["']+$/g, "") // Remove surrounding quotes (single or double)
+    .replace(/["']/g, "") // Remove any remaining quotes
+    .trim()
+    .toLowerCase();
 
-  if (!normalizedEmail || !normalizedEmail.includes("@")) {
-    throw new Error(`Invalid email: ${email}`);
+  // Validate email format - more permissive regex
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  if (!normalizedEmail || !emailRegex.test(normalizedEmail)) {
+    throw new Error(`Invalid email format: ${email} (normalized: ${normalizedEmail})`);
+  }
+  
+  // Additional validation: ensure no whitespace or special characters that could cause issues
+  if (normalizedEmail.includes(" ") || normalizedEmail.includes("\n") || normalizedEmail.includes("\r")) {
+    throw new Error(`Invalid email: contains whitespace: ${email}`);
   }
 
   // Check if user exists - use listUsers and filter by email
@@ -429,6 +442,10 @@ serve(async (req) => {
       const rows = parseCSV(csv_data);
       let jsonbData = rowsToJsonb(rows);
 
+      // Track pre-import failures (user creation errors, etc.)
+      let preImportFailedRows: Array<{ row: any; reason: string; email?: string }> = [];
+      let userCreationErrors: Array<{ email: string; error: string }> = [];
+
       // Special handling for applications: create users first
       if (import_type === "applications") {
         const createUsers = options?.create_users !== false; // Default to true
@@ -439,10 +456,17 @@ serve(async (req) => {
         // Create users for applications that don't have them
         const usersCreated: Record<string, string> = {};
         const usersCreatedCount = { count: 0 };
-        const userCreationErrors: Array<{ email: string; error: string }> = [];
+        userCreationErrors = [];
 
         for (const row of jsonbData) {
-          const email = row.email?.toLowerCase().trim();
+          // Clean email: remove quotes, trim, lowercase
+          let email = row.email
+            ?.toString()
+            .replace(/^["']|["']$/g, "") // Remove surrounding quotes
+            .replace(/["']/g, "") // Remove any remaining quotes
+            .trim()
+            .toLowerCase();
+          
           if (!email) {
             userCreationErrors.push({
               email: row.email || "unknown",
@@ -491,18 +515,70 @@ serve(async (req) => {
           }
         }
 
-        // If user creation is enabled and we have errors, fail early
-        if (userCreationErrors.length > 0 && createUsers) {
-          console.error(`User creation errors:`, JSON.stringify(userCreationErrors, null, 2));
+        // Log user creation summary (continue even if there are errors)
+        console.log(`User creation summary: ${usersCreatedCount.count} created, ${Object.keys(usersCreated).length} total, ${userCreationErrors.length} failed`);
+        
+        // Filter out rows with failed user creation - only import records with valid users
+        const validRows: any[] = [];
+        const failedRows: Array<{ row: any; reason: string; email?: string }> = [];
+        // Note: failedRows will be assigned to preImportFailedRows later
+        
+        for (const row of jsonbData) {
+          const email = row.email
+            ?.toString()
+            .replace(/^["']|["']$/g, "")
+            .replace(/["']/g, "")
+            .trim()
+            .toLowerCase();
           
-          // If ANY users failed to create, fail the entire import
-          // This ensures data integrity - we don't want partial imports
+          if (!email || !email.includes("@")) {
+            failedRows.push({
+              row,
+              reason: "Email is missing or invalid",
+              email: row.email || "unknown",
+            });
+            continue;
+          }
+          
+          if (!usersCreated[email]) {
+            // Find the specific error for this email
+            const error = userCreationErrors.find((e) => e.email.toLowerCase() === email);
+            failedRows.push({
+              row,
+              reason: error?.error || "User creation failed",
+              email,
+            });
+            continue;
+          }
+          
+          // Add user_id to the row for the database function
+          validRows.push({
+            ...row,
+            student_id: usersCreated[email],
+          });
+        }
+        
+        // Update jsonbData to only include valid rows
+        jsonbData = validRows;
+        
+        console.log(`Filtered rows: ${validRows.length} valid, ${failedRows.length} failed`);
+        
+        // If all rows failed, return early with error details
+        if (validRows.length === 0 && failedRows.length > 0) {
           return new Response(
             JSON.stringify({
               success: false,
-              error: `Failed to create ${userCreationErrors.length} user(s). Import aborted to maintain data integrity.`,
+              partial: false,
+              error: `All ${failedRows.length} record(s) failed user creation. No records imported.`,
+              total_rows: jsonbData.length + failedRows.length,
+              succeeded: 0,
+              failed: failedRows.length,
               user_creation_errors: userCreationErrors,
-              users_created: usersCreatedCount.count,
+              failed_records: failedRows.map((fr, idx) => ({
+                row_number: idx + 1,
+                email: fr.email,
+                reason: fr.reason,
+              })),
               import_history_id: importHistoryId,
             }),
             {
@@ -511,37 +587,15 @@ serve(async (req) => {
             }
           );
         }
-
-        // Verify all users were created before proceeding
-        console.log(`User creation summary: ${usersCreatedCount.count} created, ${Object.keys(usersCreated).length} total`);
-        
-        // Check that we have user IDs for all emails
-        const emailsNeedingUsers = jsonbData
-          .map((row: any) => row.email?.toLowerCase().trim())
-          .filter((email: string) => email && email.includes("@") && !usersCreated[email]);
-        
-        if (emailsNeedingUsers.length > 0) {
-          console.error(`Missing users for ${emailsNeedingUsers.length} emails:`, emailsNeedingUsers);
-          return new Response(
-            JSON.stringify({
-              success: false,
-              error: `Failed to create users for ${emailsNeedingUsers.length} email(s). Please check the logs for details.`,
-              missing_users: emailsNeedingUsers,
-              users_created_count: usersCreatedCount.count,
-              import_history_id: importHistoryId,
-            }),
-            {
-              status: 400,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            }
-          );
-        }
-        
-        console.log(`✓ All users created successfully`);
         
         // Add a delay to ensure all users are committed to database
-        console.log(`Waiting 1 second for users to be committed...`);
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        if (validRows.length > 0) {
+          console.log(`Waiting 1 second for users to be committed...`);
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+        
+        // Store failed rows info for later inclusion in response
+        preImportFailedRows = failedRows;
       }
 
       if (options?.dry_run || options?.validate_only) {
@@ -596,6 +650,23 @@ serve(async (req) => {
         row_number: r.row_number,
         error: r.error_message,
       })) || [];
+      
+      // Combine pre-import failures with database function failures
+      const totalFailed = failed + preImportFailedRows.length;
+      const allFailedRecords = [
+        ...preImportFailedRows.map((fr, idx) => ({
+          row_number: idx + 1,
+          email: fr.email,
+          reason: fr.reason,
+          stage: "user_creation",
+        })),
+        ...errors.map((e) => ({
+          ...e,
+          stage: "database_import",
+        })),
+      ];
+      
+      const isPartialSuccess = succeeded > 0 && totalFailed > 0;
 
       // Update import history
       if (importHistoryId) {
@@ -604,15 +675,17 @@ serve(async (req) => {
           .update({
             total_rows: rows.length,
             succeeded,
-            failed,
-            status: failed === rows.length ? "failed" : "completed",
+            failed: totalFailed,
+            status: succeeded === 0 ? "failed" : isPartialSuccess ? "partial" : "completed",
             completed_at: new Date().toISOString(),
             report: {
               total_rows: rows.length,
               succeeded,
-              failed,
+              failed: totalFailed,
+              pre_import_failed: preImportFailedRows.length,
+              import_failed: failed,
             },
-            errors: errors,
+            errors: allFailedRecords,
           })
           .eq("id", importHistoryId);
       }
@@ -638,11 +711,15 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           success: true,
+          partial: isPartialSuccess,
           total_rows: rows.length,
           succeeded,
-          failed,
+          failed: totalFailed,
+          pre_import_failed: preImportFailedRows.length,
+          import_failed: failed,
           results: results || [],
-          errors,
+          errors: allFailedRecords,
+          user_creation_errors: userCreationErrors,
           import_history_id: importHistoryId,
         }),
         {

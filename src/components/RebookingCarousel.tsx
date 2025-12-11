@@ -92,7 +92,7 @@ const RebookingCarousel = ({ contracts, onNavigate }: RebookingCarouselProps) =>
     if (onNavigate) {
       onNavigate(slug);
     } else {
-      navigate(`/contracts/${slug}`);
+      navigate(`/contracts/${encodeURIComponent(slug)}`);
     }
   };
 

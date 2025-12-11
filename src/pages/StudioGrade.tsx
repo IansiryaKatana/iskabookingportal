@@ -572,7 +572,7 @@ const StudioGradePage = () => {
                 getDeposit={(contract) => contract.computed_deposit_amount}
                 getStartDate={(contract) => contract.contract_start}
                 getEndDate={(contract) => contract.contract_end}
-                onSelect={(contract) => navigate(`/contracts/${contract.slug}`)}
+                onSelect={(contract) => navigate(`/contracts/${encodeURIComponent(contract.slug)}`)}
                 subtitle={contractAcademicYearName ?? undefined}
                 emptyState={
                   <span>
