@@ -691,7 +691,8 @@ serve(async (req) => {
           const remainingBalance = totalContractValue - depositAmount;
           
           // Build payment schedule with actual calculated amounts
-          const scheduleItems = installments.map((it) => {
+          // CRITICAL: Last installment absorbs rounding difference for perfect accuracy
+          const scheduleItems = installments.map((it, index) => {
             let amount = 0;
             if (it.amount_type === "fixed") {
               amount = Number(it.amount_value);
@@ -699,6 +700,24 @@ serve(async (req) => {
               // Calculate percentage of remaining balance (not total)
               amount = (remainingBalance * Number(it.amount_value)) / 100;
             }
+            
+            // Adjust last installment to absorb rounding difference
+            if (index === installments.length - 1) {
+              const sumOfPrevious = installments
+                .slice(0, index)
+                .reduce((sum, prev) => {
+                  let prevAmount = 0;
+                  if (prev.amount_type === "fixed") {
+                    prevAmount = Number(prev.amount_value);
+                  } else if (prev.amount_type === "percentage") {
+                    prevAmount = (remainingBalance * Number(prev.amount_value)) / 100;
+                  }
+                  return sum + prevAmount;
+                }, 0);
+              // Last installment = remaining balance - sum of previous
+              amount = remainingBalance - sumOfPrevious;
+            }
+            
             const due = it.due_date ? formatGbDate(it.due_date) : "";
             const label = it.label ? `${it.label}: ` : "";
             const formattedAmount = formatGBP(Math.round(amount * 100));

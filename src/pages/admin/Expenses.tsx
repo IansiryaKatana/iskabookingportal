@@ -417,7 +417,7 @@ const Expenses = () => {
         <Card className="rounded-3xl border border-border/60 shadow-xl">
           <CardHeader>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+              <CardTitle className="flex items-center gap-2 text-base md:text-lg font-display font-bold uppercase tracking-wide">
                 <Filter className="h-4 w-4 md:h-5 md:w-5" />
                 Filters
               </CardTitle>
@@ -456,8 +456,7 @@ const Expenses = () => {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs md:text-sm">Search</Label>
+              <div>
                 <Input
                   placeholder="Search expenses..."
                   value={searchQuery}
@@ -465,16 +464,14 @@ const Expenses = () => {
                   className="rounded-full text-sm md:text-base"
                 />
               </div>
-              <div className="space-y-2">
-                <Label className="text-xs md:text-sm">Academic Year</Label>
+              <div>
                 <AcademicYearSelector
                   value={academicYearFilter}
                   onValueChange={setAcademicYearFilter}
                   allowEmpty
                 />
               </div>
-              <div className="space-y-2">
-                <Label className="text-xs md:text-sm">Category</Label>
+              <div>
                 <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                   <SelectTrigger className="rounded-full text-sm md:text-base">
                     <SelectValue />
@@ -493,8 +490,7 @@ const Expenses = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label className="text-xs md:text-sm">Start Date</Label>
+              <div>
                 <Input
                   type="date"
                   value={startDateFilter}
@@ -502,8 +498,7 @@ const Expenses = () => {
                   className="rounded-full text-sm md:text-base"
                 />
               </div>
-              <div className="space-y-2">
-                <Label className="text-xs md:text-sm">End Date</Label>
+              <div>
                 <Input
                   type="date"
                   value={endDateFilter}
@@ -518,7 +513,7 @@ const Expenses = () => {
         {/* Expenses List */}
         <Card className="rounded-3xl border border-border/60 shadow-xl">
           <CardHeader>
-            <CardTitle className="text-base md:text-lg">All Expenses</CardTitle>
+            <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">All Expenses</CardTitle>
             <CardDescription className="text-xs md:text-sm">
               {filteredExpenses.length} expense{filteredExpenses.length !== 1 ? "s" : ""} found
             </CardDescription>
@@ -613,7 +608,7 @@ const Expenses = () => {
         }}>
           <DialogContent className="sm:max-w-[600px] rounded-3xl">
             <DialogHeader>
-              <DialogTitle className="text-base md:text-lg">{editDialogOpen ? "Edit Expense" : "Create Expense"}</DialogTitle>
+              <DialogTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">{editDialogOpen ? "Edit Expense" : "Create Expense"}</DialogTitle>
               <DialogDescription className="text-xs md:text-sm">
                 {editDialogOpen ? "Update expense details" : "Record a new utility or expense payment"}
               </DialogDescription>
@@ -813,7 +808,7 @@ const Expenses = () => {
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
           <AlertDialogContent className="rounded-3xl">
             <AlertDialogHeader>
-              <AlertDialogTitle className="text-base md:text-lg">Delete Expense</AlertDialogTitle>
+              <AlertDialogTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">Delete Expense</AlertDialogTitle>
               <AlertDialogDescription className="text-xs md:text-sm">
                 Are you sure you want to delete this expense? This action cannot be undone.
               </AlertDialogDescription>

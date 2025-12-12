@@ -113,7 +113,8 @@ const fetchPaymentSchedule = async (
     if (!installments || installments.length === 0) return [];
 
     // Convert installments to payment schedule format
-    const generatedSchedule: PaymentSchedule[] = installments.map((inst) => {
+    // CRITICAL: Last installment absorbs rounding difference to ensure exact sum
+    const generatedSchedule: PaymentSchedule[] = installments.map((inst, index) => {
       // Calculate amount from REMAINING BALANCE, not contract total
       let amount = 0;
       if (inst.amount_type === "percentage") {
@@ -141,7 +142,7 @@ const fetchPaymentSchedule = async (
         label: inst.label || `Instalment ${inst.sequence}`,
         sequence: inst.sequence,
         due_date: dueDate.toISOString().split("T")[0],
-        amount: amount,
+        amount: amount, // Will be adjusted for last installment below
         created_at: inst.created_at,
         updated_at: inst.updated_at,
         contract: {
@@ -153,6 +154,17 @@ const fetchPaymentSchedule = async (
         },
       } as PaymentSchedule;
     });
+
+    // CRITICAL FIX: Adjust last installment to absorb rounding difference
+    // This ensures installments sum exactly to remaining balance
+    if (generatedSchedule.length > 0) {
+      const lastIndex = generatedSchedule.length - 1;
+      const sumOfPrevious = generatedSchedule
+        .slice(0, lastIndex)
+        .reduce((sum, inst) => sum + inst.amount, 0);
+      // Last installment = remaining balance - sum of all previous installments
+      generatedSchedule[lastIndex].amount = remainingBalance - sumOfPrevious;
+    }
 
     return generatedSchedule;
   }

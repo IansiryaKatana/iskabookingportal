@@ -303,14 +303,26 @@
 
 **Features**:
 - Stripe refund integration
+- Manual refund recording (for bank transfers, cash, etc.)
 - Refund recording in database
 - Audit logging
 - Student notifications (in-app and email)
 - Refund history display
 - Mobile-responsive refund records (cards on mobile, table on desktop)
 - Refund status tracking
+- Manual payment amount display fix
+- Revenue calculations subtract refunds (net revenue)
+- Payment source indicators (Stripe/Manual)
+- Warning system for missing payment records
 
-**Impact**: Complete refund management, audit trail
+**Impact**: Complete refund management, accurate financial reporting, audit trail
+
+**Recent Updates (Jan 2025)**:
+- Fixed manual payment amounts showing as dashes in refunds page
+- Added support for recording manual refunds (processed outside system)
+- Updated revenue calculations to subtract refunds
+- Extended refunds table to support both Stripe and manual refunds
+- See `docs/REFUND_SYSTEM_IMPROVEMENTS.md` for detailed documentation
 
 ---
 

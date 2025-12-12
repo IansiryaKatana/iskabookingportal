@@ -154,7 +154,7 @@ const LoginMessageDialog = () => {
   // Desktop: Use Dialog (centered modal)
   return (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-      <DialogContent className="sm:max-w-[600px] rounded-3xl p-8">
+      <DialogContent className="sm:max-w-[600px] rounded-3xl p-0 [&>button]:hidden">
         <CardStack
           messages={messages}
           onAllDismissed={handleAllDismissed}

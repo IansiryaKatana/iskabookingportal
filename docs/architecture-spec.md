@@ -55,7 +55,7 @@ Deliver a data-driven accommodation booking experience where every studio-grade 
 ### 3.2 Storage Buckets
 
 - `studio-media/{studio_grade_slug}/{uuid}` – public via signed URLs.
-- `documents/{student_id}/{application_id}/{type}/{uuid}` – private.
+- `documents/{student_id}/{application_id}/{type}/{uuid}` – private. Students can access their own; staff can access all (for preview/verification).
 - `contracts/{application_id}/signed-{timestamp}.pdf` – private.
 - `branding/` – branding assets (logo, favicon) – public read access.
 - `maintenance-images/{user_id}/{uuid}.{ext}` – private, students can upload to their own folder, staff can view all.
@@ -65,6 +65,7 @@ Deliver a data-driven accommodation booking experience where every studio-grade 
 
 - Roles stored in `profiles.role` (`student`, `staff`, `partner`, `superadmin`).
 - RLS policies ensure students only access their records; staff/superadmin have scoped or full access; partners only access their own referral data.
+- **Storage RLS**: Separate policies for SELECT, INSERT, UPDATE, DELETE operations. Staff have full access to documents bucket for preview/verification (see `20251212_fix_staff_documents_storage_access.sql`).
 - Service role key used for migrations/edge functions only.
 
 ## 4. Workflows
@@ -579,6 +580,8 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
   - `send-transactional-email` – Transactional email sending for specific events, enhanced error handling with HTML response detection and detailed logging
   - `process-refund` – Refund processing with Stripe integration, audit logging, and notifications
   - `get-payment-intent-details` – Fetches payment intent details from Stripe for refund processing
+  - Manual refund recording – Records refunds processed outside system (bank transfers, cash, etc.) with reference tracking and automatic revenue updates
+  - Manual refund recording – Records refunds processed outside system (bank transfers, cash, etc.) with reference tracking
   - `release-expired-reservations` – Automatic release of expired studio reservations
   - `create-contract-pdf` – PDF generation for contracts
   - `download-signed-document` – DocuSign signed document download
@@ -759,11 +762,16 @@ All brand colors, fonts, and assets are centralized in the `branding_settings` t
 - **Visual Display**: Clear presentation of calculations
 
 ### 9.5 Refund Workflow
-- **Stripe Integration**: Full Stripe refund processing
-- **Database Recording**: All refunds recorded in `refunds` table
-- **Audit Logging**: Complete audit trail
+- **Stripe Integration**: Full Stripe refund processing via API
+- **Manual Refund Recording**: Support for recording refunds processed outside system (bank transfers, cash, etc.)
+- **Database Recording**: All refunds recorded in `refunds` table with source tracking
+- **Payment Source Support**: Handles both Stripe and manual payment refunds
+- **Audit Logging**: Complete audit trail for all refunds
 - **Student Notifications**: In-app and email notifications for refunds
 - **Refund History**: Complete refund history display
+- **Revenue Calculations**: Refunds automatically subtracted from revenue (net revenue)
+- **Manual Payment Display**: Fixed display of manual payment amounts in refunds page
+- **See**: `docs/REFUND_SYSTEM_IMPROVEMENTS.md` for detailed implementation documentation
 
 ### 9.6 Manual Payment Recording
 

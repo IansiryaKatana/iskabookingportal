@@ -37,6 +37,8 @@ export type RevenueSummaryItem = {
   payment_count: number;
   stripe_revenue: number;
   manual_revenue: number;
+  total_refunds: number;
+  net_revenue: number;
 };
 
 export type OutstandingBalanceItem = {

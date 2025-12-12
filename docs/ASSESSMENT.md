@@ -26,7 +26,7 @@ This assessment compares the current implementation against the architecture spe
 
 ### Admin Portal
 - ✅ **Dashboard** - Overview metrics (skeleton loaders implemented)
-- ✅ **Applications Management** - List, filter by status, update status
+- ✅ **Applications Management** - List, filter by status, update status, document preview
 - ✅ **Academic Years CRUD** - Full management interface
 - ✅ **Studio Grades CRUD** - Content, media upload, amenities
 - ✅ **Payment Plans CRUD** - Plan creation, installment builder
@@ -49,7 +49,8 @@ This assessment compares the current implementation against the architecture spe
 ### Database & Infrastructure
 - ✅ **All Core Tables** - Complete schema with RLS policies
 - ✅ **Storage Buckets** - `studio-media`, `documents`, `contracts`
-- ✅ **RLS Policies** - Comprehensive security rules
+- ✅ **RLS Policies** - Comprehensive security rules including storage policies
+- ✅ **Storage RLS Fix** - Staff document preview access fixed (Dec 2025)
 - ✅ **Skeleton Loaders** - Component-specific loading states
 
 ---

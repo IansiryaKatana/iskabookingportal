@@ -1,0 +1,2 @@
+$env:SUPABASE_DB_PASSWORD = "W@lcome@971@"
+supabase db dump -f backup_before_precision_migration.sql

@@ -34,9 +34,11 @@ const Refunds = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
+  const [manualRefundDialogOpen, setManualRefundDialogOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<any>(null);
   const [refundAmount, setRefundAmount] = useState("");
   const [refundReason, setRefundReason] = useState("");
+  const [manualRefundReference, setManualRefundReference] = useState("");
 
   // Fetch refunds history
   const { data: refunds, isLoading: refundsLoading } = useRefunds();
@@ -61,33 +63,106 @@ const Refunds = () => {
 
       if (appError) throw appError;
 
-      // Fetch payment intent details from Stripe for each application
+      // Fetch payment details - handle both Stripe and manual payments
       const paymentsWithDetails = await Promise.all(
         (applications || []).map(async (app) => {
           if (!app.deposit_payment_intent_id) {
             return null;
           }
 
-          try {
-            // Fetch payment intent details from Stripe
-            const { data: paymentDetails, error: paymentError } = await supabase.functions.invoke(
-              "get-payment-intent-details",
-              {
-                body: { payment_intent_id: app.deposit_payment_intent_id },
-              }
-            );
+          // Check if this is a manual payment (starts with "manual-")
+          const isManualPayment = app.deposit_payment_intent_id.startsWith("manual-");
 
-            if (paymentError || !paymentDetails) {
-              console.warn(`Failed to fetch payment details for ${app.deposit_payment_intent_id}:`, paymentError);
-              // Return with placeholder if fetch fails
+          if (isManualPayment) {
+            try {
+              // Extract ID from 'manual-{id}' format
+              const manualId = app.deposit_payment_intent_id.replace("manual-", "").trim();
+
+              // Try to find manual payment by ID first (for manually entered payments)
+              let { data: manualPayment, error: manualError } = await supabase
+                .from("manual_payments")
+                .select("*")
+                .eq("id", manualId)
+                .eq("payment_type", "deposit")
+                .maybeSingle();
+
+              // If not found, try by application_id (for bulk imports)
+              if (!manualPayment && !manualError) {
+                const { data: manualPayments } = await supabase
+                  .from("manual_payments")
+                  .select("*")
+                  .eq("application_id", app.id)
+                  .eq("payment_type", "deposit")
+                  .order("created_at", { ascending: false });
+
+                if (manualPayments && manualPayments.length > 0) {
+                  // Use most recent manual payment, or sum if multiple
+                  if (manualPayments.length === 1) {
+                    manualPayment = manualPayments[0];
+                  } else {
+                    // Multiple payments - sum them
+                    const totalAmount = manualPayments.reduce(
+                      (sum, mp) => sum + Number(mp.amount),
+                      0
+                    );
+                    manualPayment = {
+                      ...manualPayments[0],
+                      amount: totalAmount,
+                    };
+                  }
+                }
+              }
+
+              if (!manualPayment) {
+                console.warn(`Manual payment not found for application ${app.id}, deposit_payment_intent_id: ${app.deposit_payment_intent_id}`);
+                return {
+                  id: app.id,
+                  application_id: app.id,
+                  stripe_payment_intent_id: app.deposit_payment_intent_id,
+                  amount: 0,
+                  payment_type: "deposit",
+                  payment_source: "manual",
+                  created_at: app.created_at,
+                  status: "unknown",
+                  warning: "Manual payment record not found",
+                  application: {
+                    id: app.id,
+                    student_id: app.student_id,
+                    contract: app.contract,
+                  },
+                };
+              }
+
+              // Convert GBP to pence for consistency
+              const amountPence = Math.round(Number(manualPayment.amount) * 100);
+
               return {
                 id: app.id,
                 application_id: app.id,
                 stripe_payment_intent_id: app.deposit_payment_intent_id,
-                amount: 0, // Unknown amount
+                amount: amountPence, // Amount in pence
                 payment_type: "deposit",
+                payment_source: "manual",
+                created_at: app.created_at,
+                status: "completed",
+                application: {
+                  id: app.id,
+                  student_id: app.student_id,
+                  contract: app.contract,
+                },
+              };
+            } catch (error) {
+              console.error(`Error fetching manual payment for ${app.deposit_payment_intent_id}:`, error);
+              return {
+                id: app.id,
+                application_id: app.id,
+                stripe_payment_intent_id: app.deposit_payment_intent_id,
+                amount: 0,
+                payment_type: "deposit",
+                payment_source: "manual",
                 created_at: app.created_at,
                 status: "unknown",
+                warning: "Error fetching manual payment",
                 application: {
                   id: app.id,
                   student_id: app.student_id,
@@ -95,24 +170,55 @@ const Refunds = () => {
                 },
               };
             }
+          } else {
+            // Stripe payment - fetch from Stripe API
+            try {
+              const { data: paymentDetails, error: paymentError } = await supabase.functions.invoke(
+                "get-payment-intent-details",
+                {
+                  body: { payment_intent_id: app.deposit_payment_intent_id },
+                }
+              );
 
-            return {
-              id: app.id,
-              application_id: app.id,
-              stripe_payment_intent_id: app.deposit_payment_intent_id,
-              amount: paymentDetails.amount || 0, // Amount in pence
-              payment_type: "deposit",
-              created_at: app.created_at,
-              status: paymentDetails.status,
-              application: {
+              if (paymentError || !paymentDetails) {
+                console.warn(`Failed to fetch payment details for ${app.deposit_payment_intent_id}:`, paymentError);
+                return {
+                  id: app.id,
+                  application_id: app.id,
+                  stripe_payment_intent_id: app.deposit_payment_intent_id,
+                  amount: 0,
+                  payment_type: "deposit",
+                  payment_source: "stripe",
+                  created_at: app.created_at,
+                  status: "unknown",
+                  warning: "Failed to fetch Stripe payment details",
+                  application: {
+                    id: app.id,
+                    student_id: app.student_id,
+                    contract: app.contract,
+                  },
+                };
+              }
+
+              return {
                 id: app.id,
-                student_id: app.student_id,
-                contract: app.contract,
-              },
-            };
-          } catch (error) {
-            console.error(`Error fetching payment details for ${app.deposit_payment_intent_id}:`, error);
-            return null;
+                application_id: app.id,
+                stripe_payment_intent_id: app.deposit_payment_intent_id,
+                amount: paymentDetails.amount || 0, // Amount in pence
+                payment_type: "deposit",
+                payment_source: "stripe",
+                created_at: app.created_at,
+                status: paymentDetails.status,
+                application: {
+                  id: app.id,
+                  student_id: app.student_id,
+                  contract: app.contract,
+                },
+              };
+            } catch (error) {
+              console.error(`Error fetching payment details for ${app.deposit_payment_intent_id}:`, error);
+              return null;
+            }
           }
         })
       );
@@ -124,7 +230,7 @@ const Refunds = () => {
 
   const isLoading = paymentsLoading || refundsLoading;
 
-  // Process refund mutation
+  // Process Stripe refund mutation
   const processRefund = useMutation({
     mutationFn: async ({ paymentId, amount, reason }: { paymentId: string; amount: number; reason: string }) => {
       // Call Stripe refund API via Edge Function
@@ -173,8 +279,118 @@ const Refunds = () => {
   const handleRefund = (payment: any) => {
     setSelectedPayment(payment);
     setRefundAmount((payment.amount / 100).toString());
-    setRefundDialogOpen(true);
+    
+    // Route to appropriate dialog based on payment source
+    if (payment.payment_source === "manual") {
+      setManualRefundDialogOpen(true);
+    } else {
+      setRefundDialogOpen(true);
+    }
   };
+
+  // Process manual refund mutation
+  const processManualRefund = useMutation({
+    mutationFn: async ({
+      applicationId,
+      amount,
+      reason,
+      manualRefundReference,
+    }: {
+      applicationId: string;
+      amount: number;
+      reason: string;
+      manualRefundReference: string;
+    }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not authenticated");
+
+      // Get student_id from application
+      const { data: application, error: appError } = await supabase
+        .from("student_applications")
+        .select("student_id")
+        .eq("id", applicationId)
+        .single();
+
+      if (appError || !application) throw new Error("Application not found");
+
+      // Convert GBP to pence
+      const amountPence = Math.round(amount * 100);
+
+      // Get the deposit_payment_intent_id from application to link the refund
+      const { data: appData } = await supabase
+        .from("student_applications")
+        .select("deposit_payment_intent_id")
+        .eq("id", applicationId)
+        .single();
+
+      // Create refund record (no Stripe API call)
+      const { data: refundRecord, error: refundError } = await supabase
+        .from("refunds")
+        .insert({
+          application_id: applicationId,
+          student_id: application.student_id,
+          payment_intent_id: appData?.deposit_payment_intent_id || `manual-${applicationId}`,
+          stripe_refund_id: null, // Manual refunds don't have Stripe refund ID
+          refund_source: "manual",
+          manual_refund_reference: manualRefundReference,
+          amount_pence: amountPence,
+          reason: reason,
+          status: "succeeded", // Immediate success for manual refunds
+          refunded_by: user.id,
+          processed_at: new Date().toISOString(),
+        })
+        .select("*")
+        .single();
+
+      if (refundError) throw refundError;
+
+      // Log activity
+      await supabase.from("staff_activity_logs").insert({
+        staff_id: user.id,
+        action: "record_manual_refund",
+        entity_type: "refund",
+        entity_id: refundRecord.id,
+        payload: {
+          application_id: applicationId,
+          amount_gbp: amount,
+          manual_refund_reference: manualRefundReference,
+          reason: reason,
+        },
+      });
+
+      // Send notification to student
+      await supabase.from("notifications").insert({
+        user_id: application.student_id,
+        title: "Refund Recorded",
+        message: `A refund of £${amount.toFixed(2)} has been recorded. Reference: ${manualRefundReference}`,
+        type: "info",
+        is_read: false,
+        link: "/portal/payments",
+      });
+
+      return refundRecord;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["refundable-payments"] });
+      queryClient.invalidateQueries({ queryKey: ["refunds"] });
+      toast({
+        title: "Refund recorded",
+        description: `Manual refund of £${refundAmount} has been recorded successfully.`,
+      });
+      setManualRefundDialogOpen(false);
+      setSelectedPayment(null);
+      setRefundAmount("");
+      setRefundReason("");
+      setManualRefundReference("");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to record manual refund",
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleSubmitRefund = () => {
     if (!selectedPayment || !refundAmount || !refundReason) {
@@ -190,6 +406,24 @@ const Refunds = () => {
       paymentId: selectedPayment.stripe_payment_intent_id,
       amount: parseFloat(refundAmount),
       reason: refundReason,
+    });
+  };
+
+  const handleSubmitManualRefund = () => {
+    if (!selectedPayment || !refundAmount || !refundReason || !manualRefundReference.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all fields, including the refund reference.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    processManualRefund.mutate({
+      applicationId: selectedPayment.application_id,
+      amount: parseFloat(refundAmount),
+      reason: refundReason,
+      manualRefundReference: manualRefundReference.trim(),
     });
   };
 
@@ -404,12 +638,30 @@ const Refunds = () => {
                           {(payment.application as any)?.contract?.slug || "—"}
                         </TableCell>
                         <TableCell className="font-medium">
-                          {formatCurrency(payment.amount)}
+                          <div className="flex items-center gap-2">
+                            {payment.warning ? (
+                              <span className="text-muted-foreground">—</span>
+                            ) : (
+                              formatCurrency(payment.amount)
+                            )}
+                            {payment.warning && (
+                              <span className="text-xs text-yellow-600" title={payment.warning}>
+                                ⚠️
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline" className="uppercase">
-                            {payment.payment_type}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="uppercase">
+                              {payment.payment_type}
+                            </Badge>
+                            {payment.payment_source && (
+                              <Badge variant="outline" className="text-xs">
+                                {payment.payment_source === "manual" ? "Manual" : "Stripe"}
+                              </Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right">
                           <Button
@@ -448,12 +700,30 @@ const Refunds = () => {
                         </p>
                       </div>
                       <div className="flex flex-col items-end gap-2">
-                        <span className="text-lg font-bold">
-                          {formatCurrency(payment.amount)}
-                        </span>
-                        <Badge variant="outline" className="uppercase text-[10px]">
-                          {payment.payment_type}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          {payment.warning ? (
+                            <span className="text-muted-foreground">—</span>
+                          ) : (
+                            <span className="text-lg font-bold">
+                              {formatCurrency(payment.amount)}
+                            </span>
+                          )}
+                          {payment.warning && (
+                            <span className="text-xs text-yellow-600" title={payment.warning}>
+                              ⚠️
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Badge variant="outline" className="uppercase text-[10px]">
+                            {payment.payment_type}
+                          </Badge>
+                          {payment.payment_source && (
+                            <Badge variant="outline" className="text-[10px]">
+                              {payment.payment_source === "manual" ? "Manual" : "Stripe"}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                     </div>
                     
@@ -537,6 +807,76 @@ const Refunds = () => {
               className="rounded-full uppercase tracking-wide"
             >
               {processRefund.isPending ? "Processing..." : "Process Refund"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manual Refund Dialog */}
+      <Dialog open={manualRefundDialogOpen} onOpenChange={setManualRefundDialogOpen}>
+        <DialogContent className="sm:max-w-[500px] rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-display uppercase tracking-wide">
+              Record Manual Refund
+            </DialogTitle>
+            <DialogDescription>
+              Record a refund that was processed outside the system (e.g., bank transfer). This will update accounting records and notify the student.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="manual-amount">Refund Amount (£) *</Label>
+              <Input
+                id="manual-amount"
+                type="number"
+                step="0.01"
+                min="0"
+                value={refundAmount}
+                onChange={(e) => setRefundAmount(e.target.value)}
+                className="mt-2"
+              />
+              {selectedPayment && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Original amount: {formatCurrency(selectedPayment.amount)}
+                </p>
+              )}
+            </div>
+            <div>
+              <Label htmlFor="manual-reference">Refund Reference *</Label>
+              <Input
+                id="manual-reference"
+                type="text"
+                value={manualRefundReference}
+                onChange={(e) => setManualRefundReference(e.target.value)}
+                className="mt-2"
+                placeholder="e.g., BANK-REF-12345 or Transfer Reference"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Enter the bank transfer reference or receipt number for this refund.
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="manual-reason">Refund Reason *</Label>
+              <Textarea
+                id="manual-reason"
+                value={refundReason}
+                onChange={(e) => setRefundReason(e.target.value)}
+                className="mt-2"
+                rows={4}
+                placeholder="Enter the reason for this refund..."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setManualRefundDialogOpen(false)} className="rounded-full uppercase tracking-wide">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitManualRefund}
+              disabled={processManualRefund.isPending}
+              className="rounded-full uppercase tracking-wide"
+            >
+              {processManualRefund.isPending ? "Recording..." : "Record Refund"}
             </Button>
           </DialogFooter>
         </DialogContent>

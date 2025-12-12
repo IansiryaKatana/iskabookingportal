@@ -729,11 +729,74 @@ const ApplicationDetail = () => {
                           size="sm"
                           className="rounded-full uppercase tracking-wide gap-2 text-xs w-full sm:w-auto"
                           onClick={async () => {
-                            const { data } = await supabase.storage
-                              .from("documents")
-                              .createSignedUrl(doc.storage_path, 3600);
-                            if (data?.signedUrl) {
-                              window.open(data.signedUrl, "_blank");
+                            try {
+                              // Try both encoded and decoded paths since the issue could be either way
+                              let pathToUse = doc.storage_path;
+                              
+                              // First try: Use the path as-is
+                              let { data, error } = await supabase.storage
+                                .from("documents")
+                                .createSignedUrl(pathToUse, 3600);
+                              
+                              // If that fails with "not found", try decoding
+                              if (error && (error.message?.includes("not found") || error.message?.includes("Object not found"))) {
+                                try {
+                                  const decodedPath = decodeURIComponent(doc.storage_path);
+                                  if (decodedPath !== doc.storage_path) {
+                                    console.log("Trying decoded path:", decodedPath);
+                                    const result = await supabase.storage
+                                      .from("documents")
+                                      .createSignedUrl(decodedPath, 3600);
+                                    data = result.data;
+                                    error = result.error;
+                                    pathToUse = decodedPath;
+                                  }
+                                } catch (decodeErr) {
+                                  // Decoding failed, use original error
+                                  console.error("Failed to decode path:", decodeErr);
+                                }
+                              }
+                              
+                              if (error) {
+                                console.error("Error creating signed URL:", error, { 
+                                  path: pathToUse, 
+                                  originalPath: doc.storage_path,
+                                  documentId: doc.id,
+                                  documentType: doc.document_type
+                                });
+                                
+                                // Provide more specific error message
+                                let errorMessage = "Unable to generate preview link.";
+                                if (error.message?.includes("not found") || error.message?.includes("Object not found")) {
+                                  errorMessage = "The document file is missing from storage. The file may have been deleted or the path is incorrect. Please contact support if this persists.";
+                                } else if (error.message) {
+                                  errorMessage = error.message;
+                                }
+                                
+                                toast({
+                                  variant: "destructive",
+                                  title: "Preview unavailable",
+                                  description: errorMessage,
+                                });
+                                return;
+                              }
+                              
+                              if (data?.signedUrl) {
+                                window.open(data.signedUrl, "_blank");
+                              } else {
+                                toast({
+                                  variant: "destructive",
+                                  title: "Preview unavailable",
+                                  description: "Unable to generate preview link.",
+                                });
+                              }
+                            } catch (err) {
+                              console.error("Error previewing document:", err, { storagePath: doc.storage_path });
+                              toast({
+                                variant: "destructive",
+                                title: "Preview failed",
+                                description: err instanceof Error ? err.message : "An unexpected error occurred.",
+                              });
                             }
                           }}
                         >
