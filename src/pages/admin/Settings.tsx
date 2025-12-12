@@ -151,15 +151,30 @@ const Settings = () => {
   const updateSocialMedia = useMutation({
     mutationFn: async (updates: Record<string, { url: string; is_enabled: boolean }>) => {
       const updatePromises = Object.entries(updates).map(async ([platform, { url, is_enabled }]) => {
-        const { error } = await supabase
+        // Use upsert to handle both insert and update cases
+        // This ensures the update works even if the row doesn't exist
+        const { data, error } = await supabase
           .from("social_media_settings")
-          .update({ url, is_enabled })
-          .eq("platform", platform);
+          .upsert(
+            {
+              platform,
+              url,
+              is_enabled,
+            },
+            {
+              onConflict: "platform",
+            }
+          )
+          .select()
+          .single();
 
         if (error) throw error;
+        if (!data) throw new Error(`Failed to save ${platform} settings`);
+        
+        return data;
       });
 
-      await Promise.all(updatePromises);
+      const results = await Promise.all(updatePromises);
 
       // Log activity
       await logActivity({
@@ -167,6 +182,8 @@ const Settings = () => {
         entityType: "social_media_settings",
         payload: { platforms: Object.keys(updates) },
       });
+
+      return results;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["social-media-settings"] });
