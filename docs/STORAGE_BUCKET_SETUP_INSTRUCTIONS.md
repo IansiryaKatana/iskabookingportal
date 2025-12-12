@@ -38,6 +38,23 @@ The `documents` bucket is already set up with RLS policies via migrations:
 
 See `docs/STORAGE_RLS_POLICIES_FIX.md` for details on the staff access fix.
 
+## Studio Media Bucket
+
+The `studio-media` bucket is set up with RLS policies via migration:
+- **Migration**: `20251212_fix_studio_media_storage_policies.sql`
+
+### Policies
+- **Public**: Can read/view all studio media images (for public studio grade pages)
+- **Staff**: Can upload, update, and delete studio media images (for admin management)
+
+### Path Format
+- Studio media: `{studio_grade_slug}/{uuid}.{ext}` (e.g., `silver/f7f1b46d-57da-4f84-b51c-f941569d2e1b.jpg`)
+
+### Usage
+- Used for studio grade gallery images and hero images
+- Images are publicly accessible for display on public studio grade pages
+- Staff can manage images through the admin Studio Grades interface
+
 ## Notes
 
 - **Bucket must be Private**: Even though you might want public access, set buckets to Private for RLS policies to work correctly

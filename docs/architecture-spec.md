@@ -54,7 +54,7 @@ Deliver a data-driven accommodation booking experience where every studio-grade 
 
 ### 3.2 Storage Buckets
 
-- `studio-media/{studio_grade_slug}/{uuid}` – public via signed URLs.
+- `studio-media/{studio_grade_slug}/{uuid}` – public read access for displaying studio images; staff can upload/update/delete. RLS policies: `20251212_fix_studio_media_storage_policies.sql`.
 - `documents/{student_id}/{application_id}/{type}/{uuid}` – private. Students can access their own; staff can access all (for preview/verification).
 - `contracts/{application_id}/signed-{timestamp}.pdf` – private.
 - `branding/` – branding assets (logo, favicon) – public read access.
@@ -65,7 +65,8 @@ Deliver a data-driven accommodation booking experience where every studio-grade 
 
 - Roles stored in `profiles.role` (`student`, `staff`, `partner`, `superadmin`).
 - RLS policies ensure students only access their records; staff/superadmin have scoped or full access; partners only access their own referral data.
-- **Storage RLS**: Separate policies for SELECT, INSERT, UPDATE, DELETE operations. Staff have full access to documents bucket for preview/verification (see `20251212_fix_staff_documents_storage_access.sql`).
+- **Storage RLS**: Separate policies for SELECT, INSERT, UPDATE, DELETE operations. Staff have full access to documents bucket for preview/verification (see `20251212_fix_staff_documents_storage_access.sql`). Studio media bucket has public read access and staff full access (see `20251212_fix_studio_media_storage_policies.sql`).
+- **Table RLS**: `studio_grade_media` table has public read access (for public pages) and staff full access (see `20251212_fix_studio_grade_media_rls.sql`).
 - Service role key used for migrations/edge functions only.
 
 ## 4. Workflows
@@ -90,7 +91,7 @@ Deliver a data-driven accommodation booking experience where every studio-grade 
 
 ### 4.4 Student Journey (6 Steps)
 
-1. **Personal Details** – name, DOB, age (auto-calculated), ethnicity, gender, UCAS ID, country.
+1. **Personal Details** – name, DOB, age (auto-calculated), ethnicity, gender, UCAS ID, country (full list of 195+ countries via `country-list` library, searchable dropdown).
 2. **Contact Information** – email (locked to auth), mobile, address lines, postcode, town.
 3. **Academic & Additional Info** – year, field, disability, smoker, medical requirements, entry to UK.
 4. **Documentation** – UK citizen toggle; uploads (passport, visa). Drag-and-drop upload to Supabase Storage.
@@ -115,13 +116,19 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
 
 - Deposit: Stripe Payment Intent created via edge function, success transitions application to signature step.
 - Instalments: Option A – Stripe Billing (invoices scheduled per `payment_plan_installments`). Option B – manual triggers with Payment Intents; record status in `contract_payment_schedule`.
-- **Payment Calculation Logic** (Implemented 2025-01-25):
+- **Payment Calculation Logic** (Implemented 2025-01-25, Updated 2025-01-12):
   - Contract Total = `weekly_price × weeks`
   - Deposit = `payment_plan.deposit_amount` (or contract/grade override)
   - Remaining Balance = Contract Total - Deposit
   - Installments = Remaining Balance × percentage (NOT Contract Total × percentage)
+  - **CRITICAL**: Deposits must be filtered out from `payment_plan_installments` before calculating installments
+    - Filter: `label.toLowerCase().includes('deposit')` OR `sequence === 1 && fixed && matches deposit amount`
+    - Deposits are tracked separately via `deposit_payment_intent_id`
+    - Sum of installments = Remaining Balance (NOT Contract Total)
+  - Last-installment adjustment: Last installment = Remaining Balance - Sum of Previous Installments
   - All calculations aligned across database functions and frontend hooks
   - Remaining balance correctly shows £0.00 when all installments are paid
+  - See [`docs/PAYMENT_CALCULATION_CRITICAL_RULE.md`](../docs/PAYMENT_CALCULATION_CRITICAL_RULE.md) for full details
 - **Payment History PDF** (Implemented 2025-01-25, Enhanced 2025-01-25):
   - Edge function: `generate-payment-history-pdf`
   - Branded PDF with logo, colors, and fonts from `branding_settings`

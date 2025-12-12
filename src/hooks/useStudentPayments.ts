@@ -66,6 +66,7 @@ const fetchPaymentSchedule = async (
         contract_end,
         weeks,
         weekly_price_override,
+        deposit_override,
         academic_year_id,
         studio_grade_id,
         studio_grade:studio_grades ( name )
@@ -77,10 +78,10 @@ const fetchPaymentSchedule = async (
     if (contractError) throw contractError;
     if (!contract) return [];
 
-    // Get weekly price
+    // Get weekly price and deposit from studio_grade_prices
     const { data: priceData } = await supabase
       .from("studio_grade_prices")
-      .select("weekly_price")
+      .select("weekly_price, deposit_amount_override")
       .eq("academic_year_id", contract.academic_year_id)
       .eq("studio_grade_id", contract.studio_grade_id)
       .eq("is_active", true)
@@ -89,37 +90,78 @@ const fetchPaymentSchedule = async (
     const weeklyPrice = contract.weekly_price_override || priceData?.weekly_price || 0;
     const totalContractValue = weeklyPrice * contract.weeks;
 
-    // Get deposit amount
-    const { data: paymentPlan } = await supabase
-      .from("payment_plans")
-      .select("deposit_amount")
-      .eq("id", application.selected_payment_plan_id)
-      .maybeSingle();
-
-    const depositAmount = paymentPlan?.deposit_amount || 0;
+    // Get deposit amount with proper priority (matches database function logic):
+    // 1. contract.deposit_override (highest priority)
+    // 2. payment_plans.deposit_amount
+    // 3. studio_grade_prices.deposit_amount_override (lowest priority)
+    let depositAmount = 0;
+    let depositSource = "none (0)";
+    
+    if (contract.deposit_override) {
+      depositAmount = Number(contract.deposit_override);
+      depositSource = "contract.deposit_override";
+    } else {
+      const { data: paymentPlan } = await supabase
+        .from("payment_plans")
+        .select("deposit_amount")
+        .eq("id", application.selected_payment_plan_id)
+        .maybeSingle();
+      
+      if (paymentPlan?.deposit_amount) {
+        depositAmount = Number(paymentPlan.deposit_amount);
+        depositSource = "payment_plans.deposit_amount";
+      } else if (priceData?.deposit_amount_override) {
+        depositAmount = Number(priceData.deposit_amount_override);
+        depositSource = "studio_grade_prices.deposit_amount_override";
+      }
+    }
 
     // CRITICAL: Calculate remaining balance = Contract Total - Deposit
     // Installments are calculated from remaining balance, NOT contract total
     const remainingBalance = Math.max(totalContractValue - depositAmount, 0);
 
     // Get payment plan installments
-    const { data: installments, error: installmentsError } = await supabase
+    const { data: allInstallments, error: installmentsError } = await supabase
       .from("payment_plan_installments")
       .select("*")
       .eq("payment_plan_id", application.selected_payment_plan_id)
       .order("sequence", { ascending: true });
 
     if (installmentsError) throw installmentsError;
-    if (!installments || installments.length === 0) return [];
+    if (!allInstallments || allInstallments.length === 0) {
+      return [];
+    }
+
+    // CRITICAL FIX: Filter out deposits from installments
+    // Deposits are separate and should NOT be included in installment calculations
+    const installments = allInstallments.filter(inst => {
+      const isDeposit = 
+        inst.label?.toLowerCase().includes('deposit') ||
+        (inst.sequence === 1 && inst.amount_type === 'fixed' && Number(inst.amount_value) === depositAmount);
+      
+      return !isDeposit;
+    });
+
+    if (installments.length === 0) {
+      return [];
+    }
 
     // Convert installments to payment schedule format
     // CRITICAL: Last installment absorbs rounding difference to ensure exact sum
+    // Helper function to round to 2 decimal places (currency precision)
+    const roundCurrency = (value: number): number => {
+      return Math.round((value + Number.EPSILON) * 100) / 100;
+    };
+
     const generatedSchedule: PaymentSchedule[] = installments.map((inst, index) => {
       // Calculate amount from REMAINING BALANCE, not contract total
       let amount = 0;
+      
       if (inst.amount_type === "percentage") {
         // Installments are percentage of remaining balance (after deposit)
-        amount = (remainingBalance * Number(inst.amount_value)) / 100;
+        // Round to 2 decimal places for currency precision
+        const rawAmount = (remainingBalance * Number(inst.amount_value)) / 100;
+        amount = roundCurrency(rawAmount);
       } else if (inst.amount_type === "fixed") {
         amount = Number(inst.amount_value);
       }
@@ -162,10 +204,12 @@ const fetchPaymentSchedule = async (
       const sumOfPrevious = generatedSchedule
         .slice(0, lastIndex)
         .reduce((sum, inst) => sum + inst.amount, 0);
+      
       // Last installment = remaining balance - sum of all previous installments
-      generatedSchedule[lastIndex].amount = remainingBalance - sumOfPrevious;
+      // Round to ensure currency precision
+      const adjustedAmount = roundCurrency(remainingBalance - sumOfPrevious);
+      generatedSchedule[lastIndex].amount = adjustedAmount;
     }
-
     return generatedSchedule;
   }
 

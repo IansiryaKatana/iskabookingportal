@@ -137,7 +137,7 @@ const LoginMessageDialog = () => {
       <Sheet open={dialogOpen} onOpenChange={setDialogOpen}>
         <SheetContent 
           side="bottom" 
-          className="rounded-t-3xl p-0 mb-0 max-h-[90vh] overflow-y-auto"
+          className="rounded-t-3xl p-0 mb-0 max-h-[90vh] overflow-y-auto bg-transparent border-none shadow-none"
         >
           <div className="p-4 pb-6">
             <BottomSheetCardStack
@@ -154,7 +154,7 @@ const LoginMessageDialog = () => {
   // Desktop: Use Dialog (centered modal)
   return (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-      <DialogContent className="sm:max-w-[600px] rounded-3xl p-0 [&>button]:hidden">
+      <DialogContent className="sm:max-w-[600px] rounded-3xl p-0 [&>button]:hidden bg-transparent border-none shadow-none">
         <CardStack
           messages={messages}
           onAllDismissed={handleAllDismissed}

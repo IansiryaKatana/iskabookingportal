@@ -19,7 +19,7 @@ import { loadStripe } from "@stripe/stripe-js";
 import StripePaymentForm from "@/components/StripePaymentForm";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 
 const stripePromise = loadStripe(
   import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? "",
@@ -509,6 +509,46 @@ const PaymentCard = ({
   const contract = application.contract;
   const gradeName = contract?.studio_grade?.name ?? "Studio Grade";
 
+  // Fetch weekly price from studio_grade_prices if needed
+  const { data: gradePrice } = useQuery({
+    queryKey: ["studio-grade-price", contract?.academic_year_id, contract?.studio_grade_id],
+    queryFn: async () => {
+      if (!contract?.academic_year_id || !contract?.studio_grade_id) return null;
+      const { data, error } = await supabase
+        .from("studio_grade_prices")
+        .select("weekly_price")
+        .eq("academic_year_id", contract.academic_year_id)
+        .eq("studio_grade_id", contract.studio_grade_id)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!contract?.academic_year_id && !!contract?.studio_grade_id && !contract?.weekly_price_override,
+  });
+
+  // Calculate contract total and deposit
+  const contractTotal = useMemo(() => {
+    if (!contract) return 0;
+    const weeklyPrice = contract.weekly_price_override || gradePrice?.weekly_price || 0;
+    return weeklyPrice * (contract.weeks || 0);
+  }, [contract, gradePrice]);
+
+  const depositAmount = useMemo(() => {
+    if (!contract) return 0;
+    return contract.deposit_override || contract.payment_plan?.deposit_amount || 0;
+  }, [contract]);
+
+  const isDepositPaid = useMemo(() => {
+    return !!application.deposit_payment_intent_id;
+  }, [application.deposit_payment_intent_id]);
+
+  // Calculate installments total due (sum of all installments)
+  const installmentsTotalDue = useMemo(() => {
+    if (!instalments || instalments.length === 0) return 0;
+    return instalments.reduce((sum, inst) => sum + Number(inst.amount), 0);
+  }, [instalments]);
+
   // Calculate cashback-adjusted installments (reduce final installment)
   // For Pay in Full (1 installment), this will reduce that single installment
   const adjustedInstalments = useMemo(() => {
@@ -643,38 +683,60 @@ const PaymentCard = ({
           </Alert>
         )}
 
-        {/* Payment Summary with Cashback */}
+        {/* Payment Summary - Detailed Breakdown */}
         {paymentSummary && (
-          <div className={`rounded-2xl border p-4 space-y-2 ${
+          <div className={`rounded-2xl border p-4 space-y-3 ${
             paymentSummary.payment_status === 'fully_paid' 
               ? 'border-green-500/50 bg-green-50 dark:bg-green-950/20' 
               : 'border-border/60 bg-muted/30'
           }`}>
             {paymentSummary.payment_status === 'fully_paid' && (
-              <div className="flex items-center gap-2 mb-2 pb-2 border-b border-green-200 dark:border-green-800">
+              <div className="flex items-center gap-2 mb-3 pb-3 border-b border-green-200 dark:border-green-800">
                 <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
                 <span className="font-bold text-green-700 dark:text-green-300 uppercase tracking-wide">
                   Fully Paid
                 </span>
               </div>
             )}
+            
+            {/* Contract Total */}
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Total Due:</span>
+              <span className="text-muted-foreground">Contract Total:</span>
+              <span className="font-semibold">
+                £{contractTotal.toLocaleString("en-GB", { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+
+            {/* Deposit Paid */}
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Deposit {isDepositPaid ? 'Paid' : 'Due'}:</span>
+              <span className={`font-semibold ${isDepositPaid ? 'text-green-600' : ''}`}>
+                {isDepositPaid ? '✓ ' : ''}£{depositAmount.toLocaleString("en-GB", { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+
+            {/* Installments Total Due */}
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Installments Total Due:</span>
               <span className="font-semibold">
                 £{paymentSummary.total_due.toLocaleString("en-GB", { minimumFractionDigits: 2 })}
               </span>
             </div>
+
+            {/* Cashback (if applicable) */}
             {cashback && cashback.cashback_amount > 0 && (
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground flex items-center gap-1">
                   <Gift className="h-3 w-3" />
-                  Cashback:
+                  Cashback Applied:
                 </span>
                 <span className="font-semibold text-green-600">
                   -£{cashback.cashback_amount.toLocaleString("en-GB", { minimumFractionDigits: 2 })}
                 </span>
               </div>
             )}
+
+            {/* Remaining Balance */}
             <div className="flex items-center justify-between text-sm pt-2 border-t border-border/60">
               <span className="font-semibold">Remaining Balance:</span>
               <span className={`font-bold text-lg ${

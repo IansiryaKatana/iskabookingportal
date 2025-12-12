@@ -12,7 +12,7 @@ import {
 import { useAdminAcademicYears } from "@/hooks/useAdminAcademicYears";
 import { useAdminContracts } from "@/hooks/useAdminContracts";
 import { useEmailTemplates } from "@/hooks/useEmailTemplates";
-import { Mail, Send, Users, CheckCircle2, Clock, XCircle, Loader2, Filter } from "lucide-react";
+import { Mail, Send, Users, CheckCircle2, Clock, XCircle, Loader2, Filter, Search } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -60,6 +60,7 @@ const BulkInvitations = () => {
   const [resend, setResend] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [sendToAll, setSendToAll] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { data: academicYears } = useAdminAcademicYears();
   const { data: contracts } = useAdminContracts(selectedAcademicYearId);
@@ -74,8 +75,19 @@ const BulkInvitations = () => {
   // Filter applications
   const filteredApplications = useMemo(() => {
     if (!applications) return [];
+    
+    // Apply search filter if query exists
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      return applications.filter((app) => {
+        const name = (app.student_name || "").toLowerCase();
+        const email = (app.student_email || "").toLowerCase();
+        return name.includes(query) || email.includes(query);
+      });
+    }
+    
     return applications;
-  }, [applications]);
+  }, [applications, searchQuery]);
 
   // Pagination
   const totalPages = Math.ceil(filteredApplications.length / ITEMS_PER_PAGE);
@@ -88,7 +100,7 @@ const BulkInvitations = () => {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedAcademicYearId, contractFilter, statusFilter]);
+  }, [selectedAcademicYearId, contractFilter, statusFilter, searchQuery]);
 
   // Get applications to send invitations to
   const applicationsToSend = useMemo(() => {
@@ -281,7 +293,19 @@ const BulkInvitations = () => {
             <CardDescription className="text-xs md:text-sm">Filter applications and send invitations</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <Label>Search Student</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by name or email..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              </div>
               <div className="space-y-2">
                 <Label>Academic Year</Label>
                 <AcademicYearSelector

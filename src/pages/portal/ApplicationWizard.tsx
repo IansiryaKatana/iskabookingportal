@@ -26,6 +26,7 @@ import { useValidateReferralCode } from "@/hooks/useReferralCode";
 import { useVerifyPayment } from "@/hooks/useVerifyPayment";
 import { useLinkPaymentToApplication } from "@/hooks/useManualPayment";
 import PortalLayout from "@/components/portal/PortalLayout";
+import { getAllCountries } from "@/utils/countries";
 import {
   Loader2,
   CheckCircle2,
@@ -88,18 +89,8 @@ const writeStoredStep = (applicationId: string, step: number) => {
   );
 };
 
-const countries = [
-  "United Kingdom",
-  "United States",
-  "Nigeria",
-  "Kenya",
-  "China",
-  "India",
-  "France",
-  "Germany",
-  "Spain",
-  "Other",
-];
+// Get all countries from the country-list library
+const countries = getAllCountries();
 
 const ethnicityOptions = [
   "White",

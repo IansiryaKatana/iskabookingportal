@@ -600,11 +600,13 @@ BEGIN
 
   -- If contract_payment_schedule exists, use it (but verify it matches our calculation)
   -- This handles cases where schedule was pre-generated
+  -- CRITICAL: Exclude deposits from the sum - only sum installments
   BEGIN
     SELECT COALESCE(SUM(amount), 0)
     INTO v_total_due
     FROM public.contract_payment_schedule
-    WHERE contract_id = v_contract_id;
+    WHERE contract_id = v_contract_id
+      AND LOWER(COALESCE(label, '')) NOT LIKE '%deposit%';
     
     -- If schedule exists and is not empty, use it
     -- Otherwise, keep the calculated value (Contract Total - Deposit)

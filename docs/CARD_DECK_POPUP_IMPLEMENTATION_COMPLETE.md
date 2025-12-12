@@ -16,6 +16,7 @@ Successfully implemented the beautiful card deck popup feature for bulk messages
 - ✅ Responsive design: Desktop uses Dialog, Mobile uses Sheet (bottom sheet)
 - ✅ Keyboard support (ESC to skip to notifications)
 - ✅ Proper state management for multiple messages
+- ✅ Transparent outer container (DialogContent/SheetContent) - only card content has background
 
 **File:** `src/components/portal/LoginMessageDialog.tsx`
 
@@ -111,21 +112,23 @@ Successfully implemented the beautiful card deck popup feature for bulk messages
 ## UI/UX Design
 
 ### Desktop
-- **Layout:** Centered modal dialog
+- **Layout:** Centered modal dialog with transparent outer container
 - **Cards:** 3-5 cards visible in stack
 - **Effects:** 
   - Slight rotation (-2deg, 0deg, +2deg)
   - Shadow depth increases for top cards
   - Scale: 1.0 (top), 0.98, 0.96 (bottom)
+  - Outer DialogContent is transparent (bg-transparent, border-none, shadow-none)
 - **Animation:** Slide-out to right with fade
 
 ### Mobile
-- **Layout:** Bottom sheet (slides up from bottom)
+- **Layout:** Bottom sheet (slides up from bottom) with transparent outer container
 - **Cards:** One card at a time, next 2 peek from below
 - **Effects:** 
   - Full-width cards
   - Rounded top corners
   - Zero bottom margin (per requirements)
+  - Outer SheetContent is transparent (bg-transparent, border-none, shadow-none)
 - **Animation:** Slide-up with fade
 
 ---
@@ -169,6 +172,12 @@ Successfully implemented the beautiful card deck popup feature for bulk messages
 ### Mobile Breakpoint
 - **Breakpoint:** 768px (md breakpoint)
 - **Location:** `LoginMessageDialog.tsx` line 42
+
+### Dialog Container Styling
+- **Desktop DialogContent:** Transparent background (`bg-transparent border-none shadow-none`)
+- **Mobile SheetContent:** Transparent background (`bg-transparent border-none shadow-none`)
+- **Location:** `LoginMessageDialog.tsx` lines 140, 157
+- **Note:** Only the card content inside has a background; outer container is transparent
 
 ---
 

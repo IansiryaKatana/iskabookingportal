@@ -114,6 +114,20 @@ mobileActionButton={
 - Content: `rounded-3xl`
 - Title: Use `TYPOGRAPHY.heading.h2`
 
+### Transparent Container Pattern
+
+For dialogs where only the inner content should have a background (e.g., LoginMessageDialog):
+- **DialogContent/SheetContent:** Use `bg-transparent border-none shadow-none` to make outer container transparent
+- **Inner Content:** Apply background, border, and shadow to the actual content cards/components
+- **Use Case:** When you want the dialog wrapper to be invisible and only show the styled content inside
+
+**Example:**
+```tsx
+<DialogContent className="sm:max-w-[600px] rounded-3xl p-0 bg-transparent border-none shadow-none">
+  <CardStack /> {/* CardStack has its own background */}
+</DialogContent>
+```
+
 ## Forms
 
 ### Standard Form Classes
