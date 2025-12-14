@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { getDefaultRouteForRole } from "@/utils/getDefaultRoute";
 
 type ProtectedRouteProps = {
   children: React.ReactNode;
@@ -13,6 +14,14 @@ type ProtectedRouteProps = {
 const ProtectedRoute = ({ children, allowedRoles, checkDatabase = true }: ProtectedRouteProps) => {
   const { user, role, loading } = useAuth();
   const location = useLocation();
+  
+  // Get default route for user when access is denied
+  const { data: defaultRoute, isLoading: loadingDefaultRoute } = useQuery({
+    queryKey: ["default-route", role],
+    queryFn: () => getDefaultRouteForRole(role || ""),
+    enabled: !!role && !loading,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
 
   // Check database permissions (default: enabled)
   // Falls back to allowedRoles if database check fails or no record exists
@@ -125,28 +134,26 @@ const ProtectedRoute = ({ children, allowedRoles, checkDatabase = true }: Protec
     ? (hasPermission ?? allowedRoles.includes(role))
     : allowedRoles.includes(role);
 
+  // Get default route for user when access is denied
+  const { data: defaultRoute, isLoading: loadingDefaultRoute } = useQuery({
+    queryKey: ["default-route", role],
+    queryFn: () => getDefaultRouteForRole(role || ""),
+    enabled: !hasAccess && !!role && !loading, // Only fetch when access is denied
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
+
   if (!hasAccess) {
-    // Redirect to appropriate dashboard based on role to avoid infinite loops
-    const isAdminRoute = location.pathname.startsWith("/admin");
-    const isPortalRoute = location.pathname.startsWith("/portal");
-    const isPartnerRoute = location.pathname.startsWith("/partner");
-    
-    // Redirect subroles to their specific dashboards
-    if (role === "maintenance_officer") {
-      return <Navigate to="/maintenance" replace />;
-    } else if (role === "housekeeper") {
-      return <Navigate to="/housekeeping" replace />;
-    } else if (role === "reservationist") {
-      return <Navigate to="/ota-bookings" replace />;
-    } else if (isAdminRoute) {
-      return <Navigate to="/admin" replace />;
-    } else if (isPortalRoute) {
-      return <Navigate to="/portal" replace />;
-    } else if (isPartnerRoute) {
-      return <Navigate to="/partner" replace />;
+    // Show loading while finding default route
+    if (loadingDefaultRoute || !defaultRoute) {
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </div>
+      );
     }
-    
-    return <Navigate to="/admin" replace />;
+
+    // Redirect to user's default accessible route
+    return <Navigate to={defaultRoute || "/admin"} replace />;
   }
 
   return <>{children}</>;

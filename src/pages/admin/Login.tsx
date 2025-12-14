@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, Mail, Eye, EyeOff, ArrowRight, Lock, ArrowLeft } from "lucide-react";
 import { useBrandingSettings } from "@/hooks/useBranding";
+import { getDefaultRouteForRole } from "@/utils/getDefaultRoute";
 
 const Login = () => {
   const { signIn, loading, user, profile } = useAuth();
@@ -51,7 +52,22 @@ const Login = () => {
 
   useEffect(() => {
     if (user && profile?.role && profile.role !== "student") {
-      navigate(redirectPath, { replace: true });
+      // Check if user has access to the redirect path, if not, find their default route
+      const checkAndRedirect = async () => {
+        // If redirecting to /admin, check if they have access
+        if (redirectPath === "/admin" || redirectPath.startsWith("/admin")) {
+          const defaultRoute = await getDefaultRouteForRole(profile.role);
+          if (defaultRoute) {
+            navigate(defaultRoute, { replace: true });
+          } else {
+            // Fallback to /admin if no default route found
+            navigate(redirectPath, { replace: true });
+          }
+        } else {
+          navigate(redirectPath, { replace: true });
+        }
+      };
+      checkAndRedirect();
     }
   }, [user, profile, navigate, redirectPath]);
 
@@ -67,7 +83,18 @@ const Login = () => {
       return;
     }
 
-    navigate(redirectPath, { replace: true });
+    // After successful login, check if user has access to redirect path
+    // If redirecting to /admin and they don't have access, redirect to their default route
+    if (redirectPath === "/admin" || redirectPath.startsWith("/admin")) {
+      const defaultRoute = await getDefaultRouteForRole(profile?.role || "");
+      if (defaultRoute) {
+        navigate(defaultRoute, { replace: true });
+      } else {
+        navigate(redirectPath, { replace: true });
+      }
+    } else {
+      navigate(redirectPath, { replace: true });
+    }
   };
 
   return (
