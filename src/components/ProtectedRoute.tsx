@@ -82,6 +82,15 @@ const ProtectedRoute = ({ children, allowedRoles, checkDatabase = true }: Protec
     retry: 1, // Retry once on failure, then fallback to allowedRoles
   });
 
+  // Get default route for user - ALWAYS call this hook (use enabled to control when it runs)
+  // This must be called before any conditional returns to maintain hook order
+  const { data: defaultRoute, isLoading: loadingDefaultRoute } = useQuery({
+    queryKey: ["default-route", role],
+    queryFn: () => getDefaultRouteForRole(role || ""),
+    enabled: !!role && !loading, // Always enabled when we have a role, but we'll check hasAccess before using it
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
+
   // Show loading only if auth is loading, not if permission check is loading
   // This prevents flickering when navigating between pages
   if (loading) {
@@ -125,14 +134,6 @@ const ProtectedRoute = ({ children, allowedRoles, checkDatabase = true }: Protec
   const hasAccess = checkDatabase 
     ? (hasPermission ?? allowedRoles.includes(role))
     : allowedRoles.includes(role);
-
-  // Get default route for user when access is denied
-  const { data: defaultRoute, isLoading: loadingDefaultRoute } = useQuery({
-    queryKey: ["default-route", role],
-    queryFn: () => getDefaultRouteForRole(role || ""),
-    enabled: !hasAccess && !!role && !loading, // Only fetch when access is denied
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-  });
 
   if (!hasAccess) {
     // Show loading while finding default route
