@@ -57,21 +57,52 @@ const normalizeRow = (row?: RpcRow | null): DashboardStats => {
 };
 
 const fetchDashboardStats = async (academicYearId?: string): Promise<DashboardStats> => {
-  // Ensure we pass null (not undefined) for the RPC call
-  const params = academicYearId 
-    ? { p_academic_year_id: academicYearId }
-    : { p_academic_year_id: null };
+  try {
+    // Build parameters object - only include if we have a value
+    // Supabase RPC can be sensitive to null vs undefined vs omitted
+    const params: Record<string, any> = {};
+    
+    if (academicYearId) {
+      params.p_academic_year_id = academicYearId;
+    } else {
+      // Explicitly set to null if no academic year selected
+      params.p_academic_year_id = null;
+    }
 
-  const { data, error } = await supabase.rpc("get_admin_dashboard_stats", params);
+    const { data, error } = await supabase.rpc("get_admin_dashboard_stats", params);
 
-  if (error) {
-    console.error("Failed to load dashboard stats:", error);
-    // Return empty stats instead of throwing to prevent UI crashes
-    // This allows the app to continue functioning even if stats fail
+    if (error) {
+      // Log detailed error information for debugging
+      const errorDetails = {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+        params: JSON.stringify(params),
+      };
+      
+      console.error("Failed to load dashboard stats:", errorDetails);
+      console.error("Full error object:", error);
+      
+      // If function doesn't exist (code 42883), log a helpful message
+      if (error.code === '42883' || error.message?.includes('does not exist')) {
+        console.error(
+          "⚠️ The get_admin_dashboard_stats function doesn't exist in the database. " +
+          "Please run the migration: supabase/migrations/20250214_fix_admin_dashboard_stats_function.sql"
+        );
+      }
+      
+      // Return empty stats instead of throwing to prevent UI crashes
+      // This allows the app to continue functioning even if stats fail
+      return normalizeRow(null);
+    }
+
+    return normalizeRow(data?.[0]);
+  } catch (err) {
+    // Catch any unexpected errors
+    console.error("Unexpected error in fetchDashboardStats:", err);
     return normalizeRow(null);
   }
-
-  return normalizeRow(data?.[0]);
 };
 
 export const useDashboardStats = (academicYearId?: string) => {

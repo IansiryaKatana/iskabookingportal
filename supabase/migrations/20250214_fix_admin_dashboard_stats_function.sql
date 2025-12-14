@@ -73,31 +73,23 @@ begin
   from public.unified_payment_history
   where payment_status in ('completed', 'succeeded');
 
-  -- Get occupancy stats - handle case where view might not exist
+  -- Get occupancy stats - use studios table directly (more reliable)
+  -- Check if studio_status_by_academic_year view exists, otherwise use studios table
   if p_academic_year_id is not null then
-    -- Try to use studio_status_by_academic_year view if it exists
-    begin
-      select
-        count(*)::bigint,
-        count(*) filter (where effective_status = 'occupied')::bigint
-      into
-        v_occupancy_total,
-        v_occupancy_occupied
-      from public.studio_status_by_academic_year
-      where academic_year_id = p_academic_year_id
-        and is_active is true;
-    exception when others then
-      -- Fallback to studios table if view doesn't exist
-      select
-        count(*)::bigint,
-        count(*) filter (where status = 'occupied')::bigint
-      into
-        v_occupancy_total,
-        v_occupancy_occupied
-      from public.studios
-      where is_active is true;
-    end;
+    -- For academic year specific, count studios with confirmed applications for that year
+    select
+      count(distinct s.id)::bigint,
+      count(distinct case when sa.status = 'confirmed' then s.id end)::bigint
+    into
+      v_occupancy_total,
+      v_occupancy_occupied
+    from public.studios s
+    left join public.student_applications sa on sa.assigned_studio_id = s.id
+    left join public.contracts c on sa.contract_id = c.id
+    where s.is_active is true
+      and (c.academic_year_id = p_academic_year_id or c.academic_year_id is null);
   else
+    -- For all years, use simple studios table query
     select
       count(*)::bigint,
       count(*) filter (where status = 'occupied')::bigint
