@@ -19,9 +19,14 @@ export default defineConfig(() => ({
         manualChunks: (id) => {
           // Vendor chunks - split large libraries
           if (id.includes("node_modules")) {
-            // React core
-            if (id.includes("react") || id.includes("react-dom") || id.includes("react-router")) {
-              return "react-vendor";
+            // React core - keep in main bundle for synchronous access
+            // Don't split React/ReactDOM as they need to be available immediately
+            if (id.includes("react") || id.includes("react-dom")) {
+              return undefined; // Keep in main bundle
+            }
+            // React Router can be split
+            if (id.includes("react-router")) {
+              return "react-router";
             }
             // UI libraries (Radix UI)
             if (id.includes("@radix-ui")) {
