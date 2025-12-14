@@ -368,8 +368,7 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
       .map((section) => ({
         ...section,
         items: section.items.filter((item) => {
-          // Always allow dashboard
-          if (item.to === "/admin") return true;
+          // Check permission for all routes including dashboard
           // Only show route if permission is explicitly true
           // Hide if false or undefined (no record yet)
           const hasPermission = routePermissions[item.to];
