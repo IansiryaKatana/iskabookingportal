@@ -24,13 +24,7 @@ const ProtectedRoute = ({ children, allowedRoles, checkDatabase = true }: Protec
         return allowedRoles.includes(role);
       }
       
-      // IMPORTANT: First check if role is in allowedRoles - if not, deny immediately
-      // This prevents subroles from accessing routes they shouldn't have access to
-      if (!allowedRoles.includes(role)) {
-        return false;
-      }
-      
-      // Check permission for the specific role first
+      // Check permission for the specific role first (database permissions take precedence)
       const { data: specificRoleData, error: specificError } = await supabase
         .from("route_permissions")
         .select("allowed")
@@ -43,6 +37,12 @@ const ProtectedRoute = ({ children, allowedRoles, checkDatabase = true }: Protec
         console.error("Error checking route permission:", specificError);
         // Fallback to allowedRoles on error (safe default)
         return allowedRoles.includes(role);
+      }
+
+      // If specific role has an explicit record (allowed or denied), use it
+      // This respects the permissions page settings
+      if (specificRoleData !== null) {
+        return specificRoleData.allowed === true;
       }
 
       // For sub-roles: Check staff permission first (if staff is denied, deny all sub-roles)
@@ -63,30 +63,10 @@ const ProtectedRoute = ({ children, allowedRoles, checkDatabase = true }: Protec
         if (staffData && !staffData.allowed) {
           return false;
         }
-      }
 
-      // If specific role has a record, use it (allows per-sub-role control)
-      if (specificRoleData) {
-        return specificRoleData.allowed === true;
-      }
-
-      // If no specific role record, check "staff" role for staff sub-roles
-      if (role === "operations_manager" || role === "reservationist" || role === "accountant" || role === "front_desk" || role === "maintenance_officer" || role === "housekeeper") {
-        const { data: staffData, error: staffError } = await supabase
-          .from("route_permissions")
-          .select("allowed")
-          .eq("route_path", location.pathname)
-          .eq("role", "staff")
-          .maybeSingle();
-
-        if (staffError && staffError.code !== "PGRST116") {
-          console.error("Error checking staff route permission:", staffError);
-          return allowedRoles.includes(role);
-        }
-
-        // If staff role has a record, use it
-        if (staffData) {
-          return staffData.allowed === true;
+        // If staff has explicit permission, use it
+        if (staffData && staffData.allowed) {
+          return true;
         }
       }
 
