@@ -25,7 +25,11 @@ export const useRoutePermission = (routePath: string) => {
       if (specificError && specificError.code !== "PGRST116") {
         // PGRST116 = no rows returned, which is fine
         console.error("Error checking route permission:", specificError);
-        return true; // Default to allowing if error (safe fallback)
+        // For subroles, default to denying on error (safer default)
+        if (role === "operations_manager" || role === "reservationist" || role === "accountant" || role === "front_desk" || role === "maintenance_officer" || role === "housekeeper") {
+          return false;
+        }
+        return true; // Default to allowing if error for top-level roles (safe fallback)
       }
 
       // If specific role has a record, use it (even if false - deny access)
@@ -35,7 +39,7 @@ export const useRoutePermission = (routePath: string) => {
       }
 
       // If no specific role record, check "staff" role for staff sub-roles
-      if (role === "operations_manager" || role === "reservationist" || role === "accountant" || role === "front_desk") {
+      if (role === "operations_manager" || role === "reservationist" || role === "accountant" || role === "front_desk" || role === "maintenance_officer" || role === "housekeeper") {
         const { data: staffData, error: staffError } = await supabase
           .from("route_permissions")
           .select("allowed")
@@ -45,16 +49,19 @@ export const useRoutePermission = (routePath: string) => {
 
         if (staffError && staffError.code !== "PGRST116") {
           console.error("Error checking staff route permission:", staffError);
-          return true; // Default to allowing if error
+          return false; // Default to denying for subroles on error
         }
 
         // If staff role has a record, use it
         if (staffData) {
           return staffData.allowed === true;
         }
+
+        // For subroles: If no permission record exists, default to denying access
+        return false;
       }
 
-      // If no permission record exists in database, default to allowing (safe fallback)
+      // For top-level roles (staff, superadmin): If no permission record exists, default to allowing (safe fallback)
       return true;
     },
     enabled: !!role && !loading,
@@ -80,7 +87,7 @@ export const useRoutePermissions = (routePaths: string[]) => {
 
       // Fetch all permissions for these routes and the user's role(s)
       const rolesToCheck = [role];
-      if (role === "operations_manager" || role === "reservationist" || role === "accountant" || role === "front_desk") {
+      if (role === "operations_manager" || role === "reservationist" || role === "accountant" || role === "front_desk" || role === "maintenance_officer" || role === "housekeeper") {
         rolesToCheck.push("staff");
       }
 
@@ -91,10 +98,15 @@ export const useRoutePermissions = (routePaths: string[]) => {
         .in("role", rolesToCheck);
 
       if (error) {
-        console.error("Error fetching route permissions:", error);
-        // Default to allowing all if error (safe fallback)
+        console.error("[useRoutePermissions] Error fetching route permissions:", error);
+        // For subroles, default to denying all on error (safer default)
+        // For top-level roles, default to allowing (safe fallback)
+        if (role === "operations_manager" || role === "reservationist" || role === "accountant" || role === "front_desk" || role === "maintenance_officer" || role === "housekeeper") {
+          return routePaths.reduce((acc, path) => ({ ...acc, [path]: false }), {});
+        }
         return routePaths.reduce((acc, path) => ({ ...acc, [path]: true }), {});
       }
+
 
       // Build permission map
       const permissionMap: Record<string, boolean> = {};
@@ -114,11 +126,20 @@ export const useRoutePermissions = (routePaths: string[]) => {
         const specificPerm = data?.find((p) => p.route_path === path && p.role === role);
         if (specificPerm) {
           // If specific role has a record, use it (allows per-sub-role control)
-          permissionMap[path] = specificPerm.allowed === true;
+          // This respects explicit false values to deny access
+          const hasAccess = specificPerm.allowed === true;
+          permissionMap[path] = hasAccess;
           return;
         }
 
-        // Check staff role for sub-roles (only if no specific role record exists)
+        // For sub-roles: Do NOT inherit from staff permissions - they must have explicit permission records
+        // This ensures granular control per subrole - each subrole only sees routes explicitly granted to them
+        if (role === "operations_manager" || role === "reservationist" || role === "accountant" || role === "front_desk" || role === "maintenance_officer" || role === "housekeeper") {
+          permissionMap[path] = false; // Subroles must have explicit permission - no inheritance from staff
+          return;
+        }
+
+        // For top-level roles (staff, superadmin): Check staff permission or default to allowing
         if (rolesToCheck.includes("staff")) {
           const staffPerm = data?.find((p) => p.route_path === path && p.role === "staff");
           if (staffPerm) {
@@ -126,18 +147,17 @@ export const useRoutePermissions = (routePaths: string[]) => {
             return;
           }
         }
-
-        // If no permission record exists, default to allowing (safe fallback)
-        // This allows routes that haven't been configured yet to still work
-        permissionMap[path] = true;
+        
+        permissionMap[path] = true; // Top-level roles default to allowing
       });
+      
       return permissionMap;
     },
     enabled: !!role && !loading && routePaths.length > 0,
-    staleTime: 30 * 1000, // Cache for 30 seconds to reduce flickering
-    gcTime: 60 * 1000, // Keep in cache for 60 seconds
-    refetchOnMount: false, // Don't refetch on mount if data is fresh (reduces flicker)
-    refetchOnWindowFocus: false, // Don't refetch on window focus (reduces flicker)
+    staleTime: 0, // No cache - always check fresh permissions to respect permission changes immediately
+    gcTime: 5 * 1000, // Keep in cache for 5 seconds only
+    refetchOnMount: true, // Refetch on mount to get latest permissions
+    refetchOnWindowFocus: false, // Don't refetch on window focus to prevent unwanted redirects
     retry: 1,
   });
 };

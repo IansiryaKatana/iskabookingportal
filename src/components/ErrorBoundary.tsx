@@ -43,7 +43,7 @@ class ErrorBoundary extends Component<Props, State> {
     });
 
     // Send to Sentry if configured (using dynamic import to avoid breaking if Sentry not available)
-    import("@sentry/react")
+    import("@/utils/sentry")
       .then((SentryModule) => {
         const Sentry = SentryModule.default;
         if (Sentry && typeof Sentry.captureException === "function") {

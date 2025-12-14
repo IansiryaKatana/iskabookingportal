@@ -15,7 +15,7 @@ type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"] & {
   staff_subrole?: StaffSubrole | null;
 };
 type Role = "student" | "staff" | "superadmin" | "partner" | "admin" | StaffSubrole;
-export type StaffSubrole = "operations_manager" | "reservationist" | "accountant" | "front_desk";
+export type StaffSubrole = "operations_manager" | "reservationist" | "accountant" | "front_desk" | "maintenance_officer" | "housekeeper";
 
 type AuthContextValue = {
   user: User | null;
@@ -130,9 +130,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             .maybeSingle();
           
           const userRole = profileData?.role;
+          const userSubrole = profileData?.staff_subrole;
           const isStaff = userRole === "staff" || userRole === "superadmin" || userRole === "admin" || 
                          userRole === "operations_manager" || userRole === "reservationist" || 
-                         userRole === "accountant" || userRole === "front_desk";
+                         userRole === "accountant" || userRole === "front_desk" ||
+                         userSubrole === "maintenance_officer" || userSubrole === "housekeeper";
           
           // Redirect to appropriate reset password page based on role
           const resetPath = isStaff ? "/admin/reset-password" : "/portal/reset-password";
@@ -160,9 +162,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                 if (!profileData) return;
                 
                 const userRole = profileData.role;
+                const userSubrole = profileData.staff_subrole;
                 const isStaff = userRole === "staff" || userRole === "superadmin" || userRole === "admin" || 
                                userRole === "operations_manager" || userRole === "reservationist" || 
-                               userRole === "accountant" || userRole === "front_desk";
+                               userRole === "accountant" || userRole === "front_desk" ||
+                               userSubrole === "maintenance_officer" || userSubrole === "housekeeper";
                 const isPartner = userRole === "partner";
                 const isStudent = userRole === "student";
                 

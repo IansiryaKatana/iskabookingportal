@@ -1,79 +1,99 @@
+import { Suspense, lazy } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
-import StudioGradePage from "./pages/StudioGrade";
-import StudioGradeStatic from "./pages/reference/StudioGradeStatic";
-import StudiosCatalog from "./pages/StudiosCatalog";
-import ContractDetail from "./pages/ContractDetail";
-import AdminDashboard from "./pages/admin/Dashboard";
-import AdminLogin from "./pages/admin/Login";
-import AdminRequestPasswordReset from "./pages/admin/RequestPasswordReset";
-import AdminResetPassword from "./pages/admin/ResetPassword";
-import AdminContracts from "./pages/admin/Contracts";
-import AdminSettings from "./pages/admin/Settings";
-import AdminBranding from "./pages/admin/Branding";
-import AdminAcademicYears from "./pages/admin/AcademicYears";
-import AdminDocuSignTemplates from "./pages/admin/DocuSignTemplates";
-import AdminStudioGrades from "./pages/admin/StudioGrades";
-import AdminStudios from "./pages/admin/Studios";
-import AdminApplications from "./pages/admin/Applications";
-import AdminPaymentPlans from "./pages/admin/PaymentPlans";
-import AdminFinancialForecast from "./pages/admin/FinancialForecast";
-import AdminStudents from "./pages/admin/Students";
-import AdminStudentDetail from "./pages/admin/StudentDetail";
-import AdminReports from "./pages/admin/Reports";
-import AdminAccountingReports from "./pages/admin/AccountingReports";
-import AdminBookingCalendar from "./pages/admin/BookingCalendar";
-import AdminBulkMessages from "./pages/admin/BulkMessages";
-import AdminBulkInvitations from "./pages/admin/BulkInvitations";
-import AdminTargetedMessages from "./pages/admin/TargetedMessages";
-import AdminEmailTemplates from "./pages/admin/EmailTemplates";
-import AdminApplicationDetail from "./pages/admin/ApplicationDetail";
-import AdminUsers from "./pages/admin/Users";
-import AdminPermissions from "./pages/admin/Permissions";
-import AdminRefunds from "./pages/admin/Refunds";
-import AdminMaintenance from "./pages/admin/Maintenance";
-import AdminExpenses from "./pages/admin/Expenses";
-import AdminAuditLogs from "./pages/admin/AuditLogs";
-import AdminPaymentHistory from "./pages/admin/PaymentHistory";
-import AdminFullyPaidStudents from "./pages/admin/FullyPaidStudents";
-import AdminCashbackCampaigns from "./pages/admin/CashbackCampaigns";
-import AdminPartners from "./pages/admin/Partners";
-import AdminPartnerCommissions from "./pages/admin/PartnerCommissions";
-import AdminWeeklyPaymentReport from "./pages/admin/WeeklyPaymentReport";
-import AdminDataImport from "./pages/admin/DataImport";
-import AdminManualPaymentEntry from "./pages/admin/ManualPaymentEntry";
-import PartnerLogin from "./pages/partner/Login";
-import PartnerRegister from "./pages/partner/Register";
-import PartnerResetPassword from "./pages/partner/ResetPassword";
-import RequestPasswordReset from "./pages/partner/RequestPasswordReset";
-import PartnerDashboard from "./pages/partner/Dashboard";
-import PartnerReferrals from "./pages/partner/Referrals";
-import PartnerCommissions from "./pages/partner/Commissions";
-import PartnerProfile from "./pages/partner/Profile";
 import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
-import StudentApplicationWizard from "./pages/portal/ApplicationWizard";
-import StudentApplicationWizardPrototype from "./pages/portal/ApplicationWizardPrototype";
-import PortalAuth from "./pages/portal/Auth";
-import PortalRequestPasswordReset from "./pages/portal/RequestPasswordReset";
-import PortalResetPassword from "./pages/portal/ResetPassword";
-import PortalDashboard from "./pages/portal/Dashboard";
-import StudioSelection from "./pages/portal/StudioSelection";
-import PortalPayments from "./pages/portal/Payments";
-import PortalContracts from "./pages/portal/Contracts";
-import PortalDocuments from "./pages/portal/Documents";
-import PortalProfile from "./pages/portal/Profile";
-import PortalNotifications from "./pages/portal/Notifications";
-import PortalMaintenance from "./pages/portal/Maintenance";
 import PageTitle from "./components/PageTitle";
 import FaviconUpdater from "./components/FaviconUpdater";
 import MetaTagsUpdater from "./components/MetaTagsUpdater";
+import { Loader2 } from "lucide-react";
+
+// Lazy load all page components for code splitting
+const Index = lazy(() => import("./pages/Index"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const StudioGradePage = lazy(() => import("./pages/StudioGrade"));
+const StudioGradeStatic = lazy(() => import("./pages/reference/StudioGradeStatic"));
+const StudiosCatalog = lazy(() => import("./pages/StudiosCatalog"));
+const ContractDetail = lazy(() => import("./pages/ContractDetail"));
+const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
+const AdminLogin = lazy(() => import("./pages/admin/Login"));
+const AdminRequestPasswordReset = lazy(() => import("./pages/admin/RequestPasswordReset"));
+const AdminResetPassword = lazy(() => import("./pages/admin/ResetPassword"));
+const AdminContracts = lazy(() => import("./pages/admin/Contracts"));
+const AdminSettings = lazy(() => import("./pages/admin/Settings"));
+const AdminBranding = lazy(() => import("./pages/admin/Branding"));
+const AdminAcademicYears = lazy(() => import("./pages/admin/AcademicYears"));
+const AdminDocuSignTemplates = lazy(() => import("./pages/admin/DocuSignTemplates"));
+const AdminStudioGrades = lazy(() => import("./pages/admin/StudioGrades"));
+const AdminStudios = lazy(() => import("./pages/admin/Studios"));
+const AdminApplications = lazy(() => import("./pages/admin/Applications"));
+const AdminPaymentPlans = lazy(() => import("./pages/admin/PaymentPlans"));
+const AdminFinancialForecast = lazy(() => import("./pages/admin/FinancialForecast"));
+const AdminStudents = lazy(() => import("./pages/admin/Students"));
+const AdminStudentDetail = lazy(() => import("./pages/admin/StudentDetail"));
+const AdminReports = lazy(() => import("./pages/admin/Reports"));
+const AdminAccountingReports = lazy(() => import("./pages/admin/AccountingReports"));
+const AdminBookingCalendar = lazy(() => import("./pages/admin/BookingCalendar"));
+const AdminBulkMessages = lazy(() => import("./pages/admin/BulkMessages"));
+const AdminBulkInvitations = lazy(() => import("./pages/admin/BulkInvitations"));
+const AdminTargetedMessages = lazy(() => import("./pages/admin/TargetedMessages"));
+const AdminEmailTemplates = lazy(() => import("./pages/admin/EmailTemplates"));
+const AdminApplicationDetail = lazy(() => import("./pages/admin/ApplicationDetail"));
+const AdminUsers = lazy(() => import("./pages/admin/Users"));
+const AdminPermissions = lazy(() => import("./pages/admin/Permissions"));
+const AdminRefunds = lazy(() => import("./pages/admin/Refunds"));
+const AdminMaintenance = lazy(() => import("./pages/admin/Maintenance"));
+const MaintenanceDashboard = lazy(() => import("./pages/admin/MaintenanceDashboard"));
+const OutOfOrderPage = lazy(() => import("./pages/admin/OutOfOrderPage"));
+const MaintenanceJobManagementPage = lazy(() => import("./pages/admin/MaintenanceJobManagementPage"));
+const HousekeepingDashboard = lazy(() => import("./pages/admin/HousekeepingDashboard"));
+const HousekeepingRosterPage = lazy(() => import("./pages/admin/HousekeepingRosterPage"));
+const OTABookingsDashboard = lazy(() => import("./pages/admin/OTABookingsDashboard"));
+const OTABookingChartPage = lazy(() => import("./pages/admin/OTABookingChartPage"));
+const OTAFinancePage = lazy(() => import("./pages/admin/OTAFinancePage"));
+const OTAStudioAllocationPage = lazy(() => import("./pages/admin/OTAStudioAllocationPage"));
+const AdminExpenses = lazy(() => import("./pages/admin/Expenses"));
+const AdminAuditLogs = lazy(() => import("./pages/admin/AuditLogs"));
+const AdminPaymentHistory = lazy(() => import("./pages/admin/PaymentHistory"));
+const AdminFullyPaidStudents = lazy(() => import("./pages/admin/FullyPaidStudents"));
+const AdminCashbackCampaigns = lazy(() => import("./pages/admin/CashbackCampaigns"));
+const AdminPartners = lazy(() => import("./pages/admin/Partners"));
+const AdminPartnerCommissions = lazy(() => import("./pages/admin/PartnerCommissions"));
+const AdminWeeklyPaymentReport = lazy(() => import("./pages/admin/WeeklyPaymentReport"));
+const AdminDataImport = lazy(() => import("./pages/admin/DataImport"));
+const AdminManualPaymentEntry = lazy(() => import("./pages/admin/ManualPaymentEntry"));
+const PartnerLogin = lazy(() => import("./pages/partner/Login"));
+const PartnerRegister = lazy(() => import("./pages/partner/Register"));
+const PartnerResetPassword = lazy(() => import("./pages/partner/ResetPassword"));
+const RequestPasswordReset = lazy(() => import("./pages/partner/RequestPasswordReset"));
+const PartnerDashboard = lazy(() => import("./pages/partner/Dashboard"));
+const PartnerReferrals = lazy(() => import("./pages/partner/Referrals"));
+const PartnerCommissions = lazy(() => import("./pages/partner/Commissions"));
+const PartnerProfile = lazy(() => import("./pages/partner/Profile"));
+const StudentApplicationWizard = lazy(() => import("./pages/portal/ApplicationWizard"));
+const StudentApplicationWizardPrototype = lazy(() => import("./pages/portal/ApplicationWizardPrototype"));
+const PortalAuth = lazy(() => import("./pages/portal/Auth"));
+const PortalRequestPasswordReset = lazy(() => import("./pages/portal/RequestPasswordReset"));
+const PortalResetPassword = lazy(() => import("./pages/portal/ResetPassword"));
+const PortalDashboard = lazy(() => import("./pages/portal/Dashboard"));
+const StudioSelection = lazy(() => import("./pages/portal/StudioSelection"));
+const PortalPayments = lazy(() => import("./pages/portal/Payments"));
+const PortalContracts = lazy(() => import("./pages/portal/Contracts"));
+const PortalDocuments = lazy(() => import("./pages/portal/Documents"));
+const PortalProfile = lazy(() => import("./pages/portal/Profile"));
+const PortalNotifications = lazy(() => import("./pages/portal/Notifications"));
+const PortalMaintenance = lazy(() => import("./pages/portal/Maintenance"));
+
+// Loading fallback component
+const PageLoader = () => (
+  <div className="flex min-h-screen items-center justify-center">
+    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+  </div>
+);
 
 const queryClient = new QueryClient();
 
@@ -94,7 +114,8 @@ const App = () => (
               <PageTitle />
               <FaviconUpdater />
               <MetaTagsUpdater />
-              <Routes>
+              <Suspense fallback={<PageLoader />}>
+                <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/studios" element={<StudiosCatalog />} />
             <Route path="/studios/:year" element={<StudiosCatalog />} />
@@ -251,6 +272,81 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
                   <AdminMaintenance />
+                </ProtectedRoute>
+              }
+            />
+            {/* Operations Module: Maintenance */}
+            <Route
+              path="/maintenance"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin", "operations_manager", "maintenance_officer"]}>
+                  <MaintenanceDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/maintenance/out-of-order"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin", "operations_manager", "maintenance_officer"]}>
+                  <OutOfOrderPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/maintenance/job-management"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin", "operations_manager", "maintenance_officer"]}>
+                  <MaintenanceJobManagementPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* Operations Module: Housekeeping */}
+            <Route
+              path="/housekeeping"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin", "operations_manager", "housekeeper"]}>
+                  <HousekeepingDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/housekeeping/roster"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin", "operations_manager", "housekeeper"]}>
+                  <HousekeepingRosterPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* Operations Module: OTA Bookings */}
+            <Route
+              path="/ota-bookings"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin", "operations_manager", "reservationist"]}>
+                  <OTABookingsDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/ota-bookings/booking-chart"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin", "operations_manager", "reservationist"]}>
+                  <OTABookingChartPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/ota-bookings/studio-allocation"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin", "operations_manager", "reservationist"]}>
+                  <OTAStudioAllocationPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/ota-bookings/finance"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin", "operations_manager", "reservationist"]}>
+                  <OTAFinancePage />
                 </ProtectedRoute>
               }
             />
@@ -511,7 +607,8 @@ const App = () => (
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
-              </Routes>
+                </Routes>
+              </Suspense>
             </ErrorBoundary>
           </BrowserRouter>
         </TooltipProvider>

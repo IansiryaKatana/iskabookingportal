@@ -137,7 +137,7 @@ serve(async (req) => {
       }
 
       // Validate staff_subrole values
-      const validSubroles = ["operations_manager", "reservationist", "accountant", "front_desk"];
+      const validSubroles = ["operations_manager", "reservationist", "accountant", "front_desk", "maintenance_officer", "housekeeper"];
       if (staff_subrole && !validSubroles.includes(staff_subrole)) {
         return new Response(
           JSON.stringify({ error: `Invalid staff_subrole. Must be one of: ${validSubroles.join(", ")}` }),
@@ -373,7 +373,7 @@ serve(async (req) => {
       }
 
       // Validate staff_subrole values
-      const validSubroles = ["operations_manager", "reservationist", "accountant", "front_desk"];
+      const validSubroles = ["operations_manager", "reservationist", "accountant", "front_desk", "maintenance_officer", "housekeeper"];
       if (staff_subrole && staff_subrole !== null && !validSubroles.includes(staff_subrole)) {
         return new Response(
           JSON.stringify({ error: `Invalid staff_subrole. Must be one of: ${validSubroles.join(", ")}` }),

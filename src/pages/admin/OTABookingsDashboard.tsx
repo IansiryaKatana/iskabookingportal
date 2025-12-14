@@ -1,0 +1,1746 @@
+import { useState, useMemo } from "react";
+import AdminLayout from "@/components/admin/AdminLayout";
+import { useOTABookings, useCreateOTABooking, useUpdateOTABooking, useBulkUpdateOTABookings, type OTABookingWithRelations } from "@/hooks/useOTABookings";
+import { useActivityLog } from "@/hooks/useActivityLog";
+import { useAdminStudios } from "@/hooks/useAdminStudios";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { format, parseISO, isToday, isPast, isFuture, differenceInDays } from "date-fns";
+import {
+  Calendar, Clock, UserCheck, XCircle, CheckCircle2, AlertCircle, 
+  Loader2, Building2, Filter, Trash2, Phone, Mail, ExternalLink,
+  Check, X, Users, TrendingUp, TrendingDown, FileText, Plus, Search, ChevronsUpDown
+} from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+
+// OTA Status Options
+const OTA_STATUSES = [
+  { value: "all", label: "All Status" },
+  { value: "arriving", label: "Arriving" },
+  { value: "expected_arrivals", label: "Expected Arrivals" },
+  { value: "pre_check_in", label: "Pre Check In" },
+  { value: "checked_in", label: "Checked In" },
+  { value: "in_house_guest", label: "In House Guest" },
+  { value: "day_use", label: "Day Use" },
+  { value: "checked_out", label: "Checked Out" },
+  { value: "expected_departures", label: "Expected Departures" },
+  { value: "departing", label: "Departing" },
+  { value: "no_show", label: "No Show" },
+  { value: "cancelled", label: "Cancelled" },
+];
+
+// Channel Options
+const CHANNELS = [
+  { value: "all", label: "All Channels" },
+  { value: "airbnb", label: "Airbnb" },
+  { value: "booking", label: "Booking.com" },
+  { value: "agoda", label: "Agoda" },
+  { value: "expedia", label: "Expedia" },
+  { value: "other", label: "Other" },
+];
+
+// Status Badge Helper
+const getStatusBadge = (status: string) => {
+  const configs: Record<string, { className: string; icon: typeof Clock; label: string }> = {
+    arriving: { className: "bg-blue-500 hover:bg-blue-600 text-white", icon: Clock, label: "Arriving" },
+    expected_arrivals: { className: "bg-green-500 hover:bg-green-600 text-white", icon: TrendingUp, label: "Expected Arrivals" },
+    pre_check_in: { className: "bg-purple-500 hover:bg-purple-600 text-white", icon: Clock, label: "Pre Check In" },
+    checked_in: { className: "bg-emerald-500 hover:bg-emerald-600 text-white", icon: CheckCircle2, label: "Checked In" },
+    in_house_guest: { className: "bg-teal-500 hover:bg-teal-600 text-white", icon: Users, label: "In House Guest" },
+    day_use: { className: "bg-indigo-500 hover:bg-indigo-600 text-white", icon: Clock, label: "Day Use" },
+    checked_out: { className: "bg-gray-500 hover:bg-gray-600 text-white", icon: CheckCircle2, label: "Checked Out" },
+    expected_departures: { className: "bg-orange-500 hover:bg-orange-600 text-white", icon: TrendingDown, label: "Expected Departures" },
+    departing: { className: "bg-amber-500 hover:bg-amber-600 text-white", icon: AlertCircle, label: "Departing" },
+    no_show: { className: "bg-red-500 hover:bg-red-600 text-white", icon: XCircle, label: "No Show" },
+    cancelled: { className: "bg-slate-500 hover:bg-slate-600 text-white", icon: XCircle, label: "Cancelled" },
+  };
+
+  const config = configs[status] || configs.arriving;
+  const Icon = config.icon;
+
+  return (
+    <Badge className={`uppercase ${config.className} rounded-full px-2.5 py-0.5 text-xs font-medium flex items-center gap-1`}>
+      <Icon className="h-3 w-3" />
+      {config.label}
+    </Badge>
+  );
+};
+
+// Channel Badge Helper
+const getChannelBadge = (channel: string) => {
+  const configs: Record<string, { className: string; label: string }> = {
+    airbnb: { className: "bg-rose-500 hover:bg-rose-600 text-white", label: "Airbnb" },
+    booking: { className: "bg-blue-600 hover:bg-blue-700 text-white", label: "Booking.com" },
+    agoda: { className: "bg-red-600 hover:bg-red-700 text-white", label: "Agoda" },
+    expedia: { className: "bg-blue-500 hover:bg-blue-600 text-white", label: "Expedia" },
+    other: { className: "bg-gray-500 hover:bg-gray-600 text-white", label: "Other" },
+  };
+
+  const config = configs[channel] || configs.other;
+
+  return (
+    <Badge className={`${config.className} rounded-full px-2.5 py-0.5 text-xs font-medium`}>
+      {config.label}
+    </Badge>
+  );
+};
+
+const OTABookingsDashboard = () => {
+  const { toast } = useToast();
+  const { role, profile } = useAuth();
+  const isMobile = useIsMobile();
+  
+  // Filters
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [channelFilter, setChannelFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [selectedBookings, setSelectedBookings] = useState<Set<string>>(new Set());
+  
+  // Details drawer/sheet
+  const [selectedBooking, setSelectedBooking] = useState<OTABookingWithRelations | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  
+  // Bulk actions dialogs
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState<string>("");
+  const [assignStudioDialogOpen, setAssignStudioDialogOpen] = useState(false);
+  const [selectedStudioId, setSelectedStudioId] = useState<string>("");
+  
+  // Create booking dialog
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [formExternalRef, setFormExternalRef] = useState<string>("");
+  const [formChannel, setFormChannel] = useState<"airbnb" | "booking" | "agoda" | "expedia" | "other">("airbnb");
+  const [formGuestName, setFormGuestName] = useState<string>("");
+  const [formGuestPhone, setFormGuestPhone] = useState<string>("");
+  const [formGuestEmail, setFormGuestEmail] = useState<string>("");
+  const [formStudioId, setFormStudioId] = useState<string>("");
+  const [formCheckIn, setFormCheckIn] = useState<string>("");
+  const [formCheckOut, setFormCheckOut] = useState<string>("");
+  const [formStatus, setFormStatus] = useState<string>("arriving");
+  const [formNotes, setFormNotes] = useState<string>("");
+  const [formInternalNotes, setFormInternalNotes] = useState<string>("");
+  const [formPricePerNight, setFormPricePerNight] = useState<string>("");
+  const [formCommission, setFormCommission] = useState<string>("");
+
+  const today = format(new Date(), "yyyy-MM-dd");
+  
+  const { data: bookings, isLoading } = useOTABookings({
+    check_in_start: statusFilter === "expected_arrivals" ? today : undefined,
+    check_in_end: statusFilter === "expected_arrivals" ? today : undefined,
+  });
+  const { data: activityLog } = useActivityLog(
+    selectedBooking ? {
+      entity_type: "ota_booking",
+      entity_id: selectedBooking.id,
+      limit: 50,
+    } : undefined
+  );
+  const createBooking = useCreateOTABooking();
+  const updateBooking = useUpdateOTABooking();
+  const bulkUpdate = useBulkUpdateOTABookings();
+  const { data: allStudios } = useAdminStudios();
+  
+  // Filter studios to only show OTA-allocated studios
+  const otaStudios = useMemo(() => {
+    if (!allStudios) return [];
+    return allStudios.filter((studio) => studio.allocation === "OTA" && studio.is_active);
+  }, [allStudios]);
+  
+  // Studio search state
+  const [studioSearchOpen, setStudioSearchOpen] = useState(false);
+  const [studioSearch, setStudioSearch] = useState("");
+  
+  // Filter studios based on search
+  const filteredOTAStudios = useMemo(() => {
+    if (!studioSearch.trim()) return otaStudios;
+    const searchLower = studioSearch.toLowerCase();
+    return otaStudios.filter((studio) => {
+      const studioNumber = (studio.studio_number || "").toLowerCase();
+      return studioNumber.includes(searchLower);
+    });
+  }, [otaStudios, studioSearch]);
+  
+  // Get selected studio display value
+  const selectedStudioDisplay = useMemo(() => {
+    if (!formStudioId || !otaStudios) return "No Studio Assigned";
+    const studio = otaStudios.find((s) => s.id === formStudioId);
+    return studio?.studio_number || "No Studio Assigned";
+  }, [formStudioId, otaStudios]);
+
+  // Calculate number of nights - auto-calculates when dates are added
+  const calculatedNights = useMemo(() => {
+    if (!formCheckIn || !formCheckOut) return 0;
+    
+    try {
+      // HTML5 date inputs return YYYY-MM-DD format as strings
+      // Ensure we're working with valid date strings
+      const checkInStr = formCheckIn.trim();
+      const checkOutStr = formCheckOut.trim();
+      
+      if (!checkInStr || !checkOutStr) return 0;
+      
+      // Parse dates - parseISO handles YYYY-MM-DD format
+      let checkInDate: Date;
+      let checkOutDate: Date;
+      
+      // Try parseISO first (handles YYYY-MM-DD format properly)
+      try {
+        checkInDate = parseISO(checkInStr);
+        checkOutDate = parseISO(checkOutStr);
+      } catch {
+        // Fallback to Date constructor if parseISO fails
+        checkInDate = new Date(checkInStr);
+        checkOutDate = new Date(checkOutStr);
+      }
+      
+      // Validate that dates are valid
+      if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
+        return 0;
+      }
+      
+      // Calculate difference in days (check-out minus check-in)
+      const nights = differenceInDays(checkOutDate, checkInDate);
+      
+      // Return nights only if positive (check-out must be after check-in)
+      return nights > 0 ? nights : 0;
+    } catch (error) {
+      console.error('Error calculating nights:', error, { formCheckIn, formCheckOut });
+      return 0;
+    }
+  }, [formCheckIn, formCheckOut]);
+
+  // Calculate total booking value (nights × price per night) - auto-calculates when price is added
+  const calculatedTotalBookingValue = useMemo(() => {
+    const pricePerNight = parseFloat(formPricePerNight) || 0;
+    return pricePerNight * calculatedNights;
+  }, [formPricePerNight, calculatedNights]);
+
+  // Calculate total revenue (booking value - commission) - auto-calculates when commission is added
+  const calculatedTotalRevenue = useMemo(() => {
+    const commission = parseFloat(formCommission) || 0;
+    const revenue = calculatedTotalBookingValue - commission;
+    return revenue > 0 ? revenue : 0;
+  }, [calculatedTotalBookingValue, formCommission]);
+
+  // Check for conflicting bookings for the selected studio and dates
+  const conflictingBookings = useMemo(() => {
+    if (!formStudioId || !formCheckIn || !formCheckOut || !bookings) return [];
+    
+    const checkIn = parseISO(formCheckIn);
+    const checkOut = parseISO(formCheckOut);
+    
+    return bookings.filter((booking) => {
+      if (!booking.studio_id || booking.studio_id !== formStudioId) return false;
+      if (booking.status === "cancelled" || booking.status === "no_show") return false;
+      
+      const bookingCheckIn = parseISO(booking.check_in);
+      const bookingCheckOut = parseISO(booking.check_out);
+      
+      // Check for date overlap
+      return (
+        (checkIn >= bookingCheckIn && checkIn < bookingCheckOut) ||
+        (checkOut > bookingCheckIn && checkOut <= bookingCheckOut) ||
+        (checkIn <= bookingCheckIn && checkOut >= bookingCheckOut)
+      );
+    });
+  }, [formStudioId, formCheckIn, formCheckOut, bookings]);
+
+  // Filtered bookings
+  const filteredBookings = useMemo(() => {
+    if (!bookings) return [];
+    let filtered = bookings;
+
+    if (statusFilter !== "all") {
+      if (statusFilter === "expected_arrivals") {
+        // Already filtered by date in query
+        filtered = filtered.filter((b) => 
+          b.status === "arriving" || b.status === "expected_arrivals"
+        );
+      } else if (statusFilter === "expected_departures") {
+        const today = format(new Date(), "yyyy-MM-dd");
+        filtered = filtered.filter((b) => 
+          format(parseISO(b.check_out), "yyyy-MM-dd") === today &&
+          (b.status === "checked_in" || b.status === "in_house_guest" || b.status === "expected_departures")
+        );
+      } else {
+        filtered = filtered.filter((b) => b.status === statusFilter);
+      }
+    }
+
+    if (channelFilter !== "all") {
+      filtered = filtered.filter((b) => b.channel === channelFilter);
+    }
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (b) =>
+          b.external_ref.toLowerCase().includes(query) ||
+          b.guest_name.toLowerCase().includes(query) ||
+          b.guest_email?.toLowerCase().includes(query) ||
+          b.guest_phone?.toLowerCase().includes(query) ||
+          b.studio?.studio_number.toLowerCase().includes(query)
+      );
+    }
+
+    return filtered;
+  }, [bookings, statusFilter, channelFilter, searchQuery]);
+
+  // Stats calculation
+  const stats = useMemo(() => {
+    if (!bookings) {
+      return {
+        arriving: 0,
+        expected_arrivals: 0,
+        checked_in: 0,
+        in_house_guest: 0,
+        checked_out: 0,
+        expected_departures: 0,
+        no_show: 0,
+        cancelled: 0,
+      };
+    }
+
+    const today = format(new Date(), "yyyy-MM-dd");
+    return {
+      arriving: bookings.filter((b) => b.status === "arriving").length,
+      expected_arrivals: bookings.filter((b) => 
+        (b.status === "arriving" || b.status === "expected_arrivals") &&
+        format(parseISO(b.check_in), "yyyy-MM-dd") === today
+      ).length,
+      checked_in: bookings.filter((b) => b.status === "checked_in").length,
+      in_house_guest: bookings.filter((b) => b.status === "in_house_guest").length,
+      checked_out: bookings.filter((b) => b.status === "checked_out").length,
+      expected_departures: bookings.filter((b) => 
+        format(parseISO(b.check_out), "yyyy-MM-dd") === today &&
+        (b.status === "checked_in" || b.status === "in_house_guest")
+      ).length,
+      no_show: bookings.filter((b) => b.status === "no_show").length,
+      cancelled: bookings.filter((b) => b.status === "cancelled").length,
+    };
+  }, [bookings]);
+
+  // Check if user is Reservationist or Ops Manager
+  const isReservationist = profile?.staff_subrole === "reservationist" || role === "superadmin";
+  const isOpsManager = role === "operations_manager" || role === "staff" || role === "superadmin" || role === "admin";
+
+  // Handle row click
+  const handleRowClick = (booking: OTABookingWithRelations) => {
+    setSelectedBooking(booking);
+    setDetailsOpen(true);
+  };
+
+  // Handle create booking
+  const handleCreateBooking = async () => {
+    if (!formExternalRef.trim() || !formGuestName.trim() || !formStudioId || !formCheckIn || !formCheckOut) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please fill in all required fields (External Ref, Guest Name, Studio, Check-in, Check-out).",
+      });
+      return;
+    }
+
+    // Validate dates
+    if (new Date(formCheckOut) <= new Date(formCheckIn)) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Check-out date must be after check-in date.",
+      });
+      return;
+    }
+
+    // Check for conflicting bookings
+    if (conflictingBookings.length > 0) {
+      toast({
+        variant: "destructive",
+        title: "Studio Conflict",
+        description: `This studio is already booked for the selected dates. Please choose different dates or another studio.`,
+      });
+      return;
+    }
+
+    // Validate financial fields
+    const pricePerNight = parseFloat(formPricePerNight);
+    const commission = parseFloat(formCommission) || 0;
+    
+    if (!formPricePerNight || isNaN(pricePerNight) || pricePerNight <= 0) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please enter a valid price per night (must be greater than 0).",
+      });
+      return;
+    }
+
+    if (commission < 0) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Commission amount cannot be negative.",
+      });
+      return;
+    }
+
+    if (commission > calculatedTotalBookingValue) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Commission amount cannot exceed total booking value.",
+      });
+      return;
+    }
+
+    try {
+      await createBooking.mutateAsync({
+        external_ref: formExternalRef.trim(),
+        channel: formChannel,
+        guest_name: formGuestName.trim(),
+        guest_phone: formGuestPhone.trim() || undefined,
+        guest_email: formGuestEmail.trim() || undefined,
+        studio_id: formStudioId,
+        check_in: formCheckIn,
+        check_out: formCheckOut,
+        status: formStatus,
+        notes: formNotes.trim() || undefined,
+        internal_notes: formInternalNotes.trim() || undefined,
+        price_per_night: pricePerNight,
+        commission_amount: commission > 0 ? commission : undefined,
+        currency: "GBP",
+      });
+
+      toast({
+        title: "Booking created",
+        description: "OTA booking has been created successfully.",
+      });
+
+      // Reset form
+      setFormExternalRef("");
+      setFormChannel("airbnb");
+      setFormGuestName("");
+      setFormGuestPhone("");
+      setFormGuestEmail("");
+      setFormStudioId("");
+      setFormCheckIn("");
+      setFormCheckOut("");
+      setFormStatus("arriving");
+      setFormNotes("");
+      setFormInternalNotes("");
+      setFormPricePerNight("");
+      setFormCommission("");
+      setCreateDialogOpen(false);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to create booking.",
+      });
+    }
+  };
+
+  // Handle bulk status update
+  const handleBulkStatusUpdate = async () => {
+    if (!selectedStatus || selectedBookings.size === 0) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please select a status and at least one booking.",
+      });
+      return;
+    }
+
+    try {
+      const ids = Array.from(selectedBookings);
+      await bulkUpdate.mutateAsync({
+        ids,
+        updates: {
+          status: selectedStatus,
+        },
+      });
+
+      toast({
+        title: "Status updated",
+        description: `Updated status for ${ids.length} booking(s).`,
+      });
+
+      setStatusDialogOpen(false);
+      setSelectedStatus("");
+      setSelectedBookings(new Set());
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to update status.",
+      });
+    }
+  };
+
+  // Handle bulk mark no-show
+  const handleBulkMarkNoShow = async () => {
+    if (selectedBookings.size === 0) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please select at least one booking.",
+      });
+      return;
+    }
+
+    try {
+      const ids = Array.from(selectedBookings);
+      await bulkUpdate.mutateAsync({
+        ids,
+        updates: {
+          status: "no_show",
+        },
+      });
+
+      toast({
+        title: "Marked as No Show",
+        description: `Marked ${ids.length} booking(s) as no show.`,
+      });
+
+      setSelectedBookings(new Set());
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to update status.",
+      });
+    }
+  };
+
+  // Handle bulk cancel
+  const handleBulkCancel = async () => {
+    if (selectedBookings.size === 0) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please select at least one booking.",
+      });
+      return;
+    }
+
+    try {
+      const ids = Array.from(selectedBookings);
+      await bulkUpdate.mutateAsync({
+        ids,
+        updates: {
+          status: "cancelled",
+        },
+      });
+
+      toast({
+        title: "Bookings cancelled",
+        description: `Cancelled ${ids.length} booking(s).`,
+      });
+
+      setSelectedBookings(new Set());
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to cancel bookings.",
+      });
+    }
+  };
+
+  // Handle status update
+  const handleStatusUpdate = async (newStatus: string) => {
+    if (!selectedBooking) return;
+
+    try {
+      await updateBooking.mutateAsync({
+        id: selectedBooking.id,
+        updates: {
+          status: newStatus,
+        },
+      });
+
+      toast({
+        title: "Status updated",
+        description: "The booking status has been updated successfully.",
+      });
+
+      setDetailsOpen(false);
+      setSelectedBooking(null);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to update status.",
+      });
+    }
+  };
+
+  // Skeleton loader
+  if (isLoading) {
+    return (
+      <AdminLayout pageTitle="OTA Bookings" subtitle="Manage OTA bookings and allocations">
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+              <Card key={i} className="rounded-3xl">
+                <CardContent className="p-6">
+                  <Skeleton className="h-4 w-24 mb-2" />
+                  <Skeleton className="h-8 w-16" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          <Card className="rounded-3xl">
+            <CardHeader>
+              <Skeleton className="h-6 w-48" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-64 w-full" />
+            </CardContent>
+          </Card>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  return (
+    <AdminLayout 
+      pageTitle="OTA Bookings" 
+      subtitle="Manage OTA bookings and allocations"
+      mobileActionButton={
+        <Button
+          onClick={() => setCreateDialogOpen(true)}
+          size="sm"
+          className="rounded-full h-9 w-9 p-0 bg-primary hover:bg-primary/90 text-white flex-shrink-0"
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
+      }
+    >
+      <div className="space-y-6">
+        {/* Header with Create Button (Desktop) */}
+        <div className="hidden lg:flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-display font-bold uppercase tracking-wide">
+              OTA Bookings
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Manage OTA bookings and allocations
+            </p>
+          </div>
+          <Button
+            onClick={() => setCreateDialogOpen(true)}
+            className="rounded-full uppercase tracking-wide gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            New Booking
+          </Button>
+        </div>
+        
+        {/* Stats Cards - Click to Filter */}
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+          <Card
+            className="rounded-3xl border border-border/60 shadow-xl cursor-pointer hover:shadow-2xl transition-shadow"
+            onClick={() => setStatusFilter(statusFilter === "arriving" ? "all" : "arriving")}
+          >
+            <CardContent className="p-4 md:p-6">
+              <div className="text-xs md:text-sm text-muted-foreground mb-1">Arriving</div>
+              <div className="text-xl md:text-2xl font-bold text-blue-600">{stats.arriving}</div>
+            </CardContent>
+          </Card>
+          <Card
+            className="rounded-3xl border border-border/60 shadow-xl cursor-pointer hover:shadow-2xl transition-shadow"
+            onClick={() => setStatusFilter(statusFilter === "expected_arrivals" ? "all" : "expected_arrivals")}
+          >
+            <CardContent className="p-4 md:p-6">
+              <div className="text-xs md:text-sm text-muted-foreground mb-1">Today Arrivals</div>
+              <div className="text-xl md:text-2xl font-bold text-green-600">{stats.expected_arrivals}</div>
+            </CardContent>
+          </Card>
+          <Card
+            className="rounded-3xl border border-border/60 shadow-xl cursor-pointer hover:shadow-2xl transition-shadow"
+            onClick={() => setStatusFilter(statusFilter === "checked_in" ? "all" : "checked_in")}
+          >
+            <CardContent className="p-4 md:p-6">
+              <div className="text-xs md:text-sm text-muted-foreground mb-1">Checked In</div>
+              <div className="text-xl md:text-2xl font-bold text-emerald-600">{stats.checked_in}</div>
+            </CardContent>
+          </Card>
+          <Card
+            className="rounded-3xl border border-border/60 shadow-xl cursor-pointer hover:shadow-2xl transition-shadow"
+            onClick={() => setStatusFilter(statusFilter === "in_house_guest" ? "all" : "in_house_guest")}
+          >
+            <CardContent className="p-4 md:p-6">
+              <div className="text-xs md:text-sm text-muted-foreground mb-1">In House</div>
+              <div className="text-xl md:text-2xl font-bold text-teal-600">{stats.in_house_guest}</div>
+            </CardContent>
+          </Card>
+          <Card
+            className="rounded-3xl border border-border/60 shadow-xl cursor-pointer hover:shadow-2xl transition-shadow"
+            onClick={() => setStatusFilter(statusFilter === "checked_out" ? "all" : "checked_out")}
+          >
+            <CardContent className="p-4 md:p-6">
+              <div className="text-xs md:text-sm text-muted-foreground mb-1">Checked Out</div>
+              <div className="text-xl md:text-2xl font-bold text-gray-600">{stats.checked_out}</div>
+            </CardContent>
+          </Card>
+          <Card
+            className="rounded-3xl border border-border/60 shadow-xl cursor-pointer hover:shadow-2xl transition-shadow"
+            onClick={() => setStatusFilter(statusFilter === "expected_departures" ? "all" : "expected_departures")}
+          >
+            <CardContent className="p-4 md:p-6">
+              <div className="text-xs md:text-sm text-muted-foreground mb-1">Today Departures</div>
+              <div className="text-xl md:text-2xl font-bold text-orange-600">{stats.expected_departures}</div>
+            </CardContent>
+          </Card>
+          <Card
+            className="rounded-3xl border border-border/60 shadow-xl cursor-pointer hover:shadow-2xl transition-shadow"
+            onClick={() => setStatusFilter(statusFilter === "no_show" ? "all" : "no_show")}
+          >
+            <CardContent className="p-4 md:p-6">
+              <div className="text-xs md:text-sm text-muted-foreground mb-1">No Show</div>
+              <div className="text-xl md:text-2xl font-bold text-red-600">{stats.no_show}</div>
+            </CardContent>
+          </Card>
+          <Card
+            className="rounded-3xl border border-border/60 shadow-xl cursor-pointer hover:shadow-2xl transition-shadow"
+            onClick={() => setStatusFilter(statusFilter === "cancelled" ? "all" : "cancelled")}
+          >
+            <CardContent className="p-4 md:p-6">
+              <div className="text-xs md:text-sm text-muted-foreground mb-1">Cancelled</div>
+              <div className="text-xl md:text-2xl font-bold text-slate-600">{stats.cancelled}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Filters and Bulk Actions */}
+        <Card className="rounded-3xl border border-border/60 shadow-xl">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base md:text-lg font-display font-bold uppercase tracking-wide">
+              <Filter className="h-4 w-4 md:h-5 md:w-5" />
+              Filters & Actions
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <Label className="text-xs md:text-sm">Search</Label>
+                <Input
+                  placeholder="Ref, guest name, studio..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="rounded-full text-sm md:text-base"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs md:text-sm">Status</Label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="rounded-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {OTA_STATUSES.map((status) => (
+                      <SelectItem key={status.value} value={status.value}>
+                        {status.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs md:text-sm">Channel</Label>
+                <Select value={channelFilter} onValueChange={setChannelFilter}>
+                  <SelectTrigger className="rounded-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CHANNELS.map((channel) => (
+                      <SelectItem key={channel.value} value={channel.value}>
+                        {channel.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {selectedBookings.size > 0 && (
+                <div className="flex flex-col gap-2">
+                  <Label className="text-xs md:text-sm">Bulk Actions</Label>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      onClick={() => setStatusDialogOpen(true)}
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full text-xs"
+                    >
+                      Update Status ({selectedBookings.size})
+                    </Button>
+                    <Button
+                      onClick={handleBulkMarkNoShow}
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full text-xs"
+                    >
+                      Mark No Show ({selectedBookings.size})
+                    </Button>
+                    <Button
+                      onClick={handleBulkCancel}
+                      variant="destructive"
+                      size="sm"
+                      className="rounded-full text-xs"
+                    >
+                      Cancel ({selectedBookings.size})
+                    </Button>
+                    <Button
+                      onClick={() => setSelectedBookings(new Set())}
+                      variant="ghost"
+                      size="sm"
+                      className="rounded-full text-xs"
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Bookings List */}
+        <Card className="rounded-3xl border border-border/60 shadow-xl">
+          <CardHeader>
+            <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">
+              Bookings
+            </CardTitle>
+            <CardDescription className="text-xs md:text-sm">
+              {filteredBookings.length} booking{filteredBookings.length !== 1 ? "s" : ""} found
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {filteredBookings.length === 0 ? (
+              <div className="text-center py-12">
+                <Calendar className="h-10 w-10 md:h-12 md:w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-base md:text-lg font-semibold mb-2">No bookings found</h3>
+                <p className="text-xs md:text-sm text-muted-foreground">
+                  {searchQuery || statusFilter !== "all" || channelFilter !== "all"
+                    ? "Try adjusting your filters."
+                    : "No OTA bookings found."}
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Desktop: Table */}
+                <div className="hidden md:block">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        {isReservationist && (
+                          <TableHead className="w-12">
+                            <Checkbox
+                              checked={selectedBookings.size === filteredBookings.length && filteredBookings.length > 0}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedBookings(new Set(filteredBookings.map((b) => b.id)));
+                                } else {
+                                  setSelectedBookings(new Set());
+                                }
+                              }}
+                            />
+                          </TableHead>
+                        )}
+                        <TableHead className="text-xs md:text-sm">Booking Ref</TableHead>
+                        <TableHead className="text-xs md:text-sm">Guest</TableHead>
+                        <TableHead className="text-xs md:text-sm">Studio</TableHead>
+                        <TableHead className="text-xs md:text-sm">Check-in</TableHead>
+                        <TableHead className="text-xs md:text-sm">Check-out</TableHead>
+                        <TableHead className="text-xs md:text-sm">Status</TableHead>
+                        <TableHead className="text-xs md:text-sm">Channel</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredBookings.map((booking) => (
+                        <TableRow
+                          key={booking.id}
+                          className="hover:bg-accent/50 cursor-pointer"
+                          onClick={() => handleRowClick(booking)}
+                        >
+                          {isReservationist && (
+                            <TableCell onClick={(e) => e.stopPropagation()}>
+                              <Checkbox
+                                checked={selectedBookings.has(booking.id)}
+                                onCheckedChange={(checked) => {
+                                  const newSet = new Set(selectedBookings);
+                                  if (checked) {
+                                    newSet.add(booking.id);
+                                  } else {
+                                    newSet.delete(booking.id);
+                                  }
+                                  setSelectedBookings(newSet);
+                                }}
+                              />
+                            </TableCell>
+                          )}
+                          <TableCell>
+                            <span className="font-semibold text-sm">{booking.external_ref}</span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="text-sm">
+                              <div className="font-medium">{booking.guest_name}</div>
+                              {booking.guest_email && (
+                                <div className="text-xs text-muted-foreground">{booking.guest_email}</div>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {booking.studio ? (
+                              <span className="text-sm font-medium">
+                                {booking.studio.studio_number}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">Unallocated</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {format(parseISO(booking.check_in), "MMM d, yyyy")}
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {format(parseISO(booking.check_out), "MMM d, yyyy")}
+                          </TableCell>
+                          <TableCell>{getStatusBadge(booking.status)}</TableCell>
+                          <TableCell>{getChannelBadge(booking.channel)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Mobile: Cards */}
+                <div className="md:hidden space-y-4">
+                  {filteredBookings.map((booking) => (
+                    <Card
+                      key={booking.id}
+                      className="rounded-2xl border border-border/60 cursor-pointer hover:shadow-md transition-shadow"
+                      onClick={() => handleRowClick(booking)}
+                    >
+                      <CardContent className="p-4">
+                        <div className="space-y-3">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <h3 className="text-sm font-semibold mb-1">{booking.guest_name}</h3>
+                              <p className="text-xs text-muted-foreground">{booking.external_ref}</p>
+                            </div>
+                            {getStatusBadge(booking.status)}
+                          </div>
+                          {booking.studio && (
+                            <div className="text-xs text-muted-foreground">
+                              Studio: {booking.studio.studio_number}
+                            </div>
+                          )}
+                          <div className="flex gap-4 text-xs text-muted-foreground">
+                            <div>
+                              <div>Check-in</div>
+                              <div className="font-medium text-foreground">
+                                {format(parseISO(booking.check_in), "MMM d")}
+                              </div>
+                            </div>
+                            <div>
+                              <div>Check-out</div>
+                              <div className="font-medium text-foreground">
+                                {format(parseISO(booking.check_out), "MMM d")}
+                              </div>
+                            </div>
+                          </div>
+                          <div>{getChannelBadge(booking.channel)}</div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Details Drawer/Sheet */}
+        {selectedBooking && (
+          <>
+            {isMobile ? (
+              <Drawer open={detailsOpen} onOpenChange={setDetailsOpen}>
+                <DrawerContent className="max-h-[96vh]">
+                  <DrawerHeader className="text-left">
+                    <DrawerTitle>{selectedBooking.guest_name}</DrawerTitle>
+                    <DrawerDescription>
+                      Booking {selectedBooking.external_ref}
+                    </DrawerDescription>
+                  </DrawerHeader>
+                  <ScrollArea className="flex-1 px-4">
+                    <OTABookingDetailsContent
+                      booking={selectedBooking}
+                      activityLog={activityLog || []}
+                      onStatusUpdate={handleStatusUpdate}
+                      isReservationist={isReservationist}
+                      isOpsManager={isOpsManager}
+                    />
+                  </ScrollArea>
+                  <DrawerFooter className="gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setDetailsOpen(false)}
+                      className="rounded-full"
+                    >
+                      Close
+                    </Button>
+                  </DrawerFooter>
+                </DrawerContent>
+              </Drawer>
+            ) : (
+              <Sheet open={detailsOpen} onOpenChange={setDetailsOpen}>
+                <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+                  <SheetHeader>
+                    <SheetTitle>{selectedBooking.guest_name}</SheetTitle>
+                    <SheetDescription>
+                      Booking {selectedBooking.external_ref}
+                    </SheetDescription>
+                  </SheetHeader>
+                  <ScrollArea className="flex-1 mt-6">
+                    <OTABookingDetailsContent
+                      booking={selectedBooking}
+                      activityLog={activityLog || []}
+                      onStatusUpdate={handleStatusUpdate}
+                      isReservationist={isReservationist}
+                      isOpsManager={isOpsManager}
+                    />
+                  </ScrollArea>
+                  <SheetFooter>
+                    <Button
+                      variant="outline"
+                      onClick={() => setDetailsOpen(false)}
+                      className="rounded-full"
+                    >
+                      Close
+                    </Button>
+                  </SheetFooter>
+                </SheetContent>
+              </Sheet>
+            )}
+          </>
+        )}
+
+        {/* Create Booking Dialog */}
+        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+          <DialogContent className="sm:max-w-[600px] rounded-3xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Create New OTA Booking</DialogTitle>
+              <DialogDescription>
+                Add a new OTA booking to the system.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>External Reference *</Label>
+                  <Input
+                    placeholder="e.g., AB123456"
+                    value={formExternalRef}
+                    onChange={(e) => setFormExternalRef(e.target.value)}
+                    className="rounded-full"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Channel *</Label>
+                  <Select value={formChannel} onValueChange={(value: "airbnb" | "booking" | "agoda" | "expedia" | "other") => setFormChannel(value)}>
+                    <SelectTrigger className="rounded-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CHANNELS.filter((c) => c.value !== "all").map((channel) => (
+                        <SelectItem key={channel.value} value={channel.value}>
+                          {channel.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Guest Name *</Label>
+                <Input
+                  placeholder="Guest full name"
+                  value={formGuestName}
+                  onChange={(e) => setFormGuestName(e.target.value)}
+                  className="rounded-full"
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Guest Phone</Label>
+                  <Input
+                    placeholder="+44 1234 567890"
+                    value={formGuestPhone}
+                    onChange={(e) => setFormGuestPhone(e.target.value)}
+                    className="rounded-full"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Guest Email</Label>
+                  <Input
+                    type="email"
+                    placeholder="guest@example.com"
+                    value={formGuestEmail}
+                    onChange={(e) => setFormGuestEmail(e.target.value)}
+                    className="rounded-full"
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Studio * (OTA Allocated Only)</Label>
+                <Popover open={studioSearchOpen} onOpenChange={setStudioSearchOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={studioSearchOpen}
+                      className={cn(
+                        "w-full justify-between rounded-full font-normal",
+                        !formStudioId && "border-destructive"
+                      )}
+                    >
+                      <span className="truncate">{selectedStudioDisplay}</span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                    <Command>
+                      <CommandInput
+                        placeholder="Search studios by number..."
+                        value={studioSearch}
+                        onValueChange={setStudioSearch}
+                      />
+                      <CommandList>
+                        <CommandEmpty>No OTA studios found.</CommandEmpty>
+                        <CommandGroup>
+                          {filteredOTAStudios.map((studio) => {
+                            // Check if this studio has conflicting bookings
+                            const hasConflict = conflictingBookings.some(
+                              (b) => b.studio_id === studio.id
+                            );
+                            return (
+                              <CommandItem
+                                key={studio.id}
+                                value={studio.studio_number || studio.id}
+                                onSelect={() => {
+                                  setFormStudioId(studio.id);
+                                  setStudioSearchOpen(false);
+                                  setStudioSearch("");
+                                }}
+                                className={cn(
+                                  "cursor-pointer",
+                                  hasConflict && formCheckIn && formCheckOut && "opacity-50"
+                                )}
+                                disabled={hasConflict && formCheckIn && formCheckOut}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    formStudioId === studio.id ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                <div className="flex-1">
+                                  <p className="font-medium">
+                                    {studio.studio_number || studio.id}
+                                    {hasConflict && formCheckIn && formCheckOut && (
+                                      <span className="ml-2 text-xs text-destructive">
+                                        (Booked)
+                                      </span>
+                                    )}
+                                  </p>
+                                  {studio.floor && (
+                                    <p className="text-xs text-muted-foreground">
+                                      Floor {studio.floor}
+                                    </p>
+                                  )}
+                                </div>
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+                {otaStudios.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    No OTA-allocated studios available. Please allocate studios to OTA first.
+                  </p>
+                )}
+                {conflictingBookings.length > 0 && formCheckIn && formCheckOut && (
+                  <p className="text-xs text-destructive font-medium">
+                    ⚠️ This studio has conflicting bookings for the selected dates. Please choose different dates.
+                  </p>
+                )}
+              </div>
+              
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Check-in Date *</Label>
+                  <Input
+                    type="date"
+                    value={formCheckIn}
+                    onChange={(e) => setFormCheckIn(e.target.value)}
+                    className="rounded-full"
+                    disabled={!formStudioId}
+                  />
+                  {!formStudioId && (
+                    <p className="text-xs text-muted-foreground">Select a studio first</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label>Check-out Date *</Label>
+                  <Input
+                    type="date"
+                    value={formCheckOut}
+                    onChange={(e) => setFormCheckOut(e.target.value)}
+                    className="rounded-full"
+                    min={formCheckIn || undefined}
+                    disabled={!formStudioId}
+                  />
+                  {formCheckIn && formCheckOut && (
+                    <p className={cn(
+                      "text-xs",
+                      calculatedNights > 0 ? "text-muted-foreground" : "text-destructive"
+                    )}>
+                      {calculatedNights > 0 
+                        ? `${calculatedNights} night${calculatedNights !== 1 ? "s" : ""}`
+                        : "Check-out must be after check-in"
+                      }
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select value={formStatus} onValueChange={setFormStatus}>
+                    <SelectTrigger className="rounded-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {OTA_STATUSES.filter((s) => s.value !== "all").map((status) => (
+                        <SelectItem key={status.value} value={status.value}>
+                          {status.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Price per Night (GBP) *</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="25.00"
+                    value={formPricePerNight}
+                    onChange={(e) => setFormPricePerNight(e.target.value)}
+                    className="rounded-full"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Commission Amount (GBP) *</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="15.00"
+                    value={formCommission}
+                    onChange={(e) => setFormCommission(e.target.value)}
+                    className="rounded-full"
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Number of Nights</Label>
+                  <Input
+                    value={calculatedNights > 0 ? calculatedNights.toString() : "0"}
+                    readOnly
+                    className={cn(
+                      "rounded-full bg-muted",
+                      formCheckIn && formCheckOut && calculatedNights === 0 && "border-destructive"
+                    )}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Total Booking Value (GBP)</Label>
+                  <Input
+                    value={calculatedTotalBookingValue.toFixed(2)}
+                    readOnly
+                    className="rounded-full bg-muted"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Total Revenue (GBP)</Label>
+                  <Input
+                    value={calculatedTotalRevenue.toFixed(2)}
+                    readOnly
+                    className="rounded-full bg-muted font-semibold"
+                  />
+                </div>
+              </div>
+              
+              {calculatedNights > 0 && formPricePerNight && (
+                <div className="text-xs text-muted-foreground bg-muted p-3 rounded-xl">
+                  <div className="font-medium mb-1">Calculation Breakdown:</div>
+                  <div>Total Booking Value: £{formPricePerNight} × {calculatedNights} night{calculatedNights !== 1 ? "s" : ""} = £{calculatedTotalBookingValue.toFixed(2)}</div>
+                  {formCommission && parseFloat(formCommission) > 0 && (
+                    <div>Commission: -£{parseFloat(formCommission).toFixed(2)}</div>
+                  )}
+                  <div className="font-semibold mt-1">Total Revenue: £{calculatedTotalRevenue.toFixed(2)}</div>
+                </div>
+              )}
+              
+              <div className="space-y-2">
+                <Label>Internal Notes (Staff Only)</Label>
+                <Textarea
+                  placeholder="Internal notes for staff reference..."
+                  value={formInternalNotes}
+                  onChange={(e) => setFormInternalNotes(e.target.value)}
+                  className="rounded-xl min-h-[80px]"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCreateDialogOpen(false)} className="rounded-full">
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleCreateBooking} 
+                className="rounded-full"
+                disabled={createBooking.isPending}
+              >
+                {createBooking.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Booking
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Bulk Status Update Dialog */}
+        <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
+          <DialogContent className="sm:max-w-[500px] rounded-3xl">
+            <DialogHeader>
+              <DialogTitle>Update Status</DialogTitle>
+              <DialogDescription>
+                Update status for {selectedBookings.size} selected booking(s).
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>New Status</Label>
+                <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                  <SelectTrigger className="rounded-full">
+                    <SelectValue placeholder="Select status..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {OTA_STATUSES.filter((s) => s.value !== "all").map((status) => (
+                      <SelectItem key={status.value} value={status.value}>
+                        {status.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setStatusDialogOpen(false)} className="rounded-full">
+                Cancel
+              </Button>
+              <Button onClick={handleBulkStatusUpdate} className="rounded-full">
+                Update
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </AdminLayout>
+  );
+};
+
+// OTA Booking Details Content Component
+const OTABookingDetailsContent = ({
+  booking,
+  activityLog,
+  onStatusUpdate,
+  isReservationist,
+  isOpsManager,
+}: {
+  booking: OTABookingWithRelations;
+  activityLog: any[];
+  onStatusUpdate: (status: string) => void;
+  isReservationist: boolean;
+  isOpsManager: boolean;
+}) => {
+  const { toast } = useToast();
+  const updateBooking = useUpdateOTABooking();
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState<string>(booking.status);
+  const [internalNotes, setInternalNotes] = useState<string>(booking.internal_notes || "");
+  const [notesDialogOpen, setNotesDialogOpen] = useState(false);
+
+  const handleUpdateNotes = async () => {
+    try {
+      await updateBooking.mutateAsync({
+        id: booking.id,
+        updates: {
+          internal_notes: internalNotes,
+        },
+      });
+
+      toast({
+        title: "Notes updated",
+        description: "Internal notes have been updated successfully.",
+      });
+
+      setNotesDialogOpen(false);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to update notes.",
+      });
+    }
+  };
+
+  const handleStatusChange = async () => {
+    try {
+      await updateBooking.mutateAsync({
+        id: booking.id,
+        updates: {
+          status: selectedStatus,
+        },
+      });
+
+      toast({
+        title: "Status updated",
+        description: "The booking status has been updated successfully.",
+      });
+
+      onStatusUpdate(selectedStatus);
+      setStatusDialogOpen(false);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to update status.",
+      });
+    }
+  };
+
+  // Determine next possible statuses based on current status
+  const getNextStatuses = (currentStatus: string) => {
+    const statusFlow: Record<string, string[]> = {
+      arriving: ["expected_arrivals", "pre_check_in", "checked_in", "no_show", "cancelled"],
+      expected_arrivals: ["pre_check_in", "checked_in", "no_show", "cancelled"],
+      pre_check_in: ["checked_in", "no_show", "cancelled"],
+      checked_in: ["in_house_guest", "checked_out", "cancelled"],
+      in_house_guest: ["day_use", "checked_out", "expected_departures", "departing"],
+      day_use: ["checked_out"],
+      checked_out: [],
+      expected_departures: ["departing", "checked_out"],
+      departing: ["checked_out"],
+      no_show: [],
+      cancelled: [],
+    };
+    return statusFlow[currentStatus] || [];
+  };
+
+  const nextStatuses = getNextStatuses(booking.status);
+
+  return (
+    <div className="space-y-6">
+      {/* Current Status */}
+      <div className="space-y-4">
+        <div>
+          <Label className="text-xs text-muted-foreground">Current Status</Label>
+          <div className="mt-1">{getStatusBadge(booking.status)}</div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label className="text-xs text-muted-foreground">Booking Reference</Label>
+            <div className="mt-1 text-sm font-semibold">{booking.external_ref}</div>
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Channel</Label>
+            <div className="mt-1">{getChannelBadge(booking.channel)}</div>
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Guest Name</Label>
+            <div className="mt-1 text-sm font-semibold">{booking.guest_name}</div>
+          </div>
+          {booking.guest_email && (
+            <div>
+              <Label className="text-xs text-muted-foreground">Email</Label>
+              <div className="mt-1 text-sm flex items-center gap-1">
+                <Mail className="h-3 w-3" />
+                {booking.guest_email}
+              </div>
+            </div>
+          )}
+          {booking.guest_phone && (
+            <div>
+              <Label className="text-xs text-muted-foreground">Phone</Label>
+              <div className="mt-1 text-sm flex items-center gap-1">
+                <Phone className="h-3 w-3" />
+                {booking.guest_phone}
+              </div>
+            </div>
+          )}
+          <div>
+            <Label className="text-xs text-muted-foreground">Studio</Label>
+            <div className="mt-1 text-sm">
+              {booking.studio ? (
+                <span className="font-medium">{booking.studio.studio_number}</span>
+              ) : (
+                <span className="text-muted-foreground">Unallocated</span>
+              )}
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Check-in</Label>
+            <div className="mt-1 text-sm">
+              {format(parseISO(booking.check_in), "MMM d, yyyy")}
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Check-out</Label>
+            <div className="mt-1 text-sm">
+              {format(parseISO(booking.check_out), "MMM d, yyyy")}
+            </div>
+          </div>
+        </div>
+
+        {booking.notes && (
+          <div>
+            <Label className="text-xs text-muted-foreground">Notes</Label>
+            <p className="text-sm mt-1 whitespace-pre-wrap">{booking.notes}</p>
+          </div>
+        )}
+
+        {booking.internal_notes && (
+          <div>
+            <Label className="text-xs text-muted-foreground">Internal Notes</Label>
+            <p className="text-sm mt-1 whitespace-pre-wrap">{booking.internal_notes}</p>
+          </div>
+        )}
+      </div>
+
+      <Separator />
+
+      {/* Activity Log / Timeline */}
+      <div>
+        <Label className="text-xs text-muted-foreground mb-3 block">Status Timeline</Label>
+        <div className="space-y-3">
+          {activityLog.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No activity yet.</p>
+          ) : (
+            activityLog.map((log) => (
+              <div key={log.id} className="flex gap-3 text-xs">
+                <div className="flex-shrink-0 w-2 h-2 rounded-full bg-primary mt-1.5" />
+                <div className="flex-1">
+                  <p className="font-medium">{log.message}</p>
+                  <p className="text-muted-foreground">
+                    {format(new Date(log.created_at), "MMM d, yyyy 'at' h:mm a")}
+                  </p>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* Actions - Role Based */}
+      {isReservationist && (
+        <div className="space-y-3">
+          {nextStatuses.length > 0 && (
+            <Button
+              onClick={() => {
+                setSelectedStatus(booking.status);
+                setStatusDialogOpen(true);
+              }}
+              className="rounded-full w-full"
+            >
+              <CheckCircle2 className="h-4 w-4 mr-2" />
+              Update Status
+            </Button>
+          )}
+          <Button
+            onClick={() => setNotesDialogOpen(true)}
+            variant="outline"
+            className="rounded-full w-full"
+          >
+            <FileText className="h-4 w-4 mr-2" />
+            Edit Internal Notes
+          </Button>
+          {booking.status !== "no_show" && booking.status !== "cancelled" && (
+            <>
+              <Button
+                onClick={() => onStatusUpdate("no_show")}
+                variant="outline"
+                className="rounded-full w-full text-red-600 hover:text-red-700"
+              >
+                <XCircle className="h-4 w-4 mr-2" />
+                Mark as No Show
+              </Button>
+              <Button
+                onClick={() => onStatusUpdate("cancelled")}
+                variant="destructive"
+                className="rounded-full w-full"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Cancel Booking
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Status Update Dialog */}
+      <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
+        <DialogContent className="sm:max-w-[500px] rounded-3xl">
+          <DialogHeader>
+            <DialogTitle>Update Status</DialogTitle>
+            <DialogDescription>
+              Change the booking status.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>New Status</Label>
+              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                <SelectTrigger className="rounded-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {OTA_STATUSES.filter((s) => s.value !== "all").map((status) => (
+                    <SelectItem key={status.value} value={status.value}>
+                      {status.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStatusDialogOpen(false)} className="rounded-full">
+              Cancel
+            </Button>
+            <Button onClick={handleStatusChange} className="rounded-full">
+              Update
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Internal Notes Dialog */}
+      <Dialog open={notesDialogOpen} onOpenChange={setNotesDialogOpen}>
+        <DialogContent className="sm:max-w-[500px] rounded-3xl">
+          <DialogHeader>
+            <DialogTitle>Internal Notes</DialogTitle>
+            <DialogDescription>
+              Add or edit internal notes for this booking (staff only).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Textarea
+                value={internalNotes}
+                onChange={(e) => setInternalNotes(e.target.value)}
+                placeholder="Add internal notes..."
+                className="min-h-[120px] rounded-xl"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNotesDialogOpen(false)} className="rounded-full">
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateNotes} className="rounded-full">
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
+
+export default OTABookingsDashboard;
+

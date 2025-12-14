@@ -61,27 +61,84 @@ serve(async (req) => {
       );
     }
 
-    // Fetch users from auth.users
-    const { data: { users }, error } = await supabaseClient.auth.admin.listUsers();
+    // Fetch users from auth.users - handle pagination
+    const emailsMap: Record<string, string> = {};
+    let page = 1;
+    const perPage = 1000;
+    let hasMore = true;
 
-    if (error) {
-      console.error("Error fetching users:", error);
-      return new Response(
-        JSON.stringify({ error: error.message }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+    while (hasMore) {
+      const { data: { users }, error } = await supabaseClient.auth.admin.listUsers({
+        page,
+        perPage,
+      });
+
+      if (error) {
+        console.error("Error fetching users (page", page, "):", error);
+        return new Response(
+          JSON.stringify({ error: error.message }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      if (!users || users.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      // Filter to requested user IDs and create map
+      users.forEach((user) => {
+        if (userIds.includes(user.id) && user.email) {
+          emailsMap[user.id] = user.email;
+          console.log(`Found email for user ${user.id}: ${user.email}`);
+        }
+      });
+
+      // Check if we've found all requested users
+      const foundUserIds = Object.keys(emailsMap);
+      const allFound = userIds.every((id) => foundUserIds.includes(id));
+      
+      if (allFound) {
+        hasMore = false;
+      } else if (users.length < perPage) {
+        // Last page
+        hasMore = false;
+      } else {
+        page++;
+      }
     }
 
-    // Filter to requested user IDs and create map
-    const emailsMap: Record<string, string> = {};
-    users.forEach((user) => {
-      if (userIds.includes(user.id) && user.email) {
-        emailsMap[user.id] = user.email;
+    console.log(`Fetched emails for ${Object.keys(emailsMap).length} out of ${userIds.length} requested users`);
+    console.log("Requested user IDs:", userIds);
+    console.log("Found user IDs:", Object.keys(emailsMap));
+
+    // If we didn't find all users, try fetching them individually (handles edge cases)
+    const foundUserIds = Object.keys(emailsMap);
+    const missingUserIds = userIds.filter((id) => !foundUserIds.includes(id));
+    
+    if (missingUserIds.length > 0) {
+      console.log(`Attempting to fetch ${missingUserIds.length} missing users individually`);
+      for (const userId of missingUserIds) {
+        try {
+          const { data: { user }, error: getUserError } = await supabaseClient.auth.admin.getUserById(userId);
+          if (!getUserError && user && user.email) {
+            emailsMap[user.id] = user.email;
+            console.log(`Found email for user ${userId} via getUserById: ${user.email}`);
+          } else if (getUserError) {
+            console.warn(`Could not fetch user ${userId}:`, getUserError.message);
+          } else if (user && !user.email) {
+            console.warn(`User ${userId} exists but has no email`);
+          } else {
+            console.warn(`User ${userId} not found in auth.users`);
+          }
+        } catch (err) {
+          console.warn(`Exception fetching user ${userId}:`, err);
+        }
       }
-    });
+    }
 
     return new Response(
       JSON.stringify({ emails: emailsMap }),

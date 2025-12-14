@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 type ProtectedRouteProps = {
   children: React.ReactNode;
-  allowedRoles: Array<"student" | "staff" | "superadmin" | "partner" | "admin" | "operations_manager" | "reservationist" | "accountant" | "front_desk">;
+  allowedRoles: Array<"student" | "staff" | "superadmin" | "partner" | "admin" | "operations_manager" | "reservationist" | "accountant" | "front_desk" | "maintenance_officer" | "housekeeper">;
   checkDatabase?: boolean; // Optional: if false, skips database check and uses allowedRoles only
 };
 
@@ -40,7 +40,7 @@ const ProtectedRoute = ({ children, allowedRoles, checkDatabase = true }: Protec
       }
 
       // For sub-roles: Check staff permission first (if staff is denied, deny all sub-roles)
-      if (role === "operations_manager" || role === "reservationist" || role === "accountant" || role === "front_desk") {
+      if (role === "operations_manager" || role === "reservationist" || role === "accountant" || role === "front_desk" || role === "maintenance_officer" || role === "housekeeper") {
         const { data: staffData, error: staffError } = await supabase
           .from("route_permissions")
           .select("allowed")
@@ -65,7 +65,7 @@ const ProtectedRoute = ({ children, allowedRoles, checkDatabase = true }: Protec
       }
 
       // If no specific role record, check "staff" role for staff sub-roles
-      if (role === "operations_manager" || role === "reservationist" || role === "accountant" || role === "front_desk") {
+      if (role === "operations_manager" || role === "reservationist" || role === "accountant" || role === "front_desk" || role === "maintenance_officer" || role === "housekeeper") {
         const { data: staffData, error: staffError } = await supabase
           .from("route_permissions")
           .select("allowed")
@@ -88,8 +88,10 @@ const ProtectedRoute = ({ children, allowedRoles, checkDatabase = true }: Protec
       return allowedRoles.includes(role);
     },
     enabled: checkDatabase && !!role && !loading,
-    staleTime: 30 * 1000, // Cache for 30 seconds to reduce flickering
-    gcTime: 60 * 1000, // Keep in cache for 60 seconds
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes to prevent unnecessary refetches
+    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
+    refetchOnWindowFocus: false, // Don't refetch on window focus to prevent unwanted redirects
+    refetchOnMount: false, // Don't refetch on mount if data is fresh (within staleTime)
     retry: 1, // Retry once on failure, then fallback to allowedRoles
   });
 

@@ -29,6 +29,9 @@ import {
   Receipt,
   Search,
   Shield,
+  Sparkles,
+  AlertTriangle,
+  MapPin,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -163,6 +166,57 @@ export const navSections: NavSection[] = [
         label: "Maintenance",
         to: "/admin/maintenance",
         icon: Wrench,
+      },
+    ],
+  },
+  {
+    label: "Operations",
+    icon: Wrench,
+    items: [
+      {
+        label: "Maintenance",
+        to: "/maintenance",
+        icon: Wrench,
+      },
+      {
+        label: "Job Management",
+        to: "/maintenance/job-management",
+        icon: Users,
+      },
+      {
+        label: "Out of Order",
+        to: "/maintenance/out-of-order",
+        icon: AlertTriangle,
+      },
+      {
+        label: "Housekeeping",
+        to: "/housekeeping",
+        icon: Sparkles,
+      },
+      {
+        label: "Housekeeping Roster",
+        to: "/housekeeping/roster",
+        icon: Calendar,
+      },
+      {
+        label: "OTA Bookings",
+        to: "/ota-bookings",
+        icon: Calendar,
+      },
+      {
+        label: "OTA Booking Chart",
+        to: "/ota-bookings/booking-chart",
+        icon: Calendar,
+      },
+      {
+        label: "OTA Studio Allocation",
+        to: "/ota-bookings/studio-allocation",
+        icon: MapPin,
+      },
+      {
+        label: "OTA Finance",
+        to: "/ota-bookings/finance",
+        icon: DollarSign,
       },
     ],
   },
@@ -305,6 +359,7 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
 
   // Check permissions for all routes
   const { data: routePermissions = {}, isLoading: permissionsLoading } = useRoutePermissions(allRoutePaths);
+  const { role } = useAuth();
 
   // Filter nav sections based on permissions
   const filteredNavSections = useMemo(() => {

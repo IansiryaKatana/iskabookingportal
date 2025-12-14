@@ -128,19 +128,58 @@ const Users = () => {
       const profileIds = filteredProfiles.map((p) => p.id);
       let emailMap: Record<string, string> = {};
 
-      if (profileIds.length > 0) {
+          if (profileIds.length > 0) {
         try {
+          console.log("Fetching emails for user IDs:", profileIds);
           const { data, error: emailError } = await supabase.functions.invoke("get-user-emails", {
             body: { userIds: profileIds },
           });
 
-          if (!emailError && data?.emails) {
-            emailMap = data.emails;
-          } else if (emailError) {
-            console.warn("Could not fetch user emails via edge function:", emailError);
+          if (emailError) {
+            console.error("Edge function error:", emailError);
+            console.error("Error details:", JSON.stringify(emailError, null, 2));
+          }
+
+          // Handle response structure - edge function returns { emails: { userId: email } }
+          if (data) {
+            console.log("Edge function response data (full):", JSON.stringify(data, null, 2));
+            
+            // Check if data is a string that needs parsing
+            let parsedData = data;
+            if (typeof data === 'string') {
+              try {
+                parsedData = JSON.parse(data);
+                console.log("Parsed string response:", parsedData);
+              } catch (parseErr) {
+                console.warn("Failed to parse data as JSON:", parseErr);
+              }
+            }
+            
+            // Handle different possible response structures
+            if (parsedData && parsedData.emails) {
+              if (typeof parsedData.emails === 'object' && !Array.isArray(parsedData.emails)) {
+                emailMap = parsedData.emails;
+                console.log("Successfully parsed email map:", emailMap);
+                console.log("Email map has", Object.keys(emailMap).length, "entries");
+                Object.entries(emailMap).forEach(([userId, email]) => {
+                  console.log(`  ${userId} -> ${email}`);
+                });
+              } else {
+                console.warn("emails property is not an object:", typeof parsedData.emails, parsedData.emails);
+              }
+            } else if (parsedData?.error) {
+              console.error("Edge function returned error:", parsedData.error);
+            } else {
+              console.warn("Unexpected response structure:", parsedData);
+              console.warn("Available keys:", Object.keys(parsedData || {}));
+            }
+          } else {
+            console.warn("No data returned from edge function");
           }
         } catch (err) {
-          console.warn("Could not fetch user emails:", err);
+          console.error("Exception while fetching user emails:", err);
+          // Edge function might not be deployed or there's a network issue
+          // We'll continue without emails - they'll show as "—"
         }
       }
 
@@ -633,6 +672,8 @@ const Users = () => {
                                 <SelectItem value="reservationist">Reservationist</SelectItem>
                                 <SelectItem value="accountant">Accountant</SelectItem>
                                 <SelectItem value="front_desk">Front Desk</SelectItem>
+                                <SelectItem value="maintenance_officer">Maintenance Officer</SelectItem>
+                                <SelectItem value="housekeeper">Housekeeper</SelectItem>
                               </SelectContent>
                             </Select>
                           )}
@@ -902,6 +943,8 @@ const Users = () => {
                     <SelectItem value="reservationist">Reservationist</SelectItem>
                     <SelectItem value="accountant">Accountant</SelectItem>
                     <SelectItem value="front_desk">Front Desk</SelectItem>
+                    <SelectItem value="maintenance_officer">Maintenance Officer</SelectItem>
+                    <SelectItem value="housekeeper">Housekeeper</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1023,6 +1066,8 @@ const Users = () => {
                     <SelectItem value="reservationist">Reservationist</SelectItem>
                     <SelectItem value="accountant">Accountant</SelectItem>
                     <SelectItem value="front_desk">Front Desk</SelectItem>
+                    <SelectItem value="maintenance_officer">Maintenance Officer</SelectItem>
+                    <SelectItem value="housekeeper">Housekeeper</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

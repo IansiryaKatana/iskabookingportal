@@ -682,14 +682,14 @@ const BookingCalendar = () => {
                                               : studio.allocation === "OTA" || studio.allocation === "Keyworkers"
                                               ? "bg-green-500/30 border-green-500/50 text-green-900 dark:text-green-100"
                                               : "bg-primary/30 border-primary/50 text-primary-foreground",
-                                            isEndDate ? "rounded-r" : "rounded-l"
+                                            isEndDate ? "rounded-r" : "rounded-l",
+                                            "md:!w-[var(--span-width)]"
                                           )}
                                           style={{
                                             width: `${spanWidth * 60}px`, // Mobile: 60px per cell
                                             zIndex: 1,
                                             "--span-width": `${spanWidth * 80}px`, // Desktop: 80px per cell
                                           } as React.CSSProperties & { "--span-width": string }}
-                                          className="md:!w-[var(--span-width)]"
                                         >
                                           <div className="text-[10px] md:text-xs font-medium truncate">
                                             {bookingSpan.info.studentName.split(" ")[0]}
