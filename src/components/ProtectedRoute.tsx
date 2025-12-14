@@ -24,6 +24,12 @@ const ProtectedRoute = ({ children, allowedRoles, checkDatabase = true }: Protec
         return allowedRoles.includes(role);
       }
       
+      // IMPORTANT: First check if role is in allowedRoles - if not, deny immediately
+      // This prevents subroles from accessing routes they shouldn't have access to
+      if (!allowedRoles.includes(role)) {
+        return false;
+      }
+      
       // Check permission for the specific role first
       const { data: specificRoleData, error: specificError } = await supabase
         .from("route_permissions")
@@ -145,7 +151,14 @@ const ProtectedRoute = ({ children, allowedRoles, checkDatabase = true }: Protec
     const isPortalRoute = location.pathname.startsWith("/portal");
     const isPartnerRoute = location.pathname.startsWith("/partner");
     
-    if (isAdminRoute) {
+    // Redirect subroles to their specific dashboards
+    if (role === "maintenance_officer") {
+      return <Navigate to="/maintenance" replace />;
+    } else if (role === "housekeeper") {
+      return <Navigate to="/housekeeping" replace />;
+    } else if (role === "reservationist") {
+      return <Navigate to="/ota-bookings" replace />;
+    } else if (isAdminRoute) {
       return <Navigate to="/admin" replace />;
     } else if (isPortalRoute) {
       return <Navigate to="/portal" replace />;
