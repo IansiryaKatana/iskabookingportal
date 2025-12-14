@@ -46,7 +46,6 @@ const AdminApplicationDetail = lazy(() => import("./pages/admin/ApplicationDetai
 const AdminUsers = lazy(() => import("./pages/admin/Users"));
 const AdminPermissions = lazy(() => import("./pages/admin/Permissions"));
 const AdminRefunds = lazy(() => import("./pages/admin/Refunds"));
-const AdminMaintenance = lazy(() => import("./pages/admin/Maintenance"));
 const MaintenanceDashboard = lazy(() => import("./pages/admin/MaintenanceDashboard"));
 const OutOfOrderPage = lazy(() => import("./pages/admin/OutOfOrderPage"));
 const MaintenanceJobManagementPage = lazy(() => import("./pages/admin/MaintenanceJobManagementPage"));
@@ -264,14 +263,6 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
                   <AdminStudents />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/maintenance"
-              element={
-                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
-                  <AdminMaintenance />
                 </ProtectedRoute>
               }
             />

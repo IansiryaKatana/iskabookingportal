@@ -162,11 +162,6 @@ export const navSections: NavSection[] = [
         to: "/admin/students",
         icon: Users,
       },
-      {
-        label: "Maintenance",
-        to: "/admin/maintenance",
-        icon: Wrench,
-      },
     ],
   },
   {

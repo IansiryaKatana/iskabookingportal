@@ -28,6 +28,8 @@ export const AcademicYearSelector = ({
   const [academicYears, setAcademicYears] = useState<AcademicYearRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [defaultYear, setDefaultYear] = useState<AcademicYearRow | null>(null);
+  // Initialize with a placeholder to ensure component is always controlled
+  const [internalValue, setInternalValue] = useState<string>("__loading__");
 
   useEffect(() => {
     const loadAcademicYears = async () => {
@@ -52,11 +54,17 @@ export const AcademicYearSelector = ({
       const selected = futureYear || years[0] || null;
       setDefaultYear(selected);
       
-      // If no value is provided and we have a default, notify parent
-      // This ensures queries run with the correct academic year on initial load
-      // Even when allowEmpty is true, we auto-select the default year
-      if (!value && selected) {
+      // Set initial internal value based on props or default
+      if (value) {
+        setInternalValue(value);
+      } else if (selected) {
+        setInternalValue(selected.id);
+        // Notify parent of default selection
         onValueChange(selected.id);
+      } else if (allowEmpty) {
+        setInternalValue("all");
+      } else {
+        setInternalValue("__placeholder__");
       }
       
       setLoading(false);
@@ -66,10 +74,21 @@ export const AcademicYearSelector = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Update internal value when prop changes
+  useEffect(() => {
+    if (value) {
+      setInternalValue(value);
+    } else if (defaultYear && !allowEmpty) {
+      setInternalValue(defaultYear.id);
+    } else if (allowEmpty) {
+      setInternalValue("all");
+    }
+  }, [value, defaultYear, allowEmpty]);
+
   if (loading) {
     return (
       <div className={className}>
-        <Select disabled>
+        <Select value="__loading__" disabled>
           <SelectTrigger>
             <SelectValue placeholder="Loading..." />
           </SelectTrigger>
@@ -78,22 +97,25 @@ export const AcademicYearSelector = ({
     );
   }
 
-  // Ensure value is always a string (controlled component)
-  // Never use empty string - use defaultYear or a placeholder to keep component controlled
-  // If no value and no defaultYear yet, use a placeholder that won't match any real ID
-  const controlledValue = value || defaultYear?.id || (allowEmpty ? "all" : "__placeholder__");
-
   const handleValueChange = (newValue: string) => {
-    // Ignore placeholder value
-    if (newValue === "__placeholder__") {
+    // Ignore placeholder and loading values
+    if (newValue === "__placeholder__" || newValue === "__loading__") {
       return;
     }
+    
+    setInternalValue(newValue);
+    
     if (allowEmpty && newValue === "all") {
       onValueChange(undefined);
     } else {
       onValueChange(newValue);
     }
   };
+
+  // Ensure we always have a valid controlled value
+  const controlledValue = internalValue === "__loading__" 
+    ? (defaultYear?.id || (allowEmpty ? "all" : "__placeholder__"))
+    : internalValue;
 
   return (
     <div className={className}>

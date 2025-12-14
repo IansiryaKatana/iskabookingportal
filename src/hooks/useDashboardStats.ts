@@ -57,13 +57,18 @@ const normalizeRow = (row?: RpcRow | null): DashboardStats => {
 };
 
 const fetchDashboardStats = async (academicYearId?: string): Promise<DashboardStats> => {
-  const { data, error } = await supabase.rpc("get_admin_dashboard_stats", {
-    p_academic_year_id: academicYearId ?? null,
-  });
+  // Ensure we pass null (not undefined) for the RPC call
+  const params = academicYearId 
+    ? { p_academic_year_id: academicYearId }
+    : { p_academic_year_id: null };
+
+  const { data, error } = await supabase.rpc("get_admin_dashboard_stats", params);
 
   if (error) {
     console.error("Failed to load dashboard stats:", error);
-    throw error;
+    // Return empty stats instead of throwing to prevent UI crashes
+    // This allows the app to continue functioning even if stats fail
+    return normalizeRow(null);
   }
 
   return normalizeRow(data?.[0]);
