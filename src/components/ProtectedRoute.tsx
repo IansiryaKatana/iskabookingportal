@@ -14,14 +14,6 @@ type ProtectedRouteProps = {
 const ProtectedRoute = ({ children, allowedRoles, checkDatabase = true }: ProtectedRouteProps) => {
   const { user, role, loading } = useAuth();
   const location = useLocation();
-  
-  // Get default route for user when access is denied
-  const { data: defaultRoute, isLoading: loadingDefaultRoute } = useQuery({
-    queryKey: ["default-route", role],
-    queryFn: () => getDefaultRouteForRole(role || ""),
-    enabled: !!role && !loading,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-  });
 
   // Check database permissions (default: enabled)
   // Falls back to allowedRoles if database check fails or no record exists
