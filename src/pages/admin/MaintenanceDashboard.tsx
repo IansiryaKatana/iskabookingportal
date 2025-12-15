@@ -217,7 +217,7 @@ const getCategoryLabel = (category: string | null) => {
 const MaintenanceDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { role, profile } = useAuth();
+  const { role, profile, user } = useAuth();
   const isMobile = useIsMobile();
   
   // Filters
@@ -234,7 +234,16 @@ const MaintenanceDashboard = () => {
   const [previewIndex, setPreviewIndex] = useState(0);
   const [previewOpen, setPreviewOpen] = useState(false);
 
-  const { data: requests, isLoading } = useMaintenanceRequests();
+  const isMaintenanceOfficer = profile?.staff_subrole === "maintenance_officer";
+
+  const { data: requests, isLoading } = useMaintenanceRequests(
+    isMaintenanceOfficer && user?.id
+      ? {
+          assignedToUserId: user.id,
+          includeUnassigned: true,
+        }
+      : undefined
+  );
   const { data: activityLog } = useActivityLog(
     selectedRequest ? {
       entity_type: "maintenance_request",
@@ -362,7 +371,6 @@ const MaintenanceDashboard = () => {
 
   // Check if user is Ops Manager
   const isOpsManager = role === "operations_manager" || role === "staff" || role === "superadmin" || role === "admin";
-  const isMaintenanceOfficer = profile?.staff_subrole === "maintenance_officer";
 
   // Skeleton loader
   if (isLoading) {
@@ -776,6 +784,16 @@ const RequestDetailsContent = ({
     status: request.status,
     assigned_to_user_id: request.assigned_to_user_id || "",
   });
+  const [completionNote, setCompletionNote] = useState<string>(request.completion_note || "");
+  const [completedAt, setCompletedAt] = useState<string>(
+    request.resolved_at ? format(parseISO(request.resolved_at), "yyyy-MM-dd'T'HH:mm") : ""
+  );
+  const [expectedResolveDate, setExpectedResolveDate] = useState<string>(
+    (request as any).expected_resolve_at
+      ? format(parseISO((request as any).expected_resolve_at as string), "yyyy-MM-dd'T'HH:mm")
+      : ""
+  );
+  const [expectedDialogOpen, setExpectedDialogOpen] = useState(false);
 
   const { data: maintenanceOfficers } = useMaintenanceOfficers();
   const updateRequest = useUpdateMaintenanceRequest();
@@ -816,6 +834,41 @@ const RequestDetailsContent = ({
     }
   };
 
+  const handleComplete = async () => {
+    if (!completionNote.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please provide a completion note.",
+      });
+      return;
+    }
+
+    try {
+      await updateRequest.mutateAsync({
+        id: request.id,
+        updates: {
+          status: "completed_pending_approval",
+          completion_note: completionNote,
+          approval_status: "pending",
+        } as any,
+      });
+
+      toast({
+        title: "Request completed",
+        description: "The request has been marked as complete and is pending approval.",
+      });
+
+      onStatusUpdate("completed_pending_approval", "pending");
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to complete request.",
+      });
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Basic Info */}
@@ -848,6 +901,14 @@ const RequestDetailsContent = ({
               ) : (
                 <span className="text-xs text-muted-foreground">N/A</span>
               )}
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Expected Resolve Date</Label>
+            <div className="mt-1 text-sm">
+              {expectedResolveDate
+                ? format(parseISO(expectedResolveDate), "MMM d, yyyy 'at' HH:mm")
+                : <span className="text-muted-foreground">Not set</span>}
             </div>
           </div>
         </div>
@@ -909,10 +970,47 @@ const RequestDetailsContent = ({
 
       {/* Actions - Role Based */}
       <div className="space-y-3">
+        {(isOpsManager ||
+          (isMaintenanceOfficer &&
+            request.assigned_to_user_id &&
+            request.status !== "resolved" &&
+            request.status !== "cancelled")) && (
+          <Button
+            onClick={() => setExpectedDialogOpen(true)}
+            variant="outline"
+            className="rounded-full w-full"
+          >
+            <Calendar className="h-4 w-4 mr-2" />
+            Set Expected Resolve Date
+          </Button>
+        )}
         {isOpsManager && request.status === "completed_pending_approval" && (
           <div className="grid grid-cols-2 gap-3">
             <Button
-              onClick={() => onStatusUpdate("resolved", "approved")}
+              onClick={async () => {
+                try {
+                  await updateRequest.mutateAsync({
+                    id: request.id,
+                    updates: {
+                      status: "resolved",
+                      approval_status: "approved",
+                      approved_at: new Date().toISOString(),
+                      resolved_at: completedAt ? new Date(completedAt).toISOString() : new Date().toISOString(),
+                    } as any,
+                  });
+                  toast({
+                    title: "Request approved",
+                    description: "The maintenance request has been approved and resolved.",
+                  });
+                  onStatusUpdate("resolved", "approved");
+                } catch (error: any) {
+                  toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: error.message || "Failed to approve request.",
+                  });
+                }
+              }}
               className="rounded-full bg-green-600 hover:bg-green-700"
             >
               <CheckCircle2 className="h-4 w-4 mr-2" />
@@ -920,7 +1018,28 @@ const RequestDetailsContent = ({
             </Button>
             <Button
               variant="destructive"
-              onClick={() => onStatusUpdate("rework_required")}
+              onClick={async () => {
+                try {
+                  await updateRequest.mutateAsync({
+                    id: request.id,
+                    updates: {
+                      status: "in_progress",
+                      approval_status: "rejected",
+                    } as any,
+                  });
+                  toast({
+                    title: "Request sent for rework",
+                    description: "The maintenance request has been sent back for rework.",
+                  });
+                  onStatusUpdate("rework_required", "rejected");
+                } catch (error: any) {
+                  toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: error.message || "Failed to reject request.",
+                  });
+                }
+              }}
               className="rounded-full"
             >
               <XCircle className="h-4 w-4 mr-2" />
@@ -931,14 +1050,33 @@ const RequestDetailsContent = ({
 
         {isMaintenanceOfficer && 
          request.assigned_to_user_id && 
-         request.status === "in_progress" && (
-          <Button
-            onClick={() => onStatusUpdate("completed_pending_approval")}
-            className="rounded-full w-full"
-          >
-            <CheckCircle2 className="h-4 w-4 mr-2" />
-            Mark Complete
-          </Button>
+         (request.status === "assigned" || request.status === "in_progress") && (
+          <>
+            <Button
+              onClick={() => onStatusUpdate("in_progress")}
+              variant="outline"
+              className="rounded-full w-full"
+            >
+              <Loader2 className="h-4 w-4 mr-2" />
+              Mark In Progress
+            </Button>
+            <div className="space-y-2">
+              <Label>Completion Note</Label>
+              <Textarea
+                value={completionNote}
+                onChange={(e) => setCompletionNote(e.target.value)}
+                placeholder="Describe what was done..."
+                className="min-h-[100px] rounded-xl"
+              />
+              <Button
+                onClick={handleComplete}
+                className="rounded-full w-full"
+              >
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                Mark Complete
+              </Button>
+            </div>
+          </>
         )}
 
         {isOpsManager && !request.assigned_to_user_id && request.status !== "resolved" && request.status !== "cancelled" && (
@@ -952,6 +1090,66 @@ const RequestDetailsContent = ({
           </Button>
         )}
       </div>
+
+      {/* Expected Resolve Date Dialog */}
+      <Dialog open={expectedDialogOpen} onOpenChange={setExpectedDialogOpen}>
+        <DialogContent className="sm:max-w-[500px] rounded-3xl">
+          <DialogHeader>
+            <DialogTitle>Set Expected Resolve Date</DialogTitle>
+            <DialogDescription>
+              Choose when this maintenance request is expected to be resolved.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Expected Resolve Date</Label>
+              <Input
+                type="datetime-local"
+                value={expectedResolveDate}
+                onChange={(e) => setExpectedResolveDate(e.target.value)}
+                className="rounded-full"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setExpectedDialogOpen(false)}
+              className="rounded-full"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                try {
+                  await updateRequest.mutateAsync({
+                    id: request.id,
+                    updates: {
+                      expected_resolve_at: expectedResolveDate
+                        ? new Date(expectedResolveDate).toISOString()
+                        : null,
+                    } as any,
+                  });
+                  toast({
+                    title: "Expected date updated",
+                    description: "The expected resolve date has been updated.",
+                  });
+                  setExpectedDialogOpen(false);
+                } catch (error: any) {
+                  toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: error.message || "Failed to update expected resolve date.",
+                  });
+                }
+              }}
+              className="rounded-full"
+            >
+              Set Date
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Assignment Dialog */}
       <Dialog open={updateDialogOpen} onOpenChange={setUpdateDialogOpen}>
