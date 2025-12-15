@@ -48,10 +48,6 @@ export default defineConfig(() => ({
             if (id.includes("@sentry")) {
               return "sentry";
             }
-            // Chart libraries
-            if (id.includes("recharts")) {
-              return "charts";
-            }
             // PDF/Image libraries
             if (id.includes("jspdf") || id.includes("html2canvas")) {
               return "pdf-utils";
