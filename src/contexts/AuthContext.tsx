@@ -143,7 +143,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
       }
       
-      if (newSession?.user) {
+      // Only run redirect logic on SIGNED_IN event, not on TOKEN_REFRESHED or other events
+      // This prevents unwanted redirects when switching tabs or window regains focus
+      if (newSession?.user && event === "SIGNED_IN") {
         refreshProfile(newSession.user.id).then(() => {
           // After profile is loaded, check if staff user is on wrong portal and redirect
           setTimeout(() => {
@@ -170,24 +172,27 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                 const isPartner = userRole === "partner";
                 const isStudent = userRole === "student";
                 
-                // Redirect staff to admin portal if they're on portal or homepage
-                if (isStaff && (isOnPortal || (!isOnAdmin && !isOnPartner && currentPath !== "/" && !currentPath.startsWith("/studios") && !currentPath.startsWith("/contracts")))) {
+                // Only redirect if user is on the WRONG portal, not if already on correct portal
+                // Staff users: only redirect if on portal, not if already on admin routes
+                if (isStaff && isOnPortal) {
                   window.location.href = "/admin";
                 }
-                // Redirect students away from admin/partner portals
+                // Students: only redirect if on admin/partner portals, not if already on portal
                 else if (isStudent && (isOnAdmin || isOnPartner)) {
                   window.location.href = "/portal";
                 }
-                // Redirect partners away from admin/portal
+                // Partners: only redirect if on admin/portal, not if already on partner routes
                 else if (isPartner && (isOnAdmin || isOnPortal)) {
                   window.location.href = "/partner";
                 }
+                // Note: We don't redirect staff users who are already on /admin/* routes
+                // This allows them to stay on any admin sub-route (e.g., /admin/ota-bookings)
               });
           }, 500); // Small delay to ensure profile is loaded
         }).catch((error) =>
           console.error("Error loading profile after auth change:", error),
         );
-      } else {
+      } else if (!newSession?.user) {
         setProfile(null);
       }
     });
