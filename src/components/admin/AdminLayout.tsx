@@ -267,14 +267,19 @@ export const navSections: NavSection[] = [
     icon: FileText,
     items: [
       {
-        label: "Reports",
-        to: "/admin/reports",
-        icon: FileText,
-      },
-      {
         label: "Accounting Reports",
         to: "/admin/accounting-reports",
         icon: FileSpreadsheet,
+      },
+      {
+        label: "Sales & Demographics",
+        to: "/admin/sales-reports",
+        icon: FileSpreadsheet,
+      },
+      {
+        label: "Operational Reports",
+        to: "/admin/reports",
+        icon: FileText,
       },
       {
         label: "Booking Calendar",
@@ -856,4 +861,5 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
 };
 
 export default AdminLayout;
+
 

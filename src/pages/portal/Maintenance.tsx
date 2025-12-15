@@ -44,6 +44,25 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { MaintenanceImagePreview } from "@/components/MaintenanceImagePreview";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // Component to display maintenance images with signed URLs (clickable thumbnails)
 const MaintenanceImage = ({ 
@@ -115,6 +134,7 @@ const MaintenanceImage = ({
 const Maintenance = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [uploadingImages, setUploadingImages] = useState<string[]>([]);
@@ -124,6 +144,8 @@ const Maintenance = () => {
   const [previewIndex, setPreviewIndex] = useState(0);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [expandedRow, setExpandedRow] = useState<string | undefined>(undefined);
+  const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const { data: requests, isLoading } = useMaintenanceRequests(user?.id);
   const { data: applications } = useStudentApplicationsList(user?.id);
@@ -138,9 +160,22 @@ const Maintenance = () => {
   // Form state
   const [formData, setFormData] = useState({
     request_type: "maintenance" as "maintenance" | "cleaning" | "general" | "other",
+    // New, more specific category field used by the maintenance workflow.
+    // Default to "other" so requests are still valid if the student doesn't change it.
+    category: "other" as
+      | "plumbing"
+      | "electrical"
+      | "internet_wifi"
+      | "furniture"
+      | "appliance"
+      | "hvac"
+      | "bathroom"
+      | "kitchen"
+      | "other",
     title: "",
     description: "",
-    priority: "normal" as "low" | "normal" | "high" | "urgent",
+    // urgency replaces the legacy priority concept used in admin dashboards and SLA logic
+    urgency: "medium" as "low" | "medium" | "high" | "emergency",
   });
 
   const filteredRequests = useMemo(() => {
@@ -149,22 +184,53 @@ const Maintenance = () => {
     return requests.filter((req) => req.status === statusFilter);
   }, [requests, statusFilter]);
 
+  const handleRowClick = (request: any) => {
+    setSelectedRequest(request);
+    setDetailsOpen(true);
+  };
+
   const getStatusBadge = (status: string) => {
     const configs: Record<string, { className: string; icon: typeof Clock; label: string }> = {
+      // Legacy + new workflow statuses (match admin dashboards so students see the same language)
       pending: {
         className: "bg-yellow-500 hover:bg-yellow-600 text-white",
         icon: Clock,
         label: "Pending",
+      },
+      new: {
+        className: "bg-blue-500 hover:bg-blue-600 text-white",
+        icon: Clock,
+        label: "New",
+      },
+      triaged: {
+        className: "bg-purple-500 hover:bg-purple-600 text-white",
+        icon: AlertCircle,
+        label: "Triaged",
+      },
+      assigned: {
+        className: "bg-indigo-500 hover:bg-indigo-600 text-white",
+        icon: Loader2,
+        label: "Assigned",
       },
       in_progress: {
         className: "bg-blue-500 hover:bg-blue-600 text-white",
         icon: Loader2,
         label: "In Progress",
       },
+      completed_pending_approval: {
+        className: "bg-orange-500 hover:bg-orange-600 text-white",
+        icon: Clock,
+        label: "Pending Approval",
+      },
       resolved: {
         className: "bg-green-500 hover:bg-green-600 text-white",
         icon: CheckCircle2,
         label: "Resolved",
+      },
+      rework_required: {
+        className: "bg-red-500 hover:bg-red-600 text-white",
+        icon: AlertCircle,
+        label: "Rework Required",
       },
       cancelled: {
         className: "bg-gray-500 hover:bg-gray-600 text-white",
@@ -173,7 +239,9 @@ const Maintenance = () => {
       },
     };
 
-    const config = configs[status] || configs.pending;
+    // Treat "new" and "pending" as equivalent in the student view for older data
+    const normalizedStatus = status === "new" ? "new" : status;
+    const config = configs[normalizedStatus] || configs.pending;
     const Icon = config.icon;
 
     return (
@@ -186,13 +254,14 @@ const Maintenance = () => {
 
   const getPriorityBadge = (priority: string) => {
     const configs: Record<string, { className: string; label: string }> = {
+      // Map new urgency values to badges so students see the same wording as staff
       low: { className: "bg-gray-500 hover:bg-gray-600 text-white", label: "Low" },
-      normal: { className: "bg-blue-500 hover:bg-blue-600 text-white", label: "Normal" },
+      medium: { className: "bg-blue-500 hover:bg-blue-600 text-white", label: "Medium" },
       high: { className: "bg-orange-500 hover:bg-orange-600 text-white", label: "High" },
-      urgent: { className: "bg-red-500 hover:bg-red-600 text-white", label: "Urgent" },
+      emergency: { className: "bg-red-500 hover:bg-red-600 text-white", label: "Emergency" },
     };
 
-    const config = configs[priority] || configs.normal;
+    const config = configs[priority] || configs.medium;
 
     return (
       <Badge className={`uppercase ${config.className} rounded-full px-2.5 py-0.5 text-xs font-medium`}>
@@ -311,9 +380,10 @@ const Maintenance = () => {
         application_id: confirmedApplication?.id,
         studio_id: confirmedApplication?.assigned_studio_id || undefined,
         request_type: formData.request_type,
+        category: formData.category,
         title: formData.title.trim(),
         description: formData.description.trim(),
-        priority: formData.priority,
+        urgency: formData.urgency,
         images: imagePaths.length > 0 ? imagePaths : undefined,
         academic_year_id: confirmedApplication?.contract?.academic_year_id || undefined,
       });
@@ -326,9 +396,10 @@ const Maintenance = () => {
       // Reset form
       setFormData({
         request_type: "maintenance",
+        category: "other",
         title: "",
         description: "",
-        priority: "normal",
+        urgency: "medium",
       });
       // Clean up preview URLs
       imagePreviews.forEach((url) => URL.revokeObjectURL(url));
@@ -418,16 +489,19 @@ const Maintenance = () => {
         </div>
 
         {/* Filters */}
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[180px] rounded-full">
               <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="new">New</SelectItem>
               <SelectItem value="pending">Pending</SelectItem>
               <SelectItem value="in_progress">In Progress</SelectItem>
+              <SelectItem value="completed_pending_approval">Pending Approval</SelectItem>
               <SelectItem value="resolved">Resolved</SelectItem>
+              <SelectItem value="rework_required">Rework Required</SelectItem>
               <SelectItem value="cancelled">Cancelled</SelectItem>
             </SelectContent>
           </Select>
@@ -462,7 +536,7 @@ const Maintenance = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {/* Desktop: Table with Accordion */}
+              {/* Desktop: Clean table - click row to open details */}
               <div className="hidden md:block">
                 <Table>
                   <TableHeader>
@@ -476,189 +550,75 @@ const Maintenance = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    <Accordion 
-                      type="single" 
-                      collapsible 
-                      className="w-full"
-                      value={expandedRow}
-                      onValueChange={setExpandedRow}
-                    >
-                      {filteredRequests.map((request) => {
-                        const isOpen = expandedRow === request.id;
-                        return (
-                          <AccordionItem key={request.id} value={request.id} className="border-b">
-                            <AccordionTrigger className="hidden" />
-                            <TableRow 
-                              className="hover:bg-accent/50 cursor-pointer [&>td]:py-4"
-                              onClick={() => setExpandedRow(isOpen ? undefined : request.id)}
-                            >
-                              <TableCell className="align-middle text-left">
-                                <div className="font-semibold text-sm">{request.title}</div>
-                                <div className="text-xs text-muted-foreground line-clamp-1 mt-1">
-                                  {request.description}
-                                </div>
-                              </TableCell>
-                              <TableCell className="align-middle text-center">{getStatusBadge(request.status)}</TableCell>
-                              <TableCell className="align-middle text-center">{getPriorityBadge(request.priority)}</TableCell>
-                              <TableCell className="align-middle text-center">
-                                <Badge variant="outline" className="rounded-full text-xs">
-                                  {getTypeLabel(request.request_type)}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="align-middle text-right text-xs text-muted-foreground">
-                                {format(new Date(request.created_at), "MMM d, yyyy")}
-                              </TableCell>
-                              <TableCell className="align-middle text-center w-[60px]">
-                                <Plus className={`h-4 w-4 shrink-0 transition-transform duration-200 mx-auto ${isOpen ? 'rotate-45' : ''}`} />
-                              </TableCell>
-                            </TableRow>
-                            <AccordionContent asChild>
-                              <TableRow>
-                                <TableCell colSpan={6} className="p-4">
-                                  <div className="space-y-4">
-                                    <div>
-                                      <h4 className="text-xs font-semibold mb-2">Description</h4>
-                                      <p className="text-xs text-muted-foreground whitespace-pre-wrap">
-                                        {request.description}
-                                      </p>
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                                      {request.studio && (
-                                        <Badge variant="outline" className="rounded-full text-xs">
-                                          Studio {request.studio.studio_number}
-                                        </Badge>
-                                      )}
-                                      <span>Created {format(new Date(request.created_at), "MMM d, yyyy 'at' h:mm a")}</span>
-                                      {request.updated_at !== request.created_at && (
-                                        <span>Updated {format(new Date(request.updated_at), "MMM d, yyyy 'at' h:mm a")}</span>
-                                      )}
-                                      {request.resolved_at && (
-                                        <span className="text-green-600">
-                                          Resolved {format(new Date(request.resolved_at), "MMM d, yyyy")}
-                                        </span>
-                                      )}
-                                    </div>
-                                    {request.images && request.images.length > 0 && (
-                                      <div>
-                                        <h4 className="text-xs font-semibold mb-2">Images</h4>
-                                        <div className="flex flex-wrap gap-2">
-                                          {request.images.map((imagePath, idx) => (
-                                            <MaintenanceImage
-                                              key={idx}
-                                              imagePath={imagePath}
-                                              index={idx}
-                                              onClick={() => {
-                                                setPreviewImages(request.images || []);
-                                                setPreviewIndex(idx);
-                                                setPreviewOpen(true);
-                                              }}
-                                            />
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )}
-                                    {request.resolution_notes && (
-                                      <div className="p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-900">
-                                        <p className="text-xs font-medium text-green-900 dark:text-green-100 mb-1">
-                                          Resolution Notes:
-                                        </p>
-                                        <p className="text-xs text-green-800 dark:text-green-200 whitespace-pre-wrap">
-                                          {request.resolution_notes}
-                                        </p>
-                                      </div>
-                                    )}
-                                  </div>
-                                </TableCell>
-                              </TableRow>
-                            </AccordionContent>
-                          </AccordionItem>
-                        );
-                      })}
-                    </Accordion>
+                    {filteredRequests.map((request) => (
+                      <TableRow
+                        key={request.id}
+                        className="hover:bg-accent/50 cursor-pointer [&>td]:py-4"
+                        onClick={() => handleRowClick(request)}
+                      >
+                        <TableCell className="align-middle text-left">
+                          <div className="font-semibold text-sm">{request.title}</div>
+                          <div className="text-xs text-muted-foreground line-clamp-1 mt-1">
+                            {request.description}
+                          </div>
+                        </TableCell>
+                        <TableCell className="align-middle text-center">
+                          {getStatusBadge(request.status)}
+                        </TableCell>
+                        <TableCell className="align-middle text-center">
+                          {getPriorityBadge(request.urgency || "medium")}
+                        </TableCell>
+                        <TableCell className="align-middle text-center">
+                          <Badge variant="outline" className="rounded-full text-xs">
+                            {getTypeLabel(request.request_type)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="align-middle text-right text-xs text-muted-foreground">
+                          {format(new Date(request.created_at), "MMM d, yyyy")}
+                        </TableCell>
+                        <TableCell className="align-middle text-center w-[60px]">
+                          <Plus className="h-4 w-4 shrink-0 mx-auto" />
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </div>
 
-              {/* Mobile: Cards */}
+              {/* Mobile: Cards - tap to open details */}
               <div className="md:hidden space-y-4">
                 {filteredRequests.map((request) => (
-                  <Card key={request.id} className="rounded-2xl border border-border/60">
+                  <Card
+                    key={request.id}
+                    className="rounded-2xl border border-border/60 cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => handleRowClick(request)}
+                  >
                     <CardContent className="p-4">
-                      <Accordion type="single" collapsible className="w-full">
-                        <AccordionItem value={request.id} className="border-0">
-                          <AccordionTrigger className="hover:no-underline py-2">
-                            <div className="flex-1 text-left space-y-2">
-                              <h3 className="text-sm font-semibold">{request.title}</h3>
-                              <p className="text-xs text-muted-foreground line-clamp-2">
-                                {request.description}
-                              </p>
-                              <div className="flex flex-wrap items-center gap-2">
-                                {getStatusBadge(request.status)}
-                                {getPriorityBadge(request.priority)}
-                                <Badge variant="outline" className="rounded-full text-xs">
-                                  {getTypeLabel(request.request_type)}
-                                </Badge>
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {format(new Date(request.created_at), "MMM d, yyyy")}
-                              </div>
-                            </div>
-                          </AccordionTrigger>
-                          <AccordionContent className="pt-4 space-y-4">
-                            <div>
-                              <h4 className="text-xs font-semibold mb-2">Description</h4>
-                              <p className="text-xs text-muted-foreground whitespace-pre-wrap">
-                                {request.description}
-                              </p>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                              {request.studio && (
-                                <Badge variant="outline" className="rounded-full text-xs">
-                                  Studio {request.studio.studio_number}
-                                </Badge>
-                              )}
-                              <span>Created {format(new Date(request.created_at), "MMM d, yyyy 'at' h:mm a")}</span>
-                              {request.updated_at !== request.created_at && (
-                                <span>Updated {format(new Date(request.updated_at), "MMM d, yyyy 'at' h:mm a")}</span>
-                              )}
-                              {request.resolved_at && (
-                                <span className="text-green-600">
-                                  Resolved {format(new Date(request.resolved_at), "MMM d, yyyy")}
-                                </span>
-                              )}
-                            </div>
-                            {request.images && request.images.length > 0 && (
-                              <div>
-                                <h4 className="text-xs font-semibold mb-2">Images</h4>
-                                <div className="flex flex-wrap gap-2">
-                                  {request.images.map((imagePath, idx) => (
-                                    <MaintenanceImage
-                                      key={idx}
-                                      imagePath={imagePath}
-                                      index={idx}
-                                      onClick={() => {
-                                        setPreviewImages(request.images || []);
-                                        setPreviewIndex(idx);
-                                        setPreviewOpen(true);
-                                      }}
-                                    />
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                            {request.resolution_notes && (
-                              <div className="p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-900">
-                                <p className="text-xs font-medium text-green-900 dark:text-green-100 mb-1">
-                                  Resolution Notes:
-                                </p>
-                                <p className="text-xs text-green-800 dark:text-green-200 whitespace-pre-wrap">
-                                  {request.resolution_notes}
-                                </p>
-                              </div>
-                            )}
-                          </AccordionContent>
-                        </AccordionItem>
-                      </Accordion>
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <h3 className="text-sm font-semibold mb-1">{request.title}</h3>
+                            <p className="text-xs text-muted-foreground line-clamp-2">
+                              {request.description}
+                            </p>
+                          </div>
+                          {getStatusBadge(request.status)}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {getPriorityBadge(request.urgency || "medium")}
+                          <Badge variant="outline" className="rounded-full text-xs">
+                            {getTypeLabel(request.request_type)}
+                          </Badge>
+                          {request.studio && (
+                            <Badge variant="outline" className="rounded-full text-xs">
+                              Studio {request.studio.studio_number}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {format(new Date(request.created_at), "MMM d, yyyy")}
+                        </div>
+                      </div>
                     </CardContent>
                   </Card>
                 ))}
@@ -698,6 +658,40 @@ const Maintenance = () => {
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="category">Maintenance Category *</Label>
+                <Select
+                  value={formData.category}
+                  onValueChange={(
+                    value:
+                      | "plumbing"
+                      | "electrical"
+                      | "internet_wifi"
+                      | "furniture"
+                      | "appliance"
+                      | "hvac"
+                      | "bathroom"
+                      | "kitchen"
+                      | "other"
+                  ) => setFormData((prev) => ({ ...prev, category: value }))}
+                >
+                  <SelectTrigger id="category" className="rounded-full">
+                    <SelectValue placeholder="Select a category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="plumbing">Plumbing</SelectItem>
+                    <SelectItem value="electrical">Electrical</SelectItem>
+                    <SelectItem value="internet_wifi">Internet / WiFi</SelectItem>
+                    <SelectItem value="furniture">Furniture</SelectItem>
+                    <SelectItem value="appliance">Appliance</SelectItem>
+                    <SelectItem value="hvac">Heating / Cooling (HVAC)</SelectItem>
+                    <SelectItem value="bathroom">Bathroom</SelectItem>
+                    <SelectItem value="kitchen">Kitchen</SelectItem>
+                    <SelectItem value="other">Other / Not Listed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="title">Title *</Label>
                 <Input
                   id="title"
@@ -721,21 +715,21 @@ const Maintenance = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="priority">Priority</Label>
+                <Label htmlFor="urgency">Urgency</Label>
                 <Select
-                  value={formData.priority}
-                  onValueChange={(value: "low" | "normal" | "high" | "urgent") =>
-                    setFormData((prev) => ({ ...prev, priority: value }))
+                  value={formData.urgency}
+                  onValueChange={(value: "low" | "medium" | "high" | "emergency") =>
+                    setFormData((prev) => ({ ...prev, urgency: value }))
                   }
                 >
-                  <SelectTrigger id="priority" className="rounded-full">
+                  <SelectTrigger id="urgency" className="rounded-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="normal">Normal</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
                     <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="urgent">Urgent</SelectItem>
+                    <SelectItem value="emergency">Emergency</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -842,6 +836,269 @@ const Maintenance = () => {
           open={previewOpen}
           onOpenChange={setPreviewOpen}
         />
+
+        {/* Details Drawer / Sheet - read-only, matches admin UX */}
+        {selectedRequest && (
+          <>
+            {isMobile ? (
+              <Drawer open={detailsOpen} onOpenChange={setDetailsOpen}>
+                <DrawerContent className="max-h-[96vh]">
+                  <DrawerHeader className="text-left">
+                    <DrawerTitle>{selectedRequest.title}</DrawerTitle>
+                    <DrawerDescription>
+                      Maintenance request details
+                    </DrawerDescription>
+                  </DrawerHeader>
+                  <ScrollArea className="flex-1 px-4">
+                    <div className="space-y-6 py-4">
+                      <div className="space-y-3">
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Status</Label>
+                          <div className="mt-1">{getStatusBadge(selectedRequest.status)}</div>
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Urgency</Label>
+                          <div className="mt-1">
+                            {getPriorityBadge(selectedRequest.urgency || "medium")}
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Type</Label>
+                            <div className="mt-1">
+                              <Badge variant="outline" className="rounded-full text-xs">
+                                {getTypeLabel(selectedRequest.request_type)}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Studio</Label>
+                            <div className="mt-1 text-sm">
+                              {selectedRequest.studio ? (
+                                <span className="font-medium">
+                                  Studio {selectedRequest.studio.studio_number}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">Not linked</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Description</Label>
+                        <p className="text-sm mt-1 whitespace-pre-wrap">
+                          {selectedRequest.description}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span>
+                          Created{" "}
+                          {format(
+                            new Date(selectedRequest.created_at),
+                            "MMM d, yyyy 'at' h:mm a",
+                          )}
+                        </span>
+                        {selectedRequest.updated_at !== selectedRequest.created_at && (
+                          <span>
+                            Updated{" "}
+                            {format(
+                              new Date(selectedRequest.updated_at),
+                              "MMM d, yyyy 'at' h:mm a",
+                            )}
+                          </span>
+                        )}
+                        {selectedRequest.resolved_at && (
+                          <span className="text-green-600">
+                            Resolved{" "}
+                            {format(
+                              new Date(selectedRequest.resolved_at),
+                              "MMM d, yyyy 'at' h:mm a",
+                            )}
+                          </span>
+                        )}
+                      </div>
+
+                      {selectedRequest.images && selectedRequest.images.length > 0 && (
+                        <div>
+                          <Label className="text-xs text-muted-foreground mb-2 block">
+                            Images
+                          </Label>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedRequest.images.map((imagePath: string, idx: number) => (
+                              <MaintenanceImage
+                                key={idx}
+                                imagePath={imagePath}
+                                index={idx}
+                                onClick={() => {
+                                  setPreviewImages(selectedRequest.images || []);
+                                  setPreviewIndex(idx);
+                                  setPreviewOpen(true);
+                                }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedRequest.resolution_notes && (
+                        <div className="p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-900">
+                          <p className="text-xs font-medium text-green-900 dark:text-green-100 mb-1">
+                            Resolution Notes
+                          </p>
+                          <p className="text-xs text-green-800 dark:text-green-200 whitespace-pre-wrap">
+                            {selectedRequest.resolution_notes}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                  <DrawerFooter className="gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setDetailsOpen(false)}
+                      className="rounded-full"
+                    >
+                      Close
+                    </Button>
+                  </DrawerFooter>
+                </DrawerContent>
+              </Drawer>
+            ) : (
+              <Sheet open={detailsOpen} onOpenChange={setDetailsOpen}>
+                <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
+                  <SheetHeader>
+                    <SheetTitle>{selectedRequest.title}</SheetTitle>
+                    <SheetDescription>
+                      Maintenance request details
+                    </SheetDescription>
+                  </SheetHeader>
+                  <ScrollArea className="flex-1 mt-6">
+                    <div className="space-y-6 pb-6">
+                      <div className="space-y-3">
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Status</Label>
+                          <div className="mt-1">{getStatusBadge(selectedRequest.status)}</div>
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Urgency</Label>
+                          <div className="mt-1">
+                            {getPriorityBadge(selectedRequest.urgency || "medium")}
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Type</Label>
+                            <div className="mt-1">
+                              <Badge variant="outline" className="rounded-full text-xs">
+                                {getTypeLabel(selectedRequest.request_type)}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Studio</Label>
+                            <div className="mt-1 text-sm">
+                              {selectedRequest.studio ? (
+                                <span className="font-medium">
+                                  Studio {selectedRequest.studio.studio_number}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">Not linked</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Description</Label>
+                        <p className="text-sm mt-1 whitespace-pre-wrap">
+                          {selectedRequest.description}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span>
+                          Created{" "}
+                          {format(
+                            new Date(selectedRequest.created_at),
+                            "MMM d, yyyy 'at' h:mm a",
+                          )}
+                        </span>
+                        {selectedRequest.updated_at !== selectedRequest.created_at && (
+                          <span>
+                            Updated{" "}
+                            {format(
+                              new Date(selectedRequest.updated_at),
+                              "MMM d, yyyy 'at' h:mm a",
+                            )}
+                          </span>
+                        )}
+                        {selectedRequest.resolved_at && (
+                          <span className="text-green-600">
+                            Resolved{" "}
+                            {format(
+                              new Date(selectedRequest.resolved_at),
+                              "MMM d, yyyy 'at' h:mm a",
+                            )}
+                          </span>
+                        )}
+                      </div>
+
+                      {selectedRequest.images && selectedRequest.images.length > 0 && (
+                        <div>
+                          <Label className="text-xs text-muted-foreground mb-2 block">
+                            Images
+                          </Label>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedRequest.images.map((imagePath: string, idx: number) => (
+                              <MaintenanceImage
+                                key={idx}
+                                imagePath={imagePath}
+                                index={idx}
+                                onClick={() => {
+                                  setPreviewImages(selectedRequest.images || []);
+                                  setPreviewIndex(idx);
+                                  setPreviewOpen(true);
+                                }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedRequest.resolution_notes && (
+                        <div className="p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-900">
+                          <p className="text-xs font-medium text-green-900 dark:text-green-100 mb-1">
+                            Resolution Notes
+                          </p>
+                          <p className="text-xs text-green-800 dark:text-green-200 whitespace-pre-wrap">
+                            {selectedRequest.resolution_notes}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                  <SheetFooter>
+                    <Button
+                      variant="outline"
+                      onClick={() => setDetailsOpen(false)}
+                      className="rounded-full"
+                    >
+                      Close
+                    </Button>
+                  </SheetFooter>
+                </SheetContent>
+              </Sheet>
+            )}
+          </>
+        )}
       </div>
     </PortalLayout>
   );

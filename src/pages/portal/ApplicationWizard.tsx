@@ -227,7 +227,11 @@ const personalSchema = z.object({
     }),
   ethnicity: z.string().trim().min(1, "Select your ethnicity"),
   gender: z.string().trim().min(1, "Select your gender"),
-  ucas_id: optionalText(32),
+  ucas_id: z
+    .string()
+    .trim()
+    .min(1, "UCAS ID is required")
+    .max(32, "UCAS ID must be at most 32 characters"),
   country: z.string().trim().min(1, "Select your country"),
   referral_code: optionalText(50), // Optional partner referral code
 });
@@ -254,6 +258,14 @@ const documentationSchema = z.object({
   uk_citizen: yesNoSchema,
   passport_document: optionalText(512),
   visa_document: optionalText(512),
+  passport_photo: z
+    .string()
+    .trim()
+    .min(1, "Student passport photo is required"),
+  student_proof: z
+    .string()
+    .trim()
+    .min(1, "Student proof document is required"),
 });
 
 const paymentSchema = z.object({
@@ -658,7 +670,8 @@ const StudentApplicationWizard = () => {
 
   const documentationDefaults = useMemo<DocumentationForm>(() => {
     // Use rebooking data if available, otherwise use current application data
-    const rebookingStep4 = rebookingData?.step4_data as Record<string, any> | undefined;
+    const rebookingStep4 =
+      rebookingData?.step4_data as Record<string, any> | undefined;
     const payload =
       application?.student_application_steps.find(
         (step) => step.step_number === 4,
@@ -667,6 +680,8 @@ const StudentApplicationWizard = () => {
       uk_citizen: (payload.uk_citizen as "yes" | "no") || "yes",
       passport_document: (payload.passport_document as string) || "",
       visa_document: (payload.visa_document as string) || "",
+      passport_photo: (payload.passport_photo as string) || "",
+      student_proof: (payload.student_proof as string) || "",
     };
   }, [application, rebookingData]);
 
@@ -1508,7 +1523,8 @@ useEffect(() => {
 
     const sanitized: DocumentationForm = {
       ...parsed.data,
-      visa_document: parsed.data.uk_citizen === "yes" ? "" : parsed.data.visa_document,
+      visa_document:
+        parsed.data.uk_citizen === "yes" ? "" : parsed.data.visa_document,
     };
     setDocumentationValues(sanitized);
     setDocumentationErrors({});
@@ -1525,13 +1541,39 @@ useEffect(() => {
           uploaded_by: string;
         }> = [];
 
-        // Passport document
+        // Passport document (scan)
         if (sanitized.passport_document) {
           const fileName = sanitized.passport_document.split("/").pop() || "passport.pdf";
           documentsToSave.push({
             application_id: applicationId,
             document_type: "passport",
             storage_path: sanitized.passport_document,
+            original_filename: fileName,
+            uploaded_by: user.id,
+          });
+        }
+
+        // Passport photo / profile photo
+        if (sanitized.passport_photo) {
+          const fileName =
+            sanitized.passport_photo.split("/").pop() || "passport_photo";
+          documentsToSave.push({
+            application_id: applicationId,
+            document_type: "passport_photo",
+            storage_path: sanitized.passport_photo,
+            original_filename: fileName,
+            uploaded_by: user.id,
+          });
+        }
+
+        // Student proof document
+        if (sanitized.student_proof) {
+          const fileName =
+            sanitized.student_proof.split("/").pop() || "student_proof";
+          documentsToSave.push({
+            application_id: applicationId,
+            document_type: "student_proof",
+            storage_path: sanitized.student_proof,
             original_filename: fileName,
             uploaded_by: user.id,
           });
@@ -1903,12 +1945,44 @@ useEffect(() => {
 
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = "image/*,.pdf";
+    // Restrict to PNG, JPG/JPEG, WEBP, PDF, DOCX
+    input.accept =
+      "image/png,image/jpeg,image/webp,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     input.onchange = async (event) => {
       const file = (event.target as HTMLInputElement).files?.[0] ?? null;
       if (!file) return;
 
       const fieldKey = String(field);
+      const extension = file.name.toLowerCase().split(".").pop() ?? "";
+      const allowedExtensions = [
+        "png",
+        "jpg",
+        "jpeg",
+        "webp",
+        "pdf",
+        "docx",
+      ];
+      const allowedMimeTypes = [
+        "image/png",
+        "image/jpeg",
+        "image/webp",
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      ];
+
+      const isAllowedExtension = allowedExtensions.includes(extension);
+      const isAllowedMimeType = allowedMimeTypes.includes(file.type);
+
+      if (!isAllowedExtension && !isAllowedMimeType) {
+        toast({
+          variant: "destructive",
+          title: "Unsupported file type",
+          description:
+            "Please upload a PNG, JPG, WEBP, PDF, or DOCX file.",
+        });
+        return;
+      }
+
       const isImage = file.type.startsWith("image/");
       const previewUrl = URL.createObjectURL(file);
       if (previewUrlsRef.current[fieldKey]) {
@@ -2684,7 +2758,7 @@ useEffect(() => {
                 )}
               </div>
               <div>
-                <Label htmlFor="ucas_id">UCAS ID (optional)</Label>
+                <Label htmlFor="ucas_id">UCAS ID</Label>
                 <Input
                   id="ucas_id"
                   autoComplete="off"
@@ -3116,11 +3190,42 @@ useEffect(() => {
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               {renderUploadCard<DocumentationForm>({
+                field: "passport_photo",
+                label: "Student Passport Photo",
+                placeholderTitle: "Upload passport-style photo",
+                placeholderSubtitle:
+                  "Max 10MB • PNG, JPG, WEBP, PDF, DOCX",
+                helperText:
+                  "Required for check-in identification. Image recommended.",
+                form: {
+                  values: documentationValues,
+                  errors: documentationErrors,
+                  setter: setDocumentationValues,
+                  setErrors: setDocumentationErrors,
+                },
+              })}
+              {renderUploadCard<DocumentationForm>({
+                field: "student_proof",
+                label: "Student Proof Document",
+                placeholderTitle: "Upload proof of student status",
+                placeholderSubtitle:
+                  "Max 10MB • PNG, JPG, WEBP, PDF, DOCX",
+                helperText:
+                  "Upload UCAS confirmation, university letter, or similar proof.",
+                form: {
+                  values: documentationValues,
+                  errors: documentationErrors,
+                  setter: setDocumentationValues,
+                  setErrors: setDocumentationErrors,
+                },
+              })}
+              {renderUploadCard<DocumentationForm>({
                 field: "passport_document",
-                label: "Passport",
-                placeholderTitle: "Upload or take passport photo",
-                placeholderSubtitle: "Max 10MB • JPG, PNG, PDF",
-                helperText: "Upload a clear scan or photo.",
+                label: "Passport (Scan)",
+                placeholderTitle: "Upload passport scan",
+                placeholderSubtitle:
+                  "Max 10MB • PNG, JPG, WEBP, PDF, DOCX",
+                helperText: "Upload a clear scan or photo of your passport.",
                 form: {
                   values: documentationValues,
                   errors: documentationErrors,
@@ -3133,8 +3238,10 @@ useEffect(() => {
                   field: "visa_document",
                   label: "Visa",
                   placeholderTitle: "Upload visa document",
-                  placeholderSubtitle: "Required if you are not a UK citizen",
-                  helperText: "Accepted formats: JPG, PNG, or PDF up to 10MB.",
+                  placeholderSubtitle:
+                    "Required if you are not a UK citizen",
+                  helperText:
+                    "Accepted formats: PNG, JPG, WEBP, PDF, DOCX up to 10MB.",
                   form: {
                     values: documentationValues,
                     errors: documentationErrors,

@@ -62,6 +62,8 @@ DECLARE
   -- Documents
   v_passport_path TEXT;
   v_visa_path TEXT;
+  v_passport_photo_path TEXT;
+  v_student_proof_path TEXT;
   v_utility_bill_path TEXT;
   v_id_document_path TEXT;
   v_bank_statement_path TEXT;
@@ -196,11 +198,15 @@ BEGIN
       -- Step 4: Documentation
       v_passport_path := NULLIF(TRIM(v_row->>'passport_path'), '');
       v_visa_path := NULLIF(TRIM(v_row->>'visa_path'), '');
+      v_passport_photo_path := NULLIF(TRIM(v_row->>'passport_photo_path'), '');
+      v_student_proof_path := NULLIF(TRIM(v_row->>'student_proof_path'), '');
       
       v_step4_payload := jsonb_build_object(
         'uk_citizen', COALESCE(NULLIF(TRIM(v_row->>'uk_citizen'), ''), 'yes'),
         'passport_document', v_passport_path,
-        'visa_document', v_visa_path
+        'visa_document', v_visa_path,
+        'passport_photo', v_passport_photo_path,
+        'student_proof', v_student_proof_path
       );
       
       -- Step 5: Payment Plan & Guarantor
@@ -311,6 +317,54 @@ BEGIN
           'visa',
           v_visa_path,
           (regexp_split_to_array(v_visa_path, '/'))[array_length(regexp_split_to_array(v_visa_path, '/'), 1)],
+          'approved',
+          p_imported_by,
+          p_imported_by,
+          COALESCE(v_submitted_at, NOW())
+        )
+        ON CONFLICT DO NOTHING;
+      END IF;
+
+      IF v_passport_photo_path IS NOT NULL THEN
+        INSERT INTO public.student_documents (
+          application_id,
+          document_type,
+          storage_path,
+          original_filename,
+          status,
+          uploaded_by,
+          verified_by,
+          uploaded_at
+        )
+        VALUES (
+          v_record_id,
+          'passport_photo',
+          v_passport_photo_path,
+          (regexp_split_to_array(v_passport_photo_path, '/'))[array_length(regexp_split_to_array(v_passport_photo_path, '/'), 1)],
+          'approved',
+          p_imported_by,
+          p_imported_by,
+          COALESCE(v_submitted_at, NOW())
+        )
+        ON CONFLICT DO NOTHING;
+      END IF;
+
+      IF v_student_proof_path IS NOT NULL THEN
+        INSERT INTO public.student_documents (
+          application_id,
+          document_type,
+          storage_path,
+          original_filename,
+          status,
+          uploaded_by,
+          verified_by,
+          uploaded_at
+        )
+        VALUES (
+          v_record_id,
+          'student_proof',
+          v_student_proof_path,
+          (regexp_split_to_array(v_student_proof_path, '/'))[array_length(regexp_split_to_array(v_student_proof_path, '/'), 1)],
           'approved',
           p_imported_by,
           p_imported_by,

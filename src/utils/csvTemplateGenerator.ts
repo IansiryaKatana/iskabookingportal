@@ -511,6 +511,8 @@ export async function generateApplicationsTemplate(
           submitted_at: submittedAt,
           passport_path: PLACEHOLDER_DOCUMENT_PATH,
           visa_path: exampleCounter % 3 !== 0 ? PLACEHOLDER_DOCUMENT_PATH : "",
+          passport_photo_path: PLACEHOLDER_DOCUMENT_PATH,
+          student_proof_path: PLACEHOLDER_DOCUMENT_PATH,
           utility_bill_path: PLACEHOLDER_DOCUMENT_PATH,
           id_document_path: PLACEHOLDER_DOCUMENT_PATH,
           bank_statement_path: PLACEHOLDER_DOCUMENT_PATH,
@@ -596,6 +598,8 @@ export async function generateApplicationsTemplate(
     "submitted_at",
     "passport_path",
     "visa_path",
+    "passport_photo_path",
+    "student_proof_path",
     "utility_bill_path",
     "id_document_path",
     "bank_statement_path",
@@ -689,9 +693,14 @@ export async function generateApplicationsTemplate(
         : "",
       passport_path: documents.passport || step4.passport_document || "",
       visa_path: documents.visa || step4.visa_document || "",
+      passport_photo_path:
+        documents.passport_photo || step4.passport_photo || "",
+      student_proof_path:
+        documents.student_proof || step4.student_proof || "",
       utility_bill_path: documents.utility_bill || step5.utility_bill || "",
       id_document_path: documents.id_document || step5.id_document || "",
-      bank_statement_path: documents.bank_statement || step5.bank_statement || "",
+      bank_statement_path:
+        documents.bank_statement || step5.bank_statement || "",
       contract_pdf_path: step6.contract_pdf_path || "",
       referral_code: referralCode,
       deposit_amount: "",

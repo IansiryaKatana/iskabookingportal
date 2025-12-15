@@ -114,9 +114,27 @@ export const useCreateMaintenanceRequest = () => {
       application_id?: string;
       studio_id?: string;
       request_type: "maintenance" | "cleaning" | "general" | "other";
+      /**
+       * Category is the more specific maintenance type used by the new workflow.
+       * It should always be provided by the UI so that admin dashboards can filter correctly.
+       */
+      category:
+        | "plumbing"
+        | "electrical"
+        | "internet_wifi"
+        | "furniture"
+        | "appliance"
+        | "hvac"
+        | "bathroom"
+        | "kitchen"
+        | "other";
       title: string;
       description: string;
-      priority?: "low" | "normal" | "high" | "urgent";
+      /**
+       * urgency is the new field used for SLA calculations and admin views.
+       * We keep priority in the table for backward compatibility only.
+       */
+      urgency: "low" | "medium" | "high" | "emergency";
       images?: string[];
       academic_year_id?: string;
     }) => {

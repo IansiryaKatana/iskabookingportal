@@ -41,7 +41,7 @@ const formatCurrency = (amount: number | null | undefined): string => {
   }).format(amount);
 };
 
-// Revenue-generating statuses
+// Revenue-generating statuses (for reference, but we'll show all bookings with revenue data)
 const REVENUE_STATUSES = ["checked_in", "in_house_guest", "checked_out"];
 
 const OTAFinancePage = () => {
@@ -82,10 +82,11 @@ const OTAFinancePage = () => {
     channel: channelFilter !== "all" ? channelFilter : undefined,
   });
 
-  // Filter bookings by revenue-generating statuses for stats
+  // Filter bookings that have revenue data (total_revenue is not null)
+  // This includes all bookings with financial information, regardless of status
   const revenueBookings = useMemo(() => {
     if (!bookings) return [];
-    return bookings.filter((b) => REVENUE_STATUSES.includes(b.status));
+    return bookings.filter((b) => b.total_revenue !== null && b.total_revenue !== undefined);
   }, [bookings]);
 
   // Calculate stats
@@ -391,7 +392,7 @@ const OTAFinancePage = () => {
               Booking Financial Details
             </CardTitle>
             <CardDescription className="text-xs md:text-sm">
-              Showing {revenueBookings.length} revenue-generating booking{revenueBookings.length !== 1 ? "s" : ""}
+              Showing {revenueBookings.length} booking{revenueBookings.length !== 1 ? "s" : ""} with revenue data
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -402,7 +403,7 @@ const OTAFinancePage = () => {
                 <p className="text-xs md:text-sm text-muted-foreground">
                   {channelFilter !== "all" || dateRange === "custom"
                     ? "Try adjusting your filters."
-                    : "No revenue-generating bookings in the selected period."}
+                    : "No bookings with revenue data in the selected period."}
                 </p>
               </div>
             ) : (

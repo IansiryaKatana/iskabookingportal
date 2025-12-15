@@ -1582,7 +1582,79 @@ const OTABookingDetailsContent = ({
               {format(parseISO(booking.check_out), "MMM d, yyyy")}
             </div>
           </div>
+          {booking.number_of_nights !== null && booking.number_of_nights !== undefined && (
+            <div>
+              <Label className="text-xs text-muted-foreground">Number of Nights</Label>
+              <div className="mt-1 text-sm font-semibold">{booking.number_of_nights}</div>
+            </div>
+          )}
         </div>
+
+        {/* Revenue Breakdown Section */}
+        {(booking.price_per_night !== null && booking.price_per_night !== undefined) ||
+         (booking.commission_amount !== null && booking.commission_amount !== undefined) ||
+         (booking.total_revenue !== null && booking.total_revenue !== undefined) ? (
+          <>
+            <Separator />
+            <div className="space-y-4">
+              <div>
+                <Label className="text-sm font-semibold">Revenue Breakdown</Label>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                {booking.price_per_night !== null && booking.price_per_night !== undefined && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Price per Night</Label>
+                    <div className="mt-1 text-sm font-semibold">
+                      {new Intl.NumberFormat("en-GB", {
+                        style: "currency",
+                        currency: booking.currency || "GBP",
+                      }).format(booking.price_per_night)}
+                    </div>
+                  </div>
+                )}
+                {booking.number_of_nights !== null && booking.number_of_nights !== undefined && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Number of Nights</Label>
+                    <div className="mt-1 text-sm font-semibold">{booking.number_of_nights}</div>
+                  </div>
+                )}
+                {booking.price_per_night !== null && booking.number_of_nights !== null && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Total Booking Value</Label>
+                    <div className="mt-1 text-sm font-semibold">
+                      {new Intl.NumberFormat("en-GB", {
+                        style: "currency",
+                        currency: booking.currency || "GBP",
+                      }).format((booking.price_per_night || 0) * (booking.number_of_nights || 0))}
+                    </div>
+                  </div>
+                )}
+                {booking.commission_amount !== null && booking.commission_amount !== undefined && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Commission</Label>
+                    <div className="mt-1 text-sm font-semibold text-orange-600">
+                      -{new Intl.NumberFormat("en-GB", {
+                        style: "currency",
+                        currency: booking.currency || "GBP",
+                      }).format(booking.commission_amount)}
+                    </div>
+                  </div>
+                )}
+                {booking.total_revenue !== null && booking.total_revenue !== undefined && (
+                  <div className="col-span-2">
+                    <Label className="text-xs text-muted-foreground">Total Revenue</Label>
+                    <div className="mt-1 text-lg font-bold text-green-600">
+                      {new Intl.NumberFormat("en-GB", {
+                        style: "currency",
+                        currency: booking.currency || "GBP",
+                      }).format(booking.total_revenue)}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        ) : null}
 
         {booking.notes && (
           <div>

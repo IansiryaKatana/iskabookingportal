@@ -201,6 +201,28 @@ const Documents = () => {
                         uploaded_by: user.id,
                       });
                     }
+                    if (payload.passport_photo && typeof payload.passport_photo === "string" && payload.passport_photo.trim()) {
+                      foundInSteps++;
+                      const fileName = payload.passport_photo.split("/").pop() || "passport_photo";
+                      documentsToSave.push({
+                        application_id: app.id,
+                        document_type: "passport_photo",
+                        storage_path: payload.passport_photo,
+                        original_filename: fileName,
+                        uploaded_by: user.id,
+                      });
+                    }
+                    if (payload.student_proof && typeof payload.student_proof === "string" && payload.student_proof.trim()) {
+                      foundInSteps++;
+                      const fileName = payload.student_proof.split("/").pop() || "student_proof";
+                      documentsToSave.push({
+                        application_id: app.id,
+                        document_type: "student_proof",
+                        storage_path: payload.student_proof,
+                        original_filename: fileName,
+                        uploaded_by: user.id,
+                      });
+                    }
                   }
 
                   if (step5?.payload && typeof step5.payload === "object") {

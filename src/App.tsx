@@ -63,6 +63,7 @@ const AdminCashbackCampaigns = lazy(() => import("./pages/admin/CashbackCampaign
 const AdminPartners = lazy(() => import("./pages/admin/Partners"));
 const AdminPartnerCommissions = lazy(() => import("./pages/admin/PartnerCommissions"));
 const AdminWeeklyPaymentReport = lazy(() => import("./pages/admin/WeeklyPaymentReport"));
+const AdminSalesReports = lazy(() => import("./pages/admin/SalesReports"));
 const AdminDataImport = lazy(() => import("./pages/admin/DataImport"));
 const AdminManualPaymentEntry = lazy(() => import("./pages/admin/ManualPaymentEntry"));
 const PartnerLogin = lazy(() => import("./pages/partner/Login"));
@@ -354,6 +355,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
                   <AdminReports />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/sales-reports"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                  <AdminSalesReports />
                 </ProtectedRoute>
               }
             />

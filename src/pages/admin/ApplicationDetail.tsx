@@ -10,7 +10,7 @@ import { ArrowLeft, User, Mail, Phone, MapPin, Calendar, Building2, CreditCard, 
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,6 +29,7 @@ import { useCreateNotification } from "@/hooks/useNotifications";
 import { useApplicationCashback, useActiveCashbackCampaigns, useApplyCashback } from "@/hooks/useCashback";
 import { useApplicationPartnerReferral, usePartners, useCreatePartnerReferral } from "@/hooks/usePartners";
 import { logActivity } from "@/utils/auditLog";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const getStatusBadge = (status: string) => {
   const statusConfig: Record<string, { className: string; label: string }> = {
@@ -122,6 +123,52 @@ const ApplicationDetail = () => {
     },
     enabled: !!applicationId,
   });
+
+  // Passport photo for visual identification
+  const [passportPhotoUrl, setPassportPhotoUrl] = useState<string | null>(null);
+  const [isPassportPhotoDialogOpen, setIsPassportPhotoDialogOpen] = useState(false);
+
+  useEffect(() => {
+    const loadPassportPhoto = async () => {
+      try {
+        const passportPhotoDoc = (documents || []).find(
+          (doc) => doc.document_type === "passport_photo",
+        );
+
+        if (!passportPhotoDoc) {
+          setPassportPhotoUrl(null);
+          return;
+        }
+
+        const path = passportPhotoDoc.storage_path;
+        const extension = path.toLowerCase().split(".").pop() ?? "";
+        const isImageExtension = ["png", "jpg", "jpeg", "webp"].includes(
+          extension,
+        );
+
+        if (!isImageExtension) {
+          setPassportPhotoUrl(null);
+          return;
+        }
+
+        const { data, error } = await supabase.storage
+          .from("documents")
+          .createSignedUrl(path, 3600);
+
+        if (error || !data?.signedUrl) {
+          setPassportPhotoUrl(null);
+          return;
+        }
+
+        setPassportPhotoUrl(data.signedUrl);
+      } catch (error) {
+        console.error("Error loading passport photo preview:", error);
+        setPassportPhotoUrl(null);
+      }
+    };
+
+    void loadPassportPhoto();
+  }, [documents]);
 
   // Verify document mutation
   const verifyDocument = useMutation({
@@ -501,10 +548,41 @@ const ApplicationDetail = () => {
           {/* Step 1: Personal Information */}
           <Card className="rounded-3xl">
             <CardHeader>
+              <div className="flex items-center justify-between gap-4">
               <CardTitle className="text-base sm:text-lg font-display uppercase tracking-wide flex items-center gap-2">
                 <User className="h-4 w-4 sm:h-5 sm:w-5" />
                 <span className="text-sm sm:text-base">Step 1: Personal Information</span>
               </CardTitle>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <p className="text-xs sm:text-sm text-muted-foreground">Student Photo</p>
+                    {passportPhotoUrl && (
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">
+                        Click to preview
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    onClick={() => {
+                      if (passportPhotoUrl) setIsPassportPhotoDialogOpen(true);
+                    }}
+                    aria-label="Preview student passport photo"
+                  >
+                    <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border cursor-pointer">
+                      {passportPhotoUrl ? (
+                        <AvatarImage src={passportPhotoUrl} alt="Student passport photo" />
+                      ) : (
+                        <AvatarFallback className="text-xs sm:text-sm">
+                          {step1Data?.first_name?.[0]}
+                          {step1Data?.last_name?.[0]}
+                        </AvatarFallback>
+                      )}
+                    </Avatar>
+                  </button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
@@ -1039,6 +1117,29 @@ const ApplicationDetail = () => {
             </CardContent>
           </Card>
         </div>
+
+        {passportPhotoUrl && (
+          <Dialog
+            open={isPassportPhotoDialogOpen}
+            onOpenChange={setIsPassportPhotoDialogOpen}
+          >
+            <DialogContent className="max-w-md sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Student Photo</DialogTitle>
+                <DialogDescription>
+                  Passport-style photo uploaded by the student for identification.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="mt-4 flex justify-center">
+                <img
+                  src={passportPhotoUrl}
+                  alt="Student passport photo preview"
+                  className="max-h-[70vh] w-auto rounded-3xl shadow-md"
+                />
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
 
         {/* Quick Actions */}
         <Card className="rounded-3xl">
