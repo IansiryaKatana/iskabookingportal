@@ -659,17 +659,9 @@ const HousekeepingDashboard = () => {
                       onStatusUpdate={handleStatusUpdate}
                       isOpsManager={isOpsManager}
                       isHousekeeper={isHousekeeper}
+                      onClose={() => setDetailsOpen(false)}
                     />
                   </ScrollArea>
-                  <DrawerFooter className="gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => setDetailsOpen(false)}
-                      className="rounded-full"
-                    >
-                      Close
-                    </Button>
-                  </DrawerFooter>
                 </DrawerContent>
               </Drawer>
             ) : (
@@ -689,17 +681,9 @@ const HousekeepingDashboard = () => {
                       onStatusUpdate={handleStatusUpdate}
                       isOpsManager={isOpsManager}
                       isHousekeeper={isHousekeeper}
+                      onClose={() => setDetailsOpen(false)}
                     />
                   </ScrollArea>
-                  <SheetFooter>
-                    <Button
-                      variant="outline"
-                      onClick={() => setDetailsOpen(false)}
-                      className="rounded-full"
-                    >
-                      Close
-                    </Button>
-                  </SheetFooter>
                 </SheetContent>
               </Sheet>
             )}
@@ -786,6 +770,7 @@ const HousekeepingDetailsContent = ({
   onStatusUpdate,
   isOpsManager,
   isHousekeeper,
+  onClose,
 }: {
   status: HousekeepingStatusWithRelations;
   activityLog: any[];
@@ -793,6 +778,7 @@ const HousekeepingDetailsContent = ({
   onStatusUpdate: (status: string, approvalStatus?: string) => void;
   isOpsManager: boolean;
   isHousekeeper: boolean;
+  onClose: () => void;
 }) => {
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [selectedCleanerId, setSelectedCleanerId] = useState<string | null>(status.assigned_cleaner_id || null);
@@ -977,6 +963,15 @@ const HousekeepingDetailsContent = ({
               <Calendar className="h-4 w-4 mr-2" />
               Set Next Clean Date
             </Button>
+            {status.status !== "clean" && (
+              <Button
+                onClick={() => onStatusUpdate("clean")}
+                className="rounded-full w-full bg-green-600 hover:bg-green-700"
+              >
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                Mark as Clean
+              </Button>
+            )}
             <Button
               onClick={() => onStatusUpdate("dirty")}
               variant="destructive"
@@ -987,6 +982,17 @@ const HousekeepingDetailsContent = ({
             </Button>
           </>
         )}
+      </div>
+
+      {/* Close Button */}
+      <div className="pt-4">
+        <Button
+          variant="outline"
+          onClick={onClose}
+          className="rounded-full w-full"
+        >
+          Close
+        </Button>
       </div>
 
       {/* Assign Cleaner Dialog */}

@@ -51,6 +51,7 @@ const OutOfOrderPage = lazy(() => import("./pages/admin/OutOfOrderPage"));
 const MaintenanceJobManagementPage = lazy(() => import("./pages/admin/MaintenanceJobManagementPage"));
 const HousekeepingDashboard = lazy(() => import("./pages/admin/HousekeepingDashboard"));
 const HousekeepingRosterPage = lazy(() => import("./pages/admin/HousekeepingRosterPage"));
+const CommunalAreaHousekeepingDashboard = lazy(() => import("./pages/admin/CommunalAreaHousekeepingDashboard"));
 const OTABookingsDashboard = lazy(() => import("./pages/admin/OTABookingsDashboard"));
 const OTABookingChartPage = lazy(() => import("./pages/admin/OTABookingChartPage"));
 const OTAFinancePage = lazy(() => import("./pages/admin/OTAFinancePage"));
@@ -306,6 +307,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["staff", "superadmin", "operations_manager", "housekeeper"]}>
                   <HousekeepingRosterPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/housekeeping/communal-areas"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin", "operations_manager", "housekeeper"]}>
+                  <CommunalAreaHousekeepingDashboard />
                 </ProtectedRoute>
               }
             />

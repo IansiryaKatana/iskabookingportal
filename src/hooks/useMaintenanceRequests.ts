@@ -13,11 +13,21 @@ export type MaintenanceRequestWithRelations = MaintenanceRequest & {
     id: string;
     studio_number: string;
   } | null;
+  communal_area?: {
+    id: string;
+    name: string;
+    location: string | null;
+  } | null;
   academic_year?: {
     id: string;
     name: string;
   } | null;
   assigned_to?: {
+    id: string;
+    first_name: string | null;
+    last_name: string | null;
+  } | null;
+  created_by_profile?: {
     id: string;
     first_name: string | null;
     last_name: string | null;
@@ -45,7 +55,9 @@ export const useMaintenanceRequests = (
           *,
           application:student_applications(id, status),
           studio:studios(id, studio_number),
-          academic_year:academic_years(id, name)
+          communal_area:communal_areas(id, name, location),
+          academic_year:academic_years(id, name),
+          created_by_profile:profiles!created_by(id, first_name, last_name)
         `)
         .order("created_at", { ascending: false });
 
@@ -110,9 +122,10 @@ export const useCreateMaintenanceRequest = () => {
 
   return useMutation({
     mutationFn: async (request: {
-      student_id: string;
+      student_id?: string | null; // Optional for staff-created tasks
       application_id?: string;
       studio_id?: string;
+      communal_area_id?: string; // For staff-created tasks for communal areas
       request_type: "maintenance" | "cleaning" | "general" | "other";
       /**
        * Category is the more specific maintenance type used by the new workflow.
@@ -137,13 +150,42 @@ export const useCreateMaintenanceRequest = () => {
       urgency: "low" | "medium" | "high" | "emergency";
       images?: string[];
       academic_year_id?: string;
+      // Staff-created task fields
+      is_staff_created?: boolean;
+      created_by?: string; // Staff user ID who created this
+      assigned_to_user_id?: string; // Required for staff-created tasks
     }) => {
+      // Get current user for created_by if not provided
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      const insertData: any = {
+        ...request,
+        images: request.images || [], // Ensure images is always an array
+      };
+
+      // For staff-created tasks, set flags and ensure assignment
+      if (request.is_staff_created) {
+        insertData.is_staff_created = true;
+        insertData.created_by = request.created_by || user?.id;
+        insertData.student_id = null; // Staff-created tasks have no student
+        insertData.status = "assigned"; // Start as assigned (bypass triage)
+        
+        // Require assignment for staff-created tasks
+        if (!request.assigned_to_user_id) {
+          throw new Error("Staff-created tasks must be assigned to a maintenance officer");
+        }
+        insertData.assigned_to_user_id = request.assigned_to_user_id;
+      } else {
+        // Student-created tasks
+        insertData.is_staff_created = false;
+        if (!request.student_id) {
+          throw new Error("Student ID is required for student-created requests");
+        }
+      }
+
       const { data, error } = await supabase
         .from("maintenance_requests")
-        .insert({
-          ...request,
-          images: request.images || [], // Ensure images is always an array
-        })
+        .insert(insertData)
         .select()
         .single();
 

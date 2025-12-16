@@ -4,6 +4,7 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import { useMaintenanceRequests, useUpdateMaintenanceRequest, type MaintenanceRequestWithRelations } from "@/hooks/useMaintenanceRequests";
 import { useActivityLog } from "@/hooks/useActivityLog";
 import { useMaintenanceOfficers } from "@/hooks/useStaffMembers";
+import { CreateMaintenanceTaskDialog } from "@/components/admin/CreateMaintenanceTaskDialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -235,6 +236,11 @@ const MaintenanceDashboard = () => {
   const [previewOpen, setPreviewOpen] = useState(false);
 
   const isMaintenanceOfficer = profile?.staff_subrole === "maintenance_officer";
+  const isHousekeeper = profile?.staff_subrole === "housekeeper";
+  // Staff who can create tasks: all roles except maintenance_officer and housekeeper
+  const canCreateTasks = role === "staff" || role === "superadmin" || role === "admin" || role === "operations_manager" || role === "reservationist" || role === "accountant" || role === "front_desk";
+  
+  const [createTaskDialogOpen, setCreateTaskDialogOpen] = useState(false);
 
   const { data: requests, isLoading } = useMaintenanceRequests(
     isMaintenanceOfficer && user?.id
@@ -290,7 +296,9 @@ const MaintenanceDashboard = () => {
         (r) =>
           r.title.toLowerCase().includes(query) ||
           r.description.toLowerCase().includes(query) ||
-          r.studio?.studio_number.toLowerCase().includes(query)
+          r.studio?.studio_number.toLowerCase().includes(query) ||
+          r.communal_area?.name.toLowerCase().includes(query) ||
+          r.communal_area?.location?.toLowerCase().includes(query)
       );
     }
 
@@ -406,7 +414,21 @@ const MaintenanceDashboard = () => {
   }
 
   return (
-    <AdminLayout pageTitle="Maintenance" subtitle="Manage maintenance requests and work orders">
+    <AdminLayout 
+      pageTitle="Maintenance" 
+      subtitle="Manage maintenance requests and work orders"
+      mobileActionButton={
+        canCreateTasks ? (
+          <Button
+            onClick={() => setCreateTaskDialogOpen(true)}
+            size="sm"
+            className="rounded-full h-9 w-9 p-0 bg-primary hover:bg-primary/90 text-primary-foreground flex-shrink-0"
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        ) : undefined
+      }
+    >
       <div className="space-y-6">
         {/* Category Filter Cards - Horizontally Scrollable */}
         <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
@@ -497,44 +519,39 @@ const MaintenanceDashboard = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs md:text-sm">Search</Label>
-                <Input
-                  placeholder="Search requests..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="rounded-full text-sm md:text-base"
-                />
+            <div className="flex flex-col md:flex-row gap-4 items-start md:items-end">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 w-full md:w-auto">
+                <div>
+                  <Input
+                    placeholder="Search requests..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="rounded-full text-xs md:text-sm h-9 md:h-10"
+                  />
+                </div>
+                <div>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="rounded-full text-xs md:text-sm h-9 md:h-10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {STATUSES.map((status) => (
+                        <SelectItem key={status.value} value={status.value} className="text-xs md:text-sm">
+                          {status.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label className="text-xs md:text-sm">Status</Label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="rounded-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STATUSES.map((status) => (
-                      <SelectItem key={status.value} value={status.value}>
-                        {status.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-end">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setCategoryFilter("all");
-                    setStatusFilter("all");
-                    setSearchQuery("");
-                  }}
-                  className="rounded-full w-full"
-                >
-                  Clear Filters
-                </Button>
-              </div>
+              {canCreateTasks && (
+                <div className="hidden md:flex">
+                  <Button onClick={() => setCreateTaskDialogOpen(true)} className="rounded-full">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create Maintenance Task
+                  </Button>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -568,7 +585,7 @@ const MaintenanceDashboard = () => {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="text-xs md:text-sm">Request ID</TableHead>
-                        <TableHead className="text-xs md:text-sm">Studio</TableHead>
+                        <TableHead className="text-xs md:text-sm">Location</TableHead>
                         <TableHead className="text-xs md:text-sm">Category</TableHead>
                         <TableHead className="text-xs md:text-sm">Urgency</TableHead>
                         <TableHead className="text-xs md:text-sm">Status</TableHead>
@@ -593,10 +610,20 @@ const MaintenanceDashboard = () => {
                             <TableCell>
                               {request.studio ? (
                                 <Badge variant="outline" className="rounded-full text-xs">
-                                  {request.studio.studio_number}
+                                  Studio {request.studio.studio_number}
+                                </Badge>
+                              ) : request.communal_area ? (
+                                <Badge variant="outline" className="rounded-full text-xs">
+                                  {request.communal_area.name}
+                                  {request.communal_area.location && ` - ${request.communal_area.location}`}
                                 </Badge>
                               ) : (
                                 <span className="text-muted-foreground text-xs">N/A</span>
+                              )}
+                              {request.is_staff_created && (
+                                <Badge variant="secondary" className="ml-2 text-xs">
+                                  Staff Created
+                                </Badge>
                               )}
                             </TableCell>
                             <TableCell>
@@ -657,9 +684,18 @@ const MaintenanceDashboard = () => {
                           <div className="flex flex-wrap items-center gap-2">
                             {getStatusBadge(request.status)}
                             {getUrgencyBadge(request.urgency || "medium")}
-                            {request.studio && (
+                            {request.studio ? (
                               <Badge variant="outline" className="rounded-full text-xs">
-                                {request.studio.studio_number}
+                                Studio {request.studio.studio_number}
+                              </Badge>
+                            ) : request.communal_area ? (
+                              <Badge variant="outline" className="rounded-full text-xs">
+                                {request.communal_area.name}
+                              </Badge>
+                            ) : null}
+                            {request.is_staff_created && (
+                              <Badge variant="secondary" className="text-xs">
+                                Staff
                               </Badge>
                             )}
                           </div>
@@ -759,6 +795,12 @@ const MaintenanceDashboard = () => {
           onOpenChange={setPreviewOpen}
         />
       </div>
+
+      {/* Create Maintenance Task Dialog */}
+      <CreateMaintenanceTaskDialog
+        open={createTaskDialogOpen}
+        onOpenChange={setCreateTaskDialogOpen}
+      />
     </AdminLayout>
   );
 };
@@ -892,17 +934,35 @@ const RequestDetailsContent = ({
             <div className="mt-1 text-sm">{getCategoryLabel(request.category)}</div>
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground">Studio</Label>
+            <Label className="text-xs text-muted-foreground">Location</Label>
             <div className="mt-1">
               {request.studio ? (
                 <Badge variant="outline" className="rounded-full text-xs">
-                  {request.studio.studio_number}
+                  Studio {request.studio.studio_number}
+                </Badge>
+              ) : request.communal_area ? (
+                <Badge variant="outline" className="rounded-full text-xs">
+                  {request.communal_area.name}
+                  {request.communal_area.location && ` - ${request.communal_area.location}`}
                 </Badge>
               ) : (
                 <span className="text-xs text-muted-foreground">N/A</span>
               )}
+              {request.is_staff_created && (
+                <Badge variant="secondary" className="ml-2 text-xs">
+                  Staff Created
+                </Badge>
+              )}
             </div>
           </div>
+          {request.created_by_profile && (
+            <div>
+              <Label className="text-xs text-muted-foreground">Created By</Label>
+              <div className="mt-1 text-sm">
+                {request.created_by_profile.first_name} {request.created_by_profile.last_name}
+              </div>
+            </div>
+          )}
           <div>
             <Label className="text-xs text-muted-foreground">Expected Resolve Date</Label>
             <div className="mt-1 text-sm">

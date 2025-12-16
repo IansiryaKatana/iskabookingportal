@@ -194,6 +194,11 @@ export const navSections: NavSection[] = [
         icon: Calendar,
       },
       {
+        label: "Communal Areas",
+        to: "/housekeeping/communal-areas",
+        icon: Sparkles,
+      },
+      {
         label: "OTA Bookings",
         to: "/ota-bookings",
         icon: Calendar,
