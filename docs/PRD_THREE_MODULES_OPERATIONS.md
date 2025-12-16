@@ -112,6 +112,13 @@ This PRD defines the requirements for three integrated operations modules within
 | `maintenance_officer` | Maintenance Officer | `staff` | Sees assigned jobs, updates progress, requests approval |
 | `housekeeper` / `cleaner` | Housekeeper/Cleaner | `staff` | Sees assigned studios, requests clean approval |
 
+**Route Access Security:**
+- Sub-roles must be explicitly included in a route's `allowedRoles` array to access that route
+- Route-level restrictions take precedence over database permissions
+- Example: `/admin` dashboard only allows `["staff", "superadmin"]` - `maintenance_officer` and `housekeeper` are blocked even if database permissions exist
+- This ensures navigation filtering and route protection are aligned - if hidden from nav, direct URL access is also blocked
+- See `docs/ROUTE_PERMISSIONS_SYSTEM.md` for complete security model documentation
+
 ### Role Capabilities Matrix
 
 | Capability | Student | Ops Manager | Maintenance Officer | Housekeeper | Reservationist |

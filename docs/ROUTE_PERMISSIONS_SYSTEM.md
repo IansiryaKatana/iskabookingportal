@@ -41,16 +41,45 @@ CREATE TABLE public.route_permissions (
 - If `allowed = true` → Access granted
 - If `allowed = false` → Access denied, route hidden from navigation
 
-### For Staff Sub-Roles (operations_manager, reservationist, accountant, front_desk)
-1. **Check staff permission first**: If staff role is denied (`allowed = false`), all sub-roles are automatically denied
-2. **Check specific sub-role**: If a specific sub-role has a permission record, use that (allows per-sub-role control)
-3. **Fallback to staff**: If no specific sub-role record exists, inherit from staff role permission
+### For Staff Sub-Roles (operations_manager, reservationist, accountant, front_desk, maintenance_officer, housekeeper)
+
+**CRITICAL: Route-Level Restrictions Take Precedence**
+
+The `ProtectedRoute` component enforces route-level restrictions **before** checking database permissions. This ensures that routes explicitly restricted in code (via `allowedRoles` prop) cannot be bypassed by database permissions.
+
+**Permission Check Order:**
+1. **Route-level check (HIGHEST PRIORITY)**: If the sub-role is **NOT** in the route's `allowedRoles` array, access is **immediately denied** regardless of database permissions
+2. **Specific sub-role permission**: If sub-role IS in `allowedRoles`, check if a specific sub-role permission record exists in database
+3. **Staff role permission**: If no specific sub-role record, check if staff role has permission
+4. **Staff role denied**: If staff role is denied (`allowed = false`), all sub-roles are automatically denied
+5. **Fallback**: If no records exist and sub-role is in `allowedRoles`, default to allowed
 
 ### Permission Priority (for sub-roles)
-1. Staff role denied → All sub-roles denied (highest priority)
-2. Specific sub-role permission → Use specific permission
-3. Staff role permission → Inherit from staff
-4. No record → Default to allowed (safe fallback)
+1. **Route-level restriction** → Sub-role not in `allowedRoles` → **DENY** (highest priority - cannot be overridden)
+2. Staff role denied → All sub-roles denied
+3. Specific sub-role permission → Use specific permission
+4. Staff role permission → Inherit from staff (only if sub-role is in `allowedRoles`)
+5. No record → Default to allowed (only if sub-role is in `allowedRoles`)
+
+### Example: Admin Dashboard Restriction
+
+**Route Definition:**
+```tsx
+<Route
+  path="/admin"
+  element={
+    <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+      <AdminDashboard />
+    </ProtectedRoute>
+  }
+/>
+```
+
+**Behavior:**
+- `maintenance_officer` and `housekeeper` are **NOT** in `allowedRoles`
+- Even if `route_permissions` has `staff` allowed for `/admin`, these sub-roles are **denied immediately**
+- This prevents sub-roles from accessing routes they shouldn't have access to, even if database permissions exist
+- Navigation filtering and route protection are now aligned - if a route is hidden from navigation, direct URL access is also blocked
 
 ## Components
 
@@ -127,8 +156,12 @@ Automatically filters navigation items based on user permissions.
 - `reservationist`: Reservationist
 - `accountant`: Accountant
 - `front_desk`: Front Desk
+- `maintenance_officer`: Maintenance Officer (added for maintenance module)
+- `housekeeper`: Housekeeper (added for housekeeping module)
 
 **Important**: Sub-roles are stored in `profiles.staff_subrole` column, but the `role` field in `AuthContext` is set to the sub-role value when present. This allows the permission system to check sub-role-specific permissions.
+
+**Route-Level Security**: Sub-roles must be explicitly included in a route's `allowedRoles` array to access that route. Database permissions can only grant access if the route-level check passes first. This prevents sub-roles from accessing restricted routes (like `/admin` dashboard) even if database permissions exist.
 
 ## How It Works
 
@@ -141,9 +174,12 @@ When a user logs in:
 ### 2. Route Access Check
 When accessing a protected route:
 1. `ProtectedRoute` component checks if `checkDatabase` is enabled
-2. Queries `route_permissions` table for current route and user's role
-3. Applies permission logic (see "Permission Logic" section above)
-4. Renders route if allowed, redirects if denied
+2. **For sub-roles**: First checks if role is in route's `allowedRoles` array
+   - If NOT in `allowedRoles` → **DENY immediately** (route-level restriction)
+   - If in `allowedRoles` → Continue to database check
+3. Queries `route_permissions` table for current route and user's role
+4. Applies permission logic (see "Permission Logic" section above)
+5. Renders route if allowed, redirects to default route if denied
 
 ### 3. Navigation Filtering
 When rendering navigation:
@@ -185,10 +221,32 @@ After saving permissions:
 ## Best Practices
 
 1. **Always use `checkDatabase={true}`** on `ProtectedRoute` components (default)
-2. **Keep `allowedRoles` as fallback** for routes that haven't been configured yet
-3. **Test with different roles** after making permission changes
-4. **Use the Permissions page** to manage access rather than direct database updates
-5. **Clear browser cache** if permissions don't update after save
+2. **Explicitly list allowed roles** in `allowedRoles` prop - this is the primary security boundary
+3. **For restricted routes** (like `/admin`), only include roles that should have access
+4. **Database permissions are secondary** - they can only grant access if route-level check passes
+5. **Test with different roles** after making permission changes
+6. **Use the Permissions page** to manage access rather than direct database updates
+7. **Clear browser cache** if permissions don't update after save
+
+### Route Definition Guidelines
+
+**Restricted Routes** (e.g., Admin Dashboard):
+```tsx
+// Only staff and superadmin can access
+<ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+  <AdminDashboard />
+</ProtectedRoute>
+```
+
+**Module-Specific Routes** (e.g., Maintenance):
+```tsx
+// Explicitly list all roles that should have access
+<ProtectedRoute allowedRoles={["staff", "superadmin", "operations_manager", "maintenance_officer"]}>
+  <MaintenanceDashboard />
+</ProtectedRoute>
+```
+
+**Important**: When adding new routes, carefully consider which roles should have access and list them explicitly in `allowedRoles`. This prevents unauthorized access even if database permissions are misconfigured.
 
 ## Troubleshooting
 
@@ -199,14 +257,37 @@ After saving permissions:
 - Check console for errors
 
 ### Sub-role permissions not working
+- **First check**: Verify the sub-role is in the route's `allowedRoles` array in `App.tsx`
 - Verify user has `staff_subrole` set in `profiles` table
 - Check that `AuthContext` is using sub-role as `role`
 - Ensure permission records exist for the sub-role in `route_permissions` table
+- **Remember**: Route-level restrictions take precedence - if sub-role is not in `allowedRoles`, database permissions won't help
 
 ### Flickering when navigating
 - This should be fixed with optimistic rendering
 - If still occurring, check cache times in `useRoutePermission` hook
 - Verify `staleTime` and `gcTime` are set appropriately
+
+## Security Considerations
+
+### Route-Level vs Database Permissions
+
+The system uses a **two-layer security model**:
+
+1. **Route-Level (Primary)**: The `allowedRoles` prop in route definitions is the primary security boundary
+   - Enforced in code, cannot be bypassed
+   - Prevents sub-roles from accessing routes they shouldn't have access to
+   - Example: `/admin` only allows `["staff", "superadmin"]` - sub-roles are blocked even if database says otherwise
+
+2. **Database-Level (Secondary)**: The `route_permissions` table provides granular control
+   - Can only grant access if route-level check passes
+   - Allows fine-grained control for routes that DO allow the sub-role
+   - Managed via UI in `/admin/permissions` page
+
+**Why This Matters:**
+- Prevents privilege escalation - sub-roles can't access admin dashboard even if database is misconfigured
+- Navigation filtering and route protection are aligned - if hidden from nav, direct URL access is blocked
+- Clear separation: Code defines "who can access this route", database defines "which specific users/roles within that group"
 
 ## Future Enhancements
 

@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -50,6 +49,7 @@ const OTAFinancePage = () => {
   const [customStartDate, setCustomStartDate] = useState<string>("");
   const [customEndDate, setCustomEndDate] = useState<string>("");
   const [channelFilter, setChannelFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
   
   // Calculate date range
   const { startDate, endDate } = useMemo(() => {
@@ -86,8 +86,24 @@ const OTAFinancePage = () => {
   // This includes all bookings with financial information, regardless of status
   const revenueBookings = useMemo(() => {
     if (!bookings) return [];
-    return bookings.filter((b) => b.total_revenue !== null && b.total_revenue !== undefined);
-  }, [bookings]);
+    let filtered = bookings.filter((b) => b.total_revenue !== null && b.total_revenue !== undefined);
+    
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter((b) => {
+        return (
+          b.external_ref?.toLowerCase().includes(query) ||
+          b.guest_name?.toLowerCase().includes(query) ||
+          b.studio?.studio_number?.toLowerCase().includes(query) ||
+          b.channel?.toLowerCase().includes(query) ||
+          b.status?.toLowerCase().includes(query)
+        );
+      });
+    }
+    
+    return filtered;
+  }, [bookings, searchQuery]);
 
   // Calculate stats
   const stats = useMemo(() => {
@@ -241,12 +257,11 @@ const OTAFinancePage = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs md:text-sm">Date Range</Label>
+            <div className="flex flex-col md:flex-row gap-3 md:gap-4 items-end">
+              <div className="flex-1 min-w-[150px]">
                 <Select value={dateRange} onValueChange={(value: "this_week" | "this_month" | "custom") => setDateRange(value)}>
                   <SelectTrigger className="rounded-full">
-                    <SelectValue />
+                    <SelectValue placeholder="Date Range" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="this_week">This Week</SelectItem>
@@ -257,31 +272,30 @@ const OTAFinancePage = () => {
               </div>
               {dateRange === "custom" && (
                 <>
-                  <div className="space-y-2">
-                    <Label className="text-xs md:text-sm">Start Date</Label>
+                  <div className="flex-1 min-w-[150px]">
                     <Input
                       type="date"
                       value={customStartDate}
                       onChange={(e) => setCustomStartDate(e.target.value)}
                       className="rounded-full"
+                      placeholder="Start Date"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs md:text-sm">End Date</Label>
+                  <div className="flex-1 min-w-[150px]">
                     <Input
                       type="date"
                       value={customEndDate}
                       onChange={(e) => setCustomEndDate(e.target.value)}
                       className="rounded-full"
+                      placeholder="End Date"
                     />
                   </div>
                 </>
               )}
-              <div className="space-y-2">
-                <Label className="text-xs md:text-sm">Channel</Label>
+              <div className="flex-1 min-w-[150px]">
                 <Select value={channelFilter} onValueChange={setChannelFilter}>
                   <SelectTrigger className="rounded-full">
-                    <SelectValue />
+                    <SelectValue placeholder="Channel" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Channels</SelectItem>
@@ -293,11 +307,19 @@ const OTAFinancePage = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex items-end">
+              <div className="flex-1 min-w-[200px]">
+                <Input
+                  placeholder="Search booking ref, guest, studio, channel, status..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="rounded-full text-sm md:text-base"
+                />
+              </div>
+              <div className="flex-shrink-0">
                 <Button
                   onClick={exportToCSV}
-                  className="rounded-full w-full gap-2"
-                  variant="outline"
+                  className="rounded-full gap-2"
+                  variant="destructive"
                 >
                   <Download className="h-4 w-4" />
                   Export CSV

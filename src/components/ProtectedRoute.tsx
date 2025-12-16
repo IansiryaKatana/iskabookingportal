@@ -46,8 +46,18 @@ const ProtectedRoute = ({ children, allowedRoles, checkDatabase = true }: Protec
         return specificRoleData.allowed === true;
       }
 
-      // For sub-roles: Check staff permission first (if staff is denied, deny all sub-roles)
+      // For sub-roles: Check allowedRoles FIRST before checking staff permissions
+      // This ensures route-level restrictions (like /admin not allowing maintenance_officer)
+      // take precedence over database permissions
       if (role === "operations_manager" || role === "reservationist" || role === "accountant" || role === "front_desk" || role === "maintenance_officer" || role === "housekeeper") {
+        // CRITICAL: If sub-role is NOT in allowedRoles, deny immediately (route-level restriction)
+        // This prevents sub-roles from accessing routes they shouldn't have access to
+        // even if staff has permission in the database
+        if (!allowedRoles.includes(role)) {
+          return false;
+        }
+
+        // Only check staff permissions if the sub-role IS in allowedRoles
         const { data: staffData, error: staffError } = await supabase
           .from("route_permissions")
           .select("allowed")
@@ -65,7 +75,7 @@ const ProtectedRoute = ({ children, allowedRoles, checkDatabase = true }: Protec
           return false;
         }
 
-        // If staff has explicit permission, use it
+        // If staff has explicit permission AND sub-role is in allowedRoles, allow access
         if (staffData && staffData.allowed) {
           return true;
         }

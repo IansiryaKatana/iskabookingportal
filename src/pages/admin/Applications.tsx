@@ -25,6 +25,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
+import { Input } from "@/components/ui/input";
+import { Search } from "lucide-react";
 import {
   Pagination,
   PaginationContent,
@@ -100,11 +102,42 @@ const Applications = () => {
   const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   const filtered = useMemo(() => {
-    if (statusFilter === "all") return data ?? [];
-    return data?.filter((application) => application.status === statusFilter) ?? [];
-  }, [data, statusFilter]);
+    let result = data ?? [];
+    
+    // Apply status filter
+    if (statusFilter !== "all") {
+      result = result.filter((application) => application.status === statusFilter);
+    }
+    
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter((application) => {
+        const firstName = application.student?.first_name?.toLowerCase() || "";
+        const lastName = application.student?.last_name?.toLowerCase() || "";
+        const fullName = `${firstName} ${lastName}`.trim();
+        const studioGrade = application.contract?.studio_grade?.name?.toLowerCase() || "";
+        const contractName = application.contract?.name?.toLowerCase() || "";
+        const studioNumber = application.assigned_studio?.studio_number?.toLowerCase() || "";
+        const status = application.status?.toLowerCase() || "";
+        
+        return (
+          fullName.includes(query) ||
+          firstName.includes(query) ||
+          lastName.includes(query) ||
+          studioGrade.includes(query) ||
+          contractName.includes(query) ||
+          studioNumber.includes(query) ||
+          status.includes(query)
+        );
+      });
+    }
+    
+    return result;
+  }, [data, statusFilter, searchQuery]);
 
   // Pagination logic
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
@@ -117,7 +150,7 @@ const Applications = () => {
   // Reset to page 1 when filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, selectedAcademicYearId]);
+  }, [statusFilter, selectedAcademicYearId, searchQuery]);
 
   const handleStatusChange = async (
     id: string,
@@ -141,7 +174,16 @@ const Applications = () => {
       subtitle="Review booking journey progress, confirm documents, and move applications to completion."
     >
       <div className="mb-6 space-y-4">
-        <div className="flex items-center justify-start md:justify-end">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-start md:justify-end gap-3">
+          <div className="relative flex-1 md:flex-initial md:w-64">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by name, studio, contract, status..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="rounded-full pl-9 text-sm md:text-base"
+            />
+          </div>
           <AcademicYearSelector
             value={selectedAcademicYearId}
             onValueChange={setSelectedAcademicYearId}
