@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useStudentApplication } from "@/hooks/useStudentApplication";
 import { useUpdateApplicationStatus } from "@/hooks/useAdminApplications";
 import { useAdminStudios } from "@/hooks/useAdminStudios";
-import { ArrowLeft, User, Mail, Phone, MapPin, Calendar, Building2, CreditCard, FileText, CheckCircle2, XCircle, Download, Send, RotateCcw, Gift, Handshake } from "lucide-react";
+import { ArrowLeft, User, Mail, Phone, MapPin, Calendar, Building2, CreditCard, FileText, CheckCircle2, XCircle, Download, Send, RotateCcw, Gift, Handshake, Upload } from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -28,8 +28,11 @@ import ManualPaymentDialog from "@/components/admin/ManualPaymentDialog";
 import { useCreateNotification } from "@/hooks/useNotifications";
 import { useApplicationCashback, useActiveCashbackCampaigns, useApplyCashback } from "@/hooks/useCashback";
 import { useApplicationPartnerReferral, usePartners, useCreatePartnerReferral } from "@/hooks/usePartners";
+import { useDocumentUpload } from "@/hooks/useDocumentUpload";
 import { logActivity } from "@/utils/auditLog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Input } from "@/components/ui/input";
+import { Loader2 } from "lucide-react";
 
 const getStatusBadge = (status: string) => {
   const statusConfig: Record<string, { className: string; label: string }> = {
@@ -90,6 +93,10 @@ const ApplicationDetail = () => {
   const [partnerDialogOpen, setPartnerDialogOpen] = useState(false);
   const [selectedCashbackCampaign, setSelectedCashbackCampaign] = useState<string>("");
   const [selectedPartner, setSelectedPartner] = useState<string>("");
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [selectedRejectedDoc, setSelectedRejectedDoc] = useState<{ id: string; documentType: string; notes?: string } | null>(null);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const uploadDocument = useDocumentUpload();
 
   // Cashback and Partner hooks
   const { data: cashback } = useApplicationCashback(applicationId);
@@ -222,13 +229,60 @@ const ApplicationDetail = () => {
           notes: notes || null,
         },
       });
+
+      // Send email notification if rejected
+      if (status === "rejected" && currentDoc?.application_id) {
+        try {
+          // Get application to find student_id
+          const { data: app } = await supabase
+            .from("student_applications")
+            .select("student_id")
+            .eq("id", currentDoc.application_id)
+            .single();
+
+          if (app?.student_id) {
+            // Get student name from Step 1
+            const { data: step1 } = await supabase
+              .from("student_application_steps")
+              .select("payload")
+              .eq("application_id", currentDoc.application_id)
+              .eq("step_number", 1)
+              .single();
+
+            const step1Data = step1?.payload as any;
+            const studentName = step1Data?.first_name && step1Data?.last_name
+              ? `${step1Data.first_name} ${step1Data.last_name}`
+              : "Student";
+
+            // Send rejection email
+            await supabase.functions.invoke("send-transactional-email", {
+              body: {
+                user_id: app.student_id,
+                email_type: "document_rejected",
+                variables: {
+                  student_name: studentName,
+                  document_type: currentDoc.document_type?.replace(/_/g, " ") || "document",
+                  rejection_reason: notes || "Please review the document requirements and upload a new document.",
+                  application_id: currentDoc.application_id,
+                },
+                create_notification: true,
+              },
+            });
+          }
+        } catch (emailError) {
+          console.error("Error sending document rejection email:", emailError);
+          // Don't fail the rejection if email fails
+        }
+      }
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["application-documents", applicationId] });
       queryClient.invalidateQueries({ queryKey: ["student-application", applicationId] });
       toast({
         title: "Document verified",
-        description: "Document status has been updated.",
+        description: variables.status === "rejected" 
+          ? "Document rejected and student has been notified."
+          : "Document status has been updated.",
       });
     },
     onError: (error) => {
@@ -790,17 +844,31 @@ const ApplicationDetail = () => {
                         </div>
                         <Badge
                           variant={
-                            doc.status === "approved"
-                              ? "default"
-                              : doc.status === "rejected"
-                                ? "destructive"
-                                : "outline"
+                            doc.status === "rejected"
+                              ? "destructive"
+                              : doc.status === "approved"
+                                ? undefined
+                                : doc.status === "pending"
+                                  ? undefined
+                                  : "outline"
                           }
-                          className="uppercase"
+                          className={
+                            doc.status === "approved"
+                              ? "bg-green-600 hover:bg-green-700 text-white uppercase"
+                              : doc.status === "pending"
+                                ? "bg-orange-300 hover:bg-orange-400 text-orange-900 uppercase"
+                                : "uppercase"
+                          }
                         >
                           {doc.status}
                         </Badge>
                       </div>
+                      {doc.status === "rejected" && doc.notes && (
+                        <div className="mb-2 p-2 bg-destructive/10 border border-destructive/20 rounded-lg">
+                          <p className="text-xs font-medium text-destructive mb-1">Rejection Reason:</p>
+                          <p className="text-xs text-destructive/90">{doc.notes}</p>
+                        </div>
+                      )}
                       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mt-2">
                         <Button
                           variant="outline"
@@ -938,6 +1006,24 @@ const ApplicationDetail = () => {
                               Reject
                             </Button>
                           </div>
+                        )}
+                        {doc.status === "rejected" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="rounded-full uppercase tracking-wide gap-2 text-blue-600 text-xs w-full sm:w-auto"
+                            onClick={() => {
+                              setSelectedRejectedDoc({
+                                id: doc.id,
+                                documentType: doc.document_type,
+                                notes: doc.notes || undefined,
+                              });
+                              setUploadDialogOpen(true);
+                            }}
+                          >
+                            <Upload className="h-4 w-4" />
+                            Upload New
+                          </Button>
                         )}
                       </div>
                       <Textarea
@@ -1304,6 +1390,145 @@ const ApplicationDetail = () => {
               className="rounded-full uppercase tracking-wide"
             >
               {createPartnerReferral.isPending ? "Assigning..." : "Assign Partner"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Upload New Document Dialog */}
+      <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Upload New Document</DialogTitle>
+            <DialogDescription>
+              Upload a new document to replace the rejected one. The student will be notified.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedRejectedDoc && (
+            <div className="space-y-4">
+              <div>
+                <Label className="text-sm font-medium">Document Type</Label>
+                <p className="text-sm text-muted-foreground capitalize mt-1">
+                  {selectedRejectedDoc.documentType.replace(/_/g, " ")}
+                </p>
+              </div>
+              {selectedRejectedDoc.notes && (
+                <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                  <p className="text-xs font-medium text-destructive mb-1">Rejection Reason:</p>
+                  <p className="text-xs text-destructive/90">{selectedRejectedDoc.notes}</p>
+                </div>
+              )}
+              <div>
+                <Label htmlFor="file-upload" className="text-sm font-medium">
+                  Select File
+                </Label>
+                <Input
+                  id="file-upload"
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.webp"
+                  className="mt-1"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    setUploadFile(file || null);
+                  }}
+                />
+                {uploadFile && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Selected: {uploadFile.name} ({(uploadFile.size / 1024 / 1024).toFixed(2)} MB)
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setUploadDialogOpen(false);
+                setUploadFile(null);
+                setSelectedRejectedDoc(null);
+              }}
+              disabled={uploadDocument.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!uploadFile || !selectedRejectedDoc || !applicationId) return;
+
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) {
+                  toast({
+                    variant: "destructive",
+                    title: "Authentication required",
+                    description: "Please sign in to upload documents.",
+                  });
+                  return;
+                }
+
+                try {
+                  await uploadDocument.mutateAsync({
+                    file: uploadFile,
+                    applicationId,
+                    documentType: selectedRejectedDoc.documentType,
+                    uploadedBy: user.id,
+                  });
+
+                  // Send notification to student
+                  if (application?.student_id) {
+                    try {
+                      // Get student name from Step 1
+                      const { data: step1 } = await supabase
+                        .from("student_application_steps")
+                        .select("payload")
+                        .eq("application_id", applicationId)
+                        .eq("step_number", 1)
+                        .single();
+
+                      const step1Data = step1?.payload as any;
+                      const studentName = step1Data?.first_name && step1Data?.last_name
+                        ? `${step1Data.first_name} ${step1Data.last_name}`
+                        : "Student";
+
+                      // Create notification
+                      await createNotification.mutateAsync({
+                        userId: application.student_id,
+                        title: "New Document Uploaded",
+                        message: `A new ${selectedRejectedDoc.documentType.replace(/_/g, " ")} document has been uploaded for your application. Please review it in your portal.`,
+                        type: "info",
+                        link: `/portal/documents`,
+                      });
+                    } catch (notifError) {
+                      console.error("Error creating notification:", notifError);
+                      // Don't fail the upload if notification fails
+                    }
+                  }
+
+                  setUploadDialogOpen(false);
+                  setUploadFile(null);
+                  setSelectedRejectedDoc(null);
+                  
+                  toast({
+                    title: "Document uploaded",
+                    description: "The new document has been uploaded and the student has been notified.",
+                  });
+                } catch (error) {
+                  console.error("Failed to upload document:", error);
+                }
+              }}
+              disabled={!uploadFile || uploadDocument.isPending}
+            >
+              {uploadDocument.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

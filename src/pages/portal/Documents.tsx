@@ -1,9 +1,10 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, FileText, CheckCircle2, XCircle, Clock, Download, Upload, RefreshCw } from "lucide-react";
 import PortalLayout from "@/components/portal/PortalLayout";
 import { useStudentApplicationsList } from "@/hooks/useStudentApplications";
 import { useStudentDocuments } from "@/hooks/useStudentDocuments";
+import { useDocumentUpload } from "@/hooks/useDocumentUpload";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import type { ApplicationType } from "@/hooks/useStudentApplication";
 
 const Documents = () => {
   const navigate = useNavigate();
@@ -404,6 +406,9 @@ const ApplicationDocumentsCard = ({
   const contract = application.contract;
   const gradeName = contract?.studio_grade?.name ?? "Studio Grade";
   const [hasNotified, setHasNotified] = useState(false);
+  const [uploadingDocId, setUploadingDocId] = useState<string | null>(null);
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const uploadDocument = useDocumentUpload();
 
   useEffect(() => {
     if (!isLoading && !hasNotified) {
@@ -433,7 +438,7 @@ const ApplicationDocumentsCard = ({
       case "pending":
       default:
         return (
-          <Badge variant="secondary">
+          <Badge className="bg-orange-300 hover:bg-orange-400 text-orange-900">
             <Clock className="h-3 w-3 mr-1" />
             Pending
           </Badge>
@@ -459,6 +464,30 @@ const ApplicationDocumentsCard = ({
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Error downloading document:", error);
+    }
+  };
+
+  const handleReupload = async (docId: string, documentType: string, file: File) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast({
+        variant: "destructive",
+        title: "Authentication required",
+        description: "Please sign in to upload documents.",
+      });
+      return;
+    }
+
+    setUploadingDocId(docId);
+    try {
+      await uploadDocument.mutateAsync({
+        file,
+        applicationId: application.id,
+        documentType,
+        uploadedBy: user.id,
+      });
+    } finally {
+      setUploadingDocId(null);
     }
   };
 
@@ -530,6 +559,12 @@ const ApplicationDocumentsCard = ({
                   </h3>
                   {getStatusBadge(doc.status)}
                 </div>
+                {doc.status.toLowerCase() === "rejected" && doc.notes && (
+                  <div className="mb-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                    <p className="text-sm font-medium text-destructive mb-1">Rejection Reason:</p>
+                    <p className="text-sm text-destructive/90">{doc.notes}</p>
+                  </div>
+                )}
                 <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                   <div>
                     Uploaded {format(new Date(doc.uploaded_at), "d MMM yyyy")}
@@ -549,17 +584,41 @@ const ApplicationDocumentsCard = ({
               </div>
               <div className="flex items-center gap-2">
                 {doc.status.toLowerCase() === "rejected" && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="rounded-full uppercase tracking-wide gap-2"
-                    onClick={() =>
-                      navigate(`/portal/applications/${application.id}`)
-                    }
-                  >
-                    <Upload className="h-4 w-4" />
-                    Re-upload
-                  </Button>
+                  <>
+                    <input
+                      ref={(el) => (fileInputRefs.current[doc.id] = el)}
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png,.webp"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          handleReupload(doc.id, doc.document_type, file);
+                          // Reset input
+                          e.target.value = "";
+                        }
+                      }}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full uppercase tracking-wide gap-2"
+                      onClick={() => fileInputRefs.current[doc.id]?.click()}
+                      disabled={uploadingDocId === doc.id || uploadDocument.isPending}
+                    >
+                      {uploadingDocId === doc.id ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-4 w-4" />
+                          Re-upload
+                        </>
+                      )}
+                    </Button>
+                  </>
                 )}
                 <Button
                   variant="outline"
