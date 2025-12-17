@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 const StudioSelection = () => {
   const { applicationId } = useParams<{ applicationId: string }>();
@@ -27,6 +29,44 @@ const StudioSelection = () => {
     isLoading: studiosLoading,
     refetch: refetchStudios,
   } = useStudios(studioGradeId ?? undefined);
+
+  // Safety check: Get studios with confirmed applications for this contract
+  const { data: occupiedStudioIds } = useQuery({
+    queryKey: ["occupied-studios", application?.contract_id],
+    queryFn: async () => {
+      if (!application?.contract_id) return [];
+      
+      const { data, error } = await supabase
+        .from("student_applications")
+        .select("assigned_studio_id")
+        .eq("contract_id", application.contract_id)
+        .eq("status", "confirmed")
+        .not("assigned_studio_id", "is", null);
+      
+      if (error) {
+        console.error("Error fetching occupied studios:", error);
+        return [];
+      }
+      
+      return (data || []).map((app) => app.assigned_studio_id).filter(Boolean) as string[];
+    },
+    enabled: Boolean(application?.contract_id),
+    staleTime: 30000, // 30 seconds
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
+
+  // Filter out studios with confirmed applications (safety check)
+  const availableStudios = useMemo(() => {
+    if (!studios || !occupiedStudioIds) return studios;
+    
+    return studios.filter((studio) => {
+      // Always show the selected studio even if it has a confirmed application
+      if (studio.id === application?.assigned_studio_id) return true;
+      
+      // Filter out studios with confirmed applications for this contract
+      return !occupiedStudioIds.includes(studio.id);
+    });
+  }, [studios, occupiedStudioIds, application?.assigned_studio_id]);
 
   const { mutateAsync: reserveStudio, isLoading: reserving } = useReserveStudio(
     studioGradeId,
@@ -284,10 +324,11 @@ const StudioSelection = () => {
               </div>
             ) : (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {studios?.map((studio) => {
+                {availableStudios?.map((studio) => {
                   const isSelected =
                     studio.id === application.assigned_studio_id;
                   const isAvailable = studio.status === "available";
+                  const isOccupied = studio.status === "occupied";
                   const isReservedByOther =
                     studio.status === "reserved" &&
                     studio.allocation !== application.student_id;
@@ -320,7 +361,11 @@ const StudioSelection = () => {
                       className={`text-left rounded-3xl border px-5 py-4 transition-all ${
                         isSelected
                           ? "border-primary bg-primary/10 shadow-lg"
-                          : "border-border/60 hover:border-primary/50 hover:-translate-y-1"
+                          : isOccupied
+                          ? "border-gray-300 bg-gray-50/50 cursor-not-allowed"
+                          : isAvailable
+                          ? "border-green-200 bg-green-50/30 hover:border-green-300 hover:bg-green-50/50 hover:-translate-y-1 hover:shadow-md"
+                          : "border-amber-200 bg-amber-50/30 hover:border-amber-300 hover:bg-amber-50/50 hover:-translate-y-1"
                       } ${
                         disabled && !isSelected
                           ? "opacity-60 cursor-not-allowed"
@@ -330,25 +375,51 @@ const StudioSelection = () => {
                       disabled={disabled}
                     >
                       <div className="flex items-center justify-between">
-                        <p className="text-lg font-display font-black uppercase tracking-wide">
+                        <p
+                          className={`text-lg font-display font-black uppercase tracking-wide ${
+                            isOccupied
+                              ? "text-gray-500"
+                              : isAvailable
+                              ? "text-green-700"
+                              : "text-foreground"
+                          }`}
+                        >
                           {studio.studio_number}
                         </p>
                         <span
-                          className={`text-xs uppercase tracking-[0.3em] ${
+                          className={`text-xs font-semibold uppercase tracking-[0.3em] px-2 py-1 rounded-full ${
                             isSelected
-                              ? "text-primary"
-                              : studio.status === "available"
-                              ? "text-foreground"
-                              : "text-muted-foreground"
+                              ? "text-primary bg-primary/10"
+                              : isOccupied
+                              ? "text-gray-600 bg-gray-200"
+                              : isAvailable
+                              ? "text-green-700 bg-green-100"
+                              : "text-amber-700 bg-amber-100"
                           }`}
                         >
                           {statusLabel}
                         </span>
                       </div>
-                      <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+                      <div
+                        className={`mt-3 space-y-2 text-sm ${
+                          isOccupied
+                            ? "text-gray-500"
+                            : isAvailable
+                            ? "text-muted-foreground"
+                            : "text-muted-foreground"
+                        }`}
+                      >
                         {studio.floor && (
                           <p className="flex items-center gap-2">
-                            <MapPin className="h-4 w-4 text-primary" />
+                            <MapPin
+                              className={`h-4 w-4 ${
+                                isOccupied
+                                  ? "text-gray-400"
+                                  : isAvailable
+                                  ? "text-green-600"
+                                  : "text-primary"
+                              }`}
+                            />
                             Floor {studio.floor}
                           </p>
                         )}

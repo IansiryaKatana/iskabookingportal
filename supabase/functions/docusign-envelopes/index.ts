@@ -682,7 +682,7 @@ serve(async (req) => {
       try {
         const { data: installments, error: installmentsError } = await supabaseAdmin
           .from("payment_plan_installments")
-          .select("amount_value, amount_type, due_date, sequence, label")
+          .select("amount_value, amount_type, due_date, due_date_offset_days, sequence, label")
           .eq("payment_plan_id", application.selected_payment_plan_id)
           .order("sequence", { ascending: true });
         
@@ -718,13 +718,32 @@ serve(async (req) => {
               amount = remainingBalance - sumOfPrevious;
             }
             
-            const due = it.due_date ? formatGbDate(it.due_date) : "";
+            // Calculate actual due date: use due_date if available, otherwise calculate from contract_start + offset
+            let actualDueDate: string | null = null;
+            if (it.due_date) {
+              actualDueDate = it.due_date;
+            } else if (it.due_date_offset_days !== null && contract?.contract_start) {
+              // Calculate: contract_start + offset_days
+              try {
+                const contractStart = new Date(contract.contract_start);
+                const calculatedDate = new Date(contractStart);
+                calculatedDate.setDate(calculatedDate.getDate() + it.due_date_offset_days);
+                actualDueDate = calculatedDate.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+              } catch (dateError) {
+                console.error("Error calculating due date from offset:", dateError);
+                // Fall back to empty date if calculation fails
+                actualDueDate = null;
+              }
+            }
+            
+            const due = actualDueDate ? formatGbDate(actualDueDate) : "";
             const label = it.label ? `${it.label}: ` : "";
             const formattedAmount = formatGBP(Math.round(amount * 100));
             return [label, formattedAmount, due].filter(Boolean).join(" ");
           });
           
-          planSummary = scheduleItems.join("; ");
+          // Join with HTML line breaks for better formatting in DocuSign
+          planSummary = scheduleItems.join("<br>\n");
         }
       } catch (error) {
         console.error("Error processing payment plan installments:", error);
