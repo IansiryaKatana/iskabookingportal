@@ -143,24 +143,42 @@ const Permissions = () => {
   const saveMutation = useMutation({
     mutationFn: async () => {
       const updates: Array<{ id: string; allowed: boolean }> = [];
+      const inserts: Array<{ route_path: string; route_name: string; role: string; allowed: boolean }> = [];
 
-      // Collect all changes
+      // Collect all changes (both updates and inserts)
       Object.entries(permissions).forEach(([routePath, rolePerms]) => {
+        // Get route name for inserts
+        const routeName = routes.find((r) => r.path === routePath)?.name || routePath;
+        
         Object.entries(rolePerms).forEach(([role, perm]) => {
           const original = routePermissions?.find(
             (p) => p.route_path === routePath && p.role === role
           );
-          if (original && original.allowed !== perm.allowed) {
-            updates.push({ id: perm.id, allowed: perm.allowed });
+          
+          if (original) {
+            // Existing record - update if changed
+            if (original.allowed !== perm.allowed) {
+              updates.push({ id: perm.id, allowed: perm.allowed });
+            }
+          } else {
+            // New record - insert if allowed is true (only save ON permissions, OFF permissions don't need records)
+            if (perm.allowed) {
+              inserts.push({
+                route_path: routePath,
+                route_name: routeName,
+                role: role,
+                allowed: perm.allowed,
+              });
+            }
           }
         });
       });
 
-      if (updates.length === 0) {
+      if (updates.length === 0 && inserts.length === 0) {
         return;
       }
 
-      // Update in batches
+      // Update existing records
       for (const update of updates) {
         const { error } = await supabase
           .from("route_permissions")
@@ -170,6 +188,18 @@ const Permissions = () => {
         if (error) throw error;
       }
 
+      // Insert new records (use upsert to handle any race conditions)
+      if (inserts.length > 0) {
+        const { error: insertError } = await supabase
+          .from("route_permissions")
+          .upsert(inserts, {
+            onConflict: "route_path,role",
+            ignoreDuplicates: false,
+          });
+
+        if (insertError) throw insertError;
+      }
+
       // Log activity
       await logActivity({
         action: "update",
@@ -177,10 +207,11 @@ const Permissions = () => {
         entityId: null,
         payload: {
           updated_count: updates.length,
-          changes: updates.map((u) => ({
-            id: u.id,
-            allowed: u.allowed,
-          })),
+          inserted_count: inserts.length,
+          changes: [
+            ...updates.map((u) => ({ id: u.id, allowed: u.allowed, type: "update" })),
+            ...inserts.map((i) => ({ route_path: i.route_path, role: i.role, allowed: i.allowed, type: "insert" })),
+          ],
         },
       });
     },

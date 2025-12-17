@@ -32,6 +32,7 @@ import {
   Sparkles,
   AlertTriangle,
   MapPin,
+  Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -316,6 +317,11 @@ export const navSections: NavSection[] = [
         label: "Settings",
         to: "/admin/settings",
         icon: Settings,
+      },
+      {
+        label: "Secrets",
+        to: "/admin/secrets",
+        icon: Lock,
       },
       {
         label: "Branding",

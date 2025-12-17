@@ -49,6 +49,14 @@ const Settings = () => {
   const [deleteAllOpen, setDeleteAllOpen] = useState(false);
   const [deleteByYearOpen, setDeleteByYearOpen] = useState(false);
   const [deleteOrphanedUsers, setDeleteOrphanedUsers] = useState(false);
+  // Search-based deletion state
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchType, setSearchType] = useState<"student_name" | "studio_number">("student_name");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [selectedApplications, setSelectedApplications] = useState<Set<string>>(new Set());
+  const [isSearching, setIsSearching] = useState(false);
+  const [deleteBySearchOpen, setDeleteBySearchOpen] = useState(false);
+  const [deleteOrphanedUsersSearch, setDeleteOrphanedUsersSearch] = useState(false);
   const [credentials, setCredentials] = useState<{ resend_api_key: string; resend_from_email: string }>({
     resend_api_key: "",
     resend_from_email: "",
@@ -449,6 +457,96 @@ const Settings = () => {
       }
       setDeleteAllOpen(false);
       setDeleteOrphanedUsers(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete applications",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Search applications mutation
+  const searchApplications = useMutation({
+    mutationFn: async () => {
+      if (!searchTerm.trim()) {
+        throw new Error("Please enter a search term");
+      }
+      setIsSearching(true);
+      const { data, error } = await supabase.rpc("search_applications_by_criteria", {
+        p_search_term: searchTerm.trim(),
+        p_search_type: searchType,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      setSearchResults(data || []);
+      setSelectedApplications(new Set());
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Search Error",
+        description: error.message || "Failed to search applications",
+        variant: "destructive",
+      });
+    },
+    onSettled: () => {
+      setIsSearching(false);
+    },
+  });
+
+  // Delete applications by IDs mutation
+  const deleteBySearch = useMutation({
+    mutationFn: async (applicationIds: string[]) => {
+      if (applicationIds.length === 0) {
+        throw new Error("No applications selected");
+      }
+      const { data, error } = await supabase.rpc("delete_applications_by_ids", {
+        p_application_ids: applicationIds,
+        p_delete_orphaned_users: deleteOrphanedUsersSearch,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: async (data) => {
+      const deletedCount = data?.deleted_count || 0;
+      const usersDeleted = data?.users_deleted || 0;
+      const usersPreserved = data?.users_preserved || 0;
+      const message = data?.message;
+
+      await logActivity({
+        action: "delete",
+        entityType: "student_applications",
+        payload: {
+          type: "by_search",
+          search_term: searchTerm,
+          search_type: searchType,
+          count: deletedCount,
+          delete_orphaned_users: deleteOrphanedUsersSearch,
+          users_deleted: usersDeleted,
+          users_preserved: usersPreserved,
+        },
+      });
+      queryClient.invalidateQueries({ queryKey: ["application-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["student-applications"] });
+
+      let description = `Successfully deleted ${deletedCount} application(s) and all related records.`;
+      if (deleteOrphanedUsersSearch) {
+        description += ` Users: ${usersDeleted} deleted, ${usersPreserved} preserved.`;
+      }
+      toast({
+        title: "Applications deleted",
+        description,
+      });
+
+      // Reset state
+      setSearchResults([]);
+      setSelectedApplications(new Set());
+      setSearchTerm("");
+      setDeleteBySearchOpen(false);
+      setDeleteOrphanedUsersSearch(false);
     },
     onError: (error: Error) => {
       toast({
@@ -1062,76 +1160,250 @@ const Settings = () => {
             </div>
 
             {/* Delete Actions */}
-            <div className="grid gap-4 md:grid-cols-2">
-              {/* Delete All */}
-              <AlertDialog open={deleteAllOpen} onOpenChange={setDeleteAllOpen}>
-                <AlertDialogTrigger asChild>
+            <div className="space-y-6">
+              {/* Delete by Search - Full Width */}
+              <div className="rounded-lg border border-border/60 bg-muted/30 p-4 space-y-4">
+                <div>
+                  <h4 className="text-sm font-semibold mb-1">Delete by Search</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Search for applications by student name or studio number, then delete selected or all matches.
+                  </p>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="flex-1 flex gap-2">
+                    <Input
+                      placeholder={searchType === "student_name" ? "Enter student name..." : "Enter studio number..."}
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && searchTerm.trim()) {
+                          searchApplications.mutate();
+                        }
+                      }}
+                      className="rounded-full"
+                      disabled={isSearching || deleteBySearch.isPending}
+                    />
+                    <Select
+                      value={searchType}
+                      onValueChange={(value: "student_name" | "studio_number") => setSearchType(value)}
+                      disabled={isSearching || deleteBySearch.isPending}
+                    >
+                      <SelectTrigger className="w-[160px] rounded-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="student_name">Student Name</SelectItem>
+                        <SelectItem value="studio_number">Studio Number</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <Button
-                    variant="destructive"
-                    className="w-full rounded-full uppercase tracking-wide"
-                    disabled={deleteAllApplications.isPending || (appStats?.total || 0) === 0}
+                    onClick={() => searchApplications.mutate()}
+                    disabled={!searchTerm.trim() || isSearching || deleteBySearch.isPending}
+                    className="rounded-full"
+                    variant="outline"
                   >
-                    {deleteAllApplications.isPending ? (
+                    {isSearching ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Deleting...
+                        Searching...
                       </>
                     ) : (
                       <>
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete All Applications
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Search
                       </>
                     )}
                   </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent className="rounded-3xl">
-                  <AlertDialogHeader>
-                    <AlertDialogTitle className="text-destructive">Delete All Applications?</AlertDialogTitle>
-                    <AlertDialogDescription asChild>
-                      <div className="text-sm space-y-2">
-                        <p>
-                          This will permanently delete <strong>all {appStats?.total || 0} application(s)</strong> and all
-                          related records including:
-                        </p>
-                        <ul className="list-disc list-inside mt-2 space-y-1">
-                          <li>Application steps and data</li>
-                          <li>Documents and signatures</li>
-                          <li>Payment records</li>
-                          <li>Partner referrals</li>
-                          <li>Studio allocations</li>
-                        </ul>
-                        <p className="mt-3 font-semibold text-destructive">This action cannot be undone.</p>
-                        <div className="mt-4 pt-4 border-t space-y-3">
-                          <div className="flex items-start space-x-3">
+                </div>
+
+                {/* Search Results */}
+                {searchResults.length > 0 && (
+                  <div className="space-y-3 mt-4 pt-4 border-t">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium">
+                        Found {searchResults.length} application{searchResults.length !== 1 ? "s" : ""}
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (selectedApplications.size === searchResults.length) {
+                              setSelectedApplications(new Set());
+                            } else {
+                              setSelectedApplications(new Set(searchResults.map((r) => r.application_id)));
+                            }
+                          }}
+                          className="rounded-full text-xs"
+                        >
+                          {selectedApplications.size === searchResults.length ? "Deselect All" : "Select All"}
+                        </Button>
+                        <AlertDialog open={deleteBySearchOpen} onOpenChange={setDeleteBySearchOpen}>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              className="rounded-full text-xs"
+                              disabled={selectedApplications.size === 0 || deleteBySearch.isPending}
+                            >
+                              {deleteBySearch.isPending ? (
+                                <>
+                                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                  Deleting...
+                                </>
+                              ) : (
+                                <>
+                                  <Trash2 className="h-3 w-3 mr-1" />
+                                  Delete Selected ({selectedApplications.size})
+                                </>
+                              )}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent className="rounded-3xl">
+                            <AlertDialogHeader>
+                              <AlertDialogTitle className="text-destructive">
+                                Delete {selectedApplications.size} Application{selectedApplications.size !== 1 ? "s" : ""}?
+                              </AlertDialogTitle>
+                              <AlertDialogDescription asChild>
+                                <div className="text-sm space-y-2">
+                                  <p>
+                                    This will permanently delete <strong>{selectedApplications.size} selected application(s)</strong> and all
+                                    related records including:
+                                  </p>
+                                  <ul className="list-disc list-inside mt-2 space-y-1">
+                                    <li>Application steps and data</li>
+                                    <li>Documents and signatures</li>
+                                    <li>Payment records</li>
+                                    <li>Partner referrals</li>
+                                    <li>Studio allocations</li>
+                                  </ul>
+                                  <p className="mt-3 font-semibold text-destructive">This action cannot be undone.</p>
+                                  <div className="mt-4 pt-4 border-t space-y-3">
+                                    <div className="flex items-start space-x-3">
+                                      <Checkbox
+                                        id="delete-orphaned-users-search"
+                                        checked={deleteOrphanedUsersSearch}
+                                        onCheckedChange={(checked) => setDeleteOrphanedUsersSearch(checked === true)}
+                                        className="mt-1"
+                                      />
+                                      <div className="space-y-1 flex-1">
+                                        <Label
+                                          htmlFor="delete-orphaned-users-search"
+                                          className="text-sm font-medium cursor-pointer"
+                                        >
+                                          Also delete orphaned user accounts (Smart Deletion)
+                                        </Label>
+                                        <p className="text-xs text-muted-foreground">
+                                          Users will only be deleted if they have no important data (refunds, maintenance requests, etc.). 
+                                          Staff accounts are never deleted. This helps clean up orphaned accounts automatically.
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel className="rounded-full" onClick={() => setDeleteOrphanedUsersSearch(false)}>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => deleteBySearch.mutate(Array.from(selectedApplications))}
+                                className="rounded-full bg-destructive hover:bg-destructive/90"
+                                disabled={deleteBySearch.isPending}
+                              >
+                                {deleteBySearch.isPending ? (
+                                  <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    Deleting...
+                                  </>
+                                ) : (
+                                  "Delete Selected"
+                                )}
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          className="rounded-full text-xs"
+                          onClick={() => {
+                            if (window.confirm(`Delete all ${searchResults.length} matching applications? This cannot be undone.`)) {
+                              deleteBySearch.mutate(searchResults.map((r) => r.application_id));
+                            }
+                          }}
+                          disabled={deleteBySearch.isPending}
+                        >
+                          {deleteBySearch.isPending ? (
+                            <>
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              Deleting...
+                            </>
+                          ) : (
+                            "Delete All Matches"
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="max-h-[300px] overflow-y-auto border rounded-lg">
+                      <div className="divide-y">
+                        {searchResults.map((result) => (
+                          <div
+                            key={result.application_id}
+                            className="p-3 hover:bg-muted/50 flex items-start gap-3"
+                          >
                             <Checkbox
-                              id="delete-orphaned-users-all"
-                              checked={deleteOrphanedUsers}
-                              onCheckedChange={(checked) => setDeleteOrphanedUsers(checked === true)}
+                              checked={selectedApplications.has(result.application_id)}
+                              onCheckedChange={(checked) => {
+                                const newSelected = new Set(selectedApplications);
+                                if (checked) {
+                                  newSelected.add(result.application_id);
+                                } else {
+                                  newSelected.delete(result.application_id);
+                                }
+                                setSelectedApplications(newSelected);
+                              }}
                               className="mt-1"
                             />
-                            <div className="space-y-1 flex-1">
-                              <Label
-                                htmlFor="delete-orphaned-users-all"
-                                className="text-sm font-medium cursor-pointer"
-                              >
-                                Also delete orphaned user accounts (Smart Deletion)
-                              </Label>
-                              <p className="text-xs text-muted-foreground">
-                                Users will only be deleted if they have no important data (refunds, maintenance requests, etc.). 
-                                Staff accounts are never deleted. This helps clean up orphaned accounts automatically.
-                              </p>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-medium text-sm">{result.student_name}</span>
+                                {result.studio_number && (
+                                  <Badge variant="outline" className="text-xs">
+                                    Studio {result.studio_number}
+                                  </Badge>
+                                )}
+                                <Badge variant="outline" className="text-xs">
+                                  {result.status}
+                                </Badge>
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-1 space-x-2">
+                                {result.student_email && <span>{result.student_email}</span>}
+                                {result.contract_name && <span>• {result.contract_name}</span>}
+                                {result.studio_grade_name && <span>• {result.studio_grade_name}</span>}
+                              </div>
                             </div>
                           </div>
-                        </div>
+                        ))}
                       </div>
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel className="rounded-full" onClick={() => setDeleteOrphanedUsers(false)}>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() => deleteAllApplications.mutate()}
-                      className="rounded-full bg-destructive hover:bg-destructive/90"
-                      disabled={deleteAllApplications.isPending}
+                    </div>
+                  </div>
+                )}
+
+                {searchResults.length === 0 && searchTerm && !isSearching && (
+                  <p className="text-sm text-muted-foreground text-center py-2">No applications found.</p>
+                )}
+              </div>
+
+              {/* Delete All and Delete by Year - Side by Side */}
+              <div className="grid gap-4 md:grid-cols-2">
+                {/* Delete All */}
+                <AlertDialog open={deleteAllOpen} onOpenChange={setDeleteAllOpen}>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="destructive"
+                      className="w-full rounded-full uppercase tracking-wide"
+                      disabled={deleteAllApplications.isPending || (appStats?.total || 0) === 0}
                     >
                       {deleteAllApplications.isPending ? (
                         <>
@@ -1139,125 +1411,188 @@ const Settings = () => {
                           Deleting...
                         </>
                       ) : (
-                        "Delete All"
-                      )}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-
-              {/* Delete by Academic Year */}
-              <AlertDialog open={deleteByYearOpen} onOpenChange={setDeleteByYearOpen}>
-                <div className="space-y-3">
-                  <Select
-                    value={selectedAcademicYear || ""}
-                    onValueChange={setSelectedAcademicYear}
-                    disabled={isLoadingYears || deleteByAcademicYear.isPending}
-                  >
-                    <SelectTrigger className="w-full rounded-full">
-                      <SelectValue placeholder="Select academic year" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {academicYears?.map((year) => {
-                        const count = appStats?.byYear[year.id] || 0;
-                        return (
-                          <SelectItem key={year.id} value={year.id}>
-                            {year.name} ({count} application{count !== 1 ? "s" : ""})
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="destructive"
-                      className="w-full rounded-full uppercase tracking-wide"
-                      disabled={
-                        !selectedAcademicYear ||
-                        deleteByAcademicYear.isPending ||
-                        (appStats?.byYear[selectedAcademicYear] || 0) === 0
-                      }
-                    >
-                      {deleteByAcademicYear.isPending ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Deleting...
-                        </>
-                      ) : (
                         <>
                           <Trash2 className="h-4 w-4 mr-2" />
-                          Delete by Academic Year
+                          Delete All Applications
                         </>
                       )}
                     </Button>
                   </AlertDialogTrigger>
-                </div>
-                <AlertDialogContent className="rounded-3xl">
-                  <AlertDialogHeader>
-                    <AlertDialogTitle className="text-destructive">
-                      Delete Applications for {academicYears?.find((y) => y.id === selectedAcademicYear)?.name}?
-                    </AlertDialogTitle>
-                    <AlertDialogDescription asChild>
-                      <div className="text-sm space-y-2">
-                        <p>
-                          This will permanently delete{" "}
-                          <strong>
-                            {appStats?.byYear[selectedAcademicYear] || 0} application(s)
-                          </strong>{" "}
-                          for this academic year and all related records including:
-                        </p>
-                        <ul className="list-disc list-inside mt-2 space-y-1">
-                          <li>Application steps and data</li>
-                          <li>Documents and signatures</li>
-                          <li>Payment records</li>
-                          <li>Partner referrals</li>
-                          <li>Studio allocations</li>
-                        </ul>
-                        <p className="mt-3 font-semibold text-destructive">This action cannot be undone.</p>
-                        <div className="mt-4 pt-4 border-t space-y-3">
-                          <div className="flex items-start space-x-3">
-                            <Checkbox
-                              id="delete-orphaned-users-year"
-                              checked={deleteOrphanedUsers}
-                              onCheckedChange={(checked) => setDeleteOrphanedUsers(checked === true)}
-                              className="mt-1"
-                            />
-                            <div className="space-y-1 flex-1">
-                              <Label
-                                htmlFor="delete-orphaned-users-year"
-                                className="text-sm font-medium cursor-pointer"
-                              >
-                                Also delete orphaned user accounts (Smart Deletion)
-                              </Label>
-                              <p className="text-xs text-muted-foreground">
-                                Users will only be deleted if they have no important data (refunds, maintenance requests, etc.). 
-                                Staff accounts are never deleted. This helps clean up orphaned accounts automatically.
-                              </p>
+                  <AlertDialogContent className="rounded-3xl">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle className="text-destructive">Delete All Applications?</AlertDialogTitle>
+                      <AlertDialogDescription asChild>
+                        <div className="text-sm space-y-2">
+                          <p>
+                            This will permanently delete <strong>all {appStats?.total || 0} application(s)</strong> and all
+                            related records including:
+                          </p>
+                          <ul className="list-disc list-inside mt-2 space-y-1">
+                            <li>Application steps and data</li>
+                            <li>Documents and signatures</li>
+                            <li>Payment records</li>
+                            <li>Partner referrals</li>
+                            <li>Studio allocations</li>
+                          </ul>
+                          <p className="mt-3 font-semibold text-destructive">This action cannot be undone.</p>
+                          <div className="mt-4 pt-4 border-t space-y-3">
+                            <div className="flex items-start space-x-3">
+                              <Checkbox
+                                id="delete-orphaned-users-all"
+                                checked={deleteOrphanedUsers}
+                                onCheckedChange={(checked) => setDeleteOrphanedUsers(checked === true)}
+                                className="mt-1"
+                              />
+                              <div className="space-y-1 flex-1">
+                                <Label
+                                  htmlFor="delete-orphaned-users-all"
+                                  className="text-sm font-medium cursor-pointer"
+                                >
+                                  Also delete orphaned user accounts (Smart Deletion)
+                                </Label>
+                                <p className="text-xs text-muted-foreground">
+                                  Users will only be deleted if they have no important data (refunds, maintenance requests, etc.). 
+                                  Staff accounts are never deleted. This helps clean up orphaned accounts automatically.
+                                </p>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel className="rounded-full" onClick={() => setDeleteOrphanedUsers(false)}>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() => selectedAcademicYear && deleteByAcademicYear.mutate(selectedAcademicYear)}
-                      className="rounded-full bg-destructive hover:bg-destructive/90"
-                      disabled={deleteByAcademicYear.isPending || !selectedAcademicYear}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel className="rounded-full" onClick={() => setDeleteOrphanedUsers(false)}>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => deleteAllApplications.mutate()}
+                        className="rounded-full bg-destructive hover:bg-destructive/90"
+                        disabled={deleteAllApplications.isPending}
+                      >
+                        {deleteAllApplications.isPending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Deleting...
+                          </>
+                        ) : (
+                          "Delete All"
+                        )}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+
+                {/* Delete by Academic Year */}
+                <AlertDialog open={deleteByYearOpen} onOpenChange={setDeleteByYearOpen}>
+                  <div className="space-y-3">
+                    <Select
+                      value={selectedAcademicYear || ""}
+                      onValueChange={setSelectedAcademicYear}
+                      disabled={isLoadingYears || deleteByAcademicYear.isPending}
                     >
-                      {deleteByAcademicYear.isPending ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Deleting...
-                        </>
-                      ) : (
-                        "Delete"
-                      )}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                      <SelectTrigger className="w-full rounded-full">
+                        <SelectValue placeholder="Select academic year" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {academicYears?.map((year) => {
+                          const count = appStats?.byYear[year.id] || 0;
+                          return (
+                            <SelectItem key={year.id} value={year.id}>
+                              {year.name} ({count} application{count !== 1 ? "s" : ""})
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="destructive"
+                        className="w-full rounded-full uppercase tracking-wide"
+                        disabled={
+                          !selectedAcademicYear ||
+                          deleteByAcademicYear.isPending ||
+                          (appStats?.byYear[selectedAcademicYear] || 0) === 0
+                        }
+                      >
+                        {deleteByAcademicYear.isPending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Deleting...
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete by Academic Year
+                          </>
+                        )}
+                      </Button>
+                    </AlertDialogTrigger>
+                  </div>
+                  <AlertDialogContent className="rounded-3xl">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle className="text-destructive">
+                        Delete Applications for {academicYears?.find((y) => y.id === selectedAcademicYear)?.name}?
+                      </AlertDialogTitle>
+                      <AlertDialogDescription asChild>
+                        <div className="text-sm space-y-2">
+                          <p>
+                            This will permanently delete{" "}
+                            <strong>
+                              {appStats?.byYear[selectedAcademicYear] || 0} application(s)
+                            </strong>{" "}
+                            for this academic year and all related records including:
+                          </p>
+                          <ul className="list-disc list-inside mt-2 space-y-1">
+                            <li>Application steps and data</li>
+                            <li>Documents and signatures</li>
+                            <li>Payment records</li>
+                            <li>Partner referrals</li>
+                            <li>Studio allocations</li>
+                          </ul>
+                          <p className="mt-3 font-semibold text-destructive">This action cannot be undone.</p>
+                          <div className="mt-4 pt-4 border-t space-y-3">
+                            <div className="flex items-start space-x-3">
+                              <Checkbox
+                                id="delete-orphaned-users-year"
+                                checked={deleteOrphanedUsers}
+                                onCheckedChange={(checked) => setDeleteOrphanedUsers(checked === true)}
+                                className="mt-1"
+                              />
+                              <div className="space-y-1 flex-1">
+                                <Label
+                                  htmlFor="delete-orphaned-users-year"
+                                  className="text-sm font-medium cursor-pointer"
+                                >
+                                  Also delete orphaned user accounts (Smart Deletion)
+                                </Label>
+                                <p className="text-xs text-muted-foreground">
+                                  Users will only be deleted if they have no important data (refunds, maintenance requests, etc.). 
+                                  Staff accounts are never deleted. This helps clean up orphaned accounts automatically.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel className="rounded-full" onClick={() => setDeleteOrphanedUsers(false)}>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => selectedAcademicYear && deleteByAcademicYear.mutate(selectedAcademicYear)}
+                        className="rounded-full bg-destructive hover:bg-destructive/90"
+                        disabled={deleteByAcademicYear.isPending || !selectedAcademicYear}
+                      >
+                        {deleteByAcademicYear.isPending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Deleting...
+                          </>
+                        ) : (
+                          "Delete"
+                        )}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
             </div>
           </CardContent>
         </Card>

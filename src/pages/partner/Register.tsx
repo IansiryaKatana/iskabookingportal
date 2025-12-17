@@ -144,15 +144,6 @@ const PartnerRegister = () => {
         if (linkError) {
           // Improved error handling: Attempt to clean up orphaned account
           console.error("Failed to link partner account:", linkError);
-          
-          // Report to Sentry if configured
-          if (import.meta.env.VITE_SENTRY_DSN) {
-            const Sentry = await import("@/utils/sentry");
-            Sentry.default.captureException(linkError, {
-              tags: { component: "PartnerRegistration" },
-              extra: { userId: session.user.id, referralCode: normalizedCode },
-            });
-          }
 
           toast({
             variant: "destructive",

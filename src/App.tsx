@@ -25,6 +25,7 @@ const AdminRequestPasswordReset = lazy(() => import("./pages/admin/RequestPasswo
 const AdminResetPassword = lazy(() => import("./pages/admin/ResetPassword"));
 const AdminContracts = lazy(() => import("./pages/admin/Contracts"));
 const AdminSettings = lazy(() => import("./pages/admin/Settings"));
+const AdminSecrets = lazy(() => import("./pages/admin/Secrets"));
 const AdminBranding = lazy(() => import("./pages/admin/Branding"));
 const AdminAcademicYears = lazy(() => import("./pages/admin/AcademicYears"));
 const AdminDocuSignTemplates = lazy(() => import("./pages/admin/DocuSignTemplates"));
@@ -247,7 +248,7 @@ const App = () => (
             <Route
               path="/admin/applications"
               element={
-                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                <ProtectedRoute allowedRoles={["staff", "superadmin", "operations_manager"]}>
                   <AdminApplications />
                 </ProtectedRoute>
               }
@@ -255,7 +256,7 @@ const App = () => (
             <Route
               path="/admin/applications/:applicationId"
               element={
-                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                <ProtectedRoute allowedRoles={["staff", "superadmin", "operations_manager"]}>
                   <AdminApplicationDetail />
                 </ProtectedRoute>
               }
@@ -468,6 +469,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
                   <AdminSettings />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/secrets"
+              element={
+                <ProtectedRoute allowedRoles={["superadmin"]}>
+                  <AdminSecrets />
                 </ProtectedRoute>
               }
             />

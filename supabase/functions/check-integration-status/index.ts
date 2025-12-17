@@ -5,6 +5,7 @@ import {
   SignJWT,
   importPKCS8,
 } from "https://esm.sh/jose@4.15.5?target=deno";
+import { getCredential } from "../_shared/get-credential.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -40,8 +41,11 @@ serve(async (req) => {
       resend: { connected: false },
     };
 
-    // Check Stripe connection
-    const stripeSecret = Deno.env.get("STRIPE_SECRET_KEY");
+    // Check Stripe connection - database-first with env var fallback
+    const stripeSecret = await getCredential("STRIPE_SECRET_KEY", {
+      supabase: supabaseClient,
+      fallback: Deno.env.get("STRIPE_SECRET_KEY") ?? "",
+    });
     if (stripeSecret) {
       try {
         const stripe = new Stripe(stripeSecret);
@@ -63,13 +67,16 @@ serve(async (req) => {
       };
     }
 
-    // Check DocuSign connection
-    const DOCUSIGN_CLIENT_ID = Deno.env.get("DOCUSIGN_CLIENT_ID");
-    const DOCUSIGN_USER_ID = Deno.env.get("DOCUSIGN_USER_ID");
-    const DOCUSIGN_ACCOUNT_ID = Deno.env.get("DOCUSIGN_ACCOUNT_ID");
-    const DOCUSIGN_BASE_URL = Deno.env.get("DOCUSIGN_BASE_URL") || "https://demo.docusign.net/restapi";
-    const DOCUSIGN_AUTH_SERVER = Deno.env.get("DOCUSIGN_AUTH_SERVER") || "https://account-d.docusign.com";
-    const DOCUSIGN_PRIVATE_KEY = (Deno.env.get("DOCUSIGN_PRIVATE_KEY") || "").replace(/\\n/g, "\n");
+    // Check DocuSign connection - database-first with env var fallback
+    const [DOCUSIGN_CLIENT_ID, DOCUSIGN_USER_ID, DOCUSIGN_ACCOUNT_ID, DOCUSIGN_BASE_URL, DOCUSIGN_AUTH_SERVER, DOCUSIGN_PRIVATE_KEY_RAW] = await Promise.all([
+      getCredential("DOCUSIGN_CLIENT_ID", { supabase: supabaseClient, fallback: Deno.env.get("DOCUSIGN_CLIENT_ID") ?? "" }),
+      getCredential("DOCUSIGN_USER_ID", { supabase: supabaseClient, fallback: Deno.env.get("DOCUSIGN_USER_ID") ?? "" }),
+      getCredential("DOCUSIGN_ACCOUNT_ID", { supabase: supabaseClient, fallback: Deno.env.get("DOCUSIGN_ACCOUNT_ID") ?? "" }),
+      getCredential("DOCUSIGN_BASE_URL", { supabase: supabaseClient, fallback: Deno.env.get("DOCUSIGN_BASE_URL") || "https://demo.docusign.net/restapi" }),
+      getCredential("DOCUSIGN_AUTH_SERVER", { supabase: supabaseClient, fallback: Deno.env.get("DOCUSIGN_AUTH_SERVER") || "https://account-d.docusign.com" }),
+      getCredential("DOCUSIGN_PRIVATE_KEY", { supabase: supabaseClient, fallback: Deno.env.get("DOCUSIGN_PRIVATE_KEY") ?? "" }),
+    ]);
+    const DOCUSIGN_PRIVATE_KEY = DOCUSIGN_PRIVATE_KEY_RAW.replace(/\\n/g, "\n");
 
     if (DOCUSIGN_CLIENT_ID && DOCUSIGN_USER_ID && DOCUSIGN_ACCOUNT_ID && DOCUSIGN_PRIVATE_KEY) {
       try {
@@ -145,22 +152,11 @@ serve(async (req) => {
       };
     }
 
-    // Check Resend connection - try database credentials first, fallback to env vars
-    let resendApiKey = Deno.env.get("RESEND_API_KEY");
-    
-    // Try to get from database credentials table
-    const { data: credentials } = await supabaseClient
-      .from("credentials")
-      .select("credential_key, credential_value")
-      .in("credential_key", ["resend_api_key", "resend_from_email"])
-      .limit(2);
-
-    if (credentials && credentials.length > 0) {
-      const credsMap = new Map(
-        credentials.map((c) => [c.credential_key, c.credential_value])
-      );
-      resendApiKey = credsMap.get("resend_api_key") || resendApiKey;
-    }
+    // Check Resend connection - database-first with env var fallback
+    const resendApiKey = await getCredential("RESEND_API_KEY", {
+      supabase: supabaseClient,
+      fallback: Deno.env.get("RESEND_API_KEY") ?? "",
+    });
 
     if (resendApiKey) {
       try {

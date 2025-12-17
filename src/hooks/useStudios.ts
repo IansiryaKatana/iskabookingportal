@@ -50,46 +50,46 @@ const reserveStudio = async ({
   applicationId,
   studentId,
 }: ReservePayload) => {
-  const expiry = new Date(Date.now() + 30 * 60 * 1000).toISOString();
-  const now = new Date().toISOString();
+  // Use atomic database function to prevent race conditions
+  const { data, error } = await supabase.rpc("reserve_studio_atomic", {
+    p_studio_id: studioId,
+    p_application_id: applicationId,
+    p_student_id: studentId,
+    p_reservation_duration_minutes: 30, // 30 minutes default
+  });
 
-  await supabase
-    .from("studios")
-    .update({
-      status: "available",
-      reservation_expires_at: null,
-      allocation: null,
-    })
-    .eq("id", studioId)
-    .eq("status", "reserved")
-    .lt("reservation_expires_at", now);
+  if (error) {
+    // Extract error message from database
+    // Supabase RPC errors can have message, details, or hint
+    const errorMessage = 
+      error.message || 
+      (error as any).details || 
+      (error as any).hint || 
+      "Failed to reserve studio";
+    throw new Error(errorMessage);
+  }
 
-  const { error: reserveError, data } = await supabase
-    .from("studios")
-    .update({
-      status: "reserved",
-      reservation_expires_at: expiry,
-      allocation: studentId,
-    })
-    .eq("id", studioId)
-    .eq("status", "available")
-    .select("id")
-    .maybeSingle();
+  if (!data) {
+    throw new Error("Failed to reserve studio - no response from server");
+  }
 
-  if (reserveError) throw reserveError;
-  if (!data) throw new Error("Studio already reserved");
+  // Check if the function returned an error (function returns JSONB with success flag)
+  if (data && typeof data === 'object' && 'success' in data && data.success === false) {
+    const errorMessage = (data as any).error || "Studio reservation failed";
+    throw new Error(errorMessage);
+  }
 
-  const { error: applicationError } = await supabase
-    .from("student_applications")
-    .update({
-      assigned_studio_id: studioId,
-      reserved_studio_expires_at: expiry,
-    })
-    .eq("id", applicationId);
+  // Return the result in the expected format
+  // Handle both old format (if function returns directly) and new JSONB format
+  if (data && typeof data === 'object' && 'studio_id' in data) {
+    return {
+      studioId: (data as any).studio_id,
+      expiry: (data as any).expiry,
+    };
+  }
 
-  if (applicationError) throw applicationError;
-
-  return { studioId, expiry };
+  // Fallback for unexpected response format
+  throw new Error("Unexpected response format from reservation service");
 };
 
 type ReleasePayload = {

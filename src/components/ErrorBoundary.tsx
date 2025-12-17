@@ -41,31 +41,6 @@ class ErrorBoundary extends Component<Props, State> {
       error,
       errorInfo,
     });
-
-    // Send to Sentry if configured (using dynamic import to avoid breaking if Sentry not available)
-    import("@/utils/sentry")
-      .then((SentryModule) => {
-        const Sentry = SentryModule.default;
-        if (Sentry && typeof Sentry.captureException === "function") {
-          Sentry.captureException(error, {
-            contexts: {
-              react: {
-                componentStack: errorInfo.componentStack,
-              },
-            },
-            tags: {
-              errorBoundary: true,
-            },
-          });
-        }
-      })
-      .catch(() => {
-        // Sentry not available or failed to load - this is fine, continue without it
-        // Only log in development to avoid console noise in production
-        if (import.meta.env.DEV) {
-          console.log("Sentry not configured - error not sent to monitoring service");
-        }
-      });
   }
 
   handleReset = () => {

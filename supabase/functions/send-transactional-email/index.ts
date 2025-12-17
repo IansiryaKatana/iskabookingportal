@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { getCredential } from "../_shared/get-credential.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -210,21 +211,17 @@ serve(async (req) => {
     console.log("=== END REPLACEMENT ===");
 
     // Get Resend credentials from database (fallback to env vars for backward compatibility)
-    const { data: credentials, error: credsError } = await supabaseClient
-      .from("credentials")
-      .select("credential_key, credential_value")
-      .in("credential_key", ["resend_api_key", "resend_from_email"]);
-
-    let resendApiKey = Deno.env.get("RESEND_API_KEY");
-    let fromEmail = Deno.env.get("RESEND_FROM_EMAIL") || "noreply@send.portal.iankatana.com";
-
-    if (credentials && credentials.length > 0) {
-      const credsMap = new Map(
-        credentials.map((c) => [c.credential_key, c.credential_value])
-      );
-      resendApiKey = credsMap.get("resend_api_key") || resendApiKey;
-      fromEmail = credsMap.get("resend_from_email") || fromEmail;
-    }
+    const [resendApiKey, fromEmailRaw] = await Promise.all([
+      getCredential("RESEND_API_KEY", {
+        supabase: supabaseClient,
+        fallback: Deno.env.get("RESEND_API_KEY") ?? "",
+      }),
+      getCredential("RESEND_FROM_EMAIL", {
+        supabase: supabaseClient,
+        fallback: Deno.env.get("RESEND_FROM_EMAIL") || "noreply@send.portal.iankatana.com",
+      }),
+    ]);
+    const fromEmail = fromEmailRaw || "noreply@send.portal.iankatana.com";
 
     if (!resendApiKey) {
       return new Response(

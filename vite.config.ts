@@ -44,10 +44,6 @@ export default defineConfig(() => ({
             if (id.includes("@stripe")) {
               return "stripe";
             }
-            // Sentry
-            if (id.includes("@sentry")) {
-              return "sentry";
-            }
             // PDF/Image libraries
             if (id.includes("jspdf") || id.includes("html2canvas")) {
               return "pdf-utils";

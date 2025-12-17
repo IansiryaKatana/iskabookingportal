@@ -2,8 +2,6 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
-// Initialize Sentry (optional - won't break if not configured)
-import "./utils/sentry";
 
 // Global error handler to suppress non-critical Stripe postMessage errors
 window.addEventListener("error", (event) => {

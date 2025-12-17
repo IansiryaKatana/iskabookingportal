@@ -1,15 +1,10 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { getCredential } from "../_shared/get-credential.ts";
 
-const stripeSecret = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
-const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET") ?? "";
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const resendApiKey = Deno.env.get("RESEND_API_KEY") ?? "";
-const staffNotificationEmail = Deno.env.get("NOTIFICATIONS_STAFF_EMAIL") ?? "";
-
-const stripe = new Stripe(stripeSecret);
 const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
 const getCompanyName = async (): Promise<string> => {
@@ -30,8 +25,19 @@ const sendEmail = async (payload: {
   subject: string;
   html: string;
 }) => {
+  // Get credentials from database with env var fallback
+  const resendApiKey = await getCredential("RESEND_API_KEY", {
+    supabase: supabaseAdmin,
+    fallback: Deno.env.get("RESEND_API_KEY") ?? "",
+  });
   if (!resendApiKey) return;
+  
   const companyName = await getCompanyName();
+  const fromEmail = await getCredential("NOTIFICATIONS_FROM_EMAIL", {
+    supabase: supabaseAdmin,
+    fallback: Deno.env.get("NOTIFICATIONS_FROM_EMAIL") ?? `${companyName} <noreply@send.portal.iankatana.com>`,
+  });
+  
   await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -39,7 +45,7 @@ const sendEmail = async (payload: {
       Authorization: `Bearer ${resendApiKey}`,
     },
     body: JSON.stringify({
-      from: Deno.env.get("NOTIFICATIONS_FROM_EMAIL") ?? `${companyName} <noreply@send.portal.iankatana.com>`,
+      from: fromEmail,
       to: payload.to,
       subject: payload.subject,
       html: payload.html,
@@ -51,6 +57,20 @@ serve(async (req) => {
   if (req.method !== "POST") {
     return new Response("Method Not Allowed", { status: 405 });
   }
+
+  // Get credentials from database with env var fallback (cached for performance)
+  const [stripeSecret, webhookSecret] = await Promise.all([
+    getCredential("STRIPE_SECRET_KEY", {
+      supabase: supabaseAdmin,
+      fallback: Deno.env.get("STRIPE_SECRET_KEY") ?? "",
+    }),
+    getCredential("STRIPE_WEBHOOK_SECRET", {
+      supabase: supabaseAdmin,
+      fallback: Deno.env.get("STRIPE_WEBHOOK_SECRET") ?? "",
+    }),
+  ]);
+
+  const stripe = new Stripe(stripeSecret);
 
   const signature = req.headers.get("stripe-signature");
   if (!signature) {
@@ -225,6 +245,12 @@ serve(async (req) => {
               }
             }
 
+            // Get staff notification email from database
+            const staffNotificationEmail = await getCredential("NOTIFICATIONS_STAFF_EMAIL", {
+              supabase: supabaseAdmin,
+              fallback: Deno.env.get("NOTIFICATIONS_STAFF_EMAIL") ?? "",
+            });
+            
             if (staffNotificationEmail && studentEmail) {
               const companyName = await getCompanyName();
               await sendEmail({

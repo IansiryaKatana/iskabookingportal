@@ -51,6 +51,7 @@ Deliver a data-driven accommodation booking experience where every studio-grade 
 - `maintenance_request_images` – storage paths for maintenance request images.
 - `utility_payments` – utility payments and operational expenses tracked per academic year (expense category, description, amount, payment date, vendor, invoice number, receipt image).
 - `student_message_reads` – tracks when a student has seen a bulk or targeted message (ensures login dialog shows only once per message).
+- `credentials` – stores API keys, webhook secrets, and other credentials with encryption support. Supports database-first approach where Edge Functions read from database with automatic fallback to environment variables. Includes fields: `credential_key`, `credential_value`, `encrypted_value`, `credential_type`, `category`, `description`, `is_encrypted`, `requires_encryption`, `sync_to_edge_function`, `last_synced_at`. Sensitive values are automatically encrypted using `pgcrypto` when `requires_encryption` is true. Only `superadmin` role can access via RLS policies.
 
 ### 3.2 Storage Buckets
 
@@ -87,7 +88,7 @@ Deliver a data-driven accommodation booking experience where every studio-grade 
 - Show contract overview, weekly price, start/end, payment plan summary.
 - Present list/grid of available studios with photos (grade gallery reused).
 - **Studio Availability Filtering**: Students only see studios where `allocation IS NULL` (Unallocated), `allocation = 'Student'`, or `allocation = {studentId UUID}` (their own temporary reservation). Studios allocated to OTA or Keyworkers are automatically excluded from student selection.
-- Selected studio reserved (set `status = 'reserved'`, `allocation = {studentId}`, `reservation_expires_at`). Scheduled job releases expired reservations.
+- **Studio Reservation** (Enhanced 2025-12-19): Selected studio reserved using atomic database function `reserve_studio_atomic()` which uses row-level locking to prevent race conditions. Multiple students can attempt to reserve the same studio simultaneously, but only one will succeed. Failed attempts receive clear error messages. Reservation sets `status = 'reserved'`, `allocation = {studentId}`, `reservation_expires_at` (30 minutes default). Scheduled job releases expired reservations.
 
 ### 4.4 Student Journey (6 Steps)
 
@@ -415,6 +416,19 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
   - **Notifications**: Control automated reminders and operational updates (upcoming instalments, document uploads)
   - **Data Management** (Development/Testing):
     - Application statistics display (total applications and breakdown by academic year)
+    - **Delete by Search** (Implemented 2025-12-17):
+      - Search for applications by student name or studio number
+      - Search input with type selector (Student Name / Studio Number)
+      - Real-time search results display with application details
+      - Preview matching applications before deletion
+      - Select individual applications via checkboxes or "Select All"
+      - Two deletion options:
+        - **Delete Selected**: Delete only checked applications
+        - **Delete All Matches**: Delete all applications matching the search criteria
+      - Results table shows: student name, email, studio number, studio grade, contract name, status, and creation date
+      - Supports partial matching (e.g., "John" matches "John Doe")
+      - Student name search checks both `profiles` table and Step 1 payload (fallback)
+      - Studio number search only finds applications with assigned studios
     - **Delete All Applications**: One-click deletion of all student applications and all related records
     - **Delete by Academic Year**: Select specific academic year and delete all applications for that year
     - **Smart Deletion Feature** (Implemented 2025-01-28):
@@ -449,6 +463,8 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
       - Hard database constraints prevent unsafe deletions
     - Database functions:
       - `delete_student_application(p_application_id UUID)`: Deletes single application and all related records
+      - `search_applications_by_criteria(p_search_term TEXT, p_search_type TEXT)`: Searches for applications by student name or studio number. Returns table with application details (application_id, student_name, student_email, studio_number, studio_grade_name, contract_name, status, created_at). Supports partial matching and case-insensitive search.
+      - `delete_applications_by_ids(p_application_ids UUID[], p_delete_orphaned_users BOOLEAN DEFAULT false)`: Deletes applications by their IDs (array), optionally with Smart Deletion. Used by search-based deletion feature.
       - `delete_all_student_applications(p_delete_orphaned_users BOOLEAN DEFAULT false)`: Deletes all applications in the system, optionally with Smart Deletion
       - `delete_student_applications_by_academic_year(p_academic_year_id UUID, p_delete_orphaned_users BOOLEAN DEFAULT false)`: Deletes applications for specific academic year, optionally with Smart Deletion
     - All functions use `SECURITY DEFINER` and disable RLS to ensure complete deletion
@@ -637,9 +653,28 @@ Each step autosaves to `student_application_steps`; global progress indicator wi
     - `get_admin_dashboard_stats(p_academic_year_id UUID)` – Dashboard statistics for admin portal
     - `verify_payment_by_receipt(p_receipt_number TEXT)` – Verifies a payment by receipt/cheque number. Returns payment details including whether it's already linked to an application. Used for student self-service payment verification in Step 5.
     - `link_payment_to_application(p_receipt_number TEXT, p_application_id UUID)` – Links an unlinked payment (identified by receipt number) to an application. Only works if payment is not already linked. Automatically updates deposit status when linking deposit payments.
+    - `reserve_studio_atomic(p_studio_id UUID, p_application_id UUID, p_student_id UUID, p_reservation_duration_minutes INTEGER)` – **Atomic studio reservation function** (Implemented 2025-12-19). Uses row-level locking (`SELECT FOR UPDATE`) to prevent race conditions when multiple students try to reserve the same studio simultaneously. Handles expired reservations automatically. Updates both studio and application in a single atomic transaction. Returns JSONB with success status, studio_id, expiry, and error details. Replaces previous non-atomic reservation logic.
+    - `link_partner_account(p_referral_code TEXT, p_user_id UUID)` – **Atomic partner account linking** (Enhanced 2025-12-19). Uses row-level locking (`SELECT FOR UPDATE`) to prevent race conditions when multiple users try to link to the same referral code simultaneously. Only one partner account can be linked to each referral code. Returns boolean success status. Idempotent operation (can be called multiple times safely).
 - **Stripe** – capture payment method, deposit, instalment payments, webhook for payment updates, refund processing.
 - **DocuSign** – agreement creation, embedded signing, status polling, signed document retrieval, envelope management.
 - **Email Service (Resend)** – transactional notifications, bulk messaging, template-based emails with variable replacement. Configured with dedicated sending domain `send.portal.urbanhub.uk` for high deliverability. Enhanced error handling with HTML response detection, detailed logging, and API key validation. See `docs/SYSTEM_IMPROVEMENTS_AND_CONFIG.md` for complete setup instructions.
+- **Concurrency & Race Condition Protection** (Implemented 2025-12-19):
+  - **Studio Reservations**: Atomic database function `reserve_studio_atomic()` uses row-level locking to prevent race conditions when multiple students try to reserve the same studio simultaneously. Ensures only one student can successfully reserve a studio at a time, with clear error messages for failed attempts.
+  - **Partner Account Registration**: Enhanced `link_partner_account()` function uses row-level locking to prevent duplicate linking when multiple users try to register with the same referral code simultaneously. Ensures only one partner account can be linked to each referral code.
+  - **Database-Level Guarantees**: All critical concurrent operations use PostgreSQL row-level locks (`SELECT FOR UPDATE`) and atomic transactions to ensure ACID compliance and prevent data corruption.
+  - **Error Handling**: Improved error messages provide clear feedback when concurrent operations fail, allowing users to take appropriate action.
+  - See `docs/CONCURRENT_USER_ANALYSIS.md` and `docs/RACE_CONDITION_FIXES_IMPLEMENTED.md` for detailed documentation.
+- **Secrets Management System** (Implemented 2025-12-18):
+  - **Database-First Architecture**: Secrets stored in `credentials` table, Edge Functions read from database with automatic fallback to environment variables
+  - **Shared Helper Function**: `getCredential()` helper in `supabase/functions/_shared/get-credential.ts` provides unified access pattern
+  - **Priority Order**: Database → Environment Variable → Fallback value
+  - **Caching**: In-memory cache (5 minutes TTL) for performance optimization
+  - **Encryption**: Automatic encryption/decryption using `pgcrypto` for sensitive values
+  - **Migration Function**: `migrate-secrets-to-database` Edge Function for automatic migration from env vars
+  - **Updated Functions**: `check-integration-status`, `stripe-webhook`, `send-transactional-email` use database-first approach
+  - **Security**: RLS policies restrict access to `superadmin` only, all operations audited
+  - **UI Management**: Full CRUD interface at `/admin/secrets` with search, pagination, and category organization
+  - **See**: `docs/SECRETS_MANAGEMENT_DATABASE_FIRST.md` for complete documentation
 
 ## 8. Branding System
 
@@ -848,7 +883,7 @@ All brand colors, fonts, and assets are centralized in the `branding_settings` t
   - Partner login page (`/partner/login`) with "Forgot password" functionality
   - Password reset page (`/partner/reset-password`) for setting initial password or resetting forgotten password
   - Admin can create partner accounts directly (automatically sends password reset email via `create-partner-account` edge function)
-  - Auto-linking of accounts to partner records via referral code
+  - **Atomic Account Linking** (Enhanced 2025-12-19): Auto-linking of accounts to partner records via referral code uses atomic database function `link_partner_account()` with row-level locking to prevent race conditions. Only one partner account can be linked to each referral code. Multiple concurrent registration attempts are handled safely with clear error messages.
   - Password reset email handling:
     - Uses Supabase `resetPasswordForEmail()` API
     - Redirects to `/partner/reset-password` with token in URL hash
@@ -1079,7 +1114,42 @@ See `COMPREHENSIVE_SYSTEM_ANALYSIS.md` for complete system assessment and gap an
 - The seeder ingests `studios-data.csv`, creating studio records linked to their grades, and sets status/alignment automatically.
 - Seeds academic year `2026/2027`, five studio grades in order Silver → Gold → Platinum → Rhodium → Rhodium Plus, grade pricing (Silver £165 PW, Gold £179 PW, Platinum £205 PW, Rhodium £231 PW, Rhodium Plus £247 PW), three payment plans (3, 4, and 10 instalments with £99 deposit), and two contracts (45-week ending 18 July 2027, 51-week ending 29 August 2027) per grade.
 
-## 15. Recent Implementations
+## 15. Secrets Management System
+- **Status:** ✅ Implemented & Deployed (2025-12-18)
+- **Overview**: Database-first secrets management system for API keys, webhook secrets, and credentials
+- **Location**: `/admin/secrets`
+- **Features**:
+  - **Database-First Approach**: Secrets stored in `credentials` table, Edge Functions read from database with automatic fallback to environment variables
+  - **Full CRUD Operations**: Create, read, update, delete secrets via admin UI
+  - **Encryption Support**: Sensitive values automatically encrypted using `pgcrypto` when `requires_encryption` is enabled
+  - **Category Organization**: Color-coded category badges (api_key=blue, webhook=purple, integration=indigo, email=cyan, url=orange, system=gray, other=slate)
+  - **Active Status**: Green "Active" badge for secrets enabled for Edge Functions
+  - **Search & Pagination**: Search by key name or description, pagination (5 secrets per page)
+  - **Migration Tool**: "Migrate from Env Vars" button to automatically migrate existing Edge Function secrets to database
+  - **Mobile Responsive**: Icon-only action buttons on mobile (same row as search), full buttons on desktop
+  - **Access Control**: Only `superadmin` role can access (RLS policies)
+  - **Audit Trail**: All changes logged to `staff_activity_logs`
+  - **Immediate Effect**: Changes take effect immediately - no sync needed
+- **Technical Implementation**:
+  - **Database**: `credentials` table with encryption support (`encrypted_value` BYTEA column)
+  - **Helper Function**: `getCredential()` in `supabase/functions/_shared/get-credential.ts`
+  - **Caching**: In-memory cache (5 minutes TTL) for performance
+  - **Priority Order**: Database → Environment Variable → Fallback value
+  - **Encryption**: Automatic encryption/decryption using `pgcrypto` with `SUPABASE_CREDENTIALS_ENCRYPTION_KEY`
+  - **Migration Function**: `migrate-secrets-to-database` Edge Function for automatic migration
+- **Updated Edge Functions**:
+  - `check-integration-status` - Stripe, DocuSign, Resend credentials
+  - `stripe-webhook` - Stripe secrets, Resend API key, notifications
+  - `send-transactional-email` - Resend credentials
+- **Files**:
+  - `supabase/migrations/20251218_enhance_credentials_for_secrets_management.sql` - Database schema and encryption functions
+  - `supabase/functions/_shared/get-credential.ts` - Shared helper function
+  - `supabase/functions/migrate-secrets-to-database/index.ts` - Migration function
+  - `src/pages/admin/Secrets.tsx` - Admin UI
+  - `docs/SECRETS_MANAGEMENT_DATABASE_FIRST.md` - Complete documentation
+- **See**: `docs/SECRETS_MANAGEMENT_DATABASE_FIRST.md` and `docs/NEXT_STEPS_AFTER_DEPLOY.md` for complete documentation
+
+## 16. Recent Implementations
 
 ### 15.1 Booking Calendar Feature
 - **Status:** ✅ Implemented & Deployed (2025-01-27), Enhanced (2025-01-30)
@@ -1277,7 +1347,7 @@ See `COMPREHENSIVE_SYSTEM_ANALYSIS.md` for complete system assessment and gap an
 - **Files**:
   - `supabase/migrations/20250130_fix_contract_payment_plans_rls.sql` - Migration fix
 
-### 15.3 Bulk Message Filters
+### 16.3 Bulk Message Filters
 - **Status:** ✅ Implemented & Deployed
 - Filter bulk messages by:
   - Contract ID
@@ -1286,7 +1356,7 @@ See `COMPREHENSIVE_SYSTEM_ANALYSIS.md` for complete system assessment and gap an
 - Filters applied before sending emails
 - See `supabase/functions/send-bulk-message/index.ts`
 
-### 15.4 DocuSign Signed Document Download
+### 16.4 DocuSign Signed Document Download
 - **Status:** ✅ Implemented & Deployed
 - Automatically fetches signed PDFs from DocuSign API
 - Saves to Supabase Storage (`contracts` bucket)
@@ -1294,7 +1364,7 @@ See `COMPREHENSIVE_SYSTEM_ANALYSIS.md` for complete system assessment and gap an
 - Returns signed URLs for immediate access
 - See `supabase/functions/download-signed-document/index.ts`
 
-### 15.5 Partner Password Reset System
+### 16.5 Partner Password Reset System
 - **Status:** ✅ Implemented & Deployed (2025-11-20)
 - **Features:**
   - **Request Password Reset Page** (`/partner/request-password-reset`):
@@ -1361,7 +1431,7 @@ See `COMPREHENSIVE_SYSTEM_ANALYSIS.md` for complete system assessment and gap an
 - **Files:**
   - `src/pages/partner/Login.tsx` - Complete redesign with two-column layout
 
-### 14.4 Production URL Configuration
+### 16.7 Production URL Configuration
 - **Status:** ✅ Implemented & Deployed (2025-11-20)
 - **Configuration:**
   - Supabase Auth Site URL: Set to production domain (`https://iskabookingportal.netlify.app`)
@@ -1377,7 +1447,7 @@ See `COMPREHENSIVE_SYSTEM_ANALYSIS.md` for complete system assessment and gap an
   - `PRODUCTION_URL_CONFIGURATION.md` - Complete configuration guide
   - `PRODUCTION_SUPABASE_SECRETS.md` - All secrets documentation
 
-### 14.5 Settings Page Integrations
+### 16.8 Settings Page Integrations
 - **Status:** ✅ Implemented & Deployed
 - Real-time connection status for:
   - Stripe (payment processing)
@@ -1386,6 +1456,41 @@ See `COMPREHENSIVE_SYSTEM_ANALYSIS.md` for complete system assessment and gap an
 - Status badges, account information, error messages
 - Refresh functionality
 - See `src/pages/admin/Settings.tsx` and `supabase/functions/check-integration-status/index.ts`
+
+### 9.13 Concurrency & Race Condition Protection ✅ IMPLEMENTED
+- **Status:** ✅ Complete
+- **Priority:** CRITICAL
+- **Implementation Date:** December 2025
+- **Migration:** `20251219_fix_concurrent_race_conditions.sql`
+- **Features:**
+  - ✅ **Atomic Studio Reservations**: Database function `reserve_studio_atomic()` prevents race conditions when multiple students try to reserve the same studio simultaneously
+    - Uses PostgreSQL row-level locking (`SELECT FOR UPDATE`)
+    - Atomic transaction ensures all-or-nothing operation
+    - Handles expired reservations automatically
+    - Returns clear error messages for failed attempts
+    - Frontend updated to use atomic function (`src/hooks/useStudios.ts`)
+  - ✅ **Atomic Partner Account Linking**: Enhanced `link_partner_account()` function prevents duplicate linking
+    - Uses row-level locking to prevent concurrent registration conflicts
+    - Only one partner account can be linked to each referral code
+    - Idempotent operation (safe to call multiple times)
+    - Clear error messages for failed attempts
+  - ✅ **Database-Level Protection**: All critical concurrent operations use database-level locks
+    - ACID compliance guaranteed
+    - No application-level race conditions
+    - Better performance under high concurrent load
+  - ✅ **Backward Compatible**: All changes maintain existing function signatures and return formats
+    - No breaking changes to existing code
+    - Improved error handling without changing API contracts
+  - ✅ **Documentation**: Comprehensive analysis and implementation docs
+    - `docs/CONCURRENT_USER_ANALYSIS.md` - Detailed analysis of concurrent user support
+    - `docs/CONCURRENT_USER_FIXES_SUMMARY.md` - Before/after scenarios
+    - `docs/RACE_CONDITION_FIXES_IMPLEMENTED.md` - Implementation details
+    - `docs/REFERRAL_CODE_CLARIFICATION.md` - Clarification of referral code use cases
+- **Impact:**
+  - System can safely handle high concurrent traffic
+  - No data corruption or orphaned records
+  - Better user experience with clear error messages
+  - Production-ready for scale
 
 ### 14.6 Partner Login Page Redesign
 - **Status:** ✅ Implemented & Deployed (2025-11-20)
