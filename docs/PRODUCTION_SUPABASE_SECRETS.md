@@ -13,15 +13,15 @@
 1. Go to **Supabase Dashboard** → **Authentication** → **URL Configuration**
 2. Set **Site URL** to:
    ```
-   https://iskabookingportal.netlify.app
+   https://portal.urbanhub.uk
    ```
 
 3. Add **Redirect URLs**:
    ```
-   https://iskabookingportal.netlify.app/**
-   https://iskabookingportal.netlify.app/portal/**
-   https://iskabookingportal.netlify.app/partner/**
-   https://iskabookingportal.netlify.app/admin/**
+   https://portal.urbanhub.uk/**
+   https://portal.urbanhub.uk/portal/**
+   https://portal.urbanhub.uk/partner/**
+   https://portal.urbanhub.uk/admin/**
    ```
 
 4. **Save** - This fixes password reset emails immediately!
@@ -85,10 +85,10 @@ Copy and paste this entire block (replace with your actual values):
 
 ```bash
 # Portal URL (CRITICAL for emails and links)
-supabase secrets set PORTAL_URL=https://iskabookingportal.netlify.app
+supabase secrets set PORTAL_URL=https://portal.urbanhub.uk
 
 # DocuSign Return URL (where users land after signing)
-supabase secrets set DOCUSIGN_SIGNING_RETURN_URL=https://iskabookingportal.netlify.app/portal
+supabase secrets set DOCUSIGN_SIGNING_RETURN_URL=https://portal.urbanhub.uk/portal
 
 # Email settings
 supabase secrets set RESEND_FROM_EMAIL=noreply@send.portal.urbanhub.uk
@@ -111,15 +111,15 @@ After setting secrets:
    - Go to Admin → Partners
    - Create a partner account
    - Check the password reset email
-   - Verify link is `https://iskabookingportal.netlify.app/...` (NOT localhost)
+   - Verify link is `https://portal.urbanhub.uk/...` (NOT localhost)
 
 2. **Test Email Links:**
    - Send a bulk message
-   - Check email - `{portal_url}` should be `https://iskabookingportal.netlify.app/portal`
+   - Check email - `{portal_url}` should be `https://portal.urbanhub.uk/portal`
 
 3. **Test DocuSign:**
    - Complete a signing flow
-   - Verify return URL is `https://iskabookingportal.netlify.app/portal`
+   - Verify return URL is `https://portal.urbanhub.uk/portal`
 
 ---
 

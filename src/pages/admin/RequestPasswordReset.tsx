@@ -57,7 +57,7 @@ const RequestPasswordReset = () => {
 
     try {
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}/admin/reset-password`,
+        redirectTo: `https://portal.urbanhub.uk/admin/reset-password`,
       });
 
       if (resetError) {

@@ -488,7 +488,7 @@ serve(async (req) => {
             const applicationId = application?.id || "";
             // Use PORTAL_URL secret if available, otherwise construct from SUPABASE_URL
             const portalUrl = Deno.env.get("PORTAL_URL") || 
-              `${Deno.env.get("SUPABASE_URL")?.replace("/rest/v1", "") || "https://iskabookingportal.netlify.app"}/portal`;
+              `${Deno.env.get("SUPABASE_URL")?.replace("/rest/v1", "") || "https://portal.urbanhub.uk"}/portal`;
 
             // Build comprehensive variables object (keys without braces for flexible replacement)
             const vars: Record<string, string> = {
@@ -639,7 +639,7 @@ serve(async (req) => {
               // Replace logo URL placeholder with actual logo URL
               const baseUrl = Deno.env.get("PORTAL_URL")?.replace("/portal", "") || 
                 Deno.env.get("SUPABASE_URL")?.replace("/rest/v1", "") || 
-                "https://iskabookingportal.netlify.app";
+                "https://portal.urbanhub.uk";
               const logoUrl = `${baseUrl}/storage/v1/object/public/studio-media/favicon.png`;
               emailBodyHtml = emailBodyHtml.replace(/{logo_url}/gi, logoUrl);
               

@@ -15,7 +15,7 @@ const config = {
   privateKey: Deno.env.get("DOCUSIGN_PRIVATE_KEY") ?? "",
   authServer: Deno.env.get("DOCUSIGN_AUTH_SERVER") ?? "https://account.docusign.com",
   signingReturnUrl:
-    Deno.env.get("DOCUSIGN_SIGNING_RETURN_URL") ?? "https://iskabookingportal.netlify.app/portal",
+    Deno.env.get("DOCUSIGN_SIGNING_RETURN_URL") ?? "https://portal.urbanhub.uk/portal",
   tenancyStudentRole: Deno.env.get("DOCUSIGN_TENANCY_STUDENT_ROLE") ?? "Tenant",
 };
 

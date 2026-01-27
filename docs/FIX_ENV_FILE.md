@@ -23,10 +23,10 @@ The error means there's a line in `.env.local` with a `/` character that's being
 1. **Unquoted URLs:**
    ```bash
    # ❌ WRONG
-   PORTAL_URL=https://iskabookingportal.netlify.app
+   PORTAL_URL=https://portal.urbanhub.uk
    
    # ✅ CORRECT (quotes optional but safer)
-   PORTAL_URL=https://iskabookingportal.netlify.app
+   PORTAL_URL=https://portal.urbanhub.uk
    ```
 
 2. **URLs in comments:**
@@ -78,8 +78,8 @@ Supabase functions use **secrets** (set via `supabase secrets set`), not `.env.l
 
 If you're deploying to production, make sure you've set the secrets:
 ```bash
-supabase secrets set PORTAL_URL=https://iskabookingportal.netlify.app
-supabase secrets set DOCUSIGN_SIGNING_RETURN_URL=https://iskabookingportal.netlify.app/portal
+supabase secrets set PORTAL_URL=https://portal.urbanhub.uk
+supabase secrets set DOCUSIGN_SIGNING_RETURN_URL=https://portal.urbanhub.uk/portal
 ```
 
 The `.env.local` parsing error won't affect production deployment if you use secrets.

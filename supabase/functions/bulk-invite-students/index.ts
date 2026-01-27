@@ -371,9 +371,9 @@ serve(async (req) => {
           type: "recovery",
           email: email.toLowerCase().trim(),
           options: {
-            redirectTo: `${portalUrl}/portal/reset-password`,
-          },
-        });
+          redirectTo: `https://portal.urbanhub.uk/portal/reset-password`,
+        },
+      });
 
         if (linkError || !linkData) {
           results.failed++;

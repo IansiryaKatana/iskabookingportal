@@ -114,18 +114,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setSession(newSession);
       updateUser(newSession?.user ?? null);
       
-      // Handle email confirmation and password reset - redirect to appropriate reset password page
-      if (event === "SIGNED_IN" && newSession?.user) {
-        const hash = window.location.hash;
-        const isConfirmation = hash && hash.includes("type=signup");
-        const isPasswordReset = hash && hash.includes("type=recovery");
-        
-        // If user just confirmed email or reset password, check if we're already on the reset-password page
-        if ((isConfirmation || isPasswordReset) && !window.location.pathname.includes("/reset-password")) {
+      const hash = window.location.hash;
+      const isConfirmation = hash && hash.includes("type=signup");
+      const isRecoveryHash = hash && hash.includes("type=recovery");
+      
+      // Handle PASSWORD_RECOVERY event or recovery hash - redirect to appropriate reset password page
+      if ((event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && isRecoveryHash)) && newSession?.user) {
+        if (!window.location.pathname.includes("/reset-password")) {
           // Check user role to determine which reset password page to use
           const { data: profileData } = await supabase
             .from("profiles")
-            .select("role")
+            .select("role, staff_subrole")
             .eq("id", newSession.user.id)
             .maybeSingle();
           
@@ -138,11 +137,39 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           
           // Redirect to appropriate reset password page based on role
           const resetPath = isStaff ? "/admin/reset-password" : "/portal/reset-password";
+          console.log(`AuthContext: Redirecting ${isStaff ? 'staff' : 'student'} to ${resetPath} for password recovery`);
+          window.location.href = `${resetPath}${hash ? `#${hash}` : ""}`;
+          return;
+        }
+      }
+
+      // Handle email confirmation - redirect to appropriate reset password page
+      if (event === "SIGNED_IN" && newSession?.user && isConfirmation) {
+        if (!window.location.pathname.includes("/reset-password")) {
+          const { data: profileData } = await supabase
+            .from("profiles")
+            .select("role, staff_subrole")
+            .eq("id", newSession.user.id)
+            .maybeSingle();
+          
+          const userRole = profileData?.role;
+          const userSubrole = profileData?.staff_subrole;
+          const isStaff = userRole === "staff" || userRole === "superadmin" || userRole === "admin" || 
+                         userRole === "operations_manager" || userRole === "reservationist" || 
+                         userRole === "accountant" || userRole === "front_desk" ||
+                         userSubrole === "maintenance_officer" || userSubrole === "housekeeper";
+          
+          const resetPath = isStaff ? "/admin/reset-password" : "/portal/reset-password";
+          console.log(`AuthContext: Redirecting ${isStaff ? 'staff' : 'student'} to ${resetPath} for signup confirmation`);
           window.location.href = `${resetPath}${hash ? `#${hash}` : ""}`;
           return;
         }
       }
       
+      // Prevent dashboard redirect if we are currently on a recovery/reset page
+      const isCurrentlyOnResetPage = window.location.pathname.includes("/reset-password");
+      if (isCurrentlyOnResetPage) return;
+
       // Only run redirect logic on SIGNED_IN event, not on TOKEN_REFRESHED or other events
       // This prevents unwanted redirects when switching tabs or window regains focus
       if (newSession?.user && event === "SIGNED_IN") {
@@ -278,7 +305,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           body: {
             email: email,
             type: "signup",
-            redirect_to: `${window.location.origin}/portal/reset-password`,
+            redirect_to: `https://portal.urbanhub.uk/portal/reset-password`,
           },
         });
       } catch (emailError) {

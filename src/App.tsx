@@ -128,7 +128,6 @@ const App = () => (
             <Route path="/portal/login" element={<PortalAuth />} />
             <Route path="/portal/request-password-reset" element={<PortalRequestPasswordReset />} />
             <Route path="/portal/reset-password" element={<PortalResetPassword />} />
-                  <Route path="/portal/reset-password" element={<PortalResetPassword />} />
                   <Route
                     path="/portal"
                     element={

@@ -19,8 +19,8 @@ const ALLOWED_ORIGINS = [
   "https://portal.urbanhub.uk",
   "https://www.portal.urbanhub.uk",
   // Netlify
-  "https://iskabookingportal.netlify.app",
-  "https://www.iskabookingportal.netlify.app",
+  "https://portal.urbanhub.uk",
+  "https://www.portal.urbanhub.uk",
   // Development
   "http://localhost:8080",
   "http://localhost:5173",

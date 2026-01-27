@@ -198,7 +198,7 @@ serve(async (req) => {
         // If already linked to this partner, just send password reset
         if (existingUserProfile.partner_id === partner_id && existingUserProfile.role === "partner") {
           // Send password reset email (this actually sends the email)
-          const portalUrl = Deno.env.get("PORTAL_URL") || "https://iskabookingportal.netlify.app";
+          const portalUrl = Deno.env.get("PORTAL_URL") || "https://portal.urbanhub.uk";
           const { error: resetError } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
             redirectTo: `${portalUrl}/partner/reset-password`,
           });
@@ -339,7 +339,7 @@ serve(async (req) => {
     // Send password reset email (this actually sends the email)
     const portalUrl = Deno.env.get("PORTAL_URL") || "https://iskabookingportal.netlify.app";
     const { error: resetError } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
-      redirectTo: `${portalUrl}/partner/reset-password`,
+      redirectTo: `https://portal.urbanhub.uk/partner/reset-password`,
     });
 
     if (resetError) {

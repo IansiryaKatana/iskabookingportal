@@ -13,15 +13,15 @@
 1. Go to **Supabase Dashboard** → **Authentication** → **URL Configuration**
 2. Set **Site URL** to:
    ```
-   https://iskabookingportal.netlify.app
+   https://portal.urbanhub.uk
    ```
 
 3. Add **Redirect URLs** (one per line):
    ```
-   https://iskabookingportal.netlify.app/**
-   https://iskabookingportal.netlify.app/portal/**
-   https://iskabookingportal.netlify.app/partner/**
-   https://iskabookingportal.netlify.app/admin/**
+   https://portal.urbanhub.uk/**
+   https://portal.urbanhub.uk/portal/**
+   https://portal.urbanhub.uk/partner/**
+   https://portal.urbanhub.uk/admin/**
    ```
 
 4. Click **Save**
@@ -36,10 +36,10 @@ Run these commands (replace `portal.urbanhub.uk` with your actual domain):
 
 ```bash
 # Portal URL for email links
-supabase secrets set PORTAL_URL=https://iskabookingportal.netlify.app
+supabase secrets set PORTAL_URL=https://portal.urbanhub.uk
 
 # DocuSign return URL
-supabase secrets set DOCUSIGN_SIGNING_RETURN_URL=https://iskabookingportal.netlify.app/portal
+supabase secrets set DOCUSIGN_SIGNING_RETURN_URL=https://portal.urbanhub.uk/portal
 
 # Email from address (must be verified in Resend)
 supabase secrets set RESEND_FROM_EMAIL=noreply@send.portal.urbanhub.uk
@@ -62,7 +62,7 @@ supabase functions deploy docusign-recipient-view
 1. Go to Admin → Partners
 2. Create a partner account
 3. Check the password reset email
-4. Verify the link is `https://iskabookingportal.netlify.app/...` (NOT localhost)
+4. Verify the link is `https://portal.urbanhub.uk/...` (NOT localhost)
 5. Click the link and verify it works
 
 ---
@@ -73,8 +73,8 @@ If you want to set all production secrets at once:
 
 ```bash
 # Portal/Frontend
-supabase secrets set PORTAL_URL=https://iskabookingportal.netlify.app
-supabase secrets set DOCUSIGN_SIGNING_RETURN_URL=https://iskabookingportal.netlify.app/portal
+supabase secrets set PORTAL_URL=https://portal.urbanhub.uk
+supabase secrets set DOCUSIGN_SIGNING_RETURN_URL=https://portal.urbanhub.uk/portal
 
 # Email
 supabase secrets set RESEND_FROM_EMAIL=noreply@send.portal.urbanhub.uk
