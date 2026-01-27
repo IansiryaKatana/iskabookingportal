@@ -99,7 +99,7 @@ serve(async (req) => {
       credentials.map((c) => [c.credential_key, c.credential_value])
     );
     const resendApiKey = credsMap.get("resend_api_key");
-    const fromEmail = credsMap.get("resend_from_email") || "noreply@send.portal.iankatana.com";
+    const fromEmail = credsMap.get("resend_from_email") || "noreply@send.portal.urbanhub.uk";
 
     if (!resendApiKey) {
       return new Response(

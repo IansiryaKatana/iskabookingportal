@@ -16,7 +16,7 @@ This document outlines the comprehensive plan to implement custom email branding
 ### 2. Current Email System
 - Uses Resend API via `send-transactional-email` Edge Function
 - Hardcoded `RESEND_API_KEY` and `RESEND_FROM_EMAIL` in environment variables
-- Default domain: `send.portal.urbanhub.uk` (needs update to `send.portal.iankatana.com`)
+- Default domain: `send.portal.urbanhub.uk`
 - Supabase sends confirmation emails automatically (needs to be disabled)
 
 ### 3. Database Structure
@@ -70,7 +70,7 @@ CREATE POLICY "Staff can manage credentials" ON public.credentials
 INSERT INTO public.credentials (credential_key, credential_value, credential_type, description)
 VALUES 
   ('resend_api_key', '', 'api_key', 'Resend API key for sending emails'),
-  ('resend_from_email', 'noreply@send.portal.iankatana.com', 'email', 'Default from email address for Resend')
+  ('resend_from_email', 'noreply@send.portal.urbanhub.uk', 'email', 'Default from email address for Resend')
 ON CONFLICT (credential_key) DO NOTHING;
 ```
 
@@ -235,7 +235,7 @@ Update default template generation to use `{company_name}` variable instead of h
 
 #### 5.1 Update Domain References
 **Files to update**:
-1. `supabase/functions/send-transactional-email/index.ts`: `send.portal.urbanhub.uk` → `send.portal.iankatana.com`
+1. `supabase/functions/send-transactional-email/index.ts`: `send.portal.urbanhub.uk`
 2. `supabase/functions/send-bulk-message/index.ts`: Same update
 3. Default credential value in migration
 
@@ -253,10 +253,10 @@ Update default template generation to use `{company_name}` variable instead of h
 
 #### 6.2 Update Auth Configuration
 **In Supabase Dashboard**:
-- Set `Site URL` to `https://portal.iankatana.com`
+- Set `Site URL` to `https://portal.urbanhub.uk`
 - Set `Redirect URLs` to include:
-  - `https://portal.iankatana.com/portal/reset-password`
-  - `https://portal.iankatana.com/portal/login`
+  - `https://portal.urbanhub.uk/portal/reset-password`
+  - `https://portal.urbanhub.uk/portal/login`
 
 ### Phase 7: Email Template Creation
 
@@ -298,7 +298,7 @@ Update default template generation to use `{company_name}` variable instead of h
 **Options**:
 - **A) Hardcoded fallback "Urban Hub"** (safe, but defeats purpose)
 - **B) Require company name to be set** (strict, better UX)
-- **C) Use domain-based fallback** (e.g., "Portal" from portal.iankatana.com)
+- **C) Use domain-based fallback** (e.g., "Portal" from portal.urbanhub.uk)
 
 **Recommendation**: **Option A** for now, with admin warning if not set.
 
@@ -316,7 +316,7 @@ Update default template generation to use `{company_name}` variable instead of h
 
 ### Question 5: Resend Domain Verification
 **Action Required**: 
-- Verify `send.portal.iankatana.com` domain in Resend dashboard
+- Verify `send.portal.urbanhub.uk` domain in Resend dashboard
 - Update DNS records if needed
 - Test email delivery
 
@@ -373,7 +373,7 @@ Update default template generation to use `{company_name}` variable instead of h
 - ✅ All emails use branding from database
 - ✅ Credentials configurable via UI
 - ✅ Confirmation emails work end-to-end
-- ✅ Domain updated to `send.portal.iankatana.com`
+- ✅ Domain updated to `send.portal.urbanhub.uk`
 
 ## Next Steps
 

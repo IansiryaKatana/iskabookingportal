@@ -397,7 +397,7 @@ serve(async (req) => {
           .in("credential_key", ["resend_api_key", "resend_from_email"]);
 
         let resendApiKey = Deno.env.get("RESEND_API_KEY");
-        let fromEmail = Deno.env.get("RESEND_FROM_EMAIL") || "noreply@send.portal.iankatana.com";
+        let fromEmail = Deno.env.get("RESEND_FROM_EMAIL") || "noreply@send.portal.urbanhub.uk";
 
         if (credentials && credentials.length > 0) {
           const credsMap = new Map(

@@ -57,8 +57,8 @@ CREATE POLICY "Staff can manage credentials" ON public.credentials
 
 INSERT INTO public.credentials (credential_key, credential_value, credential_type, description)
 VALUES 
-  ('resend_api_key', 're_gcj52aRb_2eypA1m8LimGo7bUZPfYdSSC', 'api_key', 'Resend API key for sending emails'),
-  ('resend_from_email', 'noreply@send.portal.iankatana.com', 'email', 'Default from email address for Resend')
+  ('resend_api_key', 're_QiLhghEG_FHp26MBCGesENqo21SopdVHw', 'api_key', 'Resend API key for sending emails'),
+  ('resend_from_email', 'noreply@send.portal.urbanhub.uk', 'email', 'Default from email address for Resend')
 ON CONFLICT (credential_key) DO UPDATE 
 SET credential_value = EXCLUDED.credential_value, updated_at = NOW();
 

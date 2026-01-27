@@ -214,10 +214,10 @@ serve(async (req) => {
       }),
       getCredential("RESEND_FROM_EMAIL", {
         supabase: supabaseClient,
-        fallback: Deno.env.get("RESEND_FROM_EMAIL") || "noreply@send.portal.iankatana.com",
+        fallback: Deno.env.get("RESEND_FROM_EMAIL") || "noreply@send.portal.urbanhub.uk",
       }),
     ]);
-    const fromEmail = fromEmailRaw || "noreply@send.portal.iankatana.com";
+    const fromEmail = fromEmailRaw || "noreply@send.portal.urbanhub.uk";
 
     if (!resendApiKey) {
       return new Response(

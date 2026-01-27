@@ -1029,7 +1029,7 @@ const Settings = () => {
                   <Input
                     id="resend_from_email"
                     type="email"
-                    placeholder="noreply@send.portal.iankatana.com"
+                    placeholder="noreply@send.portal.urbanhub.uk"
                     value={credentials.resend_from_email}
                     onChange={(e) => handleCredentialsChange("resend_from_email", e.target.value)}
                     className="text-sm md:text-base"

@@ -35,7 +35,7 @@ const sendEmail = async (payload: {
   const companyName = await getCompanyName();
   const fromEmail = await getCredential("NOTIFICATIONS_FROM_EMAIL", {
     supabase: supabaseAdmin,
-    fallback: Deno.env.get("NOTIFICATIONS_FROM_EMAIL") ?? `${companyName} <noreply@send.portal.iankatana.com>`,
+    fallback: Deno.env.get("NOTIFICATIONS_FROM_EMAIL") ?? `${companyName} <noreply@send.portal.urbanhub.uk>`,
   });
   
   await fetch("https://api.resend.com/emails", {
