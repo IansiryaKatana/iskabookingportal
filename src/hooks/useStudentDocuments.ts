@@ -14,7 +14,7 @@ type StudentDocument = DocumentRow & {
 const fetchDocuments = async (
   applicationId: string,
 ): Promise<StudentDocument[]> => {
-  console.log(`Fetching documents for application ${applicationId}`);
+  if (import.meta.env.DEV) console.log(`Fetching documents for application ${applicationId}`);
   const { data: documents, error } = await supabase
     .from("student_documents")
     .select("*")
@@ -26,7 +26,7 @@ const fetchDocuments = async (
     throw error;
   }
   
-  console.log(`Found ${documents?.length || 0} documents for application ${applicationId}`, documents);
+  if (import.meta.env.DEV) console.log(`Found ${documents?.length || 0} documents for application ${applicationId}`, documents);
   if (!documents || documents.length === 0) return [];
 
   // Fetch profiles for verified_by users

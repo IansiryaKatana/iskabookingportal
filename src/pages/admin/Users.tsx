@@ -122,7 +122,7 @@ const Users = () => {
         filteredProfiles = filteredProfiles.filter((p) => p.role !== "superadmin");
       }
 
-      console.log("Fetched profiles:", filteredProfiles?.length || 0, filteredProfiles);
+      if (import.meta.env.DEV) console.log("Fetched profiles:", filteredProfiles?.length || 0, filteredProfiles);
 
       // Fetch user emails from auth via Edge Function
       const profileIds = filteredProfiles.map((p) => p.id);
@@ -130,28 +130,27 @@ const Users = () => {
 
           if (profileIds.length > 0) {
         try {
-          console.log("Fetching emails for user IDs:", profileIds);
+          if (import.meta.env.DEV) console.log("Fetching emails for user IDs:", profileIds);
           const { data, error: emailError } = await supabase.functions.invoke("get-user-emails", {
             body: { userIds: profileIds },
           });
 
           if (emailError) {
             console.error("Edge function error:", emailError);
-            console.error("Error details:", JSON.stringify(emailError, null, 2));
           }
 
           // Handle response structure - edge function returns { emails: { userId: email } }
           if (data) {
-            console.log("Edge function response data (full):", JSON.stringify(data, null, 2));
+            if (import.meta.env.DEV) console.log("Edge function response data (full):", JSON.stringify(data, null, 2));
             
             // Check if data is a string that needs parsing
             let parsedData = data;
             if (typeof data === 'string') {
               try {
                 parsedData = JSON.parse(data);
-                console.log("Parsed string response:", parsedData);
+                if (import.meta.env.DEV) console.log("Parsed string response:", parsedData);
               } catch (parseErr) {
-                console.warn("Failed to parse data as JSON:", parseErr);
+                // Silently handle parse error
               }
             }
             
@@ -159,22 +158,17 @@ const Users = () => {
             if (parsedData && parsedData.emails) {
               if (typeof parsedData.emails === 'object' && !Array.isArray(parsedData.emails)) {
                 emailMap = parsedData.emails;
-                console.log("Successfully parsed email map:", emailMap);
-                console.log("Email map has", Object.keys(emailMap).length, "entries");
-                Object.entries(emailMap).forEach(([userId, email]) => {
-                  console.log(`  ${userId} -> ${email}`);
-                });
-              } else {
-                console.warn("emails property is not an object:", typeof parsedData.emails, parsedData.emails);
+                if (import.meta.env.DEV) {
+                  console.log("Successfully parsed email map:", emailMap);
+                  console.log("Email map has", Object.keys(emailMap).length, "entries");
+                  Object.entries(emailMap).forEach(([userId, email]) => {
+                    console.log(`  ${userId} -> ${email}`);
+                  });
+                }
               }
             } else if (parsedData?.error) {
               console.error("Edge function returned error:", parsedData.error);
-            } else {
-              console.warn("Unexpected response structure:", parsedData);
-              console.warn("Available keys:", Object.keys(parsedData || {}));
             }
-          } else {
-            console.warn("No data returned from edge function");
           }
         } catch (err) {
           console.error("Exception while fetching user emails:", err);
@@ -348,7 +342,7 @@ const Users = () => {
         throw new Error("You do not have permission to assign this role");
       }
 
-      console.log("Updating user via edge function:", { userId, firstName, lastName, role, staffSubrole });
+      if (import.meta.env.DEV) console.log("Updating user via edge function:", { userId, firstName, lastName, role, staffSubrole });
       
       // Call Edge Function to update user (bypasses RLS)
       const { data, error } = await supabase.functions.invoke("manage-users", {
@@ -377,7 +371,7 @@ const Users = () => {
         throw new Error(data?.message || "Failed to update user");
       }
 
-      console.log("User updated successfully:", data);
+      if (import.meta.env.DEV) console.log("User updated successfully:", data);
     },
     onSuccess: () => {
       // Invalidate and refetch
@@ -460,7 +454,7 @@ const Users = () => {
   });
 
   const handleEdit = (user: typeof users[0]) => {
-    console.log("Editing user:", user);
+    if (import.meta.env.DEV) console.log("Editing user:", user);
     setSelectedUser(user);
     setEditFirstName(user.first_name || "");
     setEditLastName(user.last_name || "");
@@ -471,7 +465,7 @@ const Users = () => {
 
   // Debug: Log when edit dialog opens
   useEffect(() => {
-    if (editDialogOpen && selectedUser) {
+    if (import.meta.env.DEV && editDialogOpen && selectedUser) {
       console.log("Edit dialog opened with user:", selectedUser);
       console.log("Edit form values:", {
         firstName: editFirstName,

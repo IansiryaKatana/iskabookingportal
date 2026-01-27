@@ -122,13 +122,13 @@ const Documents = () => {
             className="rounded-full uppercase tracking-wide gap-2"
             onClick={async () => {
               // First, let's check what's actually in the database
-              console.log("Checking existing documents in database...");
+              if (import.meta.env.DEV) console.log("Checking existing documents in database...");
               for (const app of allApplications) {
                 const { data: existing, error: checkError } = await supabase
                   .from("student_documents")
                   .select("*")
                   .eq("application_id", app.id);
-                console.log(`Application ${app.id} - Documents in DB:`, existing, "Error:", checkError);
+                if (import.meta.env.DEV) console.log(`Application ${app.id} - Documents in DB:`, existing, "Error:", checkError);
               }
               // Sync documents from steps payload to table for all applications
               if (!user) return;
@@ -179,7 +179,7 @@ const Documents = () => {
 
                   if (step4?.payload && typeof step4.payload === "object") {
                     const payload = step4.payload as Record<string, unknown>;
-                    console.log("Step 4 payload:", payload);
+                    if (import.meta.env.DEV) console.log("Step 4 payload:", payload);
                     
                     if (payload.passport_document && typeof payload.passport_document === "string" && payload.passport_document.trim()) {
                       foundInSteps++;
@@ -229,7 +229,7 @@ const Documents = () => {
 
                   if (step5?.payload && typeof step5.payload === "object") {
                     const payload = step5.payload as Record<string, unknown>;
-                    console.log("Step 5 payload:", payload);
+                    if (import.meta.env.DEV) console.log("Step 5 payload:", payload);
                     
                     if (payload.utility_bill && typeof payload.utility_bill === "string" && payload.utility_bill.trim()) {
                       foundInSteps++;
@@ -280,7 +280,7 @@ const Documents = () => {
                     const existingPaths = new Set(existingDocs?.map(d => d.storage_path) || []);
                     const newDocuments = documentsToSave.filter(doc => !existingPaths.has(doc.storage_path));
 
-                    console.log(`Application ${app.id}: Found ${documentsToSave.length} docs in steps, ${existingPaths.size} already in DB, ${newDocuments.length} new to sync`);
+                    if (import.meta.env.DEV) console.log(`Application ${app.id}: Found ${documentsToSave.length} docs in steps, ${existingPaths.size} already in DB, ${newDocuments.length} new to sync`);
 
                     if (newDocuments.length > 0) {
                       const { error: insertError } = await supabase

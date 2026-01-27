@@ -51,7 +51,7 @@ const AuditLogs = () => {
         throw error;
       }
 
-      console.log("📊 Fetched audit logs:", {
+      if (import.meta.env.DEV) console.log("📊 Fetched audit logs:", {
         count: logs?.length || 0,
         actionFilter,
         staffFilter,
@@ -115,13 +115,15 @@ const AuditLogs = () => {
   const exportToCSV = () => {
     if (!logs || logs.length === 0) return;
 
-    const headers = ["Date", "Staff Member", "Action", "Entity Type", "Entity ID", "Details"];
+    const headers = ["Date", "Time", "Staff Member", "Action", "Entity Type", "Entity ID", "IP Address", "Details"];
     const rows = logs.map((log) => [
-      format(new Date(log.created_at), "yyyy-MM-dd HH:mm:ss"),
+      format(new Date(log.created_at), "yyyy-MM-dd"),
+      format(new Date(log.created_at), "HH:mm:ss"),
       log.staff ? `${log.staff.first_name} ${log.staff.last_name}` : "—",
       log.action,
       log.entity_type || "—",
       log.entity_id || "—",
+      (log as any).ip_address || "—",
       log.payload ? JSON.stringify(log.payload) : "—",
     ]);
 
@@ -283,6 +285,7 @@ const AuditLogs = () => {
                     <TableHead className="font-semibold">Staff Member</TableHead>
                     <TableHead className="font-semibold">Action</TableHead>
                     <TableHead className="font-semibold">Entity</TableHead>
+                    <TableHead className="font-semibold">IP Address</TableHead>
                     <TableHead className="font-semibold">Details</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -309,6 +312,11 @@ const AuditLogs = () => {
                             </p>
                           )}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        <p className="text-sm font-mono text-muted-foreground">
+                          {(log as any).ip_address || "—"}
+                        </p>
                       </TableCell>
                       <TableCell>
                         <p className="text-sm text-muted-foreground max-w-md truncate">

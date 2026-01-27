@@ -1,10 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
+import { getClientIP } from "./getClientIP";
 
 export interface AuditLogParams {
   action: string;
   entityType?: string;
   entityId?: string;
   payload?: Record<string, any>;
+  ipAddress?: string | null; // Optional - will be fetched automatically if not provided
 }
 
 /**
@@ -54,12 +56,20 @@ export async function logActivity(params: AuditLogParams): Promise<void> {
       });
     }
 
+    // Get IP address if not provided
+    let ipAddress = params.ipAddress;
+    if (ipAddress === undefined) {
+      // Only fetch IP if not explicitly provided (to avoid unnecessary API calls)
+      ipAddress = await getClientIP();
+    }
+
     // Try using the database function first (if it exists), otherwise fall back to direct insert
     const { data: rpcResult, error: functionError } = await supabase.rpc('log_staff_activity', {
       p_action: params.action,
       p_entity_type: params.entityType || null,
       p_entity_id: params.entityId || null,
       p_payload: params.payload || null,
+      p_ip_address: ipAddress || null,
     });
 
     // If function doesn't exist or fails, fall back to direct insert
@@ -83,6 +93,7 @@ export async function logActivity(params: AuditLogParams): Promise<void> {
           entity_type: params.entityType || null,
           entity_id: params.entityId || null,
           payload: params.payload || null,
+          ip_address: ipAddress || null,
         })
         .select()
         .single();

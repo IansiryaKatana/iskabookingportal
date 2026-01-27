@@ -418,7 +418,7 @@ const Branding = () => {
         const title = (item.title || "").trim();
         const url = (item.url || "").trim();
 
-        console.log("Processing item:", { 
+        if (import.meta.env.DEV) console.log("Processing item:", { 
           id: item.id, 
           title: `"${title}"`, 
           titleLength: title.length,
@@ -431,20 +431,20 @@ const Branding = () => {
         // An item is considered empty if both title and URL are empty or just "#"
         const isEmpty = title.length === 0 && (url.length === 0 || url === "#");
         if (isEmpty) {
-          console.log("Skipping empty item:", item.id);
+          if (import.meta.env.DEV) console.log("Skipping empty item:", item.id);
           continue;
         }
 
         // Validate that items with data have a title (URL can be "#" as placeholder)
         if (title.length === 0) {
           incompleteItems.push(`Item with URL "${url || 'empty'}" is missing a title`);
-          console.log("Item missing title:", item.id);
+          if (import.meta.env.DEV) console.log("Item missing title:", item.id);
           continue;
         }
 
         // URL can be "#" as a placeholder, so we only require title
         // Item is valid - include it regardless of active status
-        console.log("Adding valid item:", item.id, title);
+        if (import.meta.env.DEV) console.log("Adding valid item:", item.id, title);
         validItems.push(item);
       }
 

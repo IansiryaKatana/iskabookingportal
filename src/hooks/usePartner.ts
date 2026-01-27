@@ -70,7 +70,7 @@ export const usePartnerReferrals = () => {
         return [];
       }
 
-      console.log("[usePartnerReferrals] Fetching referrals for partner", partnerId);
+      if (import.meta.env.DEV) console.log("[usePartnerReferrals] Fetching referrals for partner", partnerId);
 
       const { data, error } = await supabase.rpc("get_partner_referral_payment_summary", {
         p_partner_id: partnerId,
@@ -87,7 +87,7 @@ export const usePartnerReferrals = () => {
         throw error;
       }
 
-      console.log("[usePartnerReferrals] Received referrals", {
+      if (import.meta.env.DEV) console.log("[usePartnerReferrals] Received referrals", {
         count: data?.length || 0,
         partnerId,
         referrals: data,

@@ -4,13 +4,7 @@ import {
   SignJWT,
   importPKCS8,
 } from "https://esm.sh/jose@4.15.5?target=deno";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST,OPTIONS",
-};
+import { getCorsHeaders, handleCorsPrelight } from "../_shared/cors.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -222,9 +216,10 @@ const updateApplicationStatus = async (applicationId: string) => {
 };
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  const corsHeaders = getCorsHeaders(req);
+  
+  const preflightResponse = handleCorsPrelight(req);
+  if (preflightResponse) return preflightResponse;
 
   try {
     const { applicationId, envelopeIds } = await req.json();

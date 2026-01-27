@@ -4,21 +4,13 @@ import {
   SignJWT,
   importPKCS8,
 } from "https://esm.sh/jose@4.15.5?target=deno";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST,OPTIONS",
-};
+import { getCorsHeaders, handleCorsPrelight } from "../_shared/cors.ts";
 
 serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === "OPTIONS") {
-    return new Response("ok", {
-      status: 200,
-      headers: corsHeaders,
-    });
-  }
+  const corsHeaders = getCorsHeaders(req);
+  
+  const preflightResponse = handleCorsPrelight(req);
+  if (preflightResponse) return preflightResponse;
 
   try {
     // Parse request body first, before any other operations

@@ -216,7 +216,7 @@ const Partners = () => {
         throw new Error("Invalid email format");
       }
 
-      console.log("Creating partner account with:", { partnerId, email, firstName, lastName });
+      if (import.meta.env.DEV) console.log("Creating partner account with:", { partnerId, email, firstName, lastName });
 
       // Use fetch directly to get better error handling
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL;

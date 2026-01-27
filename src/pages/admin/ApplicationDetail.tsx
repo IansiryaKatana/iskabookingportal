@@ -889,7 +889,7 @@ const ApplicationDetail = () => {
                                 try {
                                   const decodedPath = decodeURIComponent(doc.storage_path);
                                   if (decodedPath !== doc.storage_path) {
-                                    console.log("Trying decoded path:", decodedPath);
+                                    if (import.meta.env.DEV) console.log("Trying decoded path:", decodedPath);
                                     const result = await supabase.storage
                                       .from("documents")
                                       .createSignedUrl(decodedPath, 3600);

@@ -92,7 +92,7 @@ export const useActiveCashbackCampaigns = (
         campaigns = data || [];
       }
 
-      console.log("Fetched campaigns:", {
+      if (import.meta.env.DEV) console.log("Fetched campaigns:", {
         count: campaigns.length,
         academicYearId,
         today,

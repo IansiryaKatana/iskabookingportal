@@ -75,7 +75,7 @@ const StripePaymentForm = ({
 
       // Verify payment intent status
       if (paymentIntent) {
-        console.log("Payment intent received:", {
+        if (import.meta.env.DEV) console.log("Payment intent received:", {
           id: paymentIntent.id,
           status: paymentIntent.status,
           amount: paymentIntent.amount,
@@ -83,7 +83,7 @@ const StripePaymentForm = ({
         });
         
         if (paymentIntent.status === "succeeded") {
-          console.log("Payment succeeded:", paymentIntent.id);
+          if (import.meta.env.DEV) console.log("Payment succeeded:", paymentIntent.id);
           toast.success("Payment successful!");
           onSuccess(paymentIntent.id);
         } else if (paymentIntent.status === "processing") {
@@ -93,7 +93,7 @@ const StripePaymentForm = ({
             try {
               const retrieved = await stripe.retrievePaymentIntent(paymentIntent.client_secret!);
               if (retrieved.paymentIntent?.status === "succeeded") {
-                console.log("Payment confirmed as succeeded:", retrieved.paymentIntent.id);
+                if (import.meta.env.DEV) console.log("Payment confirmed as succeeded:", retrieved.paymentIntent.id);
                 toast.success("Payment successful!");
                 onSuccess(retrieved.paymentIntent.id);
               } else {

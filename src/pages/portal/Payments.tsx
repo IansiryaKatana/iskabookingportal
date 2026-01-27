@@ -122,7 +122,7 @@ const Payments = () => {
     amount: number,
     label: string,
   ) => {
-    console.log("Creating instalment payment intent:", {
+    if (import.meta.env.DEV) console.log("Creating instalment payment intent:", {
       applicationId,
       instalmentId,
       amount,
@@ -150,7 +150,7 @@ const Payments = () => {
         throw new Error("No client secret returned");
       }
 
-      console.log("Payment intent created successfully:", {
+      if (import.meta.env.DEV) console.log("Payment intent created successfully:", {
         clientSecret: data.clientSecret?.substring(0, 20) + "...",
         amount: data.amount,
         currency: data.currency,
@@ -182,7 +182,7 @@ const Payments = () => {
   const handlePaymentSuccess = async (paymentIntentId?: string) => {
     const currentInstalment = selectedInstalment;
     
-    console.log("Payment success callback triggered", { 
+    if (import.meta.env.DEV) console.log("Payment success callback triggered", { 
       instalmentId: currentInstalment?.instalmentId,
       paymentIntentId,
       applicationId: currentInstalment?.applicationId,
@@ -193,7 +193,7 @@ const Payments = () => {
       setPaidInstalmentIds((prev) => {
         const newSet = new Set(prev);
         newSet.add(currentInstalment.instalmentId);
-        console.log("Added instalment to paid set:", currentInstalment.instalmentId);
+        if (import.meta.env.DEV) console.log("Added instalment to paid set:", currentInstalment.instalmentId);
         return newSet;
       });
     }
@@ -211,7 +211,7 @@ const Payments = () => {
     let syncSucceeded = false;
     if (currentInstalment && paymentIntentId) {
       try {
-        console.log("Immediately syncing payment from Stripe:", paymentIntentId);
+        if (import.meta.env.DEV) console.log("Immediately syncing payment from Stripe:", paymentIntentId);
         const { data: syncData, error: syncError } = await supabase.functions.invoke("sync-payment-from-stripe", {
           body: {
             applicationId: currentInstalment.applicationId,
@@ -221,16 +221,14 @@ const Payments = () => {
 
         if (syncError) {
           console.error("Sync error:", syncError);
-          // Log the full error for debugging
-          console.error("Sync error details:", JSON.stringify(syncError, null, 2));
         } else if (syncData?.synced && syncData.synced > 0) {
-          console.log("Payment synced successfully:", syncData);
+          if (import.meta.env.DEV) console.log("Payment synced successfully:", syncData);
           syncSucceeded = true;
         } else if (syncData?.synced === 0) {
-          console.log("Payment already exists in database (synced: 0)");
+          if (import.meta.env.DEV) console.log("Payment already exists in database (synced: 0)");
           syncSucceeded = true; // Already exists is fine
         } else {
-          console.log("Sync response:", syncData);
+          if (import.meta.env.DEV) console.log("Sync response:", syncData);
         }
       } catch (syncErr) {
         console.error("Error syncing payment:", syncErr);
@@ -259,12 +257,12 @@ const Payments = () => {
         queryClient.refetchQueries({ queryKey: ["payment-summary", currentInstalment.applicationId] }),
       ]);
       
-      console.log("Refetch results:", refetchResults);
+      if (import.meta.env.DEV) console.log("Refetch results:", refetchResults);
       
       // If sync didn't work, try again after a short delay (webhook might have processed it)
       if (!syncSucceeded && paymentIntentId) {
         setTimeout(async () => {
-          console.log("Retrying sync after delay:", paymentIntentId);
+          if (import.meta.env.DEV) console.log("Retrying sync after delay:", paymentIntentId);
           try {
             const { data: syncData, error: syncError } = await supabase.functions.invoke("sync-payment-from-stripe", {
               body: {
@@ -276,7 +274,7 @@ const Payments = () => {
             if (syncError) {
               console.error("Retry sync error:", syncError);
             } else if (syncData?.synced && syncData.synced > 0) {
-              console.log("Payment synced on retry:", syncData);
+              if (import.meta.env.DEV) console.log("Payment synced on retry:", syncData);
               // Refetch again after successful sync
               queryClient.invalidateQueries({ queryKey: ["unified-payments", currentInstalment.applicationId] });
               queryClient.invalidateQueries({ queryKey: ["payment-summary", currentInstalment.applicationId] });

@@ -41,7 +41,7 @@ export const useCanRebook = (contractId: string | undefined) => {
         throw error;
       }
       
-      console.log("Rebooking check result:", { data, firstItem: data?.[0] });
+      if (import.meta.env.DEV) console.log("Rebooking check result:", { data, firstItem: data?.[0] });
       return (data?.[0] || null) as RebookingCheck | null;
     },
     enabled: !!user?.id && !!contractId,

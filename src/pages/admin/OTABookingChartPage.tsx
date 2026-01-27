@@ -62,13 +62,13 @@ const getStatusColor = (status: string) => {
   return colors[status] || "bg-gray-300";
 };
 
-// Channel color mapping
+// Channel color mapping - using official brand colors
 const getChannelColor = (channel: string) => {
   const colors: Record<string, string> = {
-    airbnb: "bg-rose-500",
-    booking: "bg-blue-600",
-    agoda: "bg-red-600",
-    expedia: "bg-blue-500",
+    airbnb: "bg-[#FF5A5F]", // Airbnb brand red/coral
+    booking: "bg-[#003580]", // Booking.com brand dark blue
+    agoda: "bg-[#5392F9]", // Agoda brand blue
+    expedia: "bg-[#FFCC00] text-black", // Expedia brand yellow
     other: "bg-gray-500",
   };
   return colors[channel] || "bg-gray-300";
@@ -388,18 +388,19 @@ const OTABookingChartPage = () => {
                           >
                             {dayBookings.length > 0 ? (
                               <div className="space-y-0.5 h-full">
-                                {dayBookings.slice(0, 2).map((booking, idx) => (
-                                  <div
-                                    key={booking.id}
-                                    className={cn(
-                                      "h-3 md:h-4 rounded text-[8px] md:text-[10px] flex items-center justify-center text-white font-medium overflow-hidden",
-                                      getStatusColor(booking.status),
-                                      idx === 0 && dayBookings.length > 1 && "border-b border-white/30"
-                                    )}
-                                  >
-                                    {booking.channel === "airbnb" ? "A" : booking.channel === "booking" ? "B" : booking.channel === "agoda" ? "G" : booking.channel === "expedia" ? "E" : "O"}
-                                  </div>
-                                ))}
+{dayBookings.slice(0, 2).map((booking, idx) => (
+                                                  <div
+                                                    key={booking.id}
+                                                    className={cn(
+                                                      "h-3 md:h-4 rounded text-[8px] md:text-[10px] flex items-center justify-center font-bold overflow-hidden",
+                                                      getChannelColor(booking.channel),
+                                                      booking.channel !== "expedia" && "text-white",
+                                                      idx === 0 && dayBookings.length > 1 && "border-b border-white/30"
+                                                    )}
+                                                  >
+                                                    {booking.channel === "airbnb" ? "A" : booking.channel === "booking" ? "B" : booking.channel === "agoda" ? "G" : booking.channel === "expedia" ? "E" : "O"}
+                                                  </div>
+                                                ))}
                                 {dayBookings.length > 2 && (
                                   <div className="text-[8px] text-center text-muted-foreground">
                                     +{dayBookings.length - 2}
@@ -451,13 +452,28 @@ const OTABookingChartPage = () => {
                 </div>
               </div>
               <div>
-                <div className="text-xs font-semibold mb-2">Channel Letters</div>
+                <div className="text-xs font-semibold mb-2">Channel Colors</div>
                 <div className="space-y-1 text-xs">
-                  <div>A = Airbnb</div>
-                  <div>B = Booking.com</div>
-                  <div>G = Agoda</div>
-                  <div>E = Expedia</div>
-                  <div>O = Other</div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-[#FF5A5F] rounded flex items-center justify-center text-white text-[8px] font-bold">A</div>
+                    <span>Airbnb</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-[#003580] rounded flex items-center justify-center text-white text-[8px] font-bold">B</div>
+                    <span>Booking.com</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-[#5392F9] rounded flex items-center justify-center text-white text-[8px] font-bold">G</div>
+                    <span>Agoda</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-[#FFCC00] rounded flex items-center justify-center text-black text-[8px] font-bold">E</div>
+                    <span>Expedia</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-gray-500 rounded flex items-center justify-center text-white text-[8px] font-bold">O</div>
+                    <span>Other</span>
+                  </div>
                 </div>
               </div>
               <div>
@@ -554,10 +570,10 @@ const OTABookingDetails = ({ booking }: { booking: OTABookingWithRelations }) =>
 
   const getChannelBadge = (channel: string) => {
     const configs: Record<string, { className: string; label: string }> = {
-      airbnb: { className: "bg-rose-500 text-white", label: "Airbnb" },
-      booking: { className: "bg-blue-600 text-white", label: "Booking.com" },
-      agoda: { className: "bg-red-600 text-white", label: "Agoda" },
-      expedia: { className: "bg-blue-500 text-white", label: "Expedia" },
+      airbnb: { className: "bg-[#FF5A5F] text-white", label: "Airbnb" },
+      booking: { className: "bg-[#003580] text-white", label: "Booking.com" },
+      agoda: { className: "bg-[#5392F9] text-white", label: "Agoda" },
+      expedia: { className: "bg-[#FFCC00] text-black", label: "Expedia" },
       other: { className: "bg-gray-500 text-white", label: "Other" },
     };
     const config = configs[channel] || configs.other;

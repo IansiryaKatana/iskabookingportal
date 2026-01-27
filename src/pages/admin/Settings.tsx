@@ -404,7 +404,7 @@ const Settings = () => {
       const details = data?.details || [];
       const userDetails = data?.user_details || [];
       
-      console.log("Delete all applications result:", { 
+      if (import.meta.env.DEV) console.log("Delete all applications result:", { 
         data, 
         deletedCount, 
         usersDeleted,
