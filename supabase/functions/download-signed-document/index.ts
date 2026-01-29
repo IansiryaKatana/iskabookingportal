@@ -4,16 +4,30 @@ import {
   SignJWT,
   importPKCS8,
 } from "https://esm.sh/jose@4.15.5?target=deno";
-import { getCorsHeaders, handleCorsPrelight } from "../_shared/cors.ts";
+import { getCorsHeaders, handleCorsPrelight, staticCorsHeaders } from "../_shared/cors.ts";
+
+const jsonHeaders = { "Content-Type": "application/json" as const };
 
 serve(async (req) => {
-  const corsHeaders = getCorsHeaders(req);
-  
+  let corsHeaders: Record<string, string>;
+  try {
+    corsHeaders = getCorsHeaders(req);
+  } catch {
+    corsHeaders = staticCorsHeaders;
+  }
+
   const preflightResponse = handleCorsPrelight(req);
   if (preflightResponse) return preflightResponse;
 
   try {
-    // Parse request body first, before any other operations
+    // Require POST with body
+    if (req.method !== "POST") {
+      return new Response(JSON.stringify({ error: "Method Not Allowed" }), {
+        status: 405,
+        headers: { ...corsHeaders, ...jsonHeaders },
+      });
+    }
+
     let requestBody: { envelopeId?: string; applicationId?: string };
     try {
       requestBody = await req.json();
@@ -21,10 +35,7 @@ serve(async (req) => {
       console.error("Error parsing request body:", parseError);
       return new Response(
         JSON.stringify({ error: "Invalid JSON in request body" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
+        { status: 400, headers: { ...corsHeaders, ...jsonHeaders } },
       );
     }
 
@@ -33,47 +44,108 @@ serve(async (req) => {
     if (!envelopeId || !applicationId) {
       return new Response(
         JSON.stringify({ error: "envelopeId and applicationId are required" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
+        { status: 400, headers: { ...corsHeaders, ...jsonHeaders } },
       );
     }
 
-    // Create Supabase client
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      },
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const supabaseClient = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
 
-    // Get DocuSign credentials
+    // Auth: require JWT and verify user can access this application
+    const authHeader = req.headers.get("Authorization");
+    const token = authHeader?.replace(/^Bearer\s+/i, "").trim();
+    if (!token) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, ...jsonHeaders },
+      });
+    }
+    const {
+      data: { user },
+      error: userError,
+    } = await supabaseClient.auth.getUser(token);
+    if (userError || !user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, ...jsonHeaders },
+      });
+    }
+
+    const { data: application, error: appError } = await supabaseClient
+      .from("student_applications")
+      .select("id, student_id")
+      .eq("id", applicationId)
+      .single();
+    if (appError || !application) {
+      return new Response(JSON.stringify({ error: "Application not found" }), {
+        status: 404,
+        headers: { ...corsHeaders, ...jsonHeaders },
+      });
+    }
+    const { data: profile } = await supabaseClient
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+    const isStaff = profile?.role === "staff" || profile?.role === "superadmin";
+    const isOwner = application.student_id === user.id;
+    if (!isOwner && !isStaff) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403,
+        headers: { ...corsHeaders, ...jsonHeaders },
+      });
+    }
+
+    // DocuSign config (same production defaults as docusign-envelopes)
     const DOCUSIGN_CLIENT_ID = Deno.env.get("DOCUSIGN_CLIENT_ID");
     const DOCUSIGN_USER_ID = Deno.env.get("DOCUSIGN_USER_ID");
     const DOCUSIGN_ACCOUNT_ID = Deno.env.get("DOCUSIGN_ACCOUNT_ID");
-    const DOCUSIGN_BASE_URL = Deno.env.get("DOCUSIGN_BASE_URL") || "https://demo.docusign.net/restapi";
-    const DOCUSIGN_AUTH_SERVER = Deno.env.get("DOCUSIGN_AUTH_SERVER") || "https://account-d.docusign.com";
-    const DOCUSIGN_PRIVATE_KEY = (Deno.env.get("DOCUSIGN_PRIVATE_KEY") || "").replace(/\\n/g, "\n");
+    const rawBaseUrl = Deno.env.get("DOCUSIGN_BASE_URL") ?? "";
+    const DOCUSIGN_BASE_URL = rawBaseUrl
+      ? rawBaseUrl.replace(/\/$/, "")
+      : "https://demo.docusign.net/restapi";
+    const rawAuthServer = Deno.env.get("DOCUSIGN_AUTH_SERVER") ?? "";
+    const DOCUSIGN_AUTH_SERVER = rawAuthServer
+      ? rawAuthServer.replace(/\/$/, "")
+      : "https://account-d.docusign.com";
+    let DOCUSIGN_PRIVATE_KEY = (Deno.env.get("DOCUSIGN_PRIVATE_KEY") ?? "").replace(/\\n/g, "\n");
+    DOCUSIGN_PRIVATE_KEY = DOCUSIGN_PRIVATE_KEY.replace(/\r\n/g, "\n");
 
     if (!DOCUSIGN_CLIENT_ID || !DOCUSIGN_USER_ID || !DOCUSIGN_ACCOUNT_ID || !DOCUSIGN_PRIVATE_KEY) {
-      throw new Error("DocuSign credentials not fully configured");
+      return new Response(
+        JSON.stringify({ error: "DocuSign credentials not fully configured" }),
+        { status: 500, headers: { ...corsHeaders, ...jsonHeaders } },
+      );
     }
 
-    // Get envelope data
     const { data: envelope, error: envelopeError } = await supabaseClient
       .from("docusign_envelopes")
-      .select("*")
+      .select("id, envelope_id, application_id, status, signed_document_path")
       .eq("envelope_id", envelopeId)
       .eq("application_id", applicationId)
       .single();
 
     if (envelopeError || !envelope) {
-      throw new Error("Envelope not found");
+      console.error("Envelope not found", { envelopeId, applicationId, envelopeError });
+      return new Response(
+        JSON.stringify({ error: "Envelope not found for this application" }),
+        { status: 404, headers: { ...corsHeaders, ...jsonHeaders } },
+      );
+    }
+
+    // Only completed envelopes have a combined document in DocuSign
+    const status = (envelope.status ?? "").toLowerCase();
+    if (status !== "completed") {
+      return new Response(
+        JSON.stringify({
+          error: "Document is only available after signing is complete",
+          status: envelope.status,
+        }),
+        { status: 400, headers: { ...corsHeaders, ...jsonHeaders } },
+      );
     }
 
     // Check if document is already downloaded
@@ -125,7 +197,11 @@ serve(async (req) => {
 
     if (!authResponse.ok) {
       const authError = await authResponse.text();
-      throw new Error(`DocuSign auth failed: ${authError}`);
+      console.error("DocuSign auth failed in download-signed-document", authError);
+      return new Response(
+        JSON.stringify({ error: "DocuSign authentication failed" }),
+        { status: 502, headers: { ...corsHeaders, ...jsonHeaders } },
+      );
     }
 
     const tokenPayload = await authResponse.json();
@@ -145,13 +221,32 @@ serve(async (req) => {
 
     if (!documentsResponse.ok) {
       const errorText = await documentsResponse.text();
-      throw new Error(`Failed to download document from DocuSign: ${errorText}`);
+      console.error("DocuSign documents/combined failed", {
+        status: documentsResponse.status,
+        envelopeId,
+        body: errorText,
+      });
+      return new Response(
+        JSON.stringify({
+          error: "Failed to download document from DocuSign",
+          details: errorText.slice(0, 200),
+        }),
+        { status: 502, headers: { ...corsHeaders, ...jsonHeaders } },
+      );
     }
 
     // Get the PDF as a blob
     const pdfBlob = await documentsResponse.blob();
     const pdfArrayBuffer = await pdfBlob.arrayBuffer();
-    const pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(pdfArrayBuffer)));
+    // Encode to base64 in chunks to avoid "Maximum call stack size exceeded" on large PDFs
+    const bytes = new Uint8Array(pdfArrayBuffer);
+    const chunkSize = 8192;
+    let binary = "";
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+      binary += String.fromCharCode.apply(null, Array.from(chunk));
+    }
+    const pdfBase64 = btoa(binary);
 
     // Save to Supabase Storage
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -213,14 +308,12 @@ serve(async (req) => {
       },
     );
   } catch (error) {
+    const message = error instanceof Error ? error.message : "Internal server error";
     console.error("Error in download-signed-document function:", error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
+    return new Response(JSON.stringify({ error: message }), {
+      status: 500,
+      headers: { ...corsHeaders, ...jsonHeaders },
+    });
   }
 });
 

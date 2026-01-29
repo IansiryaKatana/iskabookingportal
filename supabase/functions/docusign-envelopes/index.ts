@@ -4,7 +4,7 @@ import {
   SignJWT,
   importPKCS8,
 } from "https://esm.sh/jose@4.15.5?target=deno";
-import { getCorsHeaders, handleCorsPrelight } from "../_shared/cors.ts";
+import { getCorsHeaders, staticCorsHeaders } from "../_shared/cors.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -33,12 +33,14 @@ const config = {
   guarantorRole: Deno.env.get("DOCUSIGN_GUARANTOR_ROLE") ?? "Guarantor",
 };
 
+// Normalize Windows newlines if user pasted via some editors.
+config.privateKey = config.privateKey.replace(/\r\n/g, "\n");
+
 const requiredConfig = [
   ["DOCUSIGN_CLIENT_ID", config.clientId],
   ["DOCUSIGN_USER_ID", config.userId],
   ["DOCUSIGN_ACCOUNT_ID", config.accountId],
   ["DOCUSIGN_PRIVATE_KEY", config.privateKey],
-  ["DOCUSIGN_TENANCY_TEMPLATE_ID", config.tenancyTemplateId],
   ["STRIPE_SECRET_KEY", stripeSecret],
 ];
 
@@ -49,13 +51,87 @@ const missing = requiredConfig
 let cachedToken: { token: string; expiresAt: number } | null = null;
 let importedKey: CryptoKey | null = null;
 
+type DocusignErrorHint = { error_code: string; hint: string };
+
+const getDocusignErrorHint = (message: string): DocusignErrorHint | null => {
+  const msg = message ?? "";
+  if (msg.includes("no_valid_keys_or_signatures")) {
+    return {
+      error_code: "DOCUSIGN_JWT_SIGNATURE_INVALID",
+      hint:
+        "DocuSign rejected the JWT signature. Ensure the RSA keypair belongs to the SAME production app (Integration Key) and that DOCUSIGN_PRIVATE_KEY is the matching private key (PKCS#8). If you generated a new RSA keypair in DocuSign, update DOCUSIGN_PRIVATE_KEY accordingly and retry.",
+    };
+  }
+  if (msg.includes("consent_required")) {
+    return {
+      error_code: "DOCUSIGN_CONSENT_REQUIRED",
+      hint:
+        "JWT consent is not granted for this user/app in production. Open the consent URL (scope=signature impersonation) while logged into production DocuSign as the impersonation user and click Allow.",
+    };
+  }
+  if (msg.includes("TEMPLATE_ID_INVALID")) {
+    return {
+      error_code: "DOCUSIGN_TEMPLATE_ID_INVALID",
+      hint:
+        "The template ID is not valid for the account/base URL being used. Confirm DOCUSIGN_BASE_URL matches your Account Base URI (EU: https://eu.docusign.net/restapi) and the template ID exists in that same account.",
+    };
+  }
+  return null;
+};
+
+const summarizePem = (pem: string) => {
+  const trimmed = (pem ?? "").trim();
+  const lines = trimmed ? trimmed.split("\n") : [];
+  const firstLine = lines[0] ?? "";
+  const lastLine = lines[lines.length - 1] ?? "";
+  const format = /BEGIN\s+PRIVATE\s+KEY/.test(firstLine)
+    ? "pkcs8"
+    : /BEGIN\s+RSA\s+PRIVATE\s+KEY/.test(firstLine)
+    ? "pkcs1"
+    : "unknown";
+  return {
+    format,
+    firstLine,
+    lastLine,
+    lineCount: lines.length,
+    charCount: trimmed.length,
+  };
+};
+
+const sha256Hex = async (input: string): Promise<string> => {
+  const data = new TextEncoder().encode(input);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+};
+
+const PKCS8_CONVERT_MSG =
+  "DocuSign gives PKCS#1 (BEGIN RSA PRIVATE KEY). Convert to PKCS#8: " +
+  "openssl pkcs8 -topk8 -nocrypt -inform PEM -outform PEM -in key.pem -out key_pkcs8.pem. " +
+  "Use the PKCS#8 output as DOCUSIGN_PRIVATE_KEY.";
+
+async function loadPrivateKey(): Promise<CryptoKey> {
+  try {
+    return await importPKCS8(config.privateKey, "RS256");
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const isPkcs8Err = /pkcs8|PKCS#8/i.test(msg);
+    const isPkcs1Key = /BEGIN\s+RSA\s+PRIVATE\s+KEY/i.test(config.privateKey);
+    if (isPkcs8Err && isPkcs1Key) {
+      throw new Error(`Invalid DOCUSIGN_PRIVATE_KEY format. ${PKCS8_CONVERT_MSG}`);
+    }
+    throw e;
+  }
+}
+
 const getAccessToken = async () => {
   if (cachedToken && cachedToken.expiresAt > Date.now()) {
     return cachedToken.token;
   }
 
   if (!importedKey) {
-    importedKey = await importPKCS8(config.privateKey, "RS256");
+    importedKey = await loadPrivateKey();
   }
 
   const audienceHost = config.authServer.replace(/^https?:\/\//, "");
@@ -83,6 +159,38 @@ const getAccessToken = async () => {
 
   if (!response.ok) {
     const details = await response.text();
+    let parsed: unknown = null;
+    try {
+      parsed = JSON.parse(details);
+    } catch {
+      // ignore
+    }
+
+    // High-signal diagnostics (no secrets, no JWT printed)
+    const pemSummary = summarizePem(config.privateKey);
+    let keyHash = "unavailable";
+    try {
+      // Hash of the PKCS#8/PKCS#1 string (non-reversible) to help confirm which key is deployed
+      keyHash = (await sha256Hex(config.privateKey)).slice(0, 16);
+    } catch {
+      // ignore
+    }
+    console.error("DocuSign auth failed (debug)", {
+      status: response.status,
+      detailsRaw: details,
+      detailsJson: parsed,
+      authServer: config.authServer,
+      tokenUrl: `${config.authServer}/oauth/token`,
+      audienceHost,
+      clientIdSuffix: config.clientId.slice(-6),
+      userIdSuffix: config.userId.slice(-6),
+      accountIdSuffix: config.accountId.slice(-6),
+      privateKey: {
+        ...pemSummary,
+        sha256Prefix: keyHash,
+      },
+    });
+
     throw new Error(`DocuSign auth failed: ${details}`);
   }
 
@@ -210,13 +318,21 @@ const retrievePaymentIntent = async (id: string) => {
 };
 
 serve(async (req) => {
-  const corsHeaders = getCorsHeaders(req);
-  
-  const preflightResponse = handleCorsPrelight(req);
-  if (preflightResponse) return preflightResponse;
+  // Handle OPTIONS first with static CORS so we never fail preflight (Supabase CORS fix)
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: staticCorsHeaders });
+  }
+
+  let corsHeaders: Record<string, string>;
+  try {
+    corsHeaders = getCorsHeaders(req);
+  } catch {
+    corsHeaders = staticCorsHeaders;
+  }
+
+  let body: { applicationId?: string } = {};
 
   // Wrap everything in try-catch to ensure CORS headers are always returned
-  // This outer catch ensures CORS headers are always present, even for unexpected errors
   try {
     if (req.method !== "POST") {
       return new Response("Method Not Allowed", {
@@ -243,8 +359,6 @@ serve(async (req) => {
       });
     }
 
-    let body: { applicationId?: string } = {};
-    
     // Parse body first to catch JSON errors early
     try {
       body = await req.json();
@@ -948,8 +1062,19 @@ serve(async (req) => {
       .maybeSingle();
     const companyName = brandingData?.setting_value || "StudentStaySolutions";
 
+    const tenancyTemplateId = String(tenancyTemplate.template_id ?? "").trim();
+    console.info("DocuSign environment check", {
+      authServer: config.authServer,
+      baseUrl: config.baseUrl,
+      isProductionAuth: config.authServer === "https://account.docusign.com",
+      isProductionApi: !config.baseUrl.includes("demo"),
+      accountIdSuffix: config.accountId.slice(-6),
+      tenancyTemplateId,
+      academicYearId,
+    });
+
     const tenancyBody = {
-      templateId: tenancyTemplate.template_id,
+      templateId: tenancyTemplateId,
       status: "sent",
       emailSubject: `${companyName} tenancy agreement – ${
         application.contract?.studio_grade?.name ?? companyName
@@ -1042,7 +1167,7 @@ serve(async (req) => {
           },
         ];
         const guarantorBody = {
-          templateId: guarantorTemplate.template_id,
+          templateId: String(guarantorTemplate.template_id ?? "").trim(),
           status: "sent",
           emailSubject: `${companyName} guarantor agreement – ${studentName || "Student"}`,
           templateRoles: guarantorRecipients,
@@ -1084,22 +1209,24 @@ serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error) {
-    // Catch-all to ensure CORS headers are always present
-    // This catches any errors that occur in the function
+    // Catch-all: always return CORS (use staticCorsHeaders so 500 never lacks CORS)
     console.error("DocuSign integration error:", {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
       applicationId: body?.applicationId,
     });
     const message = error instanceof Error ? error.message : "Server error";
+    const hint = getDocusignErrorHint(message);
     return new Response(JSON.stringify({ 
       error: message,
+      error_code: hint?.error_code,
+      hint: hint?.hint,
       details: process.env.NODE_ENV === "development" 
         ? (error instanceof Error ? error.stack : String(error))
         : undefined,
     }), {
       status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...staticCorsHeaders, "Content-Type": "application/json" },
     });
   }
 });

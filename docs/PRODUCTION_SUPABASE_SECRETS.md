@@ -57,6 +57,7 @@ supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_... (from production webhook)
 supabase secrets set DOCUSIGN_CLIENT_ID=your-client-id
 supabase secrets set DOCUSIGN_USER_ID=your-user-id
 supabase secrets set DOCUSIGN_ACCOUNT_ID=your-account-id
+# PKCS#8 required! Convert DocuSign PKCS#1: openssl pkcs8 -topk8 -nocrypt -inform PEM -outform PEM -in key.pem -out key_pkcs8.pem
 supabase secrets set DOCUSIGN_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 supabase secrets set DOCUSIGN_AUTH_SERVER=https://account.docusign.com (NOT account-d)
 supabase secrets set DOCUSIGN_BASE_URL=https://www.docusign.net/restapi (NOT demo)

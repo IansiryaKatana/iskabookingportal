@@ -67,14 +67,58 @@ serve(async (req) => {
       });
     }
 
+    // Get manual payment instalments for this application (staff-recorded or approved student requests)
+    const { data: manualPayments } = await supabaseAdmin
+      .from("manual_payments")
+      .select("instalment_id, amount, payment_date, created_at")
+      .eq("application_id", applicationId)
+      .eq("payment_type", "instalment")
+      .not("instalment_id", "is", null);
+
+    const manualInstalmentIds = new Set<string>();
+    const manualPaidAtByInstalment = new Map<string, string>();
+    const manualAmountByInstalment = new Map<string, number>();
+    if (manualPayments) {
+      manualPayments.forEach((mp: { instalment_id: string; amount: number; payment_date?: string; created_at?: string }) => {
+        if (mp.instalment_id) {
+          manualInstalmentIds.add(mp.instalment_id);
+          manualPaidAtByInstalment.set(mp.instalment_id, mp.payment_date || mp.created_at || new Date().toISOString());
+          manualAmountByInstalment.set(mp.instalment_id, Number(mp.amount));
+        }
+      });
+    }
+
+    // Approved student requests: manual_payment may have instalment_id = null (payment_plan_installments case).
+    // The request's instalment_id is what the student UI uses, so add those so the instalment shows as Paid.
+    const { data: approvedRequests } = await supabaseAdmin
+      .from("manual_payment_requests")
+      .select("instalment_id, amount, reviewed_at, submitted_at")
+      .eq("application_id", applicationId)
+      .eq("status", "approved");
+    if (approvedRequests) {
+      approvedRequests.forEach((r: { instalment_id: string; amount: number; reviewed_at?: string; submitted_at?: string }) => {
+        if (r.instalment_id) {
+          manualInstalmentIds.add(r.instalment_id);
+          if (!manualPaidAtByInstalment.has(r.instalment_id)) {
+            manualPaidAtByInstalment.set(r.instalment_id, r.reviewed_at || r.submitted_at || new Date().toISOString());
+            manualAmountByInstalment.set(r.instalment_id, Number(r.amount));
+          }
+        }
+      });
+    }
+
+    // If no Stripe customer, return only manual-paid instalments
     if (!application.stripe_customer_id) {
-      return new Response(
-        JSON.stringify({ paidInstalments: [] }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 200,
-        },
-      );
+      const paidInstalments = Array.from(manualInstalmentIds).map((instalmentId) => ({
+        instalmentId,
+        paymentIntentId: null as string | null,
+        amount: manualAmountByInstalment.get(instalmentId) ?? 0,
+        paidAt: manualPaidAtByInstalment.get(instalmentId) ?? new Date().toISOString(),
+      }));
+      return new Response(JSON.stringify({ paidInstalments }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
     }
 
     // Get all payment intents for this customer with instalment type
@@ -172,7 +216,7 @@ serve(async (req) => {
         paidAt: new Date(pi.created * 1000).toISOString(),
       }));
     
-    // Add any instalment IDs from database that aren't in Stripe results
+    // Add any instalment IDs from stripe_payments that aren't in Stripe API results
     dbInstalmentIds.forEach((instalmentId) => {
       const alreadyIncluded = paidInstalments.some(pi => pi.instalmentId === instalmentId);
       if (!alreadyIncluded) {
@@ -187,8 +231,21 @@ serve(async (req) => {
         }
       }
     });
-    
-    console.log(`Found ${paidInstalments.length} paid instalments (${allPaymentIntents.length} from Stripe, ${dbInstalmentIds.size} from DB):`, paidInstalments);
+
+    // Add manual payment instalments (staff-recorded or approved student requests)
+    manualInstalmentIds.forEach((instalmentId) => {
+      const alreadyIncluded = paidInstalments.some(pi => pi.instalmentId === instalmentId);
+      if (!alreadyIncluded) {
+        paidInstalments.push({
+          instalmentId,
+          paymentIntentId: null,
+          amount: manualAmountByInstalment.get(instalmentId) ?? 0,
+          paidAt: manualPaidAtByInstalment.get(instalmentId) ?? new Date().toISOString(),
+        });
+      }
+    });
+
+    console.log(`Found ${paidInstalments.length} paid instalments (Stripe + stripe_payments + manual_payments):`, paidInstalments.length);
 
     return new Response(
       JSON.stringify({ paidInstalments }),

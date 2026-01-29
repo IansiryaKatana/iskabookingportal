@@ -89,6 +89,7 @@ const PortalDocuments = lazy(() => import("./pages/portal/Documents"));
 const PortalProfile = lazy(() => import("./pages/portal/Profile"));
 const PortalNotifications = lazy(() => import("./pages/portal/Notifications"));
 const PortalMaintenance = lazy(() => import("./pages/portal/Maintenance"));
+const DocuSignConsentCallback = lazy(() => import("./pages/DocuSignConsentCallback"));
 
 // Loading fallback component
 const PageLoader = () => (
@@ -621,6 +622,9 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+
+            {/* DocuSign JWT consent redirect – no 404 after granting consent */}
+            <Route path="/api/docusign/oauth/callback" element={<DocuSignConsentCallback />} />
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

@@ -1,15 +1,23 @@
-import { useMemo, useEffect, useState } from "react";
+import { useMemo, useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, CreditCard, Calendar, CheckCircle2, Clock, AlertCircle, Gift, FileDown } from "lucide-react";
+import { Loader2, CreditCard, Calendar, CheckCircle2, Clock, AlertCircle, Gift, FileDown, Banknote, XCircle, History } from "lucide-react";
 import PortalLayout from "@/components/portal/PortalLayout";
 import { useStudentApplicationsList } from "@/hooks/useStudentApplications";
 import { useStudentPayments } from "@/hooks/useStudentPayments";
 import { useApplicationCashback } from "@/hooks/useCashback";
 import { usePaymentSummary, useUnifiedPayments } from "@/hooks/useUnifiedPayments";
+import { useManualPaymentRequests, useManualPaymentRequestHistory } from "@/hooks/useManualPaymentRequests";
+import ManualPaymentRequestDialog from "@/components/portal/ManualPaymentRequestDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -40,6 +48,7 @@ const Payments = () => {
   const [creatingIntentId, setCreatingIntentId] = useState<string | null>(null);
   const [paidInstalmentIds, setPaidInstalmentIds] = useState<Set<string>>(new Set());
   const [isLoadingPaidStatus, setIsLoadingPaidStatus] = useState(true);
+  const isInitialPaidStatusLoad = useRef(true);
 
   const {
     data: applications,
@@ -63,10 +72,13 @@ const Payments = () => {
       
       if (confirmedApplications.length === 0) {
         setIsLoadingPaidStatus(false);
+        isInitialPaidStatusLoad.current = false;
         return;
       }
-      
-      setIsLoadingPaidStatus(true);
+      // Only show full-page loading on first load; polling runs in background without skeleton
+      if (isInitialPaidStatusLoad.current) {
+        setIsLoadingPaidStatus(true);
+      }
       const allPaidIds = new Set<string>();
       
       // Fetch all payment statuses in parallel for faster loading
@@ -87,7 +99,17 @@ const Payments = () => {
       });
 
       await Promise.all(paymentStatusPromises);
-      
+
+      // Refetch payment summary and unified payments so remaining balance updates
+      // (e.g. after admin approves manual payment). Use refetchQueries so data updates
+      // even when paid IDs didn't change (invalidate alone only marks stale; refetch runs now).
+      confirmedApplications.forEach((app) => {
+        queryClient.invalidateQueries({ queryKey: ["payment-summary", app.id] });
+        queryClient.invalidateQueries({ queryKey: ["unified-payments", app.id] });
+        void queryClient.refetchQueries({ queryKey: ["payment-summary", app.id] });
+        void queryClient.refetchQueries({ queryKey: ["unified-payments", app.id] });
+      });
+
       // Only update state if data actually changed (invisible polling)
       // This prevents unnecessary re-renders when polling finds no changes
       setPaidInstalmentIds((prevIds) => {
@@ -101,6 +123,7 @@ const Payments = () => {
         return prevIds; // No changes, keep existing state (no re-render = invisible)
       });
       setIsLoadingPaidStatus(false);
+      isInitialPaidStatusLoad.current = false;
     };
 
     fetchPaidInstalments();
@@ -495,15 +518,35 @@ const PaymentCard = ({
   getInstalmentStatus,
 }: PaymentCardProps) => {
   const queryClient = useQueryClient();
+  const [manualRequestInstalment, setManualRequestInstalment] = useState<{
+    instalmentId: string;
+    label: string;
+    amount: number;
+  } | null>(null);
   const { data: instalments, isLoading, refetch } = useStudentPayments(application.id);
+  const { data: pendingRequests } = useManualPaymentRequests(application.id);
+  const { data: requestHistory } = useManualPaymentRequestHistory(application.id);
+  const pendingInstalmentIds = useMemo(
+    () => new Set((pendingRequests ?? []).map((r) => r.instalment_id)),
+    [pendingRequests],
+  );
+  // Latest rejected request per instalment (for "Request rejected" badge + reason)
+  const rejectedByInstalmentId = useMemo(() => {
+    if (!requestHistory) return new Map<string, { rejection_reason: string | null; reviewed_at: string | null }>();
+    const rejected = requestHistory.filter((r) => r.status === "rejected");
+    const map = new Map<string, { rejection_reason: string | null; reviewed_at: string | null }>();
+    rejected.forEach((r) => {
+      if (!map.has(r.instalment_id)) map.set(r.instalment_id, { rejection_reason: r.rejection_reason, reviewed_at: r.reviewed_at });
+    });
+    return map;
+  }, [requestHistory]);
   const { data: cashback } = useApplicationCashback(application.id);
   // Only fetch payment summary for confirmed applications (they have payment schedules)
-  // Use isRefetching for background updates (invisible polling) instead of isLoading
-  const { data: paymentSummary, isRefetching: isRefetchingSummary } = usePaymentSummary(
+  // Polled in background; values update without full-card loading (no isRefetching overlay)
+  const { data: paymentSummary } = usePaymentSummary(
     application.status === "confirmed" ? application.id : null
   );
-  // Also get isRefetching for unified payments to show skeleton when updating
-  const { data: unifiedPayments, isRefetching: isRefetchingPayments } = useUnifiedPayments(application.id);
+  const { data: unifiedPayments } = useUnifiedPayments(application.id);
   const contract = application.contract;
   const gradeName = contract?.studio_grade?.name ?? "Studio Grade";
 
@@ -641,21 +684,8 @@ const PaymentCard = ({
     return null;
   }
 
-  // Show skeleton overlay when refetching in background (granular loading)
-  // Only show when refetching (background update), not on initial load
-  const isRefetching = isRefetchingSummary || isRefetchingPayments;
-
   return (
-    <Card className={`rounded-3xl border border-border/60 shadow-xl relative ${isRefetching ? "opacity-75" : ""}`}>
-      {/* Skeleton overlay when refetching in background - only on affected card */}
-      {isRefetching && (
-        <div className="absolute inset-0 bg-background/50 backdrop-blur-sm z-10 rounded-3xl flex items-center justify-center">
-          <div className="flex flex-col items-center gap-2">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">Updating...</span>
-          </div>
-        </div>
-      )}
+    <Card className="rounded-3xl border border-border/60 shadow-xl relative">
       <CardHeader>
         <CardTitle className="text-xl font-display uppercase tracking-wide">
           {contract?.name ?? "Contract"}
@@ -758,6 +788,8 @@ const PaymentCard = ({
           const isPaying = isSelected && paymentClientSecret;
           const isProcessing = creatingIntentId === instalment.id;
           const isPaid = status.status === "paid";
+          const isPendingRequest = pendingInstalmentIds.has(instalment.id);
+          const rejectedRequest = rejectedByInstalmentId.get(instalment.id);
 
           return (
             <div
@@ -800,28 +832,76 @@ const PaymentCard = ({
                     </div>
                   </div>
                 </div>
-                {!isPaying && !isPaid && (
-                  <Button
-                    className="rounded-full uppercase tracking-wide"
-                    onClick={() =>
-                      onPayInstalment(
-                        application.id,
-                        instalment.id,
-                        Number(instalment.amount),
-                        instalment.label || `Instalment ${instalment.sequence}`,
-                      )
-                    }
-                    disabled={isProcessing || isPaying || creatingIntentId !== null}
-                  >
-                    {isProcessing ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      "Pay Now"
-                    )}
-                  </Button>
+                {!isPaying && !isPaid && !isPendingRequest && (
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <Button
+                      className="rounded-full uppercase tracking-wide"
+                      onClick={() =>
+                        onPayInstalment(
+                          application.id,
+                          instalment.id,
+                          Number(instalment.amount),
+                          instalment.label || `Instalment ${instalment.sequence}`,
+                        )
+                      }
+                      disabled={isProcessing || isPaying || creatingIntentId !== null}
+                    >
+                      {isProcessing ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        "Pay Now"
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full uppercase tracking-wide text-xs"
+                      onClick={() =>
+                        setManualRequestInstalment({
+                          instalmentId: instalment.id,
+                          label: instalment.label || `Instalment ${instalment.sequence}`,
+                          amount: Number(instalment.amount),
+                        })
+                      }
+                    >
+                      <Banknote className="h-3 w-3 mr-1" />
+                      I paid by bank transfer
+                    </Button>
+                  </div>
+                )}
+                {isPendingRequest && (
+                  <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+                    <Clock className="h-3 w-3 mr-1" />
+                    Pending approval
+                  </Badge>
+                )}
+                {rejectedRequest && !isPaid && !isPendingRequest && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Badge variant="secondary" className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200 cursor-help">
+                          <XCircle className="h-3 w-3 mr-1" />
+                          Request rejected
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-xs">
+                        <p className="font-medium">Your request was declined.</p>
+                        {rejectedRequest.rejection_reason ? (
+                          <p className="text-sm mt-1">{rejectedRequest.rejection_reason}</p>
+                        ) : (
+                          <p className="text-sm mt-1 text-muted-foreground">No reason provided.</p>
+                        )}
+                        {rejectedRequest.reviewed_at && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {format(new Date(rejectedRequest.reviewed_at), "d MMM yyyy")}
+                          </p>
+                        )}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
                 {isPaid && (
                   <Badge className="bg-green-600 text-white">
@@ -862,6 +942,63 @@ const PaymentCard = ({
             </div>
           );
         })}
+
+        {/* Payment request history – pending, rejected, approved */}
+        {requestHistory && requestHistory.length > 0 && (
+          <div className="rounded-2xl border border-border/60 p-4 space-y-3 mt-6">
+            <h4 className="font-semibold text-sm flex items-center gap-2">
+              <History className="h-4 w-4" />
+              Payment request history
+            </h4>
+            <ul className="space-y-2 text-sm">
+              {requestHistory.map((req) => (
+                <li
+                  key={req.id}
+                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 py-2 border-b border-border/40 last:border-0"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium">£{Number(req.amount).toFixed(2)}</span>
+                    <span className="text-muted-foreground">
+                      {format(new Date(req.submitted_at), "d MMM yyyy, HH:mm")}
+                    </span>
+                    {req.status === "pending" && (
+                      <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200 text-xs">
+                        <Clock className="h-3 w-3 mr-1" />
+                        Pending approval
+                      </Badge>
+                    )}
+                    {req.status === "rejected" && (
+                      <Badge variant="secondary" className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200 text-xs">
+                        <XCircle className="h-3 w-3 mr-1" />
+                        Rejected
+                      </Badge>
+                    )}
+                    {req.status === "approved" && (
+                      <Badge className="bg-green-600 text-white text-xs">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        Approved
+                      </Badge>
+                    )}
+                  </div>
+                  {req.status === "rejected" && req.rejection_reason && (
+                    <p className="text-muted-foreground text-xs sm:text-right max-w-md">{req.rejection_reason}</p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {manualRequestInstalment && (
+          <ManualPaymentRequestDialog
+            open={!!manualRequestInstalment}
+            onOpenChange={(open) => !open && setManualRequestInstalment(null)}
+            applicationId={application.id}
+            instalmentId={manualRequestInstalment.instalmentId}
+            instalmentLabel={manualRequestInstalment.label}
+            amount={manualRequestInstalment.amount}
+          />
+        )}
       </CardContent>
     </Card>
   );

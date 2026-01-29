@@ -47,8 +47,14 @@ const Contracts = () => {
       if (error) throw error;
 
       if (data?.url) {
-        // Open the signed document in a new tab
         window.open(data.url, "_blank");
+        toast({
+          title: "Download started",
+          description: "The signed document is opening in a new tab.",
+        });
+      } else if (data?.pdf_base64) {
+        const dataUrl = `data:application/pdf;base64,${data.pdf_base64}`;
+        window.open(dataUrl, "_blank");
         toast({
           title: "Download started",
           description: "The signed document is opening in a new tab.",
@@ -56,15 +62,19 @@ const Contracts = () => {
       } else {
         toast({
           title: "Download unavailable",
-          description: data?.message || "Document download is not yet available. Please download directly from DocuSign.",
+          description: (data as { message?: string })?.message || "Document download is not yet available. Please try again after signing is complete.",
         });
       }
-    } catch (error) {
-      console.error("Error downloading document:", error);
+    } catch (err: unknown) {
+      console.error("Error downloading document:", err);
+      const msg =
+        (err as { context?: { body?: { error?: string } }; message?: string })?.context?.body?.error ??
+        (err as Error)?.message ??
+        "Unable to download the signed document. Please try again later.";
       toast({
         variant: "destructive",
         title: "Download failed",
-        description: "Unable to download the signed document. Please try again later.",
+        description: msg,
       });
     } finally {
       setDownloadingId(null);

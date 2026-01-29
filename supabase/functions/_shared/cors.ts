@@ -49,6 +49,18 @@ export const webhookCorsHeaders = {
 };
 
 /**
+ * Static CORS headers used for OPTIONS preflight and error fallback.
+ * Ensures CORS is always returned even if getCorsHeaders throws.
+ * Using * for Origin so preflight never blocks; tighten per-origin in getCorsHeaders for actual responses.
+ */
+export const staticCorsHeaders: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Max-Age": "86400",
+};
+
+/**
  * Handle CORS preflight request
  * @param req - The incoming request
  * @returns Response for OPTIONS request or null if not OPTIONS

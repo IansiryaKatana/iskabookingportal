@@ -1864,11 +1864,18 @@ useEffect(() => {
         guarantorEnvelopeId?: string;
         message?: string;
         error?: string;
+        error_code?: string;
+        hint?: string;
       }>("docusign-envelopes", {
         body: { applicationId: application.id },
       });
 
       if (error || data?.error) {
+        console.error("DocuSign invoke failed", {
+          applicationId: application.id,
+          functionError: error,
+          functionData: data,
+        });
         throw new Error(data?.error ?? error?.message ?? "Unknown error");
       }
 

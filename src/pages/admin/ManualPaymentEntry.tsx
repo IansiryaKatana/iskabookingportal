@@ -20,17 +20,56 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateManualPayment } from "@/hooks/useManualPayment";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Search } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { Loader2, Plus, Search, CheckCircle2, XCircle } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { format } from "date-fns";
+
+type PendingRequestRow = {
+  id: string;
+  application_id: string;
+  instalment_id: string;
+  amount: number;
+  payment_method: string;
+  reference: string | null;
+  notes: string | null;
+  submitted_at: string;
+  student_applications?: { student_id: string; contract?: { name: string } | null } | null;
+};
+
+type ResolvedRequestRow = {
+  id: string;
+  application_id: string;
+  amount: number;
+  payment_method: string;
+  reference: string | null;
+  notes: string | null;
+  status: "approved" | "rejected";
+  submitted_at: string;
+  reviewed_at: string | null;
+  rejection_reason: string | null;
+};
 
 const ManualPaymentEntry = () => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const createPayment = useCreateManualPayment();
   const [showForm, setShowForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [rejectRequestId, setRejectRequestId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
 
   // Form state
   const [paymentType, setPaymentType] = useState<"deposit" | "instalment">("deposit");
@@ -39,6 +78,116 @@ const ManualPaymentEntry = () => {
   const [receiptNumber, setReceiptNumber] = useState<string>("");
   const [paymentDate, setPaymentDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState<string>("");
+
+  // Pending student manual payment requests (approve → create manual_payment)
+  const { data: pendingRequests, isLoading: pendingLoading, refetch: refetchPending } = useQuery({
+    queryKey: ["manual-payment-requests-pending"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("manual_payment_requests")
+        .select("id, application_id, instalment_id, amount, payment_method, reference, notes, submitted_at")
+        .eq("status", "pending")
+        .order("submitted_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as PendingRequestRow[];
+    },
+  });
+
+  // Previously approved / rejected requests (so they don't just disappear)
+  const { data: resolvedRequests, isLoading: resolvedLoading } = useQuery({
+    queryKey: ["manual-payment-requests-resolved"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("manual_payment_requests")
+        .select("id, application_id, amount, payment_method, reference, notes, status, submitted_at, reviewed_at, rejection_reason")
+        .in("status", ["approved", "rejected"])
+        .order("reviewed_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as ResolvedRequestRow[];
+    },
+  });
+
+  const approveRequest = useMutation({
+    mutationFn: async (req: PendingRequestRow) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      const receiptNumber = `REQ-${req.id}`;
+      // manual_payments.instalment_id must reference contract_payment_schedule; student may have sent payment_plan_installments.id
+      const { data: scheduleRow } = await supabase
+        .from("contract_payment_schedule")
+        .select("id")
+        .eq("id", req.instalment_id)
+        .maybeSingle();
+      const instalmentIdForManual = scheduleRow?.id ?? null;
+      const { data: inserted, error: insertErr } = await supabase
+        .from("manual_payments")
+        .insert({
+          application_id: req.application_id,
+          payment_type: "instalment",
+          instalment_id: instalmentIdForManual,
+          amount: req.amount,
+          payment_method: req.payment_method,
+          receipt_number: receiptNumber,
+          payment_date: new Date().toISOString().split("T")[0],
+          recorded_by: user?.id ?? null,
+          notes: req.notes,
+        })
+        .select("id")
+        .single();
+      if (insertErr) throw insertErr;
+      const { error: updateErr } = await supabase
+        .from("manual_payment_requests")
+        .update({ status: "approved", reviewed_by: user?.id, reviewed_at: new Date().toISOString() })
+        .eq("id", req.id);
+      if (updateErr) throw updateErr;
+      return inserted;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["manual-payment-requests-pending"] });
+      queryClient.invalidateQueries({ queryKey: ["manual-payment-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["manual-payment-requests-resolved"] });
+      queryClient.invalidateQueries({ queryKey: ["unified-payments"] });
+      queryClient.invalidateQueries({ queryKey: ["payment-summary"] });
+      refetchPending();
+      setApprovingId(null);
+      toast({ title: "Approved", description: "Payment recorded. Student will see the instalment as paid." });
+    },
+    onError: (err) => {
+      setApprovingId(null);
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to approve.", variant: "destructive" });
+    },
+  });
+
+  const rejectRequest = useMutation({
+    mutationFn: async ({ requestId, rejectionReason }: { requestId: string; rejectionReason?: string }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase
+        .from("manual_payment_requests")
+        .update({
+          status: "rejected",
+          reviewed_by: user?.id,
+          reviewed_at: new Date().toISOString(),
+          rejection_reason: rejectionReason?.trim() || null,
+        })
+        .eq("id", requestId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["manual-payment-requests-pending"] });
+      queryClient.invalidateQueries({ queryKey: ["manual-payment-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["manual-payment-requests-resolved"] });
+      queryClient.invalidateQueries({ queryKey: ["manual-payment-request-history"] });
+      refetchPending();
+      setRejectingId(null);
+      setRejectDialogOpen(false);
+      setRejectRequestId(null);
+      setRejectReason("");
+      toast({ title: "Rejected", description: "Request declined. Student will see the rejection and reason if provided." });
+    },
+    onError: (err) => {
+      setRejectingId(null);
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to reject.", variant: "destructive" });
+    },
+  });
 
   // Fetch orphaned payments (no application_id)
   const { data: orphanedPayments, isLoading, refetch } = useQuery({
@@ -142,9 +291,230 @@ const ManualPaymentEntry = () => {
   return (
     <AdminLayout
       pageTitle="Manual Payment Entry"
-      subtitle="Record payments made outside the system. Students can verify these payments using receipt numbers in Step 5."
+      subtitle="Record payments made outside the system. Approve student payment requests or record unlinked payments."
     >
       <div className="space-y-6">
+        {/* Pending student manual payment requests */}
+        <Card className="rounded-3xl border border-border/60 shadow-xl">
+          <CardHeader>
+            <CardTitle className="text-lg font-display uppercase tracking-wide">
+              Pending student requests
+            </CardTitle>
+            <CardDescription>
+              Students who said they paid by bank transfer or other. Approve to record the payment and mark the instalment as paid in the portal.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {pendingLoading ? (
+              <div className="py-8 text-center">
+                <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                <p className="text-sm text-muted-foreground mt-2">Loading...</p>
+              </div>
+            ) : pendingRequests && pendingRequests.length > 0 ? (
+              <div className="space-y-4">
+                {pendingRequests.map((req) => (
+                  <div
+                    key={req.id}
+                    className="rounded-2xl border border-border/60 px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
+                  >
+                    <div className="space-y-1 flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold">
+                          {formatCurrency(Number(req.amount))}
+                        </span>
+                        <Badge variant="outline" className="text-xs">
+                          {getPaymentMethodLabel(req.payment_method)}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">Application</span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                        <span>Submitted {format(new Date(req.submitted_at), "d MMM yyyy, HH:mm")}</span>
+                        {req.reference && <span>Ref: {req.reference}</span>}
+                      </div>
+                      {req.notes && (
+                        <p className="text-xs text-muted-foreground italic">{req.notes}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        className="rounded-full"
+                        disabled={approvingId === req.id || rejectingId === req.id}
+                        onClick={() => {
+                          setApprovingId(req.id);
+                          approveRequest.mutate(req);
+                        }}
+                      >
+                        {approvingId === req.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <>
+                            <CheckCircle2 className="h-4 w-4 mr-1" />
+                            Approve
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-full"
+                        disabled={approvingId === req.id || rejectingId === req.id}
+                        onClick={() => {
+                          setRejectRequestId(req.id);
+                          setRejectReason("");
+                          setRejectDialogOpen(true);
+                        }}
+                      >
+                        {rejectingId === req.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <>
+                            <XCircle className="h-4 w-4 mr-1" />
+                            Reject
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                No pending student requests.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Previously approved / rejected – so they don't just disappear */}
+        <Card className="rounded-3xl border border-border/60 shadow-xl">
+          <CardHeader>
+            <CardTitle className="text-lg font-display uppercase tracking-wide">
+              Previously approved / rejected
+            </CardTitle>
+            <CardDescription>
+              Recent student payment requests you approved or rejected. Sorted by review date.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {resolvedLoading ? (
+              <div className="py-8 text-center">
+                <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                <p className="text-sm text-muted-foreground mt-2">Loading...</p>
+              </div>
+            ) : resolvedRequests && resolvedRequests.length > 0 ? (
+              <div className="space-y-4">
+                {resolvedRequests.map((req) => (
+                  <div
+                    key={req.id}
+                    className="rounded-2xl border border-border/60 px-4 py-3 flex flex-col gap-2"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold">{formatCurrency(Number(req.amount))}</span>
+                      <Badge variant="outline" className="text-xs">
+                        {getPaymentMethodLabel(req.payment_method)}
+                      </Badge>
+                      {req.status === "approved" && (
+                        <Badge className="bg-green-600 text-white text-xs">
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          Approved
+                        </Badge>
+                      )}
+                      {req.status === "rejected" && (
+                        <Badge variant="secondary" className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200 text-xs">
+                          <XCircle className="h-3 w-3 mr-1" />
+                          Rejected
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                      <span>Submitted {format(new Date(req.submitted_at), "d MMM yyyy, HH:mm")}</span>
+                      {req.reviewed_at && (
+                        <span>
+                          {req.status === "approved" ? "Approved" : "Rejected"}{" "}
+                          {format(new Date(req.reviewed_at), "d MMM yyyy, HH:mm")}
+                        </span>
+                      )}
+                      {req.reference && <span>Ref: {req.reference}</span>}
+                    </div>
+                    {req.status === "rejected" && req.rejection_reason && (
+                      <p className="text-sm text-muted-foreground italic border-l-2 border-red-200 dark:border-red-800 pl-3">
+                        {req.rejection_reason}
+                      </p>
+                    )}
+                    {req.notes && (
+                      <p className="text-xs text-muted-foreground italic">{req.notes}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                No approved or rejected requests yet.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Reject request dialog – optional reason shown to student */}
+        <Dialog open={rejectDialogOpen} onOpenChange={(open) => {
+          if (!open) {
+            setRejectDialogOpen(false);
+            setRejectRequestId(null);
+            setRejectReason("");
+          }
+        }}>
+          <DialogContent className="sm:max-w-md rounded-2xl">
+            <DialogHeader>
+              <DialogTitle>Reject payment request?</DialogTitle>
+              <DialogDescription>
+                The student will see that their request was declined. You can add a reason below (e.g. wrong amount, proof needed) so they know what to correct.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 py-2">
+              <Label htmlFor="reject-reason">Reason (optional)</Label>
+              <Textarea
+                id="reject-reason"
+                placeholder="e.g. Please resubmit with proof of payment or correct amount."
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                rows={3}
+                className="resize-none rounded-xl"
+              />
+            </div>
+            <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+              <Button
+                variant="outline"
+                className="rounded-full"
+                onClick={() => {
+                  setRejectDialogOpen(false);
+                  setRejectRequestId(null);
+                  setRejectReason("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                className="rounded-full"
+                disabled={!rejectRequestId || rejectingId === rejectRequestId}
+                onClick={() => {
+                  if (!rejectRequestId) return;
+                  setRejectingId(rejectRequestId);
+                  rejectRequest.mutate({ requestId: rejectRequestId, rejectionReason: rejectReason || undefined });
+                }}
+              >
+                {rejectingId === rejectRequestId ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <XCircle className="h-4 w-4 mr-2" />
+                )}
+                Reject request
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Create Payment Form */}
         <Card className="rounded-3xl border border-border/60 shadow-xl">
           <CardHeader>
