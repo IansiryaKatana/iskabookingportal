@@ -1,0 +1,129 @@
+# Netlify configuration for Urban Hub website (urbanhub.uk)
+# Deploy with base directory: website (or run from website folder)
+# Redirect order: first match wins. Put 301s first, SPA fallback last.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+  environment = { NODE_VERSION = "18" }
+
+# ========== 301 redirects (old urbanhub.uk URLs → new structure) ==========
+# Terms
+[[redirects]]
+  from = "/terms-condition"
+  to = "/terms"
+  status = 301
+  force = true
+[[redirects]]
+  from = "/terms-condition/"
+  to = "/terms"
+  status = 301
+  force = true
+
+# Blog (trailing slash)
+[[redirects]]
+  from = "/blog/"
+  to = "/blog"
+  status = 301
+  force = true
+
+# Reviews
+[[redirects]]
+  from = "/reviews/"
+  to = "/reviews"
+  status = 301
+  force = true
+
+# Academic year booking → portal
+[[redirects]]
+  from = "/academic-year-booking"
+  to = "https://portal.urbanhub.uk/studios/2025-2026"
+  status = 301
+  force = true
+[[redirects]]
+  from = "/academic-year-booking/"
+  to = "https://portal.urbanhub.uk/studios/2025-2026"
+  status = 301
+  force = true
+[[redirects]]
+  from = "/academic-year-booking-26-27"
+  to = "https://portal.urbanhub.uk/studios/2026-2027"
+  status = 301
+  force = true
+[[redirects]]
+  from = "/academic-year-booking-26-27/"
+  to = "https://portal.urbanhub.uk/studios/2026-2027"
+  status = 301
+  force = true
+
+# Contact, FAQ, About (trailing slash)
+[[redirects]]
+  from = "/contact/"
+  to = "/contact"
+  status = 301
+  force = true
+[[redirects]]
+  from = "/faq/"
+  to = "/faq"
+  status = 301
+  force = true
+[[redirects]]
+  from = "/about/"
+  to = "/about"
+  status = 301
+  force = true
+
+# Short term
+[[redirects]]
+  from = "/short-term-stays"
+  to = "/short-term"
+  status = 301
+  force = true
+[[redirects]]
+  from = "/short-term-stays/"
+  to = "/short-term"
+  status = 301
+  force = true
+[[redirects]]
+  from = "/urban-hub-keyworkers"
+  to = "/short-term?tab=keyworker"
+  status = 301
+  force = true
+[[redirects]]
+  from = "/urban-hub-keyworkers/"
+  to = "/short-term?tab=keyworker"
+  status = 301
+  force = true
+
+# Privacy, Terms (trailing slash)
+[[redirects]]
+  from = "/privacy/"
+  to = "/privacy"
+  status = 301
+  force = true
+[[redirects]]
+  from = "/terms/"
+  to = "/terms"
+  status = 301
+  force = true
+
+# SPA fallback – must be last (first match wins)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+  force = true
+
+# ========== Headers ==========
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

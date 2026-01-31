@@ -280,4 +280,4 @@ const CarouselDots = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLD
 );
 CarouselDots.displayName = "CarouselDots";
 
-export { type CarouselApi, Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext, CarouselDots };
+export { type CarouselApi, Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext, CarouselDots, useCarousel };

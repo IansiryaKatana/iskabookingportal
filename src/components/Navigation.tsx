@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { ChevronDown, Menu, X } from "lucide-react";
+import { ChevronDown, Menu, Phone, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
@@ -22,6 +22,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { cn } from "@/lib/utils";
 
 const Navigation = () => {
   const { user, profile, role, signOut } = useAuth();
@@ -73,23 +74,37 @@ const Navigation = () => {
     navigate("/studios", { replace: true });
   };
 
-  const renderAccountMenu = (buttonClasses?: string) => (
+  const renderAccountMenu = (buttonClasses?: string) => {
+    const isMobileNav = buttonClasses === "px-3";
+    return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          variant="secondary"
-          size="sm"
-          className={`font-medium text-xs gap-2 ${buttonClasses ?? ""}`}
+          variant={isMobileNav ? "ghost" : "secondary"}
+          size={isMobileNav ? "icon" : "sm"}
+          className={cn(
+            "font-medium text-xs gap-2 text-white hover:bg-accent-yellow hover:text-black focus-visible:ring-accent-yellow/50",
+            isMobileNav
+              ? "h-9 w-9 min-h-9 min-w-9 rounded-full border border-white/25 hover:border-accent-yellow/60 p-0 shrink-0"
+              : "rounded-full pl-3 pr-1.5 py-1.5 border border-white/20 hover:border-accent-yellow/50 bg-transparent",
+            buttonClasses ?? ""
+          )}
         >
-          <span className="hidden md:inline">{accountButtonLabel}</span>
+          {!isMobileNav && <span className="hidden xl:inline text-white">{accountButtonLabel}</span>}
           {user ? (
-            <Avatar className="h-8 w-8 bg-primary/10 text-primary rounded-md">
-              <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold uppercase rounded-md">
+            <Avatar className={cn(
+              "shrink-0 rounded-full",
+              isMobileNav ? "h-8 w-8 bg-white/20 text-white" : "h-8 w-8 bg-white/15 text-white border border-white/20"
+            )}>
+              <AvatarFallback className={cn(
+                "text-xs font-semibold uppercase rounded-full",
+                isMobileNav ? "bg-white/20 text-white" : "bg-white/15 text-white"
+              )}>
                 {initials}
               </AvatarFallback>
             </Avatar>
           ) : (
-            <ChevronDown className="h-4 w-4 opacity-80" />
+            <ChevronDown className="h-4 w-4 opacity-80 shrink-0 text-white" />
           )}
         </Button>
       </DropdownMenuTrigger>
@@ -137,7 +152,8 @@ const Navigation = () => {
         )}
       </DropdownMenuContent>
     </DropdownMenu>
-  );
+    );
+  };
 
   return (
     <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
@@ -200,11 +216,12 @@ const Navigation = () => {
             {isHomePage ? (
               <Button 
                 variant="default" 
-                size="sm" 
-                className="font-medium text-xs"
+                size="icon"
+                className="h-9 w-9 shrink-0 rounded-full md:h-10 md:w-10"
                 onClick={() => setCallbackDialogOpen(true)}
+                aria-label="Get a callback"
               >
-                Callback
+                <Phone className="h-4 w-4 md:h-5 md:w-5" />
               </Button>
             ) : (
               <Button asChild variant="default" size="sm" className="font-medium text-xs">

@@ -28,7 +28,14 @@ const Index = () => {
     redirectToDefaultYear();
   }, [navigate]);
 
-  return null;
+  // Return a minimal loading state to prevent white screen flash
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="animate-pulse">
+        <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+      </div>
+    </div>
+  );
 };
 
 export default Index;

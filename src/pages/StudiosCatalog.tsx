@@ -377,41 +377,6 @@ const StudiosCatalog = () => {
                       <Carousel
                         className="h-full w-full"
                         opts={{ loop: true }}
-                        setApi={(api) => {
-                          if (!api) return;
-                          let raf: number;
-                          // Stagger timing: base 5000ms + index * 500ms for variation
-                          const gradeIndex = grades.findIndex(g => g.id === grade.id);
-                          const baseDelay = 5000;
-                          const staggerDelay = gradeIndex * 500;
-                          const totalDelay = baseDelay + staggerDelay;
-                          
-                          const startAutoScroll = () => {
-                            raf = window.setInterval(() => {
-                              api.scrollNext();
-                            }, totalDelay);
-                          };
-                          const stopAutoScroll = () => {
-                            window.clearInterval(raf);
-                          };
-                          startAutoScroll();
-                          api.on("pointerDown", stopAutoScroll);
-                          api.on("pointerUp", startAutoScroll);
-                          api.on("destroy", stopAutoScroll);
-                          
-                          // Pause on hover
-                          const carouselElement = api.containerNode();
-                          if (carouselElement) {
-                            const handleMouseEnter = () => stopAutoScroll();
-                            const handleMouseLeave = () => startAutoScroll();
-                            carouselElement.addEventListener("mouseenter", handleMouseEnter);
-                            carouselElement.addEventListener("mouseleave", handleMouseLeave);
-                            api.on("destroy", () => {
-                              carouselElement.removeEventListener("mouseenter", handleMouseEnter);
-                              carouselElement.removeEventListener("mouseleave", handleMouseLeave);
-                            });
-                          }
-                        }}
                       >
                         <CarouselContent className="-ml-0">
                           {grade.gallery.map((image, idx) => (
@@ -444,8 +409,8 @@ const StudiosCatalog = () => {
                   </div>
                   <div className="flex flex-1 flex-col gap-4 px-5 pb-5 pt-6">
                     <div>
-                      <h2 className="text-2xl font-display font-black uppercase tracking-wide text-foreground">
-                        {grade.name}
+                      <h2 className="text-2xl md:text-3xl font-display font-black uppercase tracking-wide text-foreground underline decoration-[6px] decoration-accent-yellow underline-offset-4">
+                        {grade.name} STUDIO
                       </h2>
                       <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
                         {grade.short_description ?? "Discover this studio grade, explore availability, and compare contract options tailored for you."}
@@ -467,7 +432,7 @@ const StudiosCatalog = () => {
                       ) : (
                         <Button
                           asChild
-                          className="rounded-full bg-accent-yellow px-6 py-2 text-sm font-semibold uppercase tracking-[0.25em] text-black shadow-[0_12px_24px_rgba(255,204,0,0.35)] hover:bg-accent-yellow/90"
+                          className="rounded-[16px] bg-accent-yellow px-6 py-2 text-sm font-bold uppercase tracking-normal text-black shadow-[0_12px_24px_rgba(255,204,0,0.35)] hover:bg-[#ff2020] hover:text-white transition-colors"
                         >
                           <Link to={`/studios/${year || selectedYear.name.replace(/\//g, "-")}/${grade.slug}`}>
                             Book Now

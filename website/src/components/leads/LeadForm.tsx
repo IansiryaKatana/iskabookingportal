@@ -11,6 +11,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -19,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useLeadsCRM, LeadFormData } from "@/hooks/useLeadsCRM";
-import { Loader2, CheckCircle2 } from "lucide-react";
+import { Loader2, CheckCircle2, Calendar } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
 import { PhoneInput } from "react-international-phone";
@@ -38,6 +39,7 @@ const leadFormSchema = zod.object({
     errorMap: () => ({ message: "Please select a valid time slot" }),
   }),
   studio_type: zod.string().optional(),
+  message: zod.string().optional(),
   landing_page: zod.string().default("Urbanhub Portal"),
 });
 
@@ -47,9 +49,21 @@ interface LeadFormProps {
   formType: "booking" | "callback";
   onSuccess: () => void;
   onCancel: () => void;
+  showCancel?: boolean;
+  submitLabel?: string;
+  compact?: boolean;
+  className?: string;
 }
 
-export const LeadForm = ({ formType, onSuccess, onCancel }: LeadFormProps) => {
+export const LeadForm = ({
+  formType,
+  onSuccess,
+  onCancel,
+  showCancel = true,
+  submitLabel,
+  compact = false,
+  className,
+}: LeadFormProps) => {
   const { user, profile } = useAuth();
   const { submitToLeadsCRM, isSubmitting } = useLeadsCRM();
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -65,6 +79,7 @@ export const LeadForm = ({ formType, onSuccess, onCancel }: LeadFormProps) => {
       preferred_date: "",
       preferred_time: "" as any,
       studio_type: formType === "booking" ? "silver" : undefined,
+      message: "",
       landing_page: "Urbanhub Portal",
     },
   });
@@ -79,6 +94,7 @@ export const LeadForm = ({ formType, onSuccess, onCancel }: LeadFormProps) => {
         preferred_date: "",
         preferred_time: "" as any,
         studio_type: formType === "booking" ? "silver" : undefined,
+        message: "",
         landing_page: "Urbanhub Portal",
       });
     }
@@ -124,16 +140,19 @@ export const LeadForm = ({ formType, onSuccess, onCancel }: LeadFormProps) => {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 p-4 md:p-0">
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className={`space-y-4 ${compact ? "" : "p-4 md:p-0"} ${className ?? ""}`}
+      >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="full_name"
             render={({ field }) => (
               <FormItem className="flex flex-col">
-                <FormLabel>Full Name</FormLabel>
+                <FormLabel className={compact ? "sr-only" : undefined}>Full Name</FormLabel>
                 <FormControl>
-                  <Input placeholder="John Doe" {...field} />
+                  <Input placeholder={compact ? "Your Name" : "John Doe"} {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -144,9 +163,9 @@ export const LeadForm = ({ formType, onSuccess, onCancel }: LeadFormProps) => {
             name="email"
             render={({ field }) => (
               <FormItem className="flex flex-col">
-                <FormLabel>Email Address</FormLabel>
+                <FormLabel className={compact ? "sr-only" : undefined}>Email Address</FormLabel>
                 <FormControl>
-                  <Input placeholder="john@example.com" type="email" {...field} />
+                  <Input placeholder={compact ? "Your Email Address" : "john@example.com"} type="email" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -160,14 +179,17 @@ export const LeadForm = ({ formType, onSuccess, onCancel }: LeadFormProps) => {
             name="phone"
             render={({ field, fieldState }) => (
               <FormItem className="flex flex-col">
-                <FormLabel>Phone Number</FormLabel>
+                <FormLabel className={compact ? "sr-only" : undefined}>Phone Number</FormLabel>
                 <FormControl>
-                  <div className={`flex w-full rounded-md border bg-background ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${fieldState.error ? 'border-destructive' : 'border-input'}`}>
+                  <div className={`flex w-full rounded-md border bg-transparent ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${fieldState.error ? 'border-destructive' : 'border-input'}`}>
                     <PhoneInput
                       defaultCountry="gb"
                       value={field.value}
                       onChange={(phone) => field.onChange(phone)}
                       className="flex w-full"
+                      inputProps={{
+                        placeholder: compact ? "Your Phone Number" : "Enter your phone number",
+                      }}
                       inputClassName="!flex !h-10 !w-full !border-none !bg-transparent !px-3 !py-2 !text-sm !placeholder:text-muted-foreground focus:!outline-none disabled:!cursor-not-allowed disabled:!opacity-50 !shadow-none"
                       countrySelectorStyleProps={{
                         buttonClassName: "!h-10 !border-none !rounded-l-md !bg-transparent !px-3 hover:!bg-accent",
@@ -179,30 +201,30 @@ export const LeadForm = ({ formType, onSuccess, onCancel }: LeadFormProps) => {
               </FormItem>
             )}
           />
-          {formType === "booking" && (
-            <FormField
-              control={form.control}
-              name="studio_type"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Studio Preference</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select studio type" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="silver">Silver Studio</SelectItem>
-                      <SelectItem value="gold">Gold Studio</SelectItem>
-                      <SelectItem value="platinum">Platinum Studio</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          )}
+          <FormField
+            control={form.control}
+            name="studio_type"
+            render={({ field }) => (
+              <FormItem className="flex flex-col">
+                <FormLabel className={compact ? "sr-only" : undefined}>Studio Preference</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger className="bg-transparent [&>span]:text-muted-foreground">
+                      <SelectValue placeholder={compact ? "Choose Studio Type" : "Select studio type"} />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="silver">Silver Studio</SelectItem>
+                    <SelectItem value="gold">Gold Studio</SelectItem>
+                    <SelectItem value="platinum">Platinum Studio</SelectItem>
+                    <SelectItem value="rhodium">Rhodium Studio</SelectItem>
+                    <SelectItem value="rhodium-plus">Rhodium Plus Studio</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -211,9 +233,27 @@ export const LeadForm = ({ formType, onSuccess, onCancel }: LeadFormProps) => {
             name="preferred_date"
             render={({ field }) => (
               <FormItem className="flex flex-col">
-                <FormLabel>Preferred Date</FormLabel>
+                <FormLabel className={compact ? "sr-only" : undefined}>Preferred Date</FormLabel>
                 <FormControl>
-                  <Input type="date" min={new Date().toISOString().split('T')[0]} {...field} />
+                  {compact ? (
+                    <div className="relative h-12 rounded-xl border border-white/35 overflow-hidden">
+                      <Input
+                        type="date"
+                        min={new Date().toISOString().split("T")[0]}
+                        style={!field.value ? { color: "transparent" } : undefined}
+                        className={`h-full w-full rounded-xl border border-transparent outline-none ring-0 bg-black/50 focus:bg-black/60 focus-visible:ring-0 pr-10 cursor-pointer [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:left-0 [&::-webkit-calendar-picker-indicator]:top-0 [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:bottom-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer ${field.value ? "text-white" : ""}`}
+                        {...field}
+                      />
+                      {!field.value && (
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/55 text-sm pointer-events-none">
+                          Preferred date
+                        </span>
+                      )}
+                      <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-white pointer-events-none" aria-hidden />
+                    </div>
+                  ) : (
+                    <Input type="date" min={new Date().toISOString().split("T")[0]} {...field} />
+                  )}
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -224,11 +264,11 @@ export const LeadForm = ({ formType, onSuccess, onCancel }: LeadFormProps) => {
             name="preferred_time"
             render={({ field }) => (
               <FormItem className="flex flex-col">
-                <FormLabel>Preferred Time</FormLabel>
+                <FormLabel className={compact ? "sr-only" : undefined}>Preferred Time</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a time slot" />
+                    <SelectTrigger className="bg-transparent [&>span]:text-muted-foreground">
+                      <SelectValue placeholder={compact ? "Choose Time" : "Select a time slot"} />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
@@ -245,22 +285,47 @@ export const LeadForm = ({ formType, onSuccess, onCancel }: LeadFormProps) => {
           />
         </div>
 
-        <div className="flex flex-col-reverse md:flex-row md:justify-end gap-3 pt-4">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onCancel}
-            className="w-full md:w-auto rounded-full uppercase tracking-wider text-xs font-semibold"
-          >
-            Cancel
-          </Button>
+        <FormField
+          control={form.control}
+          name="message"
+          render={({ field }) => (
+            <FormItem className="flex flex-col">
+              <FormLabel className={compact ? "sr-only" : undefined}>Additional Message (Optional)</FormLabel>
+              <FormControl>
+                <Textarea
+                  placeholder={compact ? "Any additional information..." : "Add any additional information or questions..."}
+                  className={`min-h-[100px] resize-none ${compact ? "bg-white/0 text-white placeholder:text-white/55 border-white/35" : ""}`}
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <div className={`flex ${showCancel ? "flex-col-reverse md:flex-row md:justify-end" : "flex-col"} gap-3 pt-4`}>
+          {showCancel && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onCancel}
+              className="w-full md:w-auto rounded-full uppercase tracking-wider text-xs font-semibold"
+            >
+              Cancel
+            </Button>
+          )}
           <Button
             type="submit"
             disabled={isSubmitting}
-            className="w-full md:w-auto bg-accent-yellow text-black hover:bg-accent-yellow/90 rounded-full uppercase tracking-wider text-xs font-semibold"
+            data-analytics={formType === "booking" ? "form-viewing-submit" : "form-callback-submit"}
+            className={
+              compact
+                ? "w-full bg-primary text-white hover:bg-primary/90 rounded-2xl uppercase tracking-normal text-xs font-bold py-6"
+                : "w-full md:w-auto bg-accent-yellow text-black hover:bg-accent-yellow/90 rounded-full uppercase tracking-wider text-xs font-semibold"
+            }
           >
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {formType === "booking" ? "Confirm Booking" : "Request Callback"}
+            {submitLabel ?? (formType === "booking" ? "Confirm Booking" : "Request Callback")}
           </Button>
         </div>
       </form>

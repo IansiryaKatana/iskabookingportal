@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { FaInstagram, FaTiktok, FaLinkedin, FaFacebook, FaWhatsapp } from "react-icons/fa";
 import { useBrandingSettings, useNavigationItems, useOpeningHours } from "@/hooks/useBranding";
 import logo from "@/assets/urban-hub-logo.webp";
+import Noise from "@/components/Noise";
 
 const platformConfig: Record<string, { icon: React.ReactNode }> = {
   instagram: { icon: <FaInstagram className="h-5 w-5" /> },
@@ -63,8 +65,9 @@ const Footer = () => {
   }, []);
 
   return (
-    <footer style={{ backgroundColor: 'hsl(0 0% 0%)' }} className="text-white py-12 md:py-16">
-      <div className="container mx-auto px-4 max-w-7xl">
+    <footer style={{ backgroundColor: 'hsl(0 0% 0%)' }} className="relative text-white py-12 md:py-16 overflow-hidden">
+      <Noise patternAlpha={15} />
+      <div className="container mx-auto px-4 max-w-7xl relative z-10">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 md:gap-12">
           <div>
             <div className="mb-4">
@@ -217,7 +220,13 @@ const Footer = () => {
         </div>
 
         <div className="border-t border-white/20 mt-12 pt-8 text-center text-white/60 text-sm">
-          <p>© {new Date().getFullYear()} {footerCopyright}</p>
+          <p>
+            © {new Date().getFullYear()} Urban Hub Student Accommodation Preston. All rights reserved.
+            <span className="mx-2">|</span>
+            <Link to="/privacy" className="text-white/80 hover:text-white transition-colors">Privacy Policy</Link>
+            <span className="mx-2">|</span>
+            <Link to="/terms" className="text-white/80 hover:text-white transition-colors">Terms & Conditions</Link>
+          </p>
         </div>
       </div>
     </footer>
