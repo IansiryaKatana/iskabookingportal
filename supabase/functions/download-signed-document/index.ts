@@ -28,7 +28,7 @@ serve(async (req) => {
       });
     }
 
-    let requestBody: { envelopeId?: string; applicationId?: string };
+    let requestBody: { envelopeId?: string; applicationId?: string; envelopeType?: string };
     try {
       requestBody = await req.json();
     } catch (parseError) {
@@ -39,11 +39,19 @@ serve(async (req) => {
       );
     }
 
-    const { envelopeId, applicationId } = requestBody;
+    const { envelopeId, applicationId, envelopeType } = requestBody;
 
-    if (!envelopeId || !applicationId) {
+    if (!applicationId) {
       return new Response(
-        JSON.stringify({ error: "envelopeId and applicationId are required" }),
+        JSON.stringify({ error: "applicationId is required" }),
+        { status: 400, headers: { ...corsHeaders, ...jsonHeaders } },
+      );
+    }
+
+    // Either envelopeId (DocuSign) or envelopeType (staff upload) must be provided
+    if (!envelopeId && !envelopeType) {
+      return new Response(
+        JSON.stringify({ error: "Either envelopeId or envelopeType is required" }),
         { status: 400, headers: { ...corsHeaders, ...jsonHeaders } },
       );
     }
@@ -121,15 +129,43 @@ serve(async (req) => {
       );
     }
 
-    const { data: envelope, error: envelopeError } = await supabaseClient
-      .from("docusign_envelopes")
-      .select("id, envelope_id, application_id, status, signed_document_path")
-      .eq("envelope_id", envelopeId)
-      .eq("application_id", applicationId)
-      .single();
+    // Look up envelope: by envelope_id (DocuSign) or by application_id + envelope_type (staff upload)
+    let envelope: { id: string; envelope_id: string | null; application_id: string; status: string; signed_document_path: string | null } | null = null;
 
-    if (envelopeError || !envelope) {
-      console.error("Envelope not found", { envelopeId, applicationId, envelopeError });
+    if (envelopeId) {
+      const { data, error } = await supabaseClient
+        .from("docusign_envelopes")
+        .select("id, envelope_id, application_id, status, signed_document_path")
+        .eq("envelope_id", envelopeId)
+        .eq("application_id", applicationId)
+        .single();
+      if (error || !data) {
+        console.error("Envelope not found by envelopeId", { envelopeId, applicationId, error });
+        return new Response(
+          JSON.stringify({ error: "Envelope not found for this application" }),
+          { status: 404, headers: { ...corsHeaders, ...jsonHeaders } },
+        );
+      }
+      envelope = data;
+    } else if (envelopeType && (envelopeType === "tenancy" || envelopeType === "guarantor")) {
+      const { data, error } = await supabaseClient
+        .from("docusign_envelopes")
+        .select("id, envelope_id, application_id, status, signed_document_path")
+        .eq("application_id", applicationId)
+        .eq("envelope_type", envelopeType)
+        .not("signed_document_path", "is", null)
+        .single();
+      if (error || !data) {
+        console.error("Staff-uploaded envelope not found", { applicationId, envelopeType, error });
+        return new Response(
+          JSON.stringify({ error: "Signed document not found for this application" }),
+          { status: 404, headers: { ...corsHeaders, ...jsonHeaders } },
+        );
+      }
+      envelope = data;
+    }
+
+    if (!envelope) {
       return new Response(
         JSON.stringify({ error: "Envelope not found for this application" }),
         { status: 404, headers: { ...corsHeaders, ...jsonHeaders } },

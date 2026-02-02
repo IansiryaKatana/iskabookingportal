@@ -10,7 +10,7 @@ Use this checklist before deploying to production. Check off each item as you co
 - [ ] `.env.example` file reviewed and matches production needs
 - [ ] No sensitive keys committed to version control
 - [ ] Production Supabase project created and configured
-- [ ] Production Stripe account configured (switch from test to live keys)
+- [x] Production Stripe account configured (switch from test to live keys) — **LIVE as of Feb 2026; full booking journey including live deposit payment verified**
 - [ ] Production DocuSign account configured
 - [ ] Production Resend account configured
 

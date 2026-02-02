@@ -47,7 +47,7 @@ https://account.docusign.com/oauth/auth?response_type=code&scope=signature%20imp
 | `DOCUSIGN_PRIVATE_KEY` | [ ] | **PKCS#8** PEM of the **production** app’s RSA private key. Convert PKCS#1 with `openssl pkcs8 -topk8 -nocrypt ...` if needed. |
 | `DOCUSIGN_WEBHOOK_SECRET` | [ ] | Same as Connect **HMAC** key (Manage Keys) in **production** |
 | `DOCUSIGN_SIGNING_RETURN_URL` | [ ] | `https://portal.urbanhub.uk/portal` (optional) |
-| `STRIPE_SECRET_KEY` | [ ] | Live Stripe key if production payments |
+| `STRIPE_SECRET_KEY` | [x] | Live Stripe key — production payments verified (full booking journey, live deposit paid Feb 2026) |
 
 ---
 

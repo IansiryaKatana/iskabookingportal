@@ -15,9 +15,10 @@ If the repo root is the website app (no `website/` subfolder), leave base direct
 In **Site settings → Environment variables** add:
 
 - `VITE_SUPABASE_URL` – Supabase project URL  
-- `VITE_SUPABASE_ANON_KEY` – Supabase anon/public key  
+- `VITE_SUPABASE_PUBLISHABLE_KEY` – Supabase anon/public key  
+- `VITE_PORTAL_URL` – *(optional)* Booking portal base URL (defaults to `https://portal.urbanhub.uk`). Room grade "Book Now" links and sign-in/register links point here.
 
-Use the same names as in `website/.env` so Vite can read them at build time.
+Use the same names as in `website/.env.example` so Vite can read them at build time.
 
 ## 3. What this config does
 
@@ -36,8 +37,19 @@ In **Domain management**:
    - **A** or **CNAME** as shown in Netlify (e.g. load balancer or `xxx.netlify.app`).
 3. Enable HTTPS (Netlify provisioned certificate).
 
-## 5. After deploy
+## 5. Portal links (room grades and sign-in)
+
+All links to the booking portal use `VITE_PORTAL_URL` (default: `https://portal.urbanhub.uk`):
+
+- **Room grade "Book Now"** → `https://portal.urbanhub.uk/studios/{year}/{slug}` (e.g. `/studios/2025-2026/silver`)
+- **Sign in** → `https://portal.urbanhub.uk/portal/login`
+- **Create account** → `https://portal.urbanhub.uk/portal/login?mode=register`
+- **Account dropdown** → Dashboard or Admin as appropriate
+
+Set `VITE_PORTAL_URL=https://portal.urbanhub.uk` in Netlify env vars if your portal is at that domain. Otherwise set it to your portal’s base URL.
+
+## 6. After deploy
 
 - Confirm old URLs (e.g. `/terms-condition/`, `/urban-hub-keyworkers/`) 301 to the new URLs.
 - Confirm `/short-term?tab=keyworker` opens the Keyworker tab.
-- Check Supabase Auth **Redirect URLs** include your Netlify URL (and custom domain) if you use auth on this site.
+- Check Supabase Auth **Redirect URLs** include: `https://urbanhub.uk`, `https://www.urbanhub.uk`, and `https://<your-site>.netlify.app`.

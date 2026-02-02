@@ -11,15 +11,15 @@ export function portalStudiosUrl(year: string, slug: string): string {
 }
 
 export function portalLoginUrl(): string {
-  return `${PORTAL_BASE_URL}/login`;
+  return `${PORTAL_BASE_URL}/portal/login`;
 }
 
 export function portalRegisterUrl(): string {
-  return `${PORTAL_BASE_URL}/login?mode=register`;
+  return `${PORTAL_BASE_URL}/portal/login?mode=register`;
 }
 
 export function portalDashboardUrl(): string {
-  return `${PORTAL_BASE_URL}`;
+  return `${PORTAL_BASE_URL}/portal`;
 }
 
 export function portalAdminUrl(): string {

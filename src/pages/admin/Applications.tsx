@@ -4,6 +4,8 @@ import {
   useAdminApplications,
   useUpdateApplicationStatus,
 } from "@/hooks/useAdminApplications";
+import { useAdminContracts } from "@/hooks/useAdminContracts";
+import { useAdminStudios } from "@/hooks/useAdminStudios";
 import {
   Card,
   CardContent,
@@ -13,7 +15,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, CreditCard } from "lucide-react";
+import { ExternalLink, CreditCard, Plus, UserPlus, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import ManualPaymentDialog from "@/components/admin/ManualPaymentDialog";
@@ -26,7 +28,18 @@ import {
 } from "@/components/ui/select";
 import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Search } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Pagination,
   PaginationContent,
@@ -93,16 +106,198 @@ const getStatusBadge = (status: string) => {
 
 const ITEMS_PER_PAGE = 20;
 
+const BOOKING_SOURCE_OPTIONS = [
+  { value: "website", label: "Website" },
+  { value: "imported", label: "Imported" },
+  { value: "rebooker", label: "Rebooker" },
+  { value: "partner_referral", label: "Partner referral" },
+];
+
 const Applications = () => {
   const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string | undefined>();
   const { data, isLoading, isError, error } = useAdminApplications(selectedAcademicYearId);
   const updateStatus = useUpdateApplicationStatus();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [manualPaymentOpen, setManualPaymentOpen] = useState(false);
   const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  // Mode: "existing" = select existing student, "new" = create new student inline
+  const [studentMode, setStudentMode] = useState<"existing" | "new">("existing");
+  const [createStudentId, setCreateStudentId] = useState<string>("");
+  const [createContractId, setCreateContractId] = useState<string>("");
+  const [createStudioId, setCreateStudioId] = useState<string>("");
+  const [createBookingSource, setCreateBookingSource] = useState<string>("imported");
+  // Fields for new student creation
+  const [newStudentEmail, setNewStudentEmail] = useState<string>("");
+  const [newStudentFirstName, setNewStudentFirstName] = useState<string>("");
+  const [newStudentLastName, setNewStudentLastName] = useState<string>("");
+  const [isCreatingStudent, setIsCreatingStudent] = useState(false);
+
+  const { data: studentProfiles } = useQuery({
+    queryKey: ["student-profiles"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name, phone")
+        .eq("role", "student")
+        .order("first_name");
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: createDialogOpen,
+  });
+
+  const { data: contracts } = useAdminContracts();
+  const selectedContract = contracts?.find((c) => c.id === createContractId);
+  const { data: studios } = useAdminStudios(
+    selectedContract?.studio_grade_id ? { gradeId: selectedContract.studio_grade_id } : undefined,
+  );
+
+  const createApplicationMutation = useMutation({
+    mutationFn: async () => {
+      let studentId = createStudentId;
+
+      // If creating a new student, call manage-users first (same as Users.tsx)
+      if (studentMode === "new") {
+        if (!newStudentEmail?.trim()) throw new Error("Email is required for new student");
+        if (!newStudentFirstName?.trim()) throw new Error("First name is required for new student");
+        if (!newStudentLastName?.trim()) throw new Error("Last name is required for new student");
+        if (!createContractId) throw new Error("Select a contract");
+
+        setIsCreatingStudent(true);
+
+        const { data: createData, error: createError } = await supabase.functions.invoke(
+          "manage-users",
+          {
+            body: {
+              action: "create",
+              email: newStudentEmail.trim().toLowerCase(),
+              role: "student",
+              first_name: newStudentFirstName.trim(),
+              last_name: newStudentLastName.trim(),
+            },
+          }
+        );
+
+        setIsCreatingStudent(false);
+
+        if (createError) {
+          throw new Error(createError.message || "Failed to create student");
+        }
+        if (createData?.error) {
+          throw new Error(typeof createData.error === "string" ? createData.error : "Failed to create student");
+        }
+        if (!createData?.user?.id) {
+          throw new Error("User creation succeeded but no ID returned");
+        }
+
+        studentId = createData.user.id;
+      }
+
+      if (!studentId || !createContractId) throw new Error("Select student and contract");
+      const contractRow = contracts?.find((c) => c.id === createContractId);
+      if (!contractRow) throw new Error("Contract not found");
+
+      const { data: existing } = await supabase
+        .from("student_applications")
+        .select("id, status")
+        .eq("student_id", studentId)
+        .eq("contract_id", createContractId)
+        .maybeSingle();
+
+      if (existing) {
+        return { id: existing.id, isExisting: true, isNewStudent: studentMode === "new" };
+      }
+
+      const payload: Record<string, unknown> = {
+        student_id: studentId,
+        contract_id: createContractId,
+        studio_grade_id: contractRow.studio_grade_id,
+        status: "draft",
+        booking_source: createBookingSource || null,
+      };
+      if (createBookingSource === "rebooker") {
+        payload.is_rebooking = true;
+        payload.rebooking_reason = "Created by staff as rebooker";
+      }
+      if (createStudioId) {
+        payload.assigned_studio_id = createStudioId;
+      }
+
+      const { data: inserted, error } = await supabase
+        .from("student_applications")
+        .insert(payload)
+        .select("id")
+        .single();
+
+      if (error) throw error;
+      if (!inserted) throw new Error("Failed to create application");
+      return { id: inserted.id, isExisting: false, isNewStudent: studentMode === "new" };
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["admin-applications"] });
+      queryClient.invalidateQueries({ queryKey: ["student-profiles"] });
+      setCreateDialogOpen(false);
+      resetCreateDialog();
+      if (result.isExisting) {
+        toast({ title: "Application exists", description: "Opening existing application." });
+      } else if (result.isNewStudent) {
+        toast({
+          title: "Student created & application started",
+          description: "The student can use 'Forgot Password' to set their password and log in.",
+        });
+      } else {
+        toast({ title: "Application created", description: "Opening the booking journey." });
+      }
+      navigate(
+        result.id
+          ? createStudioId
+            ? `/portal/applications/${result.id}`
+            : `/portal/applications/${result.id}/select-studio`
+          : "/admin/applications",
+      );
+    },
+    onError: (err: Error) => {
+      setIsCreatingStudent(false);
+      const msg = err.message ?? "";
+      // User-friendly messages for known create-student errors (avoid technical/function errors)
+      const friendly =
+        msg.includes("already exists") || msg.toLowerCase().includes("user with this email")
+          ? "A student with this email is already in the system. Choose “Existing student” and select them, or use a different email."
+          : msg.includes("Invalid email") || msg.toLowerCase().includes("email format")
+          ? "Please enter a valid email address."
+          : msg.includes("First name") || msg.includes("Last name")
+          ? "Please enter both first and last name for the student."
+          : msg.includes("Not authenticated") || msg.includes("Unauthorized")
+          ? "Your session may have expired. Please sign in again and try again."
+          : msg;
+      toast({
+        variant: "destructive",
+        title: "Couldn’t create application",
+        description: friendly,
+      });
+    },
+  });
+
+  const resetCreateDialog = () => {
+    setStudentMode("existing");
+    setCreateStudentId("");
+    setCreateContractId("");
+    setCreateStudioId("");
+    setCreateBookingSource("imported");
+    setNewStudentEmail("");
+    setNewStudentFirstName("");
+    setNewStudentLastName("");
+    setIsCreatingStudent(false);
+  };
+
+  const handleCreateApplication = () => {
+    createApplicationMutation.mutate();
+  };
 
   const filtered = useMemo(() => {
     let result = data ?? [];
@@ -189,6 +384,13 @@ const Applications = () => {
             onValueChange={setSelectedAcademicYearId}
             className="w-full md:w-64"
           />
+          <Button
+            className="rounded-full uppercase tracking-wide gap-2"
+            onClick={() => setCreateDialogOpen(true)}
+          >
+            <Plus className="h-4 w-4" />
+            Create application
+          </Button>
         </div>
         <div className="flex flex-wrap gap-2 md:gap-3 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 scrollbar-hide">
           <Button
@@ -416,6 +618,178 @@ const Applications = () => {
           applicationId={selectedApplicationId}
         />
       )}
+      <Dialog open={createDialogOpen} onOpenChange={(open) => { setCreateDialogOpen(open); if (!open) resetCreateDialog(); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create application (on behalf of student)</DialogTitle>
+            <DialogDescription>
+              {studentMode === "existing"
+                ? "Select an existing student and contract to start an application."
+                : "Create a new student account and start an application for them."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* Mode toggle */}
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={studentMode === "existing" ? "default" : "outline"}
+                size="sm"
+                className="flex-1 rounded-full gap-2"
+                onClick={() => setStudentMode("existing")}
+              >
+                <Users className="h-4 w-4" />
+                Existing student
+              </Button>
+              <Button
+                type="button"
+                variant={studentMode === "new" ? "default" : "outline"}
+                size="sm"
+                className="flex-1 rounded-full gap-2"
+                onClick={() => setStudentMode("new")}
+              >
+                <UserPlus className="h-4 w-4" />
+                Create new
+              </Button>
+            </div>
+
+            {/* Student selection or creation fields */}
+            {studentMode === "existing" ? (
+              <div className="space-y-2">
+                <Label>Student</Label>
+                <Select value={createStudentId} onValueChange={setCreateStudentId}>
+                  <SelectTrigger className="rounded-full">
+                    <SelectValue placeholder="Select student" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {studentProfiles?.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.first_name} {p.last_name} {p.phone ? `(${p.phone})` : ""}
+                      </SelectItem>
+                    ))}
+                    {(!studentProfiles || studentProfiles.length === 0) && (
+                      <SelectItem value="_none" disabled>
+                        No students found. Switch to "Create new" to add one.
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="space-y-3 p-3 bg-muted/50 rounded-xl">
+                <div className="space-y-2">
+                  <Label htmlFor="new-student-email">Email *</Label>
+                  <Input
+                    id="new-student-email"
+                    type="email"
+                    placeholder="student@example.com"
+                    value={newStudentEmail}
+                    onChange={(e) => setNewStudentEmail(e.target.value)}
+                    className="rounded-full"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="new-student-first-name">First name *</Label>
+                    <Input
+                      id="new-student-first-name"
+                      placeholder="John"
+                      value={newStudentFirstName}
+                      onChange={(e) => setNewStudentFirstName(e.target.value)}
+                      className="rounded-full"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="new-student-last-name">Last name *</Label>
+                    <Input
+                      id="new-student-last-name"
+                      placeholder="Doe"
+                      value={newStudentLastName}
+                      onChange={(e) => setNewStudentLastName(e.target.value)}
+                      className="rounded-full"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  The student can use "Forgot Password" to set their password and log in.
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label>Contract</Label>
+              <Select value={createContractId} onValueChange={(v) => { setCreateContractId(v); setCreateStudioId(""); }}>
+                <SelectTrigger className="rounded-full">
+                  <SelectValue placeholder="Select contract" />
+                </SelectTrigger>
+                <SelectContent>
+                  {contracts?.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name} {c.academic_year?.name ? `(${c.academic_year.name})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {selectedContract && studios && studios.length > 0 && (
+              <div className="space-y-2">
+                <Label>Studio (optional)</Label>
+                <Select value={createStudioId || "__none__"} onValueChange={(v) => setCreateStudioId(v === "__none__" ? "" : v)}>
+                  <SelectTrigger className="rounded-full">
+                    <SelectValue placeholder="Select studio (or leave empty)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— None —</SelectItem>
+                    {studios.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.studio_number}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Booking source</Label>
+              <Select value={createBookingSource} onValueChange={setCreateBookingSource}>
+                <SelectTrigger className="rounded-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {BOOKING_SOURCE_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateApplication}
+              disabled={
+                (studentMode === "existing" && !createStudentId) ||
+                (studentMode === "new" && (!newStudentEmail?.trim() || !newStudentFirstName?.trim() || !newStudentLastName?.trim())) ||
+                !createContractId ||
+                createApplicationMutation.isPending ||
+                isCreatingStudent
+              }
+            >
+              {isCreatingStudent
+                ? "Creating student…"
+                : createApplicationMutation.isPending
+                ? "Creating application…"
+                : studentMode === "new"
+                ? "Create student & application"
+                : "Create & open journey"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 };

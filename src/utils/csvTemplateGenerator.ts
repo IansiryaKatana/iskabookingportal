@@ -518,6 +518,7 @@ export async function generateApplicationsTemplate(
           bank_statement_path: PLACEHOLDER_DOCUMENT_PATH,
           contract_pdf_path: PLACEHOLDER_DOCUMENT_PATH,
           referral_code: "",
+          booking_source: ["website", "rebooker", "imported", "partner_referral"][exampleCounter % 4] || "",
           deposit_amount: depositAmount,
           deposit_paid_date: depositPaidDate,
         });
@@ -534,6 +535,7 @@ export async function generateApplicationsTemplate(
       id,
       status,
       submitted_at,
+      booking_source,
       contracts!contract_id (
         slug,
         academic_years!inner(name)
@@ -605,6 +607,7 @@ export async function generateApplicationsTemplate(
     "bank_statement_path",
     "contract_pdf_path",
     "referral_code",
+    "booking_source",
     "deposit_amount",
     "deposit_paid_date",
   ];
@@ -703,6 +706,7 @@ export async function generateApplicationsTemplate(
         documents.bank_statement || step5.bank_statement || "",
       contract_pdf_path: step6.contract_pdf_path || "",
       referral_code: referralCode,
+      booking_source: app.booking_source || "",
       deposit_amount: "",
       deposit_paid_date: "",
     };

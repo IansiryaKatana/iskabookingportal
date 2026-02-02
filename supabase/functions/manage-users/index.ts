@@ -111,9 +111,10 @@ serve(async (req) => {
         );
       }
 
-      if (!role || (role !== "staff" && role !== "superadmin" && role !== "admin")) {
+      const allowedRoles = ["staff", "superadmin", "admin", "student"];
+      if (!role || !allowedRoles.includes(role)) {
         return new Response(
-          JSON.stringify({ error: "Role must be 'staff', 'admin', or 'superadmin'." }),
+          JSON.stringify({ error: "Role must be 'staff', 'admin', 'superadmin', or 'student'." }),
           {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -121,7 +122,7 @@ serve(async (req) => {
         );
       }
 
-      // Validate staff_subrole - only allowed for staff role
+      // Validate staff_subrole - only allowed for staff role (skip for student)
       if (staff_subrole && role !== "staff") {
         return new Response(
           JSON.stringify({ error: "staff_subrole can only be set for staff role." }),
@@ -130,6 +131,28 @@ serve(async (req) => {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
         );
+      }
+
+      // For student role, require first_name and last_name
+      if (role === "student") {
+        if (!first_name || !first_name.trim()) {
+          return new Response(
+            JSON.stringify({ error: "First name is required for student accounts." }),
+            {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            },
+          );
+        }
+        if (!last_name || !last_name.trim()) {
+          return new Response(
+            JSON.stringify({ error: "Last name is required for student accounts." }),
+            {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            },
+          );
+        }
       }
 
       // Validate staff_subrole values

@@ -339,6 +339,7 @@ const ContractDetail = () => {
           contract_id: contract.id,
           status: "draft",
           is_rebooking: true,
+          booking_source: "rebooker",
           previous_application_id: rebookingCheck.previous_application_id,
           rebooking_reason: `Rebooking for ${contract.name}`,
         })

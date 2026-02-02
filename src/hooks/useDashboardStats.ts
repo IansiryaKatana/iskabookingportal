@@ -58,18 +58,11 @@ const normalizeRow = (row?: RpcRow | null): DashboardStats => {
 
 const fetchDashboardStats = async (academicYearId?: string): Promise<DashboardStats> => {
   try {
-    // Build parameters object - only include if we have a value
-    // Supabase RPC can be sensitive to null vs undefined vs omitted
-    const params: Record<string, any> = {};
-    
-    if (academicYearId) {
-      params.p_academic_year_id = academicYearId;
-    } else {
-      // Explicitly set to null if no academic year selected
-      params.p_academic_year_id = null;
-    }
-
-    const { data, error } = await supabase.rpc("get_admin_dashboard_stats", params);
+    // Only pass p_academic_year_id when set. Omitting it lets the DB use DEFAULT NULL; passing null can cause 400.
+    const { data, error } = await supabase.rpc(
+      "get_admin_dashboard_stats",
+      academicYearId ? { p_academic_year_id: academicYearId } : {}
+    );
 
     if (error) {
       // Log detailed error information for debugging
@@ -78,7 +71,7 @@ const fetchDashboardStats = async (academicYearId?: string): Promise<DashboardSt
         details: error.details,
         hint: error.hint,
         code: error.code,
-        params: JSON.stringify(params),
+        academicYearId: academicYearId ?? "(none)",
       };
       
       console.error("Failed to load dashboard stats:", errorDetails);

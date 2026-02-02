@@ -17,7 +17,7 @@ Set these in **Supabase Dashboard → Project Settings → Edge Functions → Se
 | `DOCUSIGN_AUTH_SERVER` | ✅ **Critical** | **Production:** `https://account.docusign.com` — **not** `account-d` |
 | `DOCUSIGN_BASE_URL` | ✅ **Critical** | Use your **Account Base URI** from Apps and Keys + `/restapi`, e.g. `https://na4.docusign.net/restapi` or `https://eu.docusign.net/restapi`. Do **not** use `https://www.docusign.net/restapi` unless that matches your Account Base URI. |
 | `DOCUSIGN_SIGNING_RETURN_URL` | Optional | e.g. `https://portal.urbanhub.uk/portal` (for `docusign-recipient-view`) |
-| `STRIPE_SECRET_KEY` | ✅ | Used to verify deposit before sending agreements |
+| `STRIPE_SECRET_KEY` | ✅ | Used to verify deposit before sending agreements. **LIVE** (production keys + webhook verified Feb 2026). |
 
 **Template IDs** come from the **`docusign_templates`** table, **not** from secrets.  
 `DOCUSIGN_TENANCY_TEMPLATE_ID` / `DOCUSIGN_GUARANTOR_TEMPLATE_ID` are **not** used for envelope creation.
@@ -95,7 +95,7 @@ If `authServer` or `baseUrl` point to **demo**, fix the secrets above and retry.
 - [ ] `DOCUSIGN_BASE_URL` = **Account Base URI** from Apps and Keys + `/restapi` (e.g. `https://na4.docusign.net/restapi` or `https://eu.docusign.net/restapi`)
 - [ ] `DOCUSIGN_CLIENT_ID`, `DOCUSIGN_USER_ID`, `DOCUSIGN_ACCOUNT_ID` match Apps and Keys (production).
 - [ ] `DOCUSIGN_PRIVATE_KEY` is the full key for that app, correct format.
-- [ ] `STRIPE_SECRET_KEY` set (live key if production).
+- [x] `STRIPE_SECRET_KEY` set (live key — production verified Feb 2026).
 - [ ] Template IDs in **`docusign_templates`** are **production** IDs (from `app.docusign.com`), no spaces.
 - [ ] JWT consent granted once in **production** (via the consent URL for your client ID).
 - [ ] Redirect URI for that app includes your callback (e.g. `https://portal.urbanhub.uk/api/docusign/oauth/callback`).

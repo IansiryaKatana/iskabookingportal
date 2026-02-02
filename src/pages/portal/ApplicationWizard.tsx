@@ -330,6 +330,7 @@ const StudentApplicationWizard = () => {
   const navigate = useNavigate();
   const { user, profile, refreshProfile } = useAuth();
   const { toast } = useToast();
+  const isStaff = profile?.role === "staff" || profile?.role === "superadmin";
 
   const {
     data: application,
@@ -372,6 +373,8 @@ const StudentApplicationWizard = () => {
     guarantor: null,
   });
   const [checkingStatus, setCheckingStatus] = useState(false);
+  const [uploadingTenancy, setUploadingTenancy] = useState(false);
+  const [uploadingGuarantor, setUploadingGuarantor] = useState(false);
   const [countryOpen, setCountryOpen] = useState(false);
   const [uploadStates, setUploadStates] = useState<Record<string, UploadState>>(
     {},
@@ -1857,6 +1860,18 @@ useEffect(() => {
       return;
     }
 
+    // Staff complete applications by uploading signed documents in Step 6 (no DocuSign)
+    if (isStaff) {
+      setCurrentStep(MAX_STEP_NUMBER);
+      writeStoredStep(application.id, MAX_STEP_NUMBER);
+      await refetchApplication();
+      toast({
+        title: "Step 5 saved",
+        description: "Upload the signed tenancy and guarantor agreements in Step 6.",
+      });
+      return;
+    }
+
     try {
       setSendingAgreements(true);
       const { data, error } = await supabase.functions.invoke<{
@@ -2433,6 +2448,47 @@ useEffect(() => {
       console.error("Error checking envelope status:", error);
     } finally {
       setCheckingStatus(false);
+    }
+  };
+
+  const handleStaffUploadSignedDocument = async (envelopeType: "tenancy" | "guarantor", file: File) => {
+    if (!application?.id || !user) return;
+    const setUploading = envelopeType === "tenancy" ? setUploadingTenancy : setUploadingGuarantor;
+    setUploading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) throw new Error("Not authenticated");
+
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("applicationId", application.id);
+      formData.append("envelopeType", envelopeType);
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? import.meta.env.SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/upload-signed-document`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok || data?.error) throw new Error(data?.error ?? "Upload failed");
+
+      toast({
+        title: `${envelopeType === "tenancy" ? "Tenancy" : "Guarantor"} agreement uploaded`,
+        description: "The signed document has been saved.",
+      });
+      await refetchApplication();
+    } catch (err) {
+      console.error("Upload signed document failed:", err);
+      toast({
+        variant: "destructive",
+        title: "Upload failed",
+        description: err instanceof Error ? err.message : "Please try again.",
+      });
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -3867,6 +3923,83 @@ useEffect(() => {
           </form>
         );
       case 6: {
+        if (isStaff) {
+          const tenancyDone = effectiveTenancyEnvelope && isEnvelopeCompleted(effectiveTenancyEnvelope.status);
+          const guarantorDone = !requiresGuarantor || (effectiveGuarantorEnvelope && isEnvelopeCompleted(effectiveGuarantorEnvelope.status));
+          return (
+            <div className="space-y-6">
+              <Card className="rounded-3xl border border-border/60 shadow-lg">
+                <CardHeader>
+                  <CardTitle className="text-lg font-display uppercase tracking-wide">
+                    Upload Signed Agreements (Staff)
+                  </CardTitle>
+                  <CardDescription>
+                    Upload the signed tenancy and guarantor agreements on behalf of the student.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Tenancy Agreement (PDF)</Label>
+                    <div className="flex items-center gap-4">
+                      <Input
+                        type="file"
+                        accept="application/pdf"
+                        className="max-w-xs"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) handleStaffUploadSignedDocument("tenancy", f);
+                          e.target.value = "";
+                        }}
+                        disabled={uploadingTenancy || tenancyDone}
+                      />
+                      {tenancyDone ? (
+                        <span className="inline-flex items-center gap-2 rounded-full bg-green-600 px-3 py-1 text-sm font-semibold text-white uppercase">
+                          <CheckCircle2 className="h-4 w-4" /> Completed
+                        </span>
+                      ) : uploadingTenancy ? (
+                        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                      ) : null}
+                    </div>
+                  </div>
+                  {requiresGuarantor && (
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Guarantor Agreement (PDF)</Label>
+                      <div className="flex items-center gap-4">
+                        <Input
+                          type="file"
+                          accept="application/pdf"
+                          className="max-w-xs"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) handleStaffUploadSignedDocument("guarantor", f);
+                            e.target.value = "";
+                          }}
+                          disabled={uploadingGuarantor || guarantorDone}
+                        />
+                        {guarantorDone ? (
+                          <span className="inline-flex items-center gap-2 rounded-full bg-green-600 px-3 py-1 text-sm font-semibold text-white uppercase">
+                            <CheckCircle2 className="h-4 w-4" /> Completed
+                          </span>
+                        ) : uploadingGuarantor ? (
+                          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                        ) : null}
+                      </div>
+                    </div>
+                  )}
+                  {tenancyDone && guarantorDone && (
+                    <Alert className="border-green-500/40 bg-green-500/10">
+                      <CheckCircle2 className="h-4 w-4" />
+                      <AlertTitle className="font-semibold">All agreements uploaded</AlertTitle>
+                      <AlertDescription className="text-sm mt-1">
+                        The application has been moved to awaiting verification. Staff can confirm it in the admin dashboard.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          );
+        }
         const statusDescription = effectiveTenancyEnvelope
           ? `Status updated ${format(
             new Date(effectiveTenancyEnvelope.updated_at ?? new Date().toISOString()),

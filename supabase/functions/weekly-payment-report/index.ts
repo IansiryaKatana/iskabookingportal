@@ -56,16 +56,26 @@ serve(async (req) => {
       );
     }
 
-    // Check if user is staff or superadmin
-    const userRole = user.app_metadata?.role;
-    if (userRole !== "staff" && userRole !== "superadmin") {
-      return new Response(
-        JSON.stringify({ error: "Forbidden: Staff access required" }),
-        {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+    // Check if user is staff or superadmin (use profile as source of truth so staff sub-roles e.g. accountant are allowed)
+    const jwtRole = user.app_metadata?.role ?? user.user_metadata?.role;
+    const isStaffFromJwt = jwtRole === "staff" || jwtRole === "superadmin";
+    if (!isStaffFromJwt) {
+      const { data: profile, error: profileError } = await supabaseClient
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      const profileRole = profile?.role;
+      const isStaffFromProfile = profileRole === "staff" || profileRole === "superadmin";
+      if (profileError || !isStaffFromProfile) {
+        return new Response(
+          JSON.stringify({ error: "Forbidden: Staff access required" }),
+          {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
     }
 
     const body: WeeklyReportRequest = await req.json();

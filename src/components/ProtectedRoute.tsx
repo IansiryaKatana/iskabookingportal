@@ -5,6 +5,21 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getDefaultRouteForRole } from "@/utils/getDefaultRoute";
 
+/** UUID v4 pattern for last path segment (detail routes like /admin/applications/:id) */
+const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * For detail routes (e.g. /admin/applications/abc-123), return the parent path used in route_permissions
+ * so the single "Applications" permission controls both list and detail. Exact path unchanged.
+ */
+function getPermissionPath(pathname: string): string {
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments.length >= 2 && UUID_SEGMENT.test(segments[segments.length - 1])) {
+    return "/" + segments.slice(0, -1).join("/");
+  }
+  return pathname;
+}
+
 type ProtectedRouteProps = {
   children: React.ReactNode;
   allowedRoles: Array<"student" | "staff" | "superadmin" | "partner" | "admin" | "operations_manager" | "reservationist" | "accountant" | "front_desk" | "maintenance_officer" | "housekeeper">;
@@ -14,11 +29,12 @@ type ProtectedRouteProps = {
 const ProtectedRoute = ({ children, allowedRoles, checkDatabase = true }: ProtectedRouteProps) => {
   const { user, role, loading } = useAuth();
   const location = useLocation();
+  const permissionPath = getPermissionPath(location.pathname);
 
   // Check database permissions (default: enabled)
-  // Falls back to allowedRoles if database check fails or no record exists
+  // For detail routes (e.g. /admin/applications/:id), use parent path so Permissions UI toggle controls both list and detail
   const { data: hasPermission, isLoading: checkingPermission } = useQuery({
-    queryKey: ["route-permission", location.pathname, role],
+    queryKey: ["route-permission", permissionPath, role],
     queryFn: async () => {
       if (!checkDatabase || !role) {
         // If database check is disabled, use allowedRoles
@@ -26,10 +42,11 @@ const ProtectedRoute = ({ children, allowedRoles, checkDatabase = true }: Protec
       }
       
       // Check permission for the specific role first (database permissions take precedence)
+      // Use permissionPath so /admin/applications/:id uses /admin/applications permission
       const { data: specificRoleData, error: specificError } = await supabase
         .from("route_permissions")
         .select("allowed")
-        .eq("route_path", location.pathname)
+        .eq("route_path", permissionPath)
         .eq("role", role)
         .maybeSingle();
 
@@ -57,12 +74,11 @@ const ProtectedRoute = ({ children, allowedRoles, checkDatabase = true }: Protec
           return false;
         }
 
-        // Sub-role IS in allowedRoles - now check database permissions
-        // Check staff permission (sub-roles inherit from staff when no explicit permission)
+        // Sub-role IS in allowedRoles - now check database permissions (use parent path for detail routes)
         const { data: staffData, error: staffError } = await supabase
           .from("route_permissions")
           .select("allowed")
-          .eq("route_path", location.pathname)
+          .eq("route_path", permissionPath)
           .eq("role", "staff")
           .maybeSingle();
 

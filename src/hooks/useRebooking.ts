@@ -90,6 +90,7 @@ export const useMarkAsRebooking = () => {
         .from("student_applications")
         .update({
           is_rebooking: true,
+          booking_source: "rebooker",
           previous_application_id: previousApplicationId,
           rebooking_reason: reason || null,
         })

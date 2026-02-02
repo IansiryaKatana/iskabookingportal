@@ -366,6 +366,41 @@ const ApplicationDetail = () => {
     },
   });
 
+  const BOOKING_SOURCE_NONE = "__none__";
+
+  const updateBookingSource = useMutation({
+    mutationFn: async (value: string) => {
+      const bookingSource = value === BOOKING_SOURCE_NONE || value === "" ? null : value;
+      const isRebooking = bookingSource === "rebooker";
+      const payload: { booking_source: string | null; is_rebooking: boolean; rebooking_reason?: string | null } = {
+        booking_source: bookingSource,
+        is_rebooking: isRebooking,
+      };
+      if (isRebooking && !application?.rebooking_reason) {
+        payload.rebooking_reason = "Marked as rebooker (previous year can be linked when data is uploaded)";
+      } else if (!isRebooking) {
+        payload.rebooking_reason = null;
+      }
+      const { error } = await supabase
+        .from("student_applications")
+        .update(payload)
+        .eq("id", applicationId!);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["student-application", applicationId] });
+      toast({ title: "Booking source updated", description: "Application booking source has been saved." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to update booking source", variant: "destructive" });
+    },
+  });
+
+  const handleBookingSourceChange = (value: string) => {
+    if (!applicationId) return;
+    updateBookingSource.mutate(value);
+  };
+
   const handleStatusChange = async (newStatus: string) => {
     if (!applicationId) return;
 
@@ -533,6 +568,25 @@ const ApplicationDetail = () => {
                 <SelectItem value="expired">Expired</SelectItem>
               </SelectContent>
             </Select>
+            <div className="flex items-center gap-2">
+              <Label className="text-xs uppercase tracking-wide text-muted-foreground whitespace-nowrap">Booking source</Label>
+              <Select
+                value={application.booking_source || BOOKING_SOURCE_NONE}
+                onValueChange={handleBookingSourceChange}
+                disabled={updateBookingSource.isPending}
+              >
+                <SelectTrigger className="w-40 rounded-full">
+                  <SelectValue placeholder="—" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={BOOKING_SOURCE_NONE}>—</SelectItem>
+                  <SelectItem value="rebooker">Rebooker</SelectItem>
+                  <SelectItem value="website">Website</SelectItem>
+                  <SelectItem value="imported">Imported</SelectItem>
+                  <SelectItem value="partner_referral">Partner referral</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
 
@@ -555,15 +609,34 @@ const ApplicationDetail = () => {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="draft">Draft</SelectItem>
-              <SelectItem value="awaiting_deposit">Awaiting Deposit</SelectItem>
-              <SelectItem value="awaiting_signature">Awaiting Signature</SelectItem>
-              <SelectItem value="awaiting_verification">Awaiting Verification</SelectItem>
-              <SelectItem value="confirmed">Confirmed</SelectItem>
-              <SelectItem value="cancelled">Cancelled</SelectItem>
-              <SelectItem value="expired">Expired</SelectItem>
-            </SelectContent>
+                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="awaiting_deposit">Awaiting Deposit</SelectItem>
+                <SelectItem value="awaiting_signature">Awaiting Signature</SelectItem>
+                <SelectItem value="awaiting_verification">Awaiting Verification</SelectItem>
+                <SelectItem value="confirmed">Confirmed</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+                <SelectItem value="expired">Expired</SelectItem>
+              </SelectContent>
           </Select>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground whitespace-nowrap">Booking source</Label>
+            <Select
+              value={application.booking_source || BOOKING_SOURCE_NONE}
+              onValueChange={handleBookingSourceChange}
+              disabled={updateBookingSource.isPending}
+            >
+              <SelectTrigger className="w-full sm:w-40 rounded-full text-sm">
+                <SelectValue placeholder="—" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={BOOKING_SOURCE_NONE}>—</SelectItem>
+                <SelectItem value="rebooker">Rebooker</SelectItem>
+                <SelectItem value="website">Website</SelectItem>
+                <SelectItem value="imported">Imported</SelectItem>
+                <SelectItem value="partner_referral">Partner referral</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* Rebooking Information */}

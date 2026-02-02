@@ -37,11 +37,15 @@ const Contracts = () => {
     [applications],
   );
 
-  const downloadSignedDocument = async (envelopeId: string, envelopeType: string, applicationId: string) => {
-    setDownloadingId(envelopeId);
+  const downloadSignedDocument = async (envelopeIdOrKey: string, envelopeType: string, applicationId: string) => {
+    const downloadKey = envelopeIdOrKey || `${applicationId}-${envelopeType}`;
+    setDownloadingId(downloadKey);
     try {
+      const body = envelopeIdOrKey
+        ? { envelopeId: envelopeIdOrKey, applicationId }
+        : { applicationId, envelopeType };
       const { data, error } = await supabase.functions.invoke("download-signed-document", {
-        body: { envelopeId, applicationId },
+        body,
       });
 
       if (error) throw error;
@@ -80,6 +84,10 @@ const Contracts = () => {
       setDownloadingId(null);
     }
   };
+
+  const canDownloadEnvelope = (envelope: { envelope_id?: string | null; signed_document_path?: string | null; status?: string | null }) =>
+    (envelope?.status ?? "").toLowerCase() === "completed" &&
+    (Boolean(envelope.envelope_id) || Boolean(envelope.signed_document_path));
 
   const formatEnvelopeStatus = (status?: string | null) => {
     if (!status) return "Not sent";
@@ -200,8 +208,9 @@ const Contracts = () => {
               gradeName={gradeName}
               startDate={startDate}
               endDate={endDate}
-              onDownload={(envelopeId, envelopeType) => downloadSignedDocument(envelopeId, envelopeType, app.id)}
+              onDownload={(envelopeIdOrKey, envelopeType) => downloadSignedDocument(envelopeIdOrKey, envelopeType, app.id)}
               downloadingId={downloadingId}
+              canDownloadEnvelope={canDownloadEnvelope}
               formatEnvelopeStatus={formatEnvelopeStatus}
               isEnvelopeCompleted={isEnvelopeCompleted}
             />
@@ -218,8 +227,9 @@ type ContractCardProps = {
   gradeName: string;
   startDate: string;
   endDate: string;
-  onDownload: (envelopeId: string, envelopeType: string, applicationId: string) => void;
+  onDownload: (envelopeIdOrKey: string, envelopeType: string) => void;
   downloadingId: string | null;
+  canDownloadEnvelope: (envelope: { envelope_id?: string | null; signed_document_path?: string | null; status?: string | null }) => boolean;
   formatEnvelopeStatus: (status?: string | null) => string;
   isEnvelopeCompleted: (status?: string | null) => boolean;
 };
@@ -232,6 +242,7 @@ const ContractCard = ({
   endDate,
   onDownload,
   downloadingId,
+  canDownloadEnvelope,
   formatEnvelopeStatus,
   isEnvelopeCompleted,
 }: ContractCardProps) => {
@@ -315,15 +326,15 @@ const ContractCard = ({
                 <Clock className="h-4 w-4" />
                 Last updated {format(new Date(tenancyEnvelope.updated_at), "d MMM yyyy")}
               </div>
-              {isEnvelopeCompleted(tenancyEnvelope.status) && tenancyEnvelope.envelope_id && (
+              {canDownloadEnvelope(tenancyEnvelope) && (
                 <Button
                   variant="outline"
                   size="sm"
                   className="rounded-full uppercase tracking-wide gap-2"
-                  onClick={() => onDownload(tenancyEnvelope.envelope_id!, "tenancy", applicationId)}
-                  disabled={downloadingId === tenancyEnvelope.envelope_id}
+                  onClick={() => onDownload(tenancyEnvelope.envelope_id ?? "", "tenancy")}
+                  disabled={downloadingId === (tenancyEnvelope.envelope_id ?? `${applicationId}-tenancy`)}
                 >
-                  {downloadingId === tenancyEnvelope.envelope_id ? (
+                  {downloadingId === (tenancyEnvelope.envelope_id ?? `${applicationId}-tenancy`) ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Downloading...
@@ -368,15 +379,15 @@ const ContractCard = ({
                 <Clock className="h-4 w-4" />
                 Last updated {format(new Date(guarantorEnvelope.updated_at), "d MMM yyyy")}
               </div>
-              {isEnvelopeCompleted(guarantorEnvelope.status) && guarantorEnvelope.envelope_id && (
+              {canDownloadEnvelope(guarantorEnvelope) && (
                 <Button
                   variant="outline"
                   size="sm"
                   className="rounded-full uppercase tracking-wide gap-2"
-                  onClick={() => onDownload(guarantorEnvelope.envelope_id!, "guarantor", applicationId)}
-                  disabled={downloadingId === guarantorEnvelope.envelope_id}
+                  onClick={() => onDownload(guarantorEnvelope.envelope_id ?? "", "guarantor")}
+                  disabled={downloadingId === (guarantorEnvelope.envelope_id ?? `${applicationId}-guarantor`)}
                 >
-                  {downloadingId === guarantorEnvelope.envelope_id ? (
+                  {downloadingId === (guarantorEnvelope.envelope_id ?? `${applicationId}-guarantor`) ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Downloading...
