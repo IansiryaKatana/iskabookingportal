@@ -26,10 +26,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Loader2, ArrowRightCircle, CheckSquare, Square, MoreVertical } from "lucide-react";
+import { Loader2, ArrowRightCircle, CheckSquare, Square, MoreVertical, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
+import { Input } from "@/components/ui/input";
 
 const statusLabels: Record<string, string> = {
   available: "Available",
@@ -43,6 +44,7 @@ const Studios = () => {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [allocationFilter, setAllocationFilter] = useState<string>("all");
   const [floorFilter, setFloorFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string | undefined>();
   const [selectedStudios, setSelectedStudios] = useState<Set<string>>(new Set());
   const [bulkActionDialogOpen, setBulkActionDialogOpen] = useState(false);
@@ -80,8 +82,28 @@ const Studios = () => {
     return Array.from(floors).sort();
   }, [studios]);
 
-  const selectAll = selectedStudios.size === studios?.length && studios.length > 0;
-  const someSelected = selectedStudios.size > 0 && selectedStudios.size < (studios?.length ?? 0);
+  const filteredStudios = useMemo(() => {
+    if (!studios) return [];
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return studios;
+    return studios.filter((studio) => {
+      const number = (studio.studio_number ?? "").toLowerCase();
+      const grade = (studio.studio_grade?.name ?? "").toLowerCase();
+      const floor = (studio.floor ?? "").toLowerCase();
+      const status = (studio.status ?? studio.effective_status ?? "").toLowerCase();
+      const allocation = (studio.allocation ?? "").toLowerCase();
+      return (
+        number.includes(q) ||
+        grade.includes(q) ||
+        floor.includes(q) ||
+        status.includes(q) ||
+        allocation.includes(q)
+      );
+    });
+  }, [studios, searchQuery]);
+
+  const selectAll = selectedStudios.size === filteredStudios.length && filteredStudios.length > 0;
+  const someSelected = selectedStudios.size > 0 && selectedStudios.size < filteredStudios.length;
 
   const handleStatusChange = async (studioId: string, status: string) => {
     try {
@@ -113,7 +135,7 @@ const Studios = () => {
     if (selectAll) {
       setSelectedStudios(new Set());
     } else {
-      setSelectedStudios(new Set(studios?.map((s) => s.id) ?? []));
+      setSelectedStudios(new Set(filteredStudios.map((s) => s.id)));
     }
   };
 
@@ -188,6 +210,15 @@ const Studios = () => {
           />
         </div>
         <div className="flex flex-wrap md:flex-nowrap items-center gap-3 md:gap-4">
+        <div className="relative w-full sm:w-48 md:w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <Input
+            placeholder="Search studios..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 rounded-full h-10"
+          />
+        </div>
         <Select value={gradeFilter} onValueChange={setGradeFilter}>
           <SelectTrigger className="w-full sm:w-48 md:w-64 rounded-full">
             <SelectValue placeholder="Filter by grade" />
@@ -306,7 +337,7 @@ const Studios = () => {
             </div>
           ) : (
             <div className="space-y-4">
-              {studios && studios.length > 0 && (
+              {filteredStudios.length > 0 && (
                 <div className="flex items-center gap-3 pb-2 border-b border-border/60">
                   <Checkbox
                     checked={selectAll}
@@ -316,9 +347,14 @@ const Studios = () => {
                   <span className="text-sm text-muted-foreground">
                     {selectAll ? "Deselect all" : "Select all"}
                   </span>
+                  {searchQuery.trim() && (
+                    <span className="text-xs text-muted-foreground">
+                      {filteredStudios.length} of {studios?.length ?? 0} studios
+                    </span>
+                  )}
                 </div>
               )}
-              {studios?.map((studio) => (
+              {filteredStudios.map((studio) => (
                 <div
                   key={studio.id}
                   className={`rounded-2xl border px-5 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 ${
@@ -419,6 +455,11 @@ const Studios = () => {
               {!studios?.length && (
                 <p className="text-sm text-muted-foreground">
                   No studios found for the current filters.
+                </p>
+              )}
+              {studios && studios.length > 0 && filteredStudios.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  No studios match your search. Try a different term or clear the search.
                 </p>
               )}
             </div>

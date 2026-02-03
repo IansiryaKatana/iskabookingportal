@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, CreditCard, Plus, UserPlus, Users } from "lucide-react";
+import { ExternalLink, CreditCard, Plus, UserPlus, Users, ChevronsUpDown, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import ManualPaymentDialog from "@/components/admin/ManualPaymentDialog";
@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 import {
   Pagination,
   PaginationContent,
@@ -49,6 +50,8 @@ import {
   PaginationPrevious,
   PaginationEllipsis,
 } from "@/components/ui/pagination";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
 const statusLabels: Record<string, string> = {
   draft: "Draft",
@@ -130,6 +133,8 @@ const Applications = () => {
   const [createStudentId, setCreateStudentId] = useState<string>("");
   const [createContractId, setCreateContractId] = useState<string>("");
   const [createStudioId, setCreateStudioId] = useState<string>("");
+  const [studioPickerOpen, setStudioPickerOpen] = useState(false);
+  const [studioSearch, setStudioSearch] = useState("");
   const [createBookingSource, setCreateBookingSource] = useState<string>("imported");
   // Fields for new student creation
   const [newStudentEmail, setNewStudentEmail] = useState<string>("");
@@ -152,10 +157,68 @@ const Applications = () => {
   });
 
   const { data: contracts } = useAdminContracts();
+
+  const { data: currentAcademicYear } = useQuery({
+    queryKey: ["current-academic-year"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("academic_years")
+        .select("id")
+        .eq("is_active", true)
+        .order("start_date", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.id ?? null;
+    },
+  });
+
+  const STUDIO_GRADE_ORDER = ["Silver", "Gold", "Platinum", "Rhodium", "Rhodium Plus"];
+  const getGradeSortKey = (name: string | undefined): number => {
+    if (!name) return 999;
+    const n = name.trim();
+    if (n.startsWith("Rhodium Plus")) return 4;
+    if (n.startsWith("Silver")) return 0;
+    if (n.startsWith("Gold")) return 1;
+    if (n.startsWith("Platinum")) return 2;
+    if (n.startsWith("Rhodium")) return 3;
+    return 999;
+  };
+
+  const sortedContracts = useMemo(() => {
+    if (!contracts) return [];
+    const currentId = currentAcademicYear ?? undefined;
+    return [...contracts].sort((a, b) => {
+      const yearFirst = (id: string | null | undefined) => (id && currentId && id === currentId ? 0 : 1);
+      const ya = yearFirst(a.academic_year_id);
+      const yb = yearFirst(b.academic_year_id);
+      if (ya !== yb) return ya - yb;
+      const ga = getGradeSortKey(a.studio_grade?.name);
+      const gb = getGradeSortKey(b.studio_grade?.name);
+      if (ga !== gb) return ga - gb;
+      return (a.weeks ?? 0) - (b.weeks ?? 0);
+    });
+  }, [contracts, currentAcademicYear]);
+
   const selectedContract = contracts?.find((c) => c.id === createContractId);
   const { data: studios } = useAdminStudios(
-    selectedContract?.studio_grade_id ? { gradeId: selectedContract.studio_grade_id } : undefined,
+    selectedContract?.studio_grade_id
+      ? { gradeId: selectedContract.studio_grade_id, status: "available" }
+      : undefined,
   );
+
+  const filteredStudios = useMemo(() => {
+    if (!studios) return [];
+    if (!studioSearch.trim()) return studios;
+    const q = studioSearch.trim().toLowerCase();
+    return studios.filter((s) => (s.studio_number ?? "").toLowerCase().includes(q));
+  }, [studios, studioSearch]);
+
+  const selectedStudioDisplay = useMemo(() => {
+    if (!createStudioId) return "— None —";
+    const s = studios?.find((x) => x.id === createStudioId);
+    return s?.studio_number ?? createStudioId;
+  }, [createStudioId, studios]);
 
   const createApplicationMutation = useMutation({
     mutationFn: async () => {
@@ -288,6 +351,8 @@ const Applications = () => {
     setCreateStudentId("");
     setCreateContractId("");
     setCreateStudioId("");
+    setStudioPickerOpen(false);
+    setStudioSearch("");
     setCreateBookingSource("imported");
     setNewStudentEmail("");
     setNewStudentFirstName("");
@@ -723,7 +788,7 @@ const Applications = () => {
                   <SelectValue placeholder="Select contract" />
                 </SelectTrigger>
                 <SelectContent>
-                  {contracts?.map((c) => (
+                  {sortedContracts?.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.name} {c.academic_year?.name ? `(${c.academic_year.name})` : ""}
                     </SelectItem>
@@ -731,22 +796,71 @@ const Applications = () => {
                 </SelectContent>
               </Select>
             </div>
-            {selectedContract && studios && studios.length > 0 && (
+            {selectedContract && (
               <div className="space-y-2">
-                <Label>Studio (optional)</Label>
-                <Select value={createStudioId || "__none__"} onValueChange={(v) => setCreateStudioId(v === "__none__" ? "" : v)}>
-                  <SelectTrigger className="rounded-full">
-                    <SelectValue placeholder="Select studio (or leave empty)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">— None —</SelectItem>
-                    {studios.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.studio_number}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Studio</Label>
+                {studios && studios.length > 0 ? (
+                  <Popover open={studioPickerOpen} onOpenChange={(open) => { setStudioPickerOpen(open); if (!open) setStudioSearch(""); }}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={studioPickerOpen}
+                        className="w-full justify-between rounded-full font-normal"
+                      >
+                        <span className="truncate">{selectedStudioDisplay}</span>
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                      <Command>
+                        <CommandInput
+                          placeholder="Search studios by number..."
+                          value={studioSearch}
+                          onValueChange={setStudioSearch}
+                        />
+                        <CommandList>
+                          <CommandEmpty>No studio found.</CommandEmpty>
+                          <CommandGroup>
+                            <CommandItem
+                              value="__none__"
+                              onSelect={() => {
+                                setCreateStudioId("");
+                                setStudioPickerOpen(false);
+                                setStudioSearch("");
+                              }}
+                              className="cursor-pointer"
+                            >
+                              <Check className={cn("mr-2 h-4 w-4", !createStudioId ? "opacity-100" : "opacity-0")} />
+                              — None —
+                            </CommandItem>
+                            {filteredStudios.map((s) => (
+                              <CommandItem
+                                key={s.id}
+                                value={s.studio_number ?? s.id}
+                                onSelect={() => {
+                                  setCreateStudioId(s.id);
+                                  setStudioPickerOpen(false);
+                                  setStudioSearch("");
+                                }}
+                                className="cursor-pointer"
+                              >
+                                <Check className={cn("mr-2 h-4 w-4 shrink-0", createStudioId === s.id ? "opacity-100" : "opacity-0")} />
+                                <span className="flex-1 truncate">{s.studio_number}</span>
+                                <Badge variant="secondary" className="ml-2 shrink-0 text-xs font-normal">Available</Badge>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                ) : (
+                  <div className="rounded-full border border-dashed border-muted-foreground/40 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                    <p className="font-medium">Fully booked currently</p>
+                    <p className="mt-0.5 text-xs">No studios available for this contract. You can still create the application; the student can select a studio later in the journey.</p>
+                  </div>
+                )}
               </div>
             )}
             <div className="space-y-2">

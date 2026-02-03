@@ -55,14 +55,12 @@ const StudioSelection = () => {
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
-  // Filter out studios with confirmed applications (safety check)
+  // Filter out studios with confirmed applications for this contract (safety check)
   const availableStudios = useMemo(() => {
     if (!studios || !occupiedStudioIds) return studios;
-    
     return studios.filter((studio) => {
       // Always show the selected studio even if it has a confirmed application
       if (studio.id === application?.assigned_studio_id) return true;
-      
       // Filter out studios with confirmed applications for this contract
       return !occupiedStudioIds.includes(studio.id);
     });
