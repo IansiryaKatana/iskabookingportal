@@ -148,7 +148,7 @@ export const useUpdateStudio = () => {
       // Get old studio data for logging
       const { data: oldStudio } = await supabase
         .from("studios")
-        .select("studio_number, status, allocation, is_active")
+        .select("studio_number, status, allocation, is_active, studio_grade_id")
         .eq("id", id)
         .single();
 
@@ -178,6 +178,9 @@ export const useUpdateStudio = () => {
             is_active: rest.is_active !== undefined
               ? { from: oldStudio?.is_active, to: rest.is_active }
               : undefined,
+            studio_grade_id: rest.studio_grade_id !== undefined
+              ? { from: oldStudio?.studio_grade_id, to: rest.studio_grade_id }
+              : undefined,
           },
         },
       });
@@ -202,7 +205,7 @@ export const useBulkUpdateStudios = () => {
       // Get old studio data for logging
       const { data: oldStudios } = await supabase
         .from("studios")
-        .select("id, studio_number, status, allocation")
+        .select("id, studio_number, status, allocation, studio_grade_id")
         .in("id", studioIds);
 
       const { data, error } = await supabase
@@ -231,6 +234,9 @@ export const useBulkUpdateStudios = () => {
               : undefined,
             is_active: updates.is_active !== undefined
               ? { from: oldStudios?.map(s => s.is_active), to: updates.is_active }
+              : undefined,
+            studio_grade_id: updates.studio_grade_id !== undefined
+              ? { from: oldStudios?.map(s => s.studio_grade_id), to: updates.studio_grade_id }
               : undefined,
           },
         },

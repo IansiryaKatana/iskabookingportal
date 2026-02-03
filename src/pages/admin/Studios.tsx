@@ -47,6 +47,7 @@ const Studios = () => {
   const [selectedStudios, setSelectedStudios] = useState<Set<string>>(new Set());
   const [bulkActionDialogOpen, setBulkActionDialogOpen] = useState(false);
   const [bulkAction, setBulkAction] = useState<{ type: string; value: string } | null>(null);
+  const [bulkGradeId, setBulkGradeId] = useState<string>("");
 
   const { data: gradesData } = useAdminStudioGrades(selectedAcademicYearId);
   const { data: studios, isLoading } = useAdminStudios({
@@ -95,6 +96,19 @@ const Studios = () => {
     }
   };
 
+  const handleGradeChange = async (studioId: string, studioGradeId: string) => {
+    try {
+      await updateStudio.mutateAsync({ id: studioId, studio_grade_id: studioGradeId });
+      toast({ title: "Studio grade updated" });
+    } catch (error) {
+      console.error(error);
+      toast({
+        variant: "destructive",
+        title: "Unable to update studio grade",
+      });
+    }
+  };
+
   const handleSelectAll = () => {
     if (selectAll) {
       setSelectedStudios(new Set());
@@ -121,12 +135,19 @@ const Studios = () => {
   const confirmBulkAction = async () => {
     if (!bulkAction || selectedStudios.size === 0) return;
 
+    if (bulkAction.type === "grade" && !bulkGradeId) {
+      toast({ variant: "destructive", title: "Select a grade", description: "Choose a studio grade to apply." });
+      return;
+    }
+
     try {
       const updates: Record<string, unknown> = {};
       if (bulkAction.type === "allocation") {
         updates.allocation = bulkAction.value === "unallocated" ? null : bulkAction.value;
       } else if (bulkAction.type === "status") {
         updates.status = bulkAction.value;
+      } else if (bulkAction.type === "grade") {
+        updates.studio_grade_id = bulkGradeId;
       }
 
       await bulkUpdateStudios.mutateAsync({
@@ -142,6 +163,7 @@ const Studios = () => {
       setSelectedStudios(new Set());
       setBulkActionDialogOpen(false);
       setBulkAction(null);
+      setBulkGradeId("");
     } catch (error) {
       console.error(error);
       toast({
@@ -250,6 +272,9 @@ const Studios = () => {
                   <DropdownMenuItem onClick={() => handleBulkAction("status", "maintenance")}>
                     Set Status to Maintenance
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleBulkAction("grade", "")}>
+                    Set grade to…
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
               <Button
@@ -309,10 +334,26 @@ const Studios = () => {
                       className="mt-1 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                     />
                     <div className="space-y-1 flex-1">
-                    <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-                      {studio.studio_grade?.name ?? "Unknown grade"} — Floor{" "}
-                      {studio.floor ?? "n/a"}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                        Floor {studio.floor ?? "n/a"}
+                      </p>
+                      <Select
+                        value={studio.studio_grade_id}
+                        onValueChange={(value) => handleGradeChange(studio.id, value)}
+                      >
+                        <SelectTrigger className="w-auto max-w-[180px] h-8 rounded-full text-xs">
+                          <SelectValue placeholder="Grade" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {gradeOptions.map((g) => (
+                            <SelectItem key={g.id} value={g.id}>
+                              {g.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <h3 className="text-xl font-display font-bold uppercase tracking-wide">
                       {studio.studio_number}
                     </h3>
@@ -385,26 +426,61 @@ const Studios = () => {
         </CardContent>
       </Card>
 
-      <Dialog open={bulkActionDialogOpen} onOpenChange={setBulkActionDialogOpen}>
+      <Dialog
+        open={bulkActionDialogOpen}
+        onOpenChange={(open) => {
+          setBulkActionDialogOpen(open);
+          if (!open) {
+            setBulkAction(null);
+            setBulkGradeId("");
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Confirm Bulk Action</DialogTitle>
             <DialogDescription>
-              Are you sure you want to {bulkAction?.type === "allocation" ? "set allocation to" : "set status to"}{" "}
-              <strong>
-                {bulkAction?.value === "unallocated"
-                  ? "Unallocated"
-                  : bulkAction?.value}
-              </strong>{" "}
-              for {selectedStudios.size} studio{selectedStudios.size > 1 ? "s" : ""}?
+              {bulkAction?.type === "grade" ? (
+                <>
+                  Set studio grade for {selectedStudios.size} studio{selectedStudios.size > 1 ? "s" : ""}. Choose the grade below.
+                </>
+              ) : (
+                <>
+                  Are you sure you want to {bulkAction?.type === "allocation" ? "set allocation to" : "set status to"}{" "}
+                  <strong>
+                    {bulkAction?.value === "unallocated"
+                      ? "Unallocated"
+                      : bulkAction?.value}
+                  </strong>{" "}
+                  for {selectedStudios.size} studio{selectedStudios.size > 1 ? "s" : ""}?
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
+          {bulkAction?.type === "grade" && (
+            <div className="space-y-2 py-2">
+              <label className="text-sm font-medium">Studio grade</label>
+              <Select value={bulkGradeId} onValueChange={setBulkGradeId}>
+                <SelectTrigger className="rounded-full">
+                  <SelectValue placeholder="Select grade" />
+                </SelectTrigger>
+                <SelectContent>
+                  {gradeOptions.map((g) => (
+                    <SelectItem key={g.id} value={g.id}>
+                      {g.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button
               variant="outline"
               onClick={() => {
                 setBulkActionDialogOpen(false);
                 setBulkAction(null);
+                setBulkGradeId("");
               }}
               className="rounded-full uppercase tracking-wide w-full sm:w-auto"
             >
@@ -412,7 +488,7 @@ const Studios = () => {
             </Button>
             <Button
               onClick={confirmBulkAction}
-              disabled={bulkUpdateStudios.isPending}
+              disabled={bulkUpdateStudios.isPending || (bulkAction?.type === "grade" && !bulkGradeId)}
               className="rounded-full uppercase tracking-wide w-full sm:w-auto"
             >
               {bulkUpdateStudios.isPending ? (

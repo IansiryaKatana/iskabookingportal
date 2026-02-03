@@ -18,7 +18,8 @@ interface ImportRequest {
     | "contracts"
     | "partners"
     | "cashback_campaigns"
-    | "applications";
+    | "applications"
+    | "ota_bookings";
   csv_data: string; // CSV content as string
   file_name?: string;
   options?: {
@@ -29,6 +30,12 @@ interface ImportRequest {
     send_welcome_email?: boolean; // For applications: send password reset email
   };
 }
+
+const OTA_CHANNELS = ["airbnb", "booking", "agoda", "expedia", "other"];
+const OTA_STATUSES = [
+  "arriving", "expected_arrivals", "pre_check_in", "checked_in", "in_house_guest",
+  "day_use", "checked_out", "expected_departures", "departing", "no_show", "cancelled",
+];
 
 // CSV parsing function - handles quoted fields with commas
 function parseCSV(csvText: string): Record<string, string>[] {
@@ -402,6 +409,7 @@ serve(async (req) => {
       "partners",
       "cashback_campaigns",
       "applications",
+      "ota_bookings",
     ];
 
     if (!validTypes.includes(import_type)) {
@@ -608,6 +616,152 @@ serve(async (req) => {
             status: 200,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           }
+        );
+      }
+
+      // OTA bookings: handle in edge function (no RPC)
+      if (import_type === "ota_bookings") {
+        const skipDuplicates = options?.skip_duplicates !== false;
+        const otaResults: Array<{ row_number: number; status: string; error_message?: string }> = [];
+        let otaSucceeded = 0;
+        let otaFailed = 0;
+
+        for (let i = 0; i < jsonbData.length; i++) {
+          const row = jsonbData[i];
+          const rowNum = i + 1;
+
+          const externalRef = (row.external_ref ?? "").toString().trim();
+          const channel = ((row.channel ?? "").toString().trim().toLowerCase()) || "other";
+          const guestName = (row.guest_name ?? "").toString().trim();
+          const checkIn = (row.check_in ?? "").toString().trim();
+          const checkOut = (row.check_out ?? "").toString().trim();
+
+          if (!externalRef || !guestName || !checkIn || !checkOut) {
+            otaResults.push({ row_number: rowNum, status: "error", error_message: "external_ref, guest_name, check_in, check_out are required" });
+            otaFailed++;
+            continue;
+          }
+          if (!OTA_CHANNELS.includes(channel)) {
+            otaResults.push({ row_number: rowNum, status: "error", error_message: `channel must be one of: ${OTA_CHANNELS.join(", ")}` });
+            otaFailed++;
+            continue;
+          }
+
+          const status = (row.status ?? "arriving").toString().trim().toLowerCase() || "arriving";
+          if (!OTA_STATUSES.includes(status)) {
+            otaResults.push({ row_number: rowNum, status: "error", error_message: `Invalid status: ${status}` });
+            otaFailed++;
+            continue;
+          }
+
+          const checkInDate = new Date(checkIn);
+          const checkOutDate = new Date(checkOut);
+          if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
+            otaResults.push({ row_number: rowNum, status: "error", error_message: "check_in and check_out must be valid dates (YYYY-MM-DD)" });
+            otaFailed++;
+            continue;
+          }
+          if (checkOutDate <= checkInDate) {
+            otaResults.push({ row_number: rowNum, status: "error", error_message: "check_out must be after check_in" });
+            otaFailed++;
+            continue;
+          }
+
+          let studioId: string | null = null;
+          const studioNumber = (row.studio_number ?? "").toString().trim();
+          if (studioNumber) {
+            const { data: studio } = await supabaseAdmin
+              .from("studios")
+              .select("id")
+              .eq("studio_number", studioNumber)
+              .maybeSingle();
+            if (studio) studioId = studio.id;
+          }
+
+          const payload = {
+            external_ref: externalRef,
+            channel,
+            guest_name: guestName,
+            guest_phone: (row.guest_phone ?? "").toString().trim() || null,
+            guest_email: (row.guest_email ?? "").toString().trim() || null,
+            studio_id: studioId,
+            check_in: checkIn,
+            check_out: checkOut,
+            status,
+            notes: (row.notes ?? "").toString().trim() || null,
+            internal_notes: (row.internal_notes ?? "").toString().trim() || null,
+            price_per_night: row.price_per_night != null && row.price_per_night !== "" ? parseFloat(String(row.price_per_night)) : null,
+            commission_amount: row.commission_amount != null && row.commission_amount !== "" ? parseFloat(String(row.commission_amount)) : null,
+            currency: (row.currency ?? "GBP").toString().trim() || "GBP",
+            created_by: user.id,
+          };
+
+          const { error: insertError } = await supabaseAdmin
+            .from("ota_bookings")
+            .insert(payload);
+
+          if (insertError) {
+            const isDuplicate = insertError.code === "23505" || (insertError.message && insertError.message.includes("unique") && insertError.message.includes("external_ref"));
+            if (skipDuplicates && isDuplicate) {
+              otaResults.push({ row_number: rowNum, status: "success" });
+              otaSucceeded++;
+            } else {
+              otaResults.push({ row_number: rowNum, status: "error", error_message: insertError.message || "Insert failed" });
+              otaFailed++;
+            }
+          } else {
+            otaResults.push({ row_number: rowNum, status: "success" });
+            otaSucceeded++;
+          }
+        }
+
+        const totalFailed = otaFailed + preImportFailedRows.length;
+        const allFailedRecords = [
+          ...preImportFailedRows.map((fr: any, idx: number) => ({ row_number: idx + 1, email: fr.email, reason: fr.reason, stage: "user_creation" })),
+          ...otaResults.filter((r: any) => r.status === "error").map((e: any) => ({ row_number: e.row_number, error: e.error_message, reason: e.error_message, stage: "database_import" })),
+        ];
+        const isPartialSuccess = otaSucceeded > 0 && totalFailed > 0;
+
+        if (importHistoryId) {
+          await supabaseAdmin
+            .from("import_history")
+            .update({
+              total_rows: rows.length,
+              succeeded: otaSucceeded,
+              failed: totalFailed,
+              status: otaSucceeded === 0 ? "failed" : isPartialSuccess ? "partial" : "completed",
+              completed_at: new Date().toISOString(),
+              report: { total_rows: rows.length, succeeded: otaSucceeded, failed: totalFailed, pre_import_failed: preImportFailedRows.length, import_failed: otaFailed },
+              errors: allFailedRecords,
+            })
+            .eq("id", importHistoryId);
+        }
+
+        await supabaseAdmin
+          .from("staff_activity_logs")
+          .insert({
+            staff_id: user.id,
+            action: "import",
+            entity_type: import_type,
+            entity_id: null,
+            payload: { import_type, file_name: file_name || "unknown.csv", total_rows: rows.length, succeeded: otaSucceeded, failed: otaFailed, import_history_id: importHistoryId },
+          });
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            partial: isPartialSuccess,
+            total_rows: rows.length,
+            succeeded: otaSucceeded,
+            failed: totalFailed,
+            pre_import_failed: preImportFailedRows.length,
+            import_failed: otaFailed,
+            results: otaResults,
+            errors: allFailedRecords,
+            user_creation_errors: userCreationErrors,
+            import_history_id: importHistoryId,
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 

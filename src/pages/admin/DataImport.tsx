@@ -111,6 +111,13 @@ const IMPORT_TYPES = [
     dependencies: ["contracts", "studios"],
     icon: "📋",
   },
+  {
+    value: "ota_bookings",
+    label: "OTA Bookings",
+    description: "Import OTA bookings (Airbnb, Booking.com, etc.). Optional studio_number to assign a studio.",
+    dependencies: [],
+    icon: "🏨",
+  },
 ];
 
 type ImportStatus = "idle" | "uploading" | "processing" | "completed" | "error";

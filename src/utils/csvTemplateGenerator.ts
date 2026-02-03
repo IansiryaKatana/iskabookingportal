@@ -861,6 +861,107 @@ export async function generateApplicationsReferenceFile(): Promise<string> {
 }
 
 /**
+ * Generate OTA Bookings CSV template from current data or example rows
+ */
+export async function generateOTABookingsTemplate(
+  options: CSVTemplateOptions = {}
+): Promise<string> {
+  const { data } = await supabase
+    .from("ota_bookings")
+    .select(`
+      external_ref,
+      channel,
+      guest_name,
+      guest_phone,
+      guest_email,
+      check_in,
+      check_out,
+      status,
+      notes,
+      internal_notes,
+      price_per_night,
+      commission_amount,
+      currency,
+      studio:studios ( studio_number )
+    `)
+    .order("check_in", { ascending: false })
+    .limit(20);
+
+  const headers = [
+    "external_ref",
+    "channel",
+    "guest_name",
+    "guest_phone",
+    "guest_email",
+    "studio_number",
+    "check_in",
+    "check_out",
+    "status",
+    "notes",
+    "internal_notes",
+    "price_per_night",
+    "commission_amount",
+    "currency",
+  ];
+
+  if (data && data.length > 0) {
+    const rows = data.map((row: any) => ({
+      external_ref: row.external_ref ?? "",
+      channel: row.channel ?? "airbnb",
+      guest_name: row.guest_name ?? "",
+      guest_phone: row.guest_phone ?? "",
+      guest_email: row.guest_email ?? "",
+      studio_number: (row.studio as any)?.studio_number ?? "",
+      check_in: row.check_in ?? "",
+      check_out: row.check_out ?? "",
+      status: row.status ?? "arriving",
+      notes: row.notes ?? "",
+      internal_notes: row.internal_notes ?? "",
+      price_per_night: row.price_per_night ?? "",
+      commission_amount: row.commission_amount ?? "",
+      currency: row.currency ?? "GBP",
+    }));
+    return arrayToCSV(rows, headers, options);
+  }
+
+  const exampleRows = [
+    {
+      external_ref: "AIR-2024-001",
+      channel: "airbnb",
+      guest_name: "Jane Doe",
+      guest_phone: "+44 7700 900123",
+      guest_email: "jane@example.com",
+      studio_number: "",
+      check_in: "2024-09-01",
+      check_out: "2024-09-05",
+      status: "arriving",
+      notes: "",
+      internal_notes: "",
+      price_per_night: "120",
+      commission_amount: "15",
+      currency: "GBP",
+    },
+    {
+      external_ref: "BK-2024-002",
+      channel: "booking",
+      guest_name: "John Smith",
+      guest_phone: "",
+      guest_email: "john@example.com",
+      studio_number: "",
+      check_in: "2024-09-10",
+      check_out: "2024-09-15",
+      status: "arriving",
+      notes: "",
+      internal_notes: "",
+      price_per_night: "",
+      commission_amount: "",
+      currency: "GBP",
+    },
+  ];
+  return arrayToCSV(exampleRows, headers, options);
+}
+
+/**
  * Get template generator function by import type
  */
 export function getTemplateGenerator(importType: string): () => Promise<string> {
@@ -875,6 +976,7 @@ export function getTemplateGenerator(importType: string): () => Promise<string> 
     partners: generatePartnersTemplate,
     cashback_campaigns: generateCashbackCampaignsTemplate,
     applications: generateApplicationsTemplate,
+    ota_bookings: generateOTABookingsTemplate,
   };
 
   return generators[importType] || (async () => "");
