@@ -715,7 +715,7 @@ const ContractDetail = () => {
             </CardContent>
           </Card>
 
-          <Card className="rounded-3xl border border-border/60 shadow-lg overflow-hidden">
+          <Card className="rounded-3xl border border-border/60 shadow-lg overflow-hidden lg:sticky lg:top-24 lg:self-start">
             {/* Red Top Section with Button */}
             <div className="bg-primary text-white p-6 space-y-4">
               {/* Rebooking Alert */}
@@ -777,40 +777,40 @@ const ContractDetail = () => {
             <CardContent className="space-y-6 pt-6">
               <div className="space-y-4">
                 <div>
-                  <CardTitle className="text-lg font-display uppercase tracking-wide mb-2">
+                  <CardTitle className="text-base font-display uppercase tracking-wide mb-2">
                     Secure this contract
                   </CardTitle>
-                  <CardDescription className="text-sm leading-relaxed">
+                  <CardDescription className="text-xs leading-relaxed">
                     Log in or create an account to begin your booking journey and reserve a studio.
                   </CardDescription>
                 </div>
 
                 <div className="space-y-4 pt-4">
-                  <h3 className="text-sm uppercase tracking-[0.3em] text-muted-foreground font-semibold">
+                  <h3 className="text-xs uppercase tracking-[0.25em] text-muted-foreground font-semibold">
                     Your booking steps
                   </h3>
                   <div className="space-y-3">
                     <div className="rounded-2xl bg-muted/30 border border-border/50 p-4">
-                      <p className="font-semibold uppercase tracking-wide text-sm mb-2">
+                      <p className="font-semibold uppercase tracking-wide text-xs mb-1.5">
                         Complete Your Booking Profile
                       </p>
-                      <p className="text-sm text-muted-foreground leading-relaxed">
+                      <p className="text-xs text-muted-foreground leading-relaxed">
                         Enter your personal, academic, and guarantor details. Upload required documents with drag-and-drop simplicity.
                       </p>
                     </div>
                     <div className="rounded-2xl bg-muted/30 border border-border/50 p-4">
-                      <p className="font-semibold uppercase tracking-wide text-sm mb-2">
+                      <p className="font-semibold uppercase tracking-wide text-xs mb-1.5">
                         Pay Deposit & Sign Digitally
                       </p>
-                      <p className="text-sm text-muted-foreground leading-relaxed">
+                      <p className="text-xs text-muted-foreground leading-relaxed">
                         Make your secure deposit payment via Stripe. We'll prepare your tenancy agreement for digital signing.
                       </p>
                     </div>
                     <div className="rounded-2xl bg-muted/30 border border-border/50 p-4">
-                      <p className="font-semibold uppercase tracking-wide text-sm mb-2">
+                      <p className="font-semibold uppercase tracking-wide text-xs mb-1.5">
                         Allocation & Move-In
                       </p>
-                      <p className="text-sm text-muted-foreground leading-relaxed">
+                      <p className="text-xs text-muted-foreground leading-relaxed">
                         Once verified, your studio will be allocated and you'll receive full move-in instructions.
                       </p>
                     </div>
