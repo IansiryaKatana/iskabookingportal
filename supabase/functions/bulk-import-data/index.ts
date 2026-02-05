@@ -18,6 +18,7 @@ interface ImportRequest {
     | "contracts"
     | "partners"
     | "cashback_campaigns"
+    | "discount_campaigns"
     | "applications"
     | "ota_bookings";
   csv_data: string; // CSV content as string
@@ -408,6 +409,7 @@ serve(async (req) => {
       "contracts",
       "partners",
       "cashback_campaigns",
+      "discount_campaigns",
       "applications",
       "ota_bookings",
     ];

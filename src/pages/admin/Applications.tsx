@@ -116,6 +116,51 @@ const BOOKING_SOURCE_OPTIONS = [
   { value: "partner_referral", label: "Partner referral" },
 ];
 
+const getBookingSourceBadge = (source?: string | null) => {
+  const config: Record<
+    string,
+    { label: string; className: string }
+  > = {
+    website: {
+      label: "Website",
+      className: "bg-blue-500 hover:bg-blue-600 text-white",
+    },
+    imported: {
+      label: "Imported",
+      className: "bg-slate-500 hover:bg-slate-600 text-white",
+    },
+    rebooker: {
+      label: "Rebooker",
+      className: "bg-purple-500 hover:bg-purple-600 text-white",
+    },
+    partner_referral: {
+      label: "Partner referral",
+      className: "bg-teal-500 hover:bg-teal-600 text-white",
+    },
+  };
+
+  if (!source) {
+    return (
+      <Badge className="uppercase bg-muted text-muted-foreground rounded-full px-2.5 py-0.5 text-[10px] font-medium">
+        No source
+      </Badge>
+    );
+  }
+
+  const cfg = config[source] ?? {
+    label: source,
+    className: "bg-muted text-foreground",
+  };
+
+  return (
+    <Badge
+      className={`uppercase ${cfg.className} rounded-full px-2.5 py-0.5 text-[10px] font-medium`}
+    >
+      {cfg.label}
+    </Badge>
+  );
+};
+
 const Applications = () => {
   const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string | undefined>();
   const { data, isLoading, isError, error } = useAdminApplications(selectedAcademicYearId);
@@ -125,6 +170,7 @@ const Applications = () => {
   const [manualPaymentOpen, setManualPaymentOpen] = useState(false);
   const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [bookingSourceFilter, setBookingSourceFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -371,6 +417,13 @@ const Applications = () => {
     if (statusFilter !== "all") {
       result = result.filter((application) => application.status === statusFilter);
     }
+
+    // Apply booking source filter
+    if (bookingSourceFilter !== "all") {
+      result = result.filter(
+        (application) => (application.booking_source || "") === bookingSourceFilter,
+      );
+    }
     
     // Apply search filter
     if (searchQuery.trim()) {
@@ -397,7 +450,7 @@ const Applications = () => {
     }
     
     return result;
-  }, [data, statusFilter, searchQuery]);
+  }, [data, statusFilter, bookingSourceFilter, searchQuery]);
 
   // Pagination logic
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
@@ -410,7 +463,7 @@ const Applications = () => {
   // Reset to page 1 when filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, selectedAcademicYearId, searchQuery]);
+  }, [statusFilter, bookingSourceFilter, selectedAcademicYearId, searchQuery]);
 
   const handleStatusChange = async (
     id: string,
@@ -441,8 +494,27 @@ const Applications = () => {
               placeholder="Search by name, studio, contract, status..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="rounded-full pl-9 text-sm md:text-base"
+              className="rounded-full pl-9 text-sm md:text-base placeholder:text-xs md:placeholder:text-sm"
             />
+          </div>
+          <div className="w-full md:w-56">
+            <Label className="sr-only">Booking source</Label>
+            <Select
+              value={bookingSourceFilter}
+              onValueChange={setBookingSourceFilter}
+            >
+              <SelectTrigger className="rounded-full text-xs sm:text-sm">
+                <SelectValue placeholder="All booking sources" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All booking sources</SelectItem>
+                {BOOKING_SOURCE_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <AcademicYearSelector
             value={selectedAcademicYearId}
@@ -529,12 +601,17 @@ const Applications = () => {
                   className="rounded-2xl border border-border/60 px-4 md:px-5 py-4 flex flex-col gap-3 overflow-hidden"
                 >
                   <div className="space-y-1 flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2 md:gap-3">
-                      <h3 className="text-base md:text-lg font-display font-bold uppercase tracking-wide truncate">
-                        {application.student?.first_name} {application.student?.last_name}
-                      </h3>
+                    <div className="flex items-start gap-2 md:gap-3 justify-between">
+                      <div className="flex flex-wrap items-center gap-2 md:gap-3 min-w-0">
+                        <h3 className="text-base md:text-lg font-display font-bold uppercase tracking-wide truncate">
+                          {application.student?.first_name} {application.student?.last_name}
+                        </h3>
+                        <div className="flex-shrink-0">
+                          {getStatusBadge(application.status)}
+                        </div>
+                      </div>
                       <div className="flex-shrink-0">
-                        {getStatusBadge(application.status)}
+                        {getBookingSourceBadge(application.booking_source)}
                       </div>
                     </div>
                     <p className="text-xs md:text-sm text-muted-foreground break-words">

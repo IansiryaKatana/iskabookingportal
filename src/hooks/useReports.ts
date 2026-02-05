@@ -17,6 +17,7 @@ export type ReportItem = {
   deposit_payment_intent_id: string | null;
   total_contract_value: number | null;
   cashback_amount: number | null;
+  discount_amount: number | null;
   adjusted_total: number | null;
   partner_name: string | null;
   commission_amount: number | null;
@@ -118,6 +119,7 @@ const fetchReport = async (reportType: ReportType): Promise<ReportItem[]> => {
       deposit_payment_intent_id,
       total_contract_value,
       cashback_amount,
+      discount_amount,
       referred_by_partner_id,
       created_at,
       contract:contracts(
@@ -294,8 +296,9 @@ const fetchReport = async (reportType: ReportType): Promise<ReportItem[]> => {
           phone: null,
         };
         const cashbackAmount = cashbacksMap.get(app.id) || app.cashback_amount || null;
-        const adjustedTotal = app.total_contract_value 
-          ? (app.total_contract_value - (cashbackAmount || 0))
+        const discountAmount = app.discount_amount ?? null;
+        const adjustedTotal = app.total_contract_value
+          ? (app.total_contract_value - (cashbackAmount || 0) - (discountAmount || 0))
           : null;
         const partnerRef = partnerReferralsMap.get(app.id);
         
@@ -312,6 +315,7 @@ const fetchReport = async (reportType: ReportType): Promise<ReportItem[]> => {
           deposit_payment_intent_id: app.deposit_payment_intent_id,
           total_contract_value: app.total_contract_value,
           cashback_amount: cashbackAmount,
+          discount_amount: discountAmount,
           adjusted_total: adjustedTotal,
           partner_name: partnerRef?.partner_name || null,
           commission_amount: partnerRef?.commission_amount || null,
@@ -373,8 +377,9 @@ const fetchReport = async (reportType: ReportType): Promise<ReportItem[]> => {
       }
 
       const cashbackAmount = cashbacksMap.get(app.id) || app.cashback_amount || null;
-      const adjustedTotal = app.total_contract_value 
-        ? (app.total_contract_value - (cashbackAmount || 0))
+      const discountAmount = app.discount_amount ?? null;
+      const adjustedTotal = app.total_contract_value
+        ? (app.total_contract_value - (cashbackAmount || 0) - (discountAmount || 0))
         : null;
       const partnerRef = partnerReferralsMap.get(app.id);
 
@@ -391,6 +396,7 @@ const fetchReport = async (reportType: ReportType): Promise<ReportItem[]> => {
         deposit_payment_intent_id: app.deposit_payment_intent_id,
         total_contract_value: app.total_contract_value,
         cashback_amount: cashbackAmount,
+        discount_amount: discountAmount,
         adjusted_total: adjustedTotal,
         partner_name: partnerRef?.partner_name || null,
         commission_amount: partnerRef?.commission_amount || null,

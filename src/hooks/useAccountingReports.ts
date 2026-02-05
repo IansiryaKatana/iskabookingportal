@@ -14,6 +14,7 @@ export type AccountsReceivableItem = {
   studio_grade: string;
   total_contract_value: number | null;
   cashback_amount: number;
+  discount_amount: number;
   adjusted_contract_value: number;
   total_due: number;
   total_paid: number;

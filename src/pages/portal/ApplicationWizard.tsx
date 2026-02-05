@@ -3442,8 +3442,26 @@ useEffect(() => {
                                       "d MMM yyyy",
                                     )}`
                                   : installment.due_date_offset_days !== null
-                                  ? `Due ${installment.due_date_offset_days} days after contract start`
+                                  ? installment.due_date_offset_days < 0
+                                    ? `Due ${Math.abs(
+                                        installment.due_date_offset_days,
+                                      )} days before contract start`
+                                    : installment.due_date_offset_days === 0
+                                    ? "Due on contract start date"
+                                    : `Due ${installment.due_date_offset_days} days after contract start`
                                   : "Schedule to be confirmed";
+                                const dueDateFormatted =
+                                  !installment.due_date &&
+                                  installment.due_date_offset_days != null &&
+                                  application?.contract?.contract_start
+                                    ? (() => {
+                                        const start = new Date(application.contract!.contract_start);
+                                        if (Number.isNaN(start.getTime())) return null;
+                                        const d = new Date(start);
+                                        d.setDate(d.getDate() + Number(installment.due_date_offset_days));
+                                        return format(d, "d MMM yyyy");
+                                      })()
+                                    : null;
                                 const fallbackLabel = `Instalment ${
                                   installment.sequence ?? ""
                                 }`.trim();
@@ -3462,6 +3480,11 @@ useEffect(() => {
                                       <p className="text-xs text-muted-foreground">
                                         {dueLabel}
                                       </p>
+                                      {dueDateFormatted && (
+                                        <p className="text-xs font-medium text-foreground/90 mt-0.5">
+                                          {dueDateFormatted}
+                                        </p>
+                                      )}
                                     </div>
                                   </div>
                                 );

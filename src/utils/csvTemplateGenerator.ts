@@ -343,6 +343,31 @@ export async function generateCashbackCampaignsTemplate(
 }
 
 /**
+ * Generate Discount Campaigns CSV template from current data
+ */
+export async function generateDiscountCampaignsTemplate(
+  options: CSVTemplateOptions = {}
+): Promise<string> {
+  const { data } = await supabase
+    .from("discount_campaigns")
+    .select("name, description, discount_amount, amount_type, applies_to, start_date, end_date, is_active, max_uses, booking_source");
+
+  const headers = [
+    "name",
+    "description",
+    "discount_amount",
+    "amount_type",
+    "applies_to",
+    "start_date",
+    "end_date",
+    "is_active",
+    "max_uses",
+    "booking_source",
+  ];
+  return arrayToCSV(data || [], headers, options);
+}
+
+/**
  * Download CSV as file
  */
 export function downloadCSV(csvContent: string, filename: string): void {
@@ -975,6 +1000,7 @@ export function getTemplateGenerator(importType: string): () => Promise<string> 
     contracts: generateContractsTemplate,
     partners: generatePartnersTemplate,
     cashback_campaigns: generateCashbackCampaignsTemplate,
+    discount_campaigns: generateDiscountCampaignsTemplate,
     applications: generateApplicationsTemplate,
     ota_bookings: generateOTABookingsTemplate,
   };

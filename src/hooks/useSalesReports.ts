@@ -23,6 +23,8 @@ export type SalesDemographicsRow = {
   total_sales_value: number | null;
   cashback_applied: boolean;
   cashback_value: number | null;
+  discount_applied: boolean;
+  discount_value: number | null;
   partner_referral_code: string | null;
   partner_name: string | null;
   partner_commission: number | null;

@@ -105,6 +105,13 @@ const IMPORT_TYPES = [
     icon: "🎁",
   },
   {
+    value: "discount_campaigns",
+    label: "Discount Campaigns",
+    description: "Import discount campaign definitions",
+    dependencies: [],
+    icon: "🏷️",
+  },
+  {
     value: "applications",
     label: "Applications",
     description: "Import historical student applications (requires contracts, studios). Academic year is determined by the contract.",
@@ -707,7 +714,7 @@ const DataImport = () => {
                 },
                 {
                   step: 5,
-                  items: ["Partners", "Cashback Campaigns"],
+                  items: ["Partners", "Cashback Campaigns", "Discount Campaigns"],
                   note: "Optional - for referral and promotion programs",
                 },
                 {

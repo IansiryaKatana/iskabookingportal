@@ -312,6 +312,7 @@ const Reports = () => {
       "Deposit Paid",
       "Total Contract Value",
       "Cashback Amount",
+      "Discount Amount",
       "Adjusted Total",
       "Partner Referral",
       "Commission Amount",
@@ -334,6 +335,7 @@ const Reports = () => {
       item.deposit_paid ? "Yes" : "No",
       item.total_contract_value?.toString() || "",
       item.cashback_amount?.toString() || "0",
+      item.discount_amount?.toString() || "0",
       item.adjusted_total?.toString() || item.total_contract_value?.toString() || "",
       item.partner_name || "N/A",
       item.commission_amount?.toString() || "0",
@@ -758,6 +760,14 @@ const Reports = () => {
                                 <span className="font-medium">Cashback:</span>{" "}
                                 <span className="text-green-600 font-bold">
                                   -{formatCurrency(item.cashback_amount)}
+                                </span>
+                              </div>
+                            )}
+                            {item.discount_amount && item.discount_amount > 0 && (
+                              <div>
+                                <span className="font-medium">Discount:</span>{" "}
+                                <span className="text-green-600 font-bold">
+                                  -{formatCurrency(item.discount_amount)}
                                 </span>
                               </div>
                             )}

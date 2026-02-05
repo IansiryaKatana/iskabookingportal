@@ -1,10 +1,11 @@
 import { useMemo, useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, CreditCard, Calendar, CheckCircle2, Clock, AlertCircle, Gift, FileDown, Banknote, XCircle, History } from "lucide-react";
+import { Loader2, CreditCard, Calendar, CheckCircle2, Clock, AlertCircle, Gift, Percent, FileDown, Banknote, XCircle, History } from "lucide-react";
 import PortalLayout from "@/components/portal/PortalLayout";
 import { useStudentApplicationsList } from "@/hooks/useStudentApplications";
 import { useStudentPayments } from "@/hooks/useStudentPayments";
 import { useApplicationCashback } from "@/hooks/useCashback";
+import { useApplicationDiscount } from "@/hooks/useDiscount";
 import { usePaymentSummary, useUnifiedPayments } from "@/hooks/useUnifiedPayments";
 import { useManualPaymentRequests, useManualPaymentRequestHistory } from "@/hooks/useManualPaymentRequests";
 import ManualPaymentRequestDialog from "@/components/portal/ManualPaymentRequestDialog";
@@ -541,6 +542,7 @@ const PaymentCard = ({
     return map;
   }, [requestHistory]);
   const { data: cashback } = useApplicationCashback(application.id);
+  const { data: discount } = useApplicationDiscount(application.id);
   // Only fetch payment summary for confirmed applications (they have payment schedules)
   // Polled in background; values update without full-card loading (no isRefetching overlay)
   const { data: paymentSummary } = usePaymentSummary(
@@ -590,31 +592,29 @@ const PaymentCard = ({
     return instalments.reduce((sum, inst) => sum + Number(inst.amount), 0);
   }, [instalments]);
 
-  // Calculate cashback-adjusted installments (reduce final installment)
-  // For Pay in Full (1 installment), this will reduce that single installment
+  // Calculate cashback- and discount-adjusted installments (reduce final installment)
+  const totalReduction = (cashback?.cashback_amount || 0) + (discount?.discount_amount || 0);
   const adjustedInstalments = useMemo(() => {
     if (!instalments || instalments.length === 0) return [];
-    if (!cashback || cashback.cashback_amount <= 0) return instalments;
+    if (totalReduction <= 0) return instalments;
 
     const sorted = [...instalments].sort((a, b) => a.sequence - b.sequence);
     const lastIndex = sorted.length - 1;
     const lastInstalment = sorted[lastIndex];
 
-    // Reduce final installment by cashback amount (minimum 0)
-    // For Pay in Full, this is the only installment
-    const adjustedAmount = Math.max(0, Number(lastInstalment.amount) - cashback.cashback_amount);
+    const adjustedAmount = Math.max(0, Number(lastInstalment.amount) - totalReduction);
 
     return sorted.map((inst, index) => {
       if (index === lastIndex) {
-        return { 
-          ...inst, 
-          amount: adjustedAmount, 
-          original_amount: Number(inst.amount) 
+        return {
+          ...inst,
+          amount: adjustedAmount,
+          original_amount: Number(inst.amount),
         };
       }
       return inst;
     });
-  }, [instalments, cashback]);
+  }, [instalments, totalReduction]);
 
   // Refetch when payment succeeds - but delay to prevent state reset
   useEffect(() => {
@@ -710,6 +710,21 @@ const PaymentCard = ({
             </AlertDescription>
           </Alert>
         )}
+        {/* Discount Alert */}
+        {discount && discount.discount_amount > 0 && (
+          <Alert className="border-primary/50 bg-primary/5">
+            <Percent className="h-4 w-4" />
+            <AlertTitle className="font-semibold">Discount Applied</AlertTitle>
+            <AlertDescription className="text-sm mt-1">
+              You have a discount of £{discount.discount_amount.toLocaleString("en-GB", { minimumFractionDigits: 2 })} applied to this booking.
+              {discount.campaign && (
+                <span className="block mt-1 text-xs text-muted-foreground">
+                  Campaign: {discount.campaign.name}
+                </span>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Payment Summary - Detailed Breakdown */}
         {paymentSummary && (
@@ -764,6 +779,19 @@ const PaymentCard = ({
               </div>
             )}
 
+            {/* Discount (if applicable) */}
+            {discount && discount.discount_amount > 0 && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground flex items-center gap-1">
+                  <Percent className="h-3 w-3" />
+                  Discount Applied:
+                </span>
+                <span className="font-semibold text-green-600">
+                  -£{discount.discount_amount.toLocaleString("en-GB", { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            )}
+
             {/* Remaining Balance */}
             <div className="flex items-center justify-between text-sm pt-2 border-t border-border/60">
               <span className="font-semibold">Remaining Balance:</span>
@@ -781,7 +809,13 @@ const PaymentCard = ({
         {adjustedInstalments.map((instalment) => {
           const originalAmount = (instalment as any).original_amount;
           const isLastInstalment = instalment.sequence === adjustedInstalments.length;
-          const hasCashbackDiscount = originalAmount && originalAmount > Number(instalment.amount);
+          const hasReduction = originalAmount && originalAmount > Number(instalment.amount);
+          const reductionLabel =
+            cashback?.cashback_amount && discount?.discount_amount
+              ? "Cashback & Discount"
+              : cashback?.cashback_amount
+                ? "Cashback"
+                : "Discount";
           const status = getInstalmentStatus(instalment, application);
           const isSelected =
             selectedInstalment?.instalmentId === instalment.id;
@@ -813,7 +847,7 @@ const PaymentCard = ({
                     </div>
                     <div className="flex items-center gap-2">
                       <CreditCard className="h-4 w-4" />
-                      {hasCashbackDiscount ? (
+                      {hasReduction ? (
                         <span className="flex items-center gap-2">
                           <span className="line-through text-muted-foreground/60">
                             £{originalAmount.toFixed(2)}
@@ -822,8 +856,12 @@ const PaymentCard = ({
                             £{Number(instalment.amount).toFixed(2)}
                           </span>
                           <Badge variant="outline" className="text-xs">
-                            <Gift className="h-3 w-3 mr-1" />
-                            Cashback
+                            {discount?.discount_amount && !cashback?.cashback_amount ? (
+                              <Percent className="h-3 w-3 mr-1" />
+                            ) : (
+                              <Gift className="h-3 w-3 mr-1" />
+                            )}
+                            {reductionLabel}
                           </Badge>
                         </span>
                       ) : (

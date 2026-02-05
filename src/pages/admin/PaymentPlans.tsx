@@ -21,11 +21,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Plus, Pencil, Trash2, Copy, Info } from "lucide-react";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetFooter,
+} from "@/components/ui/sheet";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useForm, useFieldArray } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -42,6 +45,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -130,7 +134,8 @@ const PaymentPlans = () => {
   const [editingPlan, setEditingPlan] = useState<PaymentPlanWithInstallments | null>(null);
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [sourceYearId, setSourceYearId] = useState<string>("");
-  
+  const isMobile = useIsMobile();
+
   const { data: allAcademicYears } = useAllAcademicYears();
   const duplicatePlans = useDuplicatePaymentPlans();
 
@@ -200,6 +205,16 @@ const PaymentPlans = () => {
     setTimeout(() => {
       resetForm();
     }, 200);
+  };
+
+  /** Example due date for student reference: reference start + offset days (display only). */
+  const getExampleDueDate = (startDateStr: string | null | undefined, offsetDays: number | null | undefined): string | null => {
+    if (!startDateStr || offsetDays == null || offsetDays === "" || Number.isNaN(Number(offsetDays))) return null;
+    const start = new Date(startDateStr);
+    if (Number.isNaN(start.getTime())) return null;
+    const d = new Date(start);
+    d.setDate(d.getDate() + Number(offsetDays));
+    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   };
 
   const handleCreate = () => {
@@ -460,7 +475,15 @@ const PaymentPlans = () => {
                             <p>Due on: {installment.due_date}</p>
                           ) : (
                             <p>
-                              Due {installment.due_date_offset_days} days after contract start
+                              {installment.due_date_offset_days != null
+                                ? installment.due_date_offset_days < 0
+                                  ? `Due ${Math.abs(
+                                      installment.due_date_offset_days,
+                                    )} days before contract start`
+                                  : installment.due_date_offset_days === 0
+                                  ? "Due on contract start date"
+                                  : `Due ${installment.due_date_offset_days} days after contract start`
+                                : "Schedule to be confirmed"}
                             </p>
                           )}
                         </div>
@@ -474,15 +497,34 @@ const PaymentPlans = () => {
         </CardContent>
       </Card>
 
-      <Dialog open={dialogOpen} onOpenChange={(open) => (open ? setDialogOpen(true) : closeDialog())}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-display uppercase tracking-wide">
+      <Sheet open={dialogOpen} onOpenChange={(open) => (open ? setDialogOpen(true) : closeDialog())}>
+        <SheetContent
+          side={isMobile ? "bottom" : "right"}
+          aria-describedby="payment-plan-sheet-desc"
+          className={cn(
+            "flex flex-col p-4 sm:p-6 gap-0",
+            isMobile ? "max-h-[90vh] mb-0 rounded-t-2xl" : "h-full w-full max-w-3xl sm:max-w-3xl"
+          )}
+        >
+          {(createPlan.isPending || updatePlan.isPending) && (
+            <div className="absolute top-0 left-0 right-0 z-10 h-0.5 overflow-hidden rounded-t-lg bg-muted">
+              <div className="h-full w-full min-w-[40%] animate-pulse rounded-full bg-primary" />
+            </div>
+          )}
+          <SheetHeader className="flex-shrink-0 text-left">
+            <SheetTitle className="text-xl font-display uppercase tracking-wide">
               {editingPlan ? "Edit payment plan" : "New payment plan"}
-            </DialogTitle>
-          </DialogHeader>
+            </SheetTitle>
+            <SheetDescription id="payment-plan-sheet-desc" className="sr-only">
+              {editingPlan ? "Edit plan name, deposit, description, and instalments." : "Create a new plan with name, deposit, and instalments."}
+            </SheetDescription>
+          </SheetHeader>
           <Form {...form}>
-            <form className="space-y-6" onSubmit={onSubmit}>
+            <form className="flex flex-col flex-1 min-h-0 gap-0" onSubmit={onSubmit}>
+              <div className={cn(
+                "flex-1 min-h-0 overflow-y-auto py-4 space-y-6 pr-1",
+                "[&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+              )}>
               <div className="grid gap-4 md:grid-cols-2">
                 <FormField
                   control={form.control}
@@ -685,18 +727,37 @@ const PaymentPlans = () => {
                           </FormItem>
                         )}
                       />
+                      {(() => {
+                        const offsetVal = form.watch(`installments.${index}.due_date_offset_days`);
+                        const refStart = selectedAcademicYear?.start_date;
+                        const exampleDate = getExampleDueDate(refStart, offsetVal);
+                        if (!exampleDate) return null;
+                        const refFormatted = refStart ? new Date(refStart).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "";
+                        return (
+                          <p className="text-xs text-muted-foreground rounded-md bg-muted/50 px-3 py-2 border border-border/40">
+                            <span className="font-medium text-foreground/90">Example due date</span>
+                            {refFormatted ? (
+                              <> (if contract starts {refFormatted}): <strong>{exampleDate}</strong></>
+                            ) : (
+                              <>: <strong>{exampleDate}</strong></>
+                            )}
+                          </p>
+                        );
+                      })()}
                     </div>
                   ))}
                 </div>
               </div>
+              </div>
 
-              <div className="flex items-center justify-end gap-2">
-                <Button type="button" variant="outline" onClick={closeDialog}>
+              <SheetFooter className="flex-shrink-0 gap-2 pt-4 mt-0 border-t border-border/60 sm:justify-end">
+                <Button type="button" variant="outline" onClick={closeDialog} className="rounded-full uppercase tracking-wide">
                   Cancel
                 </Button>
                 <Button
                   type="submit"
                   disabled={createPlan.isPending || updatePlan.isPending}
+                  className="rounded-full uppercase tracking-wide"
                 >
                   {createPlan.isPending || updatePlan.isPending ? (
                     <>
@@ -707,11 +768,11 @@ const PaymentPlans = () => {
                     "Save payment plan"
                   )}
                 </Button>
-              </div>
+              </SheetFooter>
             </form>
           </Form>
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
 
       {/* Duplicate Payment Plans Dialog */}
       <AlertDialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>

@@ -286,6 +286,7 @@ const SalesReports = () => {
                       <th className="py-2 px-2 text-right">Weekly Rent</th>
                       <th className="py-2 px-2 text-right">Total Value</th>
                       <th className="py-2 px-2 text-right">Cashback</th>
+                      <th className="py-2 px-2 text-right">Discount</th>
                       <th className="py-2 px-2 text-right">Commission</th>
                       <th className="py-2 px-2 text-left">Rebooker</th>
                     </tr>
@@ -327,6 +328,15 @@ const SalesReports = () => {
                           {row.cashback_value && row.cashback_value > 0 ? (
                             <span className="text-green-600 font-semibold">
                               -£{row.cashback_value.toFixed(0)}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td className="py-2 px-2 text-right">
+                          {row.discount_value && row.discount_value > 0 ? (
+                            <span className="text-green-600 font-semibold">
+                              -£{row.discount_value.toFixed(0)}
                             </span>
                           ) : (
                             "—"

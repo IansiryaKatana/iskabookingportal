@@ -24,7 +24,12 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
-const Navigation = () => {
+type NavigationProps = {
+  /** When true, logo is smaller (e.g. on contract detail page). */
+  compactLogo?: boolean;
+};
+
+const Navigation = ({ compactLogo = false }: NavigationProps) => {
   const { user, profile, role, signOut } = useAuth();
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -176,7 +181,11 @@ const Navigation = () => {
           </div>
           
           <a href="/" className="flex items-center lg:absolute lg:left-1/2 lg:transform lg:-translate-x-1/2">
-            <img src={logoUrl} alt={companyName || "StudentStaySolutions"} className="h-8 md:h-12" />
+            <img
+              src={logoUrl}
+              alt={companyName || "StudentStaySolutions"}
+              className={compactLogo ? "h-6 md:h-8" : "h-8 md:h-12"}
+            />
           </a>
 
           <div className="hidden xl:flex items-center gap-2">

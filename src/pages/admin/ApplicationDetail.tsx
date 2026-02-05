@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useStudentApplication } from "@/hooks/useStudentApplication";
 import { useUpdateApplicationStatus } from "@/hooks/useAdminApplications";
 import { useAdminStudios } from "@/hooks/useAdminStudios";
-import { ArrowLeft, User, Mail, Phone, MapPin, Calendar, Building2, CreditCard, FileText, CheckCircle2, XCircle, Download, Send, RotateCcw, Gift, Handshake, Upload } from "lucide-react";
+import { ArrowLeft, User, Mail, Phone, MapPin, Calendar, Building2, CreditCard, FileText, CheckCircle2, XCircle, Download, Send, RotateCcw, Gift, Percent, Handshake, Upload } from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -27,6 +27,7 @@ import { supabase } from "@/integrations/supabase/client";
 import ManualPaymentDialog from "@/components/admin/ManualPaymentDialog";
 import { useCreateNotification } from "@/hooks/useNotifications";
 import { useApplicationCashback, useActiveCashbackCampaigns, useApplyCashback } from "@/hooks/useCashback";
+import { useApplicationDiscount, useActiveDiscountCampaigns, useApplyDiscount, useRemoveDiscount } from "@/hooks/useDiscount";
 import { useApplicationPartnerReferral, usePartners, useCreatePartnerReferral } from "@/hooks/usePartners";
 import { useDocumentUpload } from "@/hooks/useDocumentUpload";
 import { logActivity } from "@/utils/auditLog";
@@ -90,20 +91,28 @@ const ApplicationDetail = () => {
   const [selectedStudio, setSelectedStudio] = useState<string>("");
   const [documentNotes, setDocumentNotes] = useState<Record<string, string>>({});
   const [cashbackDialogOpen, setCashbackDialogOpen] = useState(false);
+  const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
   const [partnerDialogOpen, setPartnerDialogOpen] = useState(false);
   const [selectedCashbackCampaign, setSelectedCashbackCampaign] = useState<string>("");
+  const [selectedDiscountCampaign, setSelectedDiscountCampaign] = useState<string>("");
   const [selectedPartner, setSelectedPartner] = useState<string>("");
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [selectedRejectedDoc, setSelectedRejectedDoc] = useState<{ id: string; documentType: string; notes?: string } | null>(null);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const uploadDocument = useDocumentUpload();
 
-  // Cashback and Partner hooks
+  // Cashback, Discount and Partner hooks
   const { data: cashback } = useApplicationCashback(applicationId);
   const { data: activeCampaigns } = useActiveCashbackCampaigns(
     application?.is_rebooking ? "rebooking" : "new"
   );
   const applyCashback = useApplyCashback();
+  const { data: discount } = useApplicationDiscount(applicationId);
+  const { data: activeDiscountCampaigns } = useActiveDiscountCampaigns(
+    application?.is_rebooking ? "rebooking" : "new"
+  );
+  const applyDiscount = useApplyDiscount();
+  const removeDiscount = useRemoveDiscount();
   const { data: partnerReferral } = useApplicationPartnerReferral(applicationId);
   const { data: partners } = usePartners(true);
   const createPartnerReferral = useCreatePartnerReferral();
@@ -1155,9 +1164,18 @@ const ApplicationDetail = () => {
                       </span>
                     </div>
                   )}
-                  {cashback && cashback.cashback_amount > 0 && (
+                  {discount && discount.discount_amount > 0 && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Percent className="h-3 w-3 text-primary" />
+                      <span className="text-muted-foreground">Discount:</span>
+                      <span className="font-semibold text-green-600">
+                        -{formatCurrency(discount.discount_amount)}
+                      </span>
+                    </div>
+                  )}
+                  {(cashback?.cashback_amount || 0) + (discount?.discount_amount || 0) > 0 && (
                     <p className="text-sm font-semibold text-primary">
-                      Adjusted: {formatCurrency((application.total_contract_value || 0) - cashback.cashback_amount)}
+                      Adjusted: {formatCurrency((application.total_contract_value || 0) - (cashback?.cashback_amount || 0) - (discount?.discount_amount || 0))}
                     </p>
                   )}
                 </div>
@@ -1187,6 +1205,49 @@ const ApplicationDetail = () => {
                 {cashback && (
                   <p className="text-xs text-muted-foreground">
                     {cashback.campaign?.name} - £{cashback.cashback_amount.toFixed(2)}
+                  </p>
+                )}
+              </div>
+
+              {/* Discount Section */}
+              <div className="space-y-2 pt-2 border-t">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs sm:text-sm text-muted-foreground">Discount</span>
+                  {discount ? (
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-green-600 text-white">
+                        <Percent className="h-3 w-3 mr-1" />
+                        Applied
+                      </Badge>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="rounded-full uppercase tracking-wide text-[10px]"
+                        onClick={() => {
+                          if (applicationId) {
+                            removeDiscount.mutate({ applicationId });
+                          }
+                        }}
+                        disabled={removeDiscount.isPending}
+                      >
+                        {removeDiscount.isPending ? "Removing..." : "Remove"}
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full uppercase tracking-wide text-xs"
+                      onClick={() => setDiscountDialogOpen(true)}
+                    >
+                      <Percent className="h-3 w-3 mr-1" />
+                      Apply
+                    </Button>
+                  )}
+                </div>
+                {discount && (
+                  <p className="text-xs text-muted-foreground">
+                    {discount.campaign?.name} - £{discount.discount_amount.toFixed(2)}
                   </p>
                 )}
               </div>
@@ -1404,6 +1465,65 @@ const ApplicationDetail = () => {
               className="rounded-full uppercase tracking-wide"
             >
               {applyCashback.isPending ? "Applying..." : "Apply Cashback"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Discount Dialog */}
+      <Dialog open={discountDialogOpen} onOpenChange={setDiscountDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-display uppercase tracking-wide">
+              Apply Discount
+            </DialogTitle>
+            <DialogDescription>
+              Select a discount campaign to apply to this application
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {activeDiscountCampaigns && activeDiscountCampaigns.length > 0 ? (
+              <Select value={selectedDiscountCampaign} onValueChange={setSelectedDiscountCampaign}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select campaign" />
+                </SelectTrigger>
+                <SelectContent>
+                  {activeDiscountCampaigns.map((campaign) => (
+                    <SelectItem key={campaign.id} value={campaign.id}>
+                      {campaign.name} - £{campaign.discount_amount.toFixed(2)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No active discount campaigns available for this application type.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDiscountDialogOpen(false)}
+              className="rounded-full uppercase tracking-wide"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (selectedDiscountCampaign && applicationId) {
+                  applyDiscount.mutate({
+                    applicationId,
+                    campaignId: selectedDiscountCampaign,
+                  });
+                  setDiscountDialogOpen(false);
+                  setSelectedDiscountCampaign("");
+                }
+              }}
+              disabled={!selectedDiscountCampaign || applyDiscount.isPending}
+              className="rounded-full uppercase tracking-wide"
+            >
+              {applyDiscount.isPending ? "Applying..." : "Apply Discount"}
             </Button>
           </DialogFooter>
         </DialogContent>

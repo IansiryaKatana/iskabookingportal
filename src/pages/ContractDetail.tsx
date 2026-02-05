@@ -185,6 +185,16 @@ const ContractDetail = () => {
     [resolvedPlanOptions, activePlanId],
   );
 
+  /** Calculated due date for student reference: contract start + offset days. */
+  const getDueDateFromOffset = (contractStart: string | undefined, offsetDays: number | null | undefined): string | null => {
+    if (!contractStart || offsetDays == null || offsetDays === "" || Number.isNaN(Number(offsetDays))) return null;
+    const start = new Date(contractStart);
+    if (Number.isNaN(start.getTime())) return null;
+    const d = new Date(start);
+    d.setDate(d.getDate() + Number(offsetDays));
+    return format(d, "d MMM yyyy");
+  };
+
   const activeSchedule = useMemo(() => {
     if (!activePlan?.payment_plan?.payment_plan_installments?.length) return [];
     return activePlan.payment_plan.payment_plan_installments
@@ -200,16 +210,24 @@ const ContractDetail = () => {
         const dueLabel = item.due_date
           ? `Due ${format(new Date(item.due_date), "d MMM yyyy")}`
           : item.due_date_offset_days !== null
-          ? `Due ${item.due_date_offset_days} days after contract start`
+          ? item.due_date_offset_days < 0
+            ? `Due ${Math.abs(item.due_date_offset_days)} days before contract start`
+            : item.due_date_offset_days === 0
+            ? "Due on contract start date"
+            : `Due ${item.due_date_offset_days} days after contract start`
           : "Schedule to be confirmed";
+        const dueDateFormatted = item.due_date
+          ? null
+          : getDueDateFromOffset(contract?.contract_start, item.due_date_offset_days);
         return {
           id: item.id,
           label: item.label ?? `Instalment ${item.sequence ?? ""}`.trim(),
           amountLabel,
           dueLabel,
+          dueDateFormatted,
         };
       });
-  }, [activePlan]);
+  }, [activePlan, contract?.contract_start]);
 
   const depositAmount = useMemo(() => {
     if (typeof contract?.deposit_override === "number") {
@@ -461,17 +479,22 @@ const ContractDetail = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navigation />
-      <section
-        className="relative overflow-hidden flex items-center min-h-[340px]"
-        style={{
-          backgroundImage:
-            "url('https://urbanhub.uk/wp-content/uploads/2025/11/contractsbackgroundportal.webp')",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
-      >
-        <div className="absolute inset-0 bg-black/60" aria-hidden="true" />
+      <Navigation compactLogo />
+      <section className="relative overflow-hidden flex items-center min-h-[340px] bg-black">
+        {/* Red + yellow gradient orbs - clearly visible */}
+        <div
+          className="pointer-events-none absolute -left-32 top-1/2 -translate-y-1/2 h-96 w-96 rounded-full bg-red-500/50 blur-3xl"
+          aria-hidden="true"
+        />
+        <div
+          className="pointer-events-none absolute -right-32 top-1/2 -translate-y-1/2 h-96 w-96 rounded-full bg-amber-400/45 blur-3xl"
+          aria-hidden="true"
+        />
+        {/* Subtle gradient overlay so text stays readable */}
+        <div
+          className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black/50"
+          aria-hidden="true"
+        />
         <div className="container mx-auto px-4 max-w-5xl relative z-10 flex flex-col items-center justify-center text-center gap-3 py-16">
           <p className="text-xs uppercase tracking-[0.3em] text-white/80">
             {contract.studio_grade?.name} ·{" "}
@@ -510,30 +533,53 @@ const ContractDetail = () => {
               </div>
 
               <div className="grid md:grid-cols-2 gap-4">
-                <Card className="rounded-2xl border border-border/60 bg-muted/40">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-semibold uppercase tracking-wide flex items-center gap-2">
-                      <CreditCard className="h-4 w-4" />
-                      Deposit
+                {/* Deposit card */}
+                <Card className="relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-red-50 via-background to-red-50 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="pointer-events-none absolute inset-x-8 -top-8 h-20 rounded-full bg-primary/5 blur-2xl" />
+                  <CardHeader className="pb-1 relative z-10">
+                    <CardTitle className="text-xs font-semibold uppercase tracking-[0.25em] text-muted-foreground flex items-center gap-2">
+                      <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <CreditCard className="h-3.5 w-3.5" />
+                      </span>
+                      <span>Deposit</span>
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="text-sm text-muted-foreground">
-                    {typeof depositAmount === "number"
-                      ? `£${depositAmount.toLocaleString("en-GB", {
-                          minimumFractionDigits: 2,
-                        })}`
-                      : "Deposit charged at booking"}
+                  <CardContent className="relative z-10 flex flex-col gap-1">
+                    <p className="text-2xl font-semibold text-foreground">
+                      {typeof depositAmount === "number"
+                        ? `£${depositAmount.toLocaleString("en-GB", {
+                            minimumFractionDigits: 2,
+                          })}`
+                        : "To be confirmed"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {typeof depositAmount === "number"
+                        ? "Payable to secure this contract."
+                        : "Deposit charged at booking once your contract is prepared."}
+                    </p>
                   </CardContent>
                 </Card>
-                <Card className="rounded-2xl border border-border/60 bg-muted/40">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-semibold uppercase tracking-wide flex items-center gap-2">
-                      <MapPin className="h-4 w-4" />
-                      Studio Grade
+
+                {/* Studio grade card */}
+                <Card className="relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-red-50 via-background to-red-50 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="pointer-events-none absolute inset-y-0 right-0 w-24 bg-primary/5 blur-3xl" />
+                  <CardHeader className="pb-1 relative z-10">
+                    <CardTitle className="text-xs font-semibold uppercase tracking-[0.25em] text-muted-foreground flex items-center gap-2">
+                      <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <MapPin className="h-3.5 w-3.5" />
+                      </span>
+                      <span>Studio grade</span>
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="text-sm text-muted-foreground">
-                    {contract.studio_grade?.name}
+                  <CardContent className="relative z-10 flex flex-col gap-1">
+                    <p className="text-2xl font-semibold text-foreground">
+                      {contract.studio_grade?.name}
+                    </p>
+                    {contract.academic_year?.name && (
+                      <p className="text-xs text-muted-foreground">
+                        {contract.academic_year.name}
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
               </div>
@@ -556,12 +602,12 @@ const ContractDetail = () => {
                         Payment schedule
                       </h3>
                       {resolvedPlanOptions.length > 1 && (
-                        <TabsList className="bg-muted/60 rounded-full p-1 flex gap-1 flex-wrap w-full">
+                        <TabsList className="bg-muted rounded-full p-1 flex gap-1 flex-wrap w-full border border-border/60 shadow-inner">
                           {resolvedPlanOptions.map((plan) => (
                             <TabsTrigger
                               key={plan.id}
                               value={plan.payment_plan_id ?? plan.id}
-                              className="rounded-full px-3 py-1 text-xs uppercase tracking-wide data-[state=active]:bg-background flex-1 min-w-0"
+                              className="rounded-full px-3 py-1 text-xs uppercase tracking-wide flex-1 min-w-0 border border-transparent transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm data-[state=active]:border-primary"
                             >
                               <span className="truncate">{plan.payment_plan?.name ?? "Plan"}</span>
                             </TabsTrigger>
@@ -569,7 +615,7 @@ const ContractDetail = () => {
                         </TabsList>
                       )}
                     </div>
-                    {resolvedPlanOptions.map((plan) => {
+                      {resolvedPlanOptions.map((plan) => {
                       const installments = plan.payment_plan?.payment_plan_installments ?? [];
                       const schedule =
                         installments
@@ -590,8 +636,17 @@ const ContractDetail = () => {
                                   "d MMM yyyy",
                                 )}`
                               : item.due_date_offset_days !== null
-                              ? `Due ${item.due_date_offset_days} days after contract start`
+                              ? item.due_date_offset_days < 0
+                                ? `Due ${Math.abs(
+                                    item.due_date_offset_days,
+                                  )} days before contract start`
+                                : item.due_date_offset_days === 0
+                                ? "Due on contract start date"
+                                : `Due ${item.due_date_offset_days} days after contract start`
                               : "Schedule to be confirmed";
+                            const dueDateFormatted = item.due_date
+                              ? null
+                              : getDueDateFromOffset(contract?.contract_start, item.due_date_offset_days);
                             return {
                               id: item.id,
                               label:
@@ -599,6 +654,7 @@ const ContractDetail = () => {
                                 `Instalment ${item.sequence ?? ""}`.trim(),
                               amountLabel,
                               dueLabel,
+                              dueDateFormatted,
                             };
                           }) ?? [];
 
@@ -631,6 +687,11 @@ const ContractDetail = () => {
                                       <p className="text-xs text-muted-foreground">
                                         {item.dueLabel}
                                       </p>
+                                      {item.dueDateFormatted && (
+                                        <p className="text-xs font-medium text-foreground/90 mt-0.5">
+                                          {item.dueDateFormatted}
+                                        </p>
+                                      )}
                                     </div>
                                   </div>
                                 ))
