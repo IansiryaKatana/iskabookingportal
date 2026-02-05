@@ -752,7 +752,7 @@ const PaymentCard = ({
 
             {/* Deposit Paid */}
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Deposit {isDepositPaid ? 'Paid' : 'Due'}:</span>
+              <span className="text-muted-foreground">Deposit {isDepositPaid ? 'Paid' : 'Due'} (separate from rent):</span>
               <span className={`font-semibold ${isDepositPaid ? 'text-green-600' : ''}`}>
                 {isDepositPaid ? '✓ ' : ''}£{depositAmount.toLocaleString("en-GB", { minimumFractionDigits: 2 })}
               </span>

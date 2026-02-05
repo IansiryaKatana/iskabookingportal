@@ -347,7 +347,8 @@ const upsertContracts = async (
     const weeklyPrice = contract.weekly_price_override ?? 0;
     const totalRent = weeklyPrice * contract.weeks;
     const deposit = contract.deposit_override ?? 0;
-    const remaining = Math.max(totalRent - deposit, 0);
+    // Deposit is separate: installments cover full totalRent (not totalRent - deposit)
+    const installmentTotal = totalRent;
     const planConfig = paymentPlans.find(
       (plan) => planIds[plan.key] === contract.payment_plan_id,
     );
@@ -364,16 +365,16 @@ const upsertContracts = async (
       });
     }
 
-    if (remaining > 0 && offsets.length) {
+    if (installmentTotal > 0 && offsets.length) {
       const count = offsets.length;
       let distributed = 0;
       offsets.forEach((offset, idx) => {
-        let amount = remaining / count;
+        let amount = installmentTotal / count;
         amount = currency(amount);
         distributed += amount;
 
         if (idx === count - 1) {
-          amount = currency(remaining - (distributed - amount));
+          amount = currency(installmentTotal - (distributed - amount));
         }
 
         const dueDate = new Date(contract.contract_start);

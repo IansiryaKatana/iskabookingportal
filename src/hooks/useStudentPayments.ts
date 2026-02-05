@@ -116,9 +116,8 @@ const fetchPaymentSchedule = async (
       }
     }
 
-    // CRITICAL: Calculate remaining balance = Contract Total - Deposit
-    // Installments are calculated from remaining balance, NOT contract total
-    const remainingBalance = Math.max(totalContractValue - depositAmount, 0);
+    // Deposit is separate: installments are calculated from full contract total (no minus deposit)
+    const installmentBase = totalContractValue;
 
     // Get payment plan installments
     const { data: allInstallments, error: installmentsError } = await supabase
@@ -154,13 +153,12 @@ const fetchPaymentSchedule = async (
     };
 
     const generatedSchedule: PaymentSchedule[] = installments.map((inst, index) => {
-      // Calculate amount from REMAINING BALANCE, not contract total
+      // Calculate amount from full contract total (deposit is separate, not deducted)
       let amount = 0;
       
       if (inst.amount_type === "percentage") {
-        // Installments are percentage of remaining balance (after deposit)
-        // Round to 2 decimal places for currency precision
-        const rawAmount = (remainingBalance * Number(inst.amount_value)) / 100;
+        // Installments are percentage of full contract total
+        const rawAmount = (installmentBase * Number(inst.amount_value)) / 100;
         amount = roundCurrency(rawAmount);
       } else if (inst.amount_type === "fixed") {
         amount = Number(inst.amount_value);
@@ -197,17 +195,13 @@ const fetchPaymentSchedule = async (
       } as PaymentSchedule;
     });
 
-    // CRITICAL FIX: Adjust last installment to absorb rounding difference
-    // This ensures installments sum exactly to remaining balance
+    // Adjust last installment to absorb rounding so installments sum exactly to contract total
     if (generatedSchedule.length > 0) {
       const lastIndex = generatedSchedule.length - 1;
       const sumOfPrevious = generatedSchedule
         .slice(0, lastIndex)
         .reduce((sum, inst) => sum + inst.amount, 0);
-      
-      // Last installment = remaining balance - sum of all previous installments
-      // Round to ensure currency precision
-      const adjustedAmount = roundCurrency(remainingBalance - sumOfPrevious);
+      const adjustedAmount = roundCurrency(installmentBase - sumOfPrevious);
       generatedSchedule[lastIndex].amount = adjustedAmount;
     }
     return generatedSchedule;

@@ -554,7 +554,7 @@ const ContractDetail = () => {
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {typeof depositAmount === "number"
-                        ? "Payable to secure this contract."
+                        ? "Payable separately to secure this contract; not deducted from your rent."
                         : "Deposit charged at booking once your contract is prepared."}
                     </p>
                   </CardContent>
@@ -626,7 +626,7 @@ const ContractDetail = () => {
                           .map((item) => {
                             const amountLabel =
                               item.amount_type === "percentage"
-                                ? `${item.amount_value}% of remaining balance`
+                                ? `${item.amount_value}% of contract total`
                                 : `£${item.amount_value.toLocaleString("en-GB", {
                                     minimumFractionDigits: 2,
                                   })}`;

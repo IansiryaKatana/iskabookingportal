@@ -235,6 +235,7 @@ const Settings = () => {
               credential_value: updates.resend_api_key,
               credential_type: "api_key",
               description: "Resend API key for sending emails",
+              sync_to_edge_function: true,
             },
             { onConflict: "credential_key" }
           ),
@@ -246,6 +247,7 @@ const Settings = () => {
               credential_value: updates.resend_from_email,
               credential_type: "email",
               description: "Default from email address for Resend",
+              sync_to_edge_function: true,
             },
             { onConflict: "credential_key" }
           ),

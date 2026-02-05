@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { getCorsHeaders, handleCorsPrelight } from "../_shared/cors.ts";
+import { getCredential } from "../_shared/get-credential.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -201,22 +202,18 @@ serve(async (req) => {
       }
     }
 
-    // Get Resend credentials
-    const { data: credentials } = await supabaseAdmin
-      .from("credentials")
-      .select("credential_key, credential_value")
-      .in("credential_key", ["resend_api_key", "resend_from_email"]);
-
-    let resendApiKey = Deno.env.get("RESEND_API_KEY");
-    let fromEmail = Deno.env.get("RESEND_FROM_EMAIL") || "noreply@send.portal.urbanhub.uk";
-
-    if (credentials && credentials.length > 0) {
-      const credsMap = new Map(
-        credentials.map((c) => [c.credential_key, c.credential_value])
-      );
-      resendApiKey = credsMap.get("resend_api_key") || resendApiKey;
-      fromEmail = credsMap.get("resend_from_email") || fromEmail;
-    }
+    // Get Resend credentials (database + env, with decryption support)
+    const [resendApiKey, fromEmailRaw] = await Promise.all([
+      getCredential("RESEND_API_KEY", {
+        supabase: supabaseAdmin,
+        fallback: Deno.env.get("RESEND_API_KEY") ?? "",
+      }),
+      getCredential("RESEND_FROM_EMAIL", {
+        supabase: supabaseAdmin,
+        fallback: Deno.env.get("RESEND_FROM_EMAIL") || "noreply@send.portal.urbanhub.uk",
+      }),
+    ]);
+    const fromEmail = fromEmailRaw?.trim() || "noreply@send.portal.urbanhub.uk";
 
     // Get portal URL
     const portalUrl = Deno.env.get("PORTAL_URL") || "https://portal.urbanhub.uk";

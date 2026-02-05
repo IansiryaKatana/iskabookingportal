@@ -1,40 +1,50 @@
 /**
  * Shared CORS configuration for Edge Functions
- * 
+ *
  * Allowed Origins:
  * - Production: https://portal.urbanhub.uk
  * - Netlify: https://iskabookingportal.netlify.app
- * - Development: http://localhost:8080
+ * - Development: any localhost / 127.0.0.1 (any port)
  */
 
 const ALLOWED_ORIGINS = [
-  // Production
   "https://portal.urbanhub.uk",
   "https://www.portal.urbanhub.uk",
-  // Netlify
   "https://iskabookingportal.netlify.app",
   "https://www.iskabookingportal.netlify.app",
-  // Development
   "http://localhost:8080",
+  "http://localhost:8081",
   "http://localhost:5173",
+  "http://localhost:3000",
   "http://127.0.0.1:8080",
+  "http://127.0.0.1:8081",
   "http://127.0.0.1:5173",
+  "http://127.0.0.1:3000",
 ];
 
+/** Match any http localhost or 127.0.0.1 (any port) for development */
+function isLocalOrigin(origin: string): boolean {
+  if (!origin || typeof origin !== "string") return false;
+  return (
+    /^https?:\/\/localhost(:\d+)?$/i.test(origin) ||
+    /^https?:\/\/127\.0\.0\.1(:\d+)?$/i.test(origin)
+  );
+}
+
 /**
- * Get CORS headers with origin validation
- * @param req - The incoming request
- * @returns CORS headers object
+ * Get CORS headers with origin validation.
+ * Localhost/127.0.0.1 (any port) are always allowed for development.
  */
 export function getCorsHeaders(req: Request): Record<string, string> {
-  const origin = req.headers.get("origin") || "";
-  
-  // Check if origin is in allowed list
-  const isAllowed = ALLOWED_ORIGINS.includes(origin);
-  
+  const origin = req.headers.get("origin") ?? "";
+
+  const isAllowed =
+    ALLOWED_ORIGINS.includes(origin) || isLocalOrigin(origin);
+
   return {
     "Access-Control-Allow-Origin": isAllowed ? origin : ALLOWED_ORIGINS[0],
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type",
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
   };
 }
@@ -61,13 +71,13 @@ export const staticCorsHeaders: Record<string, string> = {
 };
 
 /**
- * Handle CORS preflight request
- * @param req - The incoming request
- * @returns Response for OPTIONS request or null if not OPTIONS
+ * Handle CORS preflight request.
+ * Uses static headers (Allow-Origin: *) so preflight never blocks any origin;
+ * actual request responses still use getCorsHeaders(req) for origin reflection.
  */
 export function handleCorsPrelight(req: Request): Response | null {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: getCorsHeaders(req) });
+    return new Response("ok", { headers: staticCorsHeaders });
   }
   return null;
 }

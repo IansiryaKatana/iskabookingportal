@@ -92,22 +92,6 @@ export const useActiveCashbackCampaigns = (
         campaigns = data || [];
       }
 
-      if (import.meta.env.DEV) console.log("Fetched campaigns:", {
-        count: campaigns.length,
-        academicYearId,
-        today,
-        campaigns: campaigns.map(c => ({
-          id: c.id,
-          name: c.name,
-          academic_year_id: c.academic_year_id,
-          is_active: c.is_active,
-          start_date: c.start_date,
-          end_date: c.end_date,
-          max_uses: c.max_uses,
-          current_uses: c.current_uses,
-        }))
-      });
-
       // Apply appliesTo filter if needed
       if (appliesTo) {
         campaigns = campaigns.filter(c => c.applies_to === appliesTo || c.applies_to === "all");

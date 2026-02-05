@@ -58,7 +58,7 @@ export async function getCredential(
       .from("credentials")
       .select("credential_value, is_encrypted, encrypted_value, sync_to_edge_function")
       .eq("credential_key", key.toLowerCase())
-      .eq("sync_to_edge_function", true)
+      .or("sync_to_edge_function.eq.true,sync_to_edge_function.is.null")
       .maybeSingle();
 
     if (!error && data) {
@@ -125,7 +125,7 @@ export async function getCredentials(
       .from("credentials")
       .select("credential_key, credential_value, is_encrypted, encrypted_value")
       .in("credential_key", keys.map(k => k.toLowerCase()))
-      .eq("sync_to_edge_function", true);
+      .or("sync_to_edge_function.eq.true,sync_to_edge_function.is.null");
 
     if (!error && data) {
       // Process each credential

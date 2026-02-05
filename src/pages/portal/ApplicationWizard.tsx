@@ -3757,7 +3757,7 @@ useEffect(() => {
                   Pay your deposit
                 </CardTitle>
                 <CardDescription>
-                  Completing the {depositAmountFormatted} deposit secures your reserved studio and unlocks the tenancy agreement.
+                  The deposit is paid separately from your rent. Completing the {depositAmountFormatted} deposit secures your reserved studio and unlocks the tenancy agreement.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
