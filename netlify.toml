@@ -17,6 +17,7 @@
   NODE_VERSION = "18"
 
 # Headers for security and performance
+# If you see CSP errors for fonts/Stripe/hCaptcha, ensure no stricter CSP is set in Netlify dashboard (e.g. Security headers).
 [[headers]]
   for = "/*"
   [headers.values]
@@ -24,6 +25,8 @@
     X-XSS-Protection = "1; mode=block"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
+    # Allow Google Fonts, Stripe, hCaptcha; avoids "font-src blocked" and "style-src blocked" console errors
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://*.hcaptcha.com https://newassets.hcaptcha.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://js.stripe.com https://hcaptcha.com https://*.hcaptcha.com https://m.stripe.network; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://*.stripe.com https://*.hcaptcha.com https://hcaptcha.com; frame-src 'self' https://js.stripe.com https://*.hcaptcha.com https://newassets.hcaptcha.com https://m.stripe.network; base-uri 'self'; form-action 'self'"
 
 [[headers]]
   for = "/assets/*"

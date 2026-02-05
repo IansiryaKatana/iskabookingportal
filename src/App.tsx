@@ -188,7 +188,7 @@ const App = () => (
                   <Route
                     path="/portal/applications/:applicationId/select-studio"
                     element={
-                      <ProtectedRoute allowedRoles={["student", "staff", "superadmin"]}>
+                      <ProtectedRoute allowedRoles={["student", "staff", "superadmin", "operations_manager", "reservationist", "accountant", "front_desk", "maintenance_officer", "housekeeper"]}>
                         <StudioSelection />
                       </ProtectedRoute>
                     }
@@ -571,7 +571,7 @@ const App = () => (
             <Route
               path="/portal/applications/:applicationId"
               element={
-                <ProtectedRoute allowedRoles={["student", "staff", "superadmin"]}>
+                <ProtectedRoute allowedRoles={["student", "staff", "superadmin", "operations_manager", "reservationist", "accountant", "front_desk", "maintenance_officer", "housekeeper"]}>
                   <StudentApplicationWizard />
                 </ProtectedRoute>
               }

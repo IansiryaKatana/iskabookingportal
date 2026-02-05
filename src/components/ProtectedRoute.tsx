@@ -10,10 +10,20 @@ const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 
 /**
  * For detail routes (e.g. /admin/applications/abc-123), return the parent path used in route_permissions
- * so the single "Applications" permission controls both list and detail. Exact path unchanged.
+ * so the single "Applications" permission controls both list and detail.
+ * For /portal/applications/:id/select-studio, return /portal/applications/select-studio so one permission controls all.
  */
 function getPermissionPath(pathname: string): string {
   const segments = pathname.split("/").filter(Boolean);
+  // Portal application journey: /portal/applications/:id -> /portal/applications
+  if (segments.length === 3 && segments[0] === "portal" && segments[1] === "applications" && UUID_SEGMENT.test(segments[2])) {
+    return "/portal/applications";
+  }
+  // Portal studio selection: /portal/applications/:id/select-studio -> /portal/applications/select-studio
+  if (segments.length >= 4 && segments[0] === "portal" && segments[1] === "applications" && UUID_SEGMENT.test(segments[2]) && segments[3] === "select-studio") {
+    return "/portal/applications/select-studio";
+  }
+  // Admin (and other) detail routes: .../uuid at end -> parent path
   if (segments.length >= 2 && UUID_SEGMENT.test(segments[segments.length - 1])) {
     return "/" + segments.slice(0, -1).join("/");
   }

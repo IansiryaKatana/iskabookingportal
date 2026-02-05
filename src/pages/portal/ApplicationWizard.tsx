@@ -331,6 +331,15 @@ const StudentApplicationWizard = () => {
   const { user, profile, refreshProfile } = useAuth();
   const { toast } = useToast();
   const isStaff = profile?.role === "staff" || profile?.role === "superadmin";
+  const isStaffOrSubRole =
+    isStaff ||
+    profile?.role === "admin" ||
+    profile?.role === "operations_manager" ||
+    profile?.role === "reservationist" ||
+    profile?.role === "accountant" ||
+    profile?.role === "front_desk" ||
+    profile?.role === "maintenance_officer" ||
+    profile?.role === "housekeeper";
 
   const {
     data: application,
@@ -4445,11 +4454,20 @@ useEffect(() => {
     ? 100 
     : (completedSteps / steps.length) * 100;
 
+  const handleBackToDashboard = () => {
+    if (isStaffOrSubRole) {
+      navigate("/admin");
+    } else {
+      navigate("/portal");
+    }
+  };
+
   return (
     <PortalLayout
       title="Booking Journey"
       subtitle=""
-      backLabel="Back"
+      backLabel="Back to dashboard"
+      onBack={handleBackToDashboard}
       hideNav={true}
     >
       <section className="space-y-8">

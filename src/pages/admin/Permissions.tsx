@@ -111,8 +111,10 @@ const Permissions = () => {
         reservationist: 4,
         accountant: 5,
         front_desk: 6,
-        student: 7,
-        partner: 8,
+        maintenance_officer: 7,
+        housekeeper: 8,
+        student: 9,
+        partner: 10,
       };
       return (order[a] ?? 99) - (order[b] ?? 99);
     });
