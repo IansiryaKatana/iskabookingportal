@@ -88,6 +88,7 @@ const ApplicationDetail = () => {
   const createNotification = useCreateNotification();
   const queryClient = useQueryClient();
   const [manualPaymentOpen, setManualPaymentOpen] = useState(false);
+  const [manualPaymentInitialType, setManualPaymentInitialType] = useState<"deposit" | "instalment">("deposit");
   const [selectedStudio, setSelectedStudio] = useState<string>("");
   const [documentNotes, setDocumentNotes] = useState<Record<string, string>>({});
   const [cashbackDialogOpen, setCashbackDialogOpen] = useState(false);
@@ -1137,11 +1138,25 @@ const ApplicationDetail = () => {
             <CardContent className="space-y-4">
               <div>
                 <p className="text-xs sm:text-sm text-muted-foreground mb-2">Deposit Status</p>
-                <div className="font-medium">
+                <div className="font-medium flex flex-wrap items-center gap-2">
                   {application.deposit_payment_intent_id ? (
                     <Badge variant="default" className="uppercase text-xs">Paid</Badge>
                   ) : (
-                    <Badge variant="outline" className="uppercase text-xs">Pending</Badge>
+                    <>
+                      <Badge variant="outline" className="uppercase text-xs">Not recorded</Badge>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="rounded-full uppercase tracking-wide text-xs"
+                        onClick={() => {
+                          setManualPaymentInitialType("deposit");
+                          setManualPaymentOpen(true);
+                        }}
+                      >
+                        <CreditCard className="h-3 w-3 mr-1" />
+                        Record deposit
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
@@ -1287,7 +1302,10 @@ const ApplicationDetail = () => {
               <Button
                 variant="outline"
                 className="w-full rounded-full uppercase tracking-wide gap-2 mt-4"
-                onClick={() => setManualPaymentOpen(true)}
+                onClick={() => {
+                  setManualPaymentInitialType("deposit");
+                  setManualPaymentOpen(true);
+                }}
               >
                 <CreditCard className="h-4 w-4" />
                 Record Manual Payment
@@ -1406,8 +1424,12 @@ const ApplicationDetail = () => {
       {applicationId && (
         <ManualPaymentDialog
           open={manualPaymentOpen}
-          onOpenChange={setManualPaymentOpen}
+          onOpenChange={(open) => {
+            setManualPaymentOpen(open);
+            if (!open) setManualPaymentInitialType("deposit");
+          }}
           applicationId={applicationId}
+          paymentType={manualPaymentInitialType}
         />
       )}
 

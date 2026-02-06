@@ -22,6 +22,10 @@ export type UnifiedPayment = {
   contract_name: string;
   academic_year_id: string;
   academic_year_name: string;
+  /** From view: human-readable for CSV/reports */
+  student_name?: string | null;
+  studio_number?: string | null;
+  studio_grade?: string | null;
   payment_metadata?: {
     label?: string;
     type?: string;

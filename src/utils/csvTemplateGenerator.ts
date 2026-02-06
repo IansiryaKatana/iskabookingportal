@@ -741,6 +741,56 @@ export async function generateApplicationsTemplate(
 }
 
 /**
+ * Generate Payment Records CSV template (installment payments for existing applications).
+ * Use application_id OR (student_email + academic_year_name) to identify the application.
+ */
+export async function generatePaymentRecordsTemplate(
+  options: CSVTemplateOptions = {}
+): Promise<string> {
+  const headers = [
+    "student_email",
+    "academic_year_name",
+    "amount",
+    "payment_date",
+    "payment_method",
+    "notes",
+    "instalment_sequence",
+  ];
+  const { includeHeaders = true, includeExampleData = true } = options;
+
+  let exampleRows: Record<string, string>[] = [];
+  if (includeExampleData) {
+    const { data: academicYears } = await supabase
+      .from("academic_years")
+      .select("name")
+      .order("start_date", { ascending: false })
+      .limit(3);
+    const yearName = academicYears?.[0]?.name ?? "2024/2025";
+    exampleRows = [
+      {
+        student_email: "student@example.com",
+        academic_year_name: yearName,
+        amount: "500.00",
+        payment_date: "2024-10-01",
+        payment_method: "bank_transfer",
+        notes: "First installment (imported)",
+        instalment_sequence: "1",
+      },
+      {
+        student_email: "student@example.com",
+        academic_year_name: yearName,
+        amount: "500.00",
+        payment_date: "2024-11-01",
+        payment_method: "bank_transfer",
+        notes: "Second installment (imported)",
+        instalment_sequence: "2",
+      },
+    ];
+  }
+  return arrayToCSV(exampleRows, headers, options);
+}
+
+/**
  * Generate reference file with contract slugs and payment plan names for applications import
  */
 export async function generateApplicationsReferenceFile(): Promise<string> {
@@ -1002,6 +1052,7 @@ export function getTemplateGenerator(importType: string): () => Promise<string> 
     cashback_campaigns: generateCashbackCampaignsTemplate,
     discount_campaigns: generateDiscountCampaignsTemplate,
     applications: generateApplicationsTemplate,
+    payment_records: generatePaymentRecordsTemplate,
     ota_bookings: generateOTABookingsTemplate,
   };
 

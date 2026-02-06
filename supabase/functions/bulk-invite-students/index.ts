@@ -203,17 +203,24 @@ serve(async (req) => {
     }
 
     // Get Resend credentials (database + env, with decryption support)
-    const [resendApiKey, fromEmailRaw] = await Promise.all([
+    const envResendKey = Deno.env.get("RESEND_API_KEY") ?? "";
+    const [fromDbKey, fromEmailRaw] = await Promise.all([
       getCredential("RESEND_API_KEY", {
         supabase: supabaseAdmin,
-        fallback: Deno.env.get("RESEND_API_KEY") ?? "",
+        fallback: envResendKey,
       }),
       getCredential("RESEND_FROM_EMAIL", {
         supabase: supabaseAdmin,
         fallback: Deno.env.get("RESEND_FROM_EMAIL") || "noreply@send.portal.urbanhub.uk",
       }),
     ]);
+    const resendApiKey = (fromDbKey?.trim() || envResendKey?.trim()) ?? "";
     const fromEmail = fromEmailRaw?.trim() || "noreply@send.portal.urbanhub.uk";
+    if (!resendApiKey) {
+      console.log("Resend API key: not set (check Settings > Email or Supabase Edge Function secret RESEND_API_KEY)");
+    } else {
+      console.log(`Resend API key: present (${fromDbKey?.trim() ? "database" : "env"}, length ${resendApiKey.length})`);
+    }
 
     // Get portal URL
     const portalUrl = Deno.env.get("PORTAL_URL") || "https://portal.urbanhub.uk";
@@ -396,7 +403,40 @@ serve(async (req) => {
         });
 
         // Send email
-        // If no template selected, try to use default account_invitation template
+        const firstName = userMetadata.first_name || step2?.payload?.first_name || "Student";
+        const contractName = app.contract?.name || "Your Contract";
+        const academicYear = app.contract?.academic_years?.name || "";
+        const expirationDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString();
+        const invitationLink = linkData.properties.action_link;
+
+        const vars: Record<string, string> = {
+          student_name: firstName,
+          portal_url: portalUrl,
+          invitation_link: invitationLink,
+          contract_name: contractName,
+          academic_year: academicYear,
+          expiration_date: expirationDate,
+          company_name: companyName,
+          COMPANY_NAME: companyName.toUpperCase(),
+          current_year: new Date().getFullYear().toString(),
+        };
+
+        const replaceVariables = (text: string): string => {
+          if (!text) return "";
+          let result = text;
+          for (let pass = 0; pass < 3; pass++) {
+            Object.entries(vars).forEach(([key, value]) => {
+              const stringValue = String(value || "").trim();
+              if (!stringValue) return;
+              const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+              result = result.replace(new RegExp(`\\{${escapedKey}\\}`, "gi"), stringValue);
+              result = result.replace(new RegExp(`\\[${escapedKey}\\]`, "gi"), stringValue);
+            });
+          }
+          return result;
+        };
+
+        // If no template selected, try default account_invitation template from DB (any active one)
         let templateToUse = emailTemplate;
         if (!templateToUse && resendApiKey) {
           const { data: defaultTemplate } = await supabaseAdmin
@@ -404,84 +444,51 @@ serve(async (req) => {
             .select("*")
             .eq("template_type", "account_invitation")
             .eq("is_active", true)
-            .eq("name", "Account Invitation")
-            .single();
-          
+            .order("name")
+            .limit(1)
+            .maybeSingle();
           if (defaultTemplate) {
             templateToUse = defaultTemplate;
-            console.log(`Using default account_invitation template for ${email}`);
+            console.log(`Using account_invitation template "${templateToUse.name}" for ${email}`);
           }
         }
 
+        let emailBody: string;
+        let emailSubject: string;
+
         if (resendApiKey && templateToUse) {
-          // Use email template
-          let emailBody = templateToUse.body_html || templateToUse.body_text || "";
-          let emailSubject = templateToUse.subject || "Activate Your Account";
+          emailBody = replaceVariables(templateToUse.body_html || templateToUse.body_text || "");
+          emailSubject = replaceVariables(templateToUse.subject || "Activate Your Account");
+        } else if (resendApiKey) {
+          // No template in DB: send built-in default invitation email so "default" always sends
+          emailSubject = `Activate Your Student Portal Account - ${contractName}`;
+          emailBody = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+<h2>Activate Your Account</h2>
+<p>Hello ${firstName},</p>
+<p>Your account has been created for <strong>${contractName}</strong>${academicYear ? ` (${academicYear})` : ""}. Click the link below to set your password and activate your student portal.</p>
+<p><a href="${invitationLink}" style="display: inline-block; padding: 12px 24px; background: #2563eb; color: #fff; text-decoration: none; border-radius: 6px;">Activate Account</a></p>
+<p style="color: #666; font-size: 14px;">Or copy this link: ${invitationLink}</p>
+<p style="color: #666; font-size: 14px;">This link expires on ${expirationDate}.</p>
+<p>Portal: <a href="${portalUrl}">${portalUrl}</a></p>
+<p>— ${companyName}</p>
+</body></html>`;
+          console.log(`Using built-in default invitation email for ${email}`);
+        } else {
+          console.log(`Invitation link generated for ${email} (no Resend API key - email not sent)`);
+        }
 
-          // Replace template variables (comprehensive replacement with company_name support)
-          const firstName = userMetadata.first_name || step2?.payload?.first_name || "Student";
-          const contractName = app.contract?.name || "Your Contract";
-          const academicYear = app.contract?.academic_years?.name || "";
-
-          // Comprehensive variable replacement function
-          const replaceVariables = (text: string): string => {
-            if (!text) return "";
-            let result = text;
-            
-            const vars: Record<string, string> = {
-              student_name: firstName,
-              portal_url: portalUrl,
-              invitation_link: linkData.properties.action_link,
-              contract_name: contractName,
-              academic_year: academicYear,
-              expiration_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString(),
-              company_name: companyName,
-              COMPANY_NAME: companyName.toUpperCase(),
-              current_year: new Date().getFullYear().toString(),
-            };
-
-            // Multiple passes for comprehensive replacement
-            for (let pass = 0; pass < 3; pass++) {
-              Object.entries(vars).forEach(([key, value]) => {
-                const stringValue = String(value || "").trim();
-                if (!stringValue) return;
-                
-                const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                
-                // Replace {variable} format - case insensitive, global replace
-                result = result.replace(new RegExp(`\\{${escapedKey}\\}`, "gi"), stringValue);
-                
-                // Replace [variable] format - case insensitive, global replace
-                result = result.replace(new RegExp(`\\[${escapedKey}\\]`, "gi"), stringValue);
-              });
-            }
-            
-            return result;
-          };
-
-          emailBody = replaceVariables(emailBody);
-          emailSubject = replaceVariables(emailSubject);
-
-          // Format from email properly
+        if (resendApiKey && typeof emailBody === "string" && typeof emailSubject === "string") {
           const formattedFromEmail = fromEmail.includes("<") ? fromEmail : `${companyName} <${fromEmail}>`;
-
-          // Send via Resend with retry logic
           const emailPayload = {
             from: formattedFromEmail,
             to: email,
             subject: emailSubject,
             html: emailBody,
           };
-
           const success = await sendEmailWithRetry(emailPayload, email);
-          
           if (!success) {
             throw new Error("Failed to send email after retries");
           }
-        } else {
-          // No template and no Resend API key: Use default Supabase password reset email
-          // The link generation already sends an email via Supabase
-          console.log(`Invitation link generated for ${email} (using Supabase default email - no Resend API key configured)`);
         }
 
         results.sent++;

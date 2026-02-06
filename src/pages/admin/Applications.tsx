@@ -169,6 +169,7 @@ const Applications = () => {
   const queryClient = useQueryClient();
   const [manualPaymentOpen, setManualPaymentOpen] = useState(false);
   const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(null);
+  const [manualPaymentInitialType, setManualPaymentInitialType] = useState<"deposit" | "instalment">("deposit");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [bookingSourceFilter, setBookingSourceFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
@@ -606,8 +607,14 @@ const Applications = () => {
                         <h3 className="text-base md:text-lg font-display font-bold uppercase tracking-wide truncate">
                           {application.student?.first_name} {application.student?.last_name}
                         </h3>
-                        <div className="flex-shrink-0">
+                        <div className="flex-shrink-0 flex items-center gap-1.5 flex-wrap">
                           {getStatusBadge(application.status)}
+                          {!application.deposit_payment_intent_id &&
+                            (application.status === "confirmed" || application.status === "awaiting_deposit") && (
+                            <Badge variant="outline" className="text-amber-600 border-amber-400 text-[10px] uppercase">
+                              No deposit
+                            </Badge>
+                          )}
                         </div>
                       </div>
                       <div className="flex-shrink-0">
@@ -644,17 +651,20 @@ const Applications = () => {
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <Button
-                        variant="outline"
+                        variant={!application.deposit_payment_intent_id ? "default" : "outline"}
                         size="sm"
                         className="rounded-full uppercase tracking-wide gap-2 flex-1 sm:flex-initial text-xs"
                         onClick={() => {
                           setSelectedApplicationId(application.id);
+                          setManualPaymentInitialType(application.deposit_payment_intent_id ? "instalment" : "deposit");
                           setManualPaymentOpen(true);
                         }}
                       >
                         <CreditCard className="h-4 w-4" />
-                        <span className="hidden sm:inline">Record Payment</span>
-                        <span className="sm:hidden">Payment</span>
+                        <span className="hidden sm:inline">
+                          {!application.deposit_payment_intent_id ? "Record deposit" : "Record Payment"}
+                        </span>
+                        <span className="sm:hidden">{!application.deposit_payment_intent_id ? "Deposit" : "Payment"}</span>
                       </Button>
                       <Button
                         variant="outline"
@@ -756,8 +766,12 @@ const Applications = () => {
       {selectedApplicationId && (
         <ManualPaymentDialog
           open={manualPaymentOpen}
-          onOpenChange={setManualPaymentOpen}
+          onOpenChange={(open) => {
+            setManualPaymentOpen(open);
+            if (!open) setManualPaymentInitialType("deposit");
+          }}
           applicationId={selectedApplicationId}
+          paymentType={manualPaymentInitialType}
         />
       )}
       <Dialog open={createDialogOpen} onOpenChange={(open) => { setCreateDialogOpen(open); if (!open) resetCreateDialog(); }}>

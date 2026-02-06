@@ -64,37 +64,90 @@ const ManualPaymentDialog = ({
         .order("sequence", { ascending: true });
 
       if (error) throw error;
-      return data || [];
+      return (data || []).map((row) => ({ ...row, instalment_number: row.sequence }));
     },
     enabled: open && selectedType === "instalment" && !!applicationId,
   });
 
-  // Fetch deposit amount from application's selected payment plan
+  // Check if application already has a deposit (prevent duplicate)
+  const { data: hasDeposit } = useQuery({
+    queryKey: ["application-has-deposit", applicationId],
+    queryFn: async () => {
+      const { data: app } = await supabase
+        .from("student_applications")
+        .select("deposit_payment_intent_id")
+        .eq("id", applicationId)
+        .single();
+      if (app?.deposit_payment_intent_id) return true;
+      const { data: existing } = await supabase
+        .from("manual_payments")
+        .select("id")
+        .eq("application_id", applicationId)
+        .eq("payment_type", "deposit")
+        .limit(1)
+        .maybeSingle();
+      return !!existing;
+    },
+    enabled: open && !!applicationId,
+  });
+
+  // Fetch expected deposit: payment_plans.deposit_amount, then contract + studio_grade_prices fallback
   const { data: depositAmount } = useQuery({
     queryKey: ["application-deposit", applicationId],
     queryFn: async () => {
-      // Get the application with selected payment plan
       const { data: app, error: appError } = await supabase
         .from("student_applications")
-        .select("id, selected_payment_plan_id")
+        .select("id, selected_payment_plan_id, contract_id, studio_grade_id")
         .eq("id", applicationId)
         .single();
 
       if (appError) throw appError;
-      if (!app?.selected_payment_plan_id) return null;
 
-      // Get the payment plan deposit amount
-      const { data: plan, error: planError } = await supabase
-        .from("contract_payment_plans")
-        .select("deposit_amount")
-        .eq("id", app.selected_payment_plan_id)
+      // 1) From selected payment plan (payment_plans table)
+      if (app?.selected_payment_plan_id) {
+        const { data: plan } = await supabase
+          .from("payment_plans")
+          .select("deposit_amount")
+          .eq("id", app.selected_payment_plan_id)
+          .single();
+        if (plan?.deposit_amount != null) return Number(plan.deposit_amount);
+      }
+
+      // 2) Fallback: contract deposit_override or studio_grade_prices for this academic year + grade
+      if (!app?.contract_id) return null;
+      const { data: contract } = await supabase
+        .from("contracts")
+        .select("deposit_override, academic_year_id")
+        .eq("id", app.contract_id)
         .single();
-
-      if (planError) throw planError;
-      return plan?.deposit_amount || null;
+      if (contract?.deposit_override != null) return Number(contract.deposit_override);
+      if (contract?.academic_year_id && app?.studio_grade_id) {
+        const { data: sgp } = await supabase
+          .from("studio_grade_prices")
+          .select("deposit_amount_override")
+          .eq("academic_year_id", contract.academic_year_id)
+          .eq("studio_grade_id", app.studio_grade_id)
+          .eq("is_active", true)
+          .limit(1)
+          .maybeSingle();
+        if (sgp?.deposit_amount_override != null) return Number(sgp.deposit_amount_override);
+      }
+      return null;
     },
     enabled: open && selectedType === "deposit",
   });
+
+  useEffect(() => {
+    if (open) {
+      setSelectedType(paymentType);
+    }
+  }, [open, paymentType]);
+
+  useEffect(() => {
+    if (open && hasDeposit === true && selectedType === "deposit") {
+      setSelectedType("instalment");
+    }
+  }, [open, hasDeposit, selectedType]);
 
   useEffect(() => {
     if (selectedType === "deposit" && depositAmount) {
@@ -151,11 +204,12 @@ const ManualPaymentDialog = ({
       setNotes("");
       setSelectedInstalmentId("");
       onOpenChange(false);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Failed to record payment:", error);
+      const message = error instanceof Error ? error.message : "Failed to record payment. Please try again.";
       toast({
         title: "Error",
-        description: "Failed to record payment. Please try again.",
+        description: message,
         variant: "destructive",
       });
     }
@@ -175,15 +229,23 @@ const ManualPaymentDialog = ({
         <div className="space-y-4 py-4">
           <div>
             <Label htmlFor="payment-type">Payment Type</Label>
-            <Select value={selectedType} onValueChange={(value) => setSelectedType(value as "deposit" | "instalment")}>
+            <Select
+              value={selectedType}
+              onValueChange={(value) => setSelectedType(value as "deposit" | "instalment")}
+            >
               <SelectTrigger id="payment-type" className="mt-2">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="deposit">Deposit</SelectItem>
+                <SelectItem value="deposit" disabled={hasDeposit === true}>
+                  Deposit{hasDeposit === true ? " (already recorded)" : ""}
+                </SelectItem>
                 <SelectItem value="instalment">Instalment</SelectItem>
               </SelectContent>
             </Select>
+            {hasDeposit === true && (
+              <p className="text-xs text-muted-foreground mt-1">This application already has a deposit. Record an instalment instead if needed.</p>
+            )}
           </div>
 
           {selectedType === "instalment" && (

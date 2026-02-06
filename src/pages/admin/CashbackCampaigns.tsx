@@ -7,7 +7,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Gift, Calendar, Users, Edit, Trash2 } from "lucide-react";
+import { Plus, Gift, Calendar, Users, Edit, Trash2, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
 import {
   Dialog,
@@ -22,6 +22,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import type { CashbackCampaign } from "@/hooks/useCashback";
 import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
@@ -35,6 +45,11 @@ const CashbackCampaigns = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<CashbackCampaign | null>(null);
   const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string | undefined>(undefined);
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [confirmAction, setConfirmAction] = useState<{
+    action: "deactivate" | "reactivate";
+    campaign: CashbackCampaign;
+  } | null>(null);
 
   const { data: campaigns, isLoading } = useQuery({
     queryKey: ["cashback-campaigns", selectedAcademicYearId],
@@ -298,6 +313,44 @@ const CashbackCampaigns = () => {
     },
   });
 
+  const reactivateMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { data: campaign } = await supabase
+        .from("cashback_campaigns")
+        .select("name")
+        .eq("id", id)
+        .single();
+
+      const { error } = await supabase
+        .from("cashback_campaigns")
+        .update({ is_active: true })
+        .eq("id", id);
+
+      if (error) throw error;
+
+      await logActivity({
+        action: "reactivate",
+        entityType: "cashback_campaign",
+        entityId: id,
+        payload: { name: campaign?.name },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cashback-campaigns"] });
+      toast({
+        title: "Campaign reactivated",
+        description: "Cashback campaign has been reactivated.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to reactivate campaign.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleEdit = (campaign: CashbackCampaign) => {
     setEditingCampaign(campaign);
     setIsDialogOpen(true);
@@ -320,6 +373,16 @@ const CashbackCampaigns = () => {
     );
   };
 
+  const isEndDatePassed = (campaign: CashbackCampaign) =>
+    new Date(campaign.end_date) < new Date();
+
+  const filteredCampaigns =
+    campaigns?.filter((c) => {
+      if (statusFilter === "active") return c.is_active;
+      if (statusFilter === "inactive") return !c.is_active;
+      return true;
+    }) ?? [];
+
   return (
     <AdminLayout
       pageTitle="Cashback Campaigns"
@@ -339,13 +402,26 @@ const CashbackCampaigns = () => {
       }
     >
       <div className="space-y-6">
-        <div className="mb-6 flex items-center justify-start md:justify-end">
+        <div className="mb-6 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-start md:justify-end">
           <AcademicYearSelector
             value={selectedAcademicYearId}
             onValueChange={(value) => setSelectedAcademicYearId(value)}
             className="w-full md:w-64"
             allowEmpty={true}
           />
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => setStatusFilter(v as "all" | "active" | "inactive")}
+          >
+            <SelectTrigger className="w-full md:w-44">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All campaigns</SelectItem>
+              <SelectItem value="active">Active only</SelectItem>
+              <SelectItem value="inactive">Inactive only</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div className="hidden lg:flex items-center justify-between">
           <div>
@@ -408,8 +484,20 @@ const CashbackCampaigns = () => {
             ))}
           </div>
         ) : campaigns && campaigns.length > 0 ? (
+          filteredCampaigns.length === 0 ? (
+            <Card className="rounded-3xl border-dashed">
+              <CardHeader>
+                <CardTitle className="text-xl font-display uppercase tracking-wide">
+                  No campaigns match filter
+                </CardTitle>
+                <CardDescription>
+                  Try changing the status filter or academic year to see more campaigns.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {campaigns.map((campaign) => (
+            {filteredCampaigns.map((campaign) => (
               <Card
                 key={campaign.id}
                 className={`rounded-3xl ${
@@ -436,18 +524,25 @@ const CashbackCampaigns = () => {
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0 text-destructive"
-                        onClick={() => {
-                          if (confirm("Are you sure you want to deactivate this campaign?")) {
-                            deleteMutation.mutate(campaign.id);
-                          }
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {campaign.is_active ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-destructive"
+                          onClick={() => setConfirmAction({ action: "deactivate", campaign })}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-green-600 hover:text-green-700"
+                          onClick={() => setConfirmAction({ action: "reactivate", campaign })}
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardHeader>
@@ -500,6 +595,7 @@ const CashbackCampaigns = () => {
               </Card>
             ))}
           </div>
+          )
         ) : (
           <Card className="rounded-3xl border-dashed">
             <CardHeader>
@@ -513,6 +609,59 @@ const CashbackCampaigns = () => {
           </Card>
         )}
       </div>
+
+      <AlertDialog open={!!confirmAction} onOpenChange={(open) => !open && setConfirmAction(null)}>
+        <AlertDialogContent className="rounded-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display uppercase tracking-wide">
+              {confirmAction?.action === "deactivate"
+                ? "Deactivate cashback campaign?"
+                : "Reactivate cashback campaign?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmAction?.action === "deactivate" ? (
+                "Are you sure you want to deactivate this campaign? It will no longer be available for new applications."
+              ) : confirmAction?.campaign && isEndDatePassed(confirmAction.campaign) ? (
+                "This campaign's end date has passed. It will not apply to new applications until you update the dates. Reactivate anyway?"
+              ) : (
+                "Are you sure you want to reactivate this campaign? It will be available for new applications within its date range."
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="rounded-full uppercase tracking-wide" onClick={() => setConfirmAction(null)}>
+              Cancel
+            </AlertDialogCancel>
+            {confirmAction?.action === "deactivate" ? (
+              <AlertDialogAction
+                className="rounded-full uppercase tracking-wide bg-destructive hover:bg-destructive/90"
+                onClick={() => {
+                  if (confirmAction?.campaign.id) {
+                    deleteMutation.mutate(confirmAction.campaign.id);
+                    setConfirmAction(null);
+                  }
+                }}
+                disabled={deleteMutation.isPending}
+              >
+                {deleteMutation.isPending ? "Deactivating..." : "Deactivate"}
+              </AlertDialogAction>
+            ) : (
+              <AlertDialogAction
+                className="rounded-full uppercase tracking-wide bg-green-600 hover:bg-green-700"
+                onClick={() => {
+                  if (confirmAction?.campaign.id) {
+                    reactivateMutation.mutate(confirmAction.campaign.id);
+                    setConfirmAction(null);
+                  }
+                }}
+                disabled={reactivateMutation.isPending}
+              >
+                {reactivateMutation.isPending ? "Reactivating..." : "Reactivate"}
+              </AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AdminLayout>
   );
 };

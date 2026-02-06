@@ -20,6 +20,7 @@ interface ImportRequest {
     | "cashback_campaigns"
     | "discount_campaigns"
     | "applications"
+    | "payment_records"
     | "ota_bookings";
   csv_data: string; // CSV content as string
   file_name?: string;
@@ -315,6 +316,7 @@ function getFunctionName(importType: string): string {
     partners: "bulk_import_partners",
     cashback_campaigns: "bulk_import_cashback_campaigns",
     applications: "bulk_import_student_applications",
+    payment_records: "bulk_import_payment_records",
   };
   return functionMap[importType] || "";
 }
@@ -411,6 +413,7 @@ serve(async (req) => {
       "cashback_campaigns",
       "discount_campaigns",
       "applications",
+      "payment_records",
       "ota_bookings",
     ];
 

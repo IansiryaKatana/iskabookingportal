@@ -119,6 +119,13 @@ const IMPORT_TYPES = [
     icon: "📋",
   },
   {
+    value: "payment_records",
+    label: "Payment Records",
+    description: "Import historical installment payments for existing applications. Use after applications are imported. Requires applications.",
+    dependencies: ["applications"],
+    icon: "💳",
+  },
+  {
     value: "ota_bookings",
     label: "OTA Bookings",
     description: "Import OTA bookings (Airbnb, Booking.com, etc.). Optional studio_number to assign a studio.",
@@ -436,6 +443,9 @@ const DataImport = () => {
                         <>
                           <span className="block mt-2 text-xs">
                             <strong>Note:</strong> The <code className="px-1 py-0.5 bg-muted rounded">academic_year_name</code> column shows which academic year each contract belongs to. Academic year is automatically assigned based on the contract.
+                          </span>
+                          <span className="block mt-2 text-xs">
+                            <strong>Deposit:</strong> Leave <code className="px-1 py-0.5 bg-muted rounded">deposit_amount</code> and <code className="px-1 py-0.5 bg-muted rounded">deposit_paid_date</code> blank (or 0) to skip creating a deposit at import. Use status <code className="px-1 py-0.5 bg-muted rounded">awaiting_deposit</code> for those rows so they appear in the right pipeline stage; staff can then record the deposit from the application (Record deposit).
                           </span>
                           <span className="block mt-2 text-xs font-semibold text-primary">
                             📋 A reference file with all current contract slugs and payment plan names will also be downloaded automatically.

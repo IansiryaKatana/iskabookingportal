@@ -358,11 +358,10 @@ const StudioGradePage = () => {
   const videoUrl = useMemo(() => {
     if (!grade) return null;
     if (grade.promo_video_url) return grade.promo_video_url;
-    return (
-      grade.studio_grade_media.find((media) => media.media_type === "video")
-        ?.url ?? null
-    );
-  }, [grade]);
+    const mediaVideo = grade.studio_grade_media.find((media) => media.media_type === "video")?.url;
+    if (mediaVideo) return mediaVideo;
+    return brandingSettings?.amenities_video_url || null;
+  }, [grade, brandingSettings?.amenities_video_url]);
 
   const amenities = useMemo(() => {
     if (!grade) return [];

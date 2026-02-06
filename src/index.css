@@ -155,4 +155,24 @@ All colors MUST be HSL.
     -ms-overflow-style: none;  /* IE and Edge */
     scrollbar-width: none;  /* Firefox */
   }
+
+  /* Date/datetime inputs: calendar icon at end of field (not centered) */
+  input[type="date"],
+  input[type="datetime-local"] {
+    position: relative;
+    padding-right: 2.25rem;
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    position: absolute;
+    right: 0.5rem;
+    left: auto;
+    margin: 0;
+    cursor: pointer;
+    opacity: 0.6;
+  }
+  input[type="date"]::-webkit-date-and-time-value,
+  input[type="datetime-local"]::-webkit-date-and-time-value {
+    text-align: left;
+  }
 }

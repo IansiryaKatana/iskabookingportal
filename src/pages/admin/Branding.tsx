@@ -30,6 +30,7 @@ const Branding = () => {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
   const [uploadingHeroImage, setUploadingHeroImage] = useState(false);
+  const [uploadingAmenitiesVideo, setUploadingAmenitiesVideo] = useState(false);
   const [deleteNavItemId, setDeleteNavItemId] = useState<string | null>(null);
 
   const { data: settings, isLoading: settingsLoading } = useBrandingSettings();
@@ -69,6 +70,7 @@ const Branding = () => {
   const [logoPath, setLogoPath] = useState("");
   const [faviconPath, setFaviconPath] = useState("");
   const [heroImagePath, setHeroImagePath] = useState("");
+  const [amenitiesVideoPath, setAmenitiesVideoPath] = useState("");
   const [footerDescription, setFooterDescription] = useState("");
   const [footerCopyright, setFooterCopyright] = useState("");
   const [contactPhone, setContactPhone] = useState("");
@@ -99,6 +101,7 @@ const Branding = () => {
       setLogoPath(settings.logo_path || "");
       setFaviconPath(settings.favicon_path || "");
       setHeroImagePath(settings.studio_catalog_hero_image || "");
+      setAmenitiesVideoPath(settings.amenities_video_url || "");
       setFooterDescription(settings.footer_description || "");
       setFooterCopyright(settings.footer_copyright_text || "");
       setContactPhone(settings.contact_phone || "");
@@ -279,6 +282,85 @@ const Branding = () => {
     }
   };
 
+  // Upload amenities video (used in Amenities section; avoids CSP block from external URLs)
+  const AMENITIES_VIDEO_MAX_BYTES = 100 * 1024 * 1024; // 100MB
+
+  const handleAmenitiesVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = ["video/mp4", "video/webm", "video/ogg"];
+    if (!validTypes.includes(file.type)) {
+      toast({
+        variant: "destructive",
+        title: "Invalid file type",
+        description: "Please upload an MP4, WebM, or OGG video file.",
+      });
+      return;
+    }
+
+    if (file.size > AMENITIES_VIDEO_MAX_BYTES) {
+      toast({
+        variant: "destructive",
+        title: "File too large",
+        description: `Video must be 100MB or smaller. Your file is ${(file.size / (1024 * 1024)).toFixed(1)}MB.`,
+      });
+      return;
+    }
+
+    setUploadingAmenitiesVideo(true);
+    try {
+      const extension = file.name.split(".").pop() ?? "mp4";
+      const path = `amenities-video.${extension}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("branding")
+        .upload(path, file, {
+          cacheControl: "3600",
+          upsert: true,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase.storage
+        .from("branding")
+        .getPublicUrl(path);
+
+      const publicUrl = publicUrlData.publicUrl;
+
+      const { error: updateError } = await supabase
+        .from("branding_settings")
+        .upsert({
+          setting_key: "amenities_video_url",
+          setting_value: publicUrl,
+          setting_type: "url",
+        }, {
+          onConflict: "setting_key",
+        });
+
+      if (updateError) throw updateError;
+
+      await queryClient.invalidateQueries({ queryKey: ["branding-settings"] });
+      setAmenitiesVideoPath(publicUrl);
+
+      toast({
+        title: "Amenities video uploaded",
+        description: "The video will be used in the Amenities section and no longer relies on external links.",
+      });
+
+      await logActivity({ action: "branding_updated", payload: { type: "amenities_video_upload" } });
+    } catch (error: any) {
+      console.error("Amenities video upload error:", error);
+      toast({
+        variant: "destructive",
+        title: "Upload failed",
+        description: error.message || "Failed to upload video. Please try again.",
+      });
+    } finally {
+      setUploadingAmenitiesVideo(false);
+    }
+  };
+
   // Upload favicon
   const handleFaviconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -357,6 +439,7 @@ const Branding = () => {
         { setting_key: "logo_path", setting_value: logoPath, setting_type: "url" },
         { setting_key: "favicon_path", setting_value: faviconPath, setting_type: "url" },
         { setting_key: "studio_catalog_hero_image", setting_value: heroImagePath, setting_type: "url" },
+        { setting_key: "amenities_video_url", setting_value: amenitiesVideoPath, setting_type: "url" },
         { setting_key: "footer_description", setting_value: footerDescription, setting_type: "text" },
         { setting_key: "footer_copyright_text", setting_value: footerCopyright, setting_type: "text" },
         { setting_key: "contact_phone", setting_value: contactPhone, setting_type: "text" },
@@ -835,6 +918,39 @@ const Branding = () => {
               </div>
               <p className="text-xs text-muted-foreground">
                 Recommended: WebP or JPG, landscape orientation, 1920x1080 or higher, max 5MB
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Amenities video</Label>
+              <p className="text-xs text-muted-foreground mb-2">
+                Video shown in the Amenities section on studio pages. Upload here to avoid loading from external URLs (fixes Content Security Policy errors).
+              </p>
+              <div className="flex flex-col md:flex-row items-start md:items-center gap-3 md:gap-4">
+                {amenitiesVideoPath && (
+                  <div className="relative w-full md:w-64 aspect-video bg-muted rounded-lg overflow-hidden flex-shrink-0">
+                    <video
+                      src={amenitiesVideoPath}
+                      className="h-full w-full object-cover"
+                      muted
+                      playsInline
+                      preload="metadata"
+                    />
+                  </div>
+                )}
+                <div className="flex-1 w-full">
+                  <Input
+                    type="file"
+                    accept="video/mp4,video/webm,video/ogg"
+                    onChange={handleAmenitiesVideoUpload}
+                    disabled={uploadingAmenitiesVideo}
+                    className="cursor-pointer rounded-xl text-xs md:text-sm"
+                  />
+                </div>
+                {uploadingAmenitiesVideo && <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Recommended: MP4 (H.264), max 100MB. Replaces the need for external links like urbanhub.uk.
               </p>
             </div>
           </CardContent>

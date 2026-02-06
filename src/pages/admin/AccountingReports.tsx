@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,8 +11,11 @@ import {
   useOutstandingBalancesReport,
   useDepositInstallmentBreakdown,
   useBankReconciliationReport,
+  useUpcomingPaidInstallmentsReport,
+  type UpcomingPaidInstallmentItem,
 } from "@/hooks/useAccountingReports";
-import { Download, FileText, TrendingUp, AlertCircle, CreditCard, Receipt } from "lucide-react";
+import { useAdminAcademicYears } from "@/hooks/useAdminAcademicYears";
+import { Download, FileText, TrendingUp, AlertCircle, CreditCard, Receipt, Calendar } from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +27,8 @@ type ReportType =
   | "revenue-summary"
   | "outstanding-balances"
   | "deposit-installment"
-  | "bank-reconciliation";
+  | "bank-reconciliation"
+  | "upcoming-payments";
 
 const AccountingReports = () => {
   const { toast } = useToast();
@@ -34,9 +38,14 @@ const AccountingReports = () => {
   );
   const [endDate, setEndDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
   const [groupBy, setGroupBy] = useState<"month" | "quarter">("month");
+  const [upcomingDueWindow, setUpcomingDueWindow] = useState<"7" | "14" | "30" | "all">("30");
+  const [upcomingStatusFilter, setUpcomingStatusFilter] = useState<"all" | "upcoming" | "overdue" | "paid" | "partially_paid">("all");
+  const [upcomingAcademicYearId, setUpcomingAcademicYearId] = useState<string>("all");
 
   // Fetch data based on selected report
   const { data: arData, isLoading: arLoading } = useAccountsReceivableReport();
+  const { data: upcomingData, isLoading: upcomingLoading } = useUpcomingPaidInstallmentsReport();
+  const { data: academicYears } = useAdminAcademicYears();
   const { data: revenueData, isLoading: revenueLoading } = useRevenueSummary(
     selectedReport === "revenue-summary" ? startDate : undefined,
     selectedReport === "revenue-summary" ? endDate : undefined,
@@ -58,6 +67,26 @@ const AccountingReports = () => {
       maximumFractionDigits: 2,
     }).format(amount);
   };
+
+  const today = useMemo(() => format(new Date(), "yyyy-MM-dd"), []);
+  const filteredUpcomingData = useMemo(() => {
+    if (!upcomingData) return [];
+    let list = [...upcomingData];
+    if (upcomingAcademicYearId !== "all") {
+      list = list.filter((r) => r.academic_year_id === upcomingAcademicYearId);
+    }
+    if (upcomingDueWindow !== "all") {
+      const days = parseInt(upcomingDueWindow, 10);
+      const end = new Date();
+      end.setDate(end.getDate() + days);
+      const endStr = format(end, "yyyy-MM-dd");
+      list = list.filter((r) => r.due_date >= today && r.due_date <= endStr);
+    }
+    if (upcomingStatusFilter !== "all") {
+      list = list.filter((r) => r.status === upcomingStatusFilter);
+    }
+    return list.sort((a, b) => (a.due_date < b.due_date ? -1 : 1));
+  }, [upcomingData, upcomingAcademicYearId, upcomingDueWindow, upcomingStatusFilter, today]);
 
   const exportToCSV = () => {
     let headers: string[] = [];
@@ -282,6 +311,50 @@ const AccountingReports = () => {
         ]);
         filename = `bank_reconciliation_${format(new Date(), "yyyy-MM-dd")}.csv`;
         break;
+
+      case "upcoming-payments":
+        if (!filteredUpcomingData || filteredUpcomingData.length === 0) {
+          toast({
+            title: "No data to export",
+            description: "There is no upcoming/paid installments data for the selected filters.",
+            variant: "destructive",
+          });
+          return;
+        }
+        headers = [
+          "Student Name",
+          "Studio",
+          "Studio Grade",
+          "Contract",
+          "Academic Year",
+          "Due Date",
+          "Amount",
+          "Amount Paid",
+          "Amount Remaining",
+          "Status",
+          "Paid Date",
+          "Installment Label",
+          "Application ID",
+          "Is Deposit",
+        ];
+        rows = filteredUpcomingData.map((item: UpcomingPaidInstallmentItem) => [
+          item.student_name ?? "",
+          item.studio_number ?? "",
+          item.studio_grade ?? "",
+          item.contract_name ?? "",
+          item.academic_year_name ?? "",
+          item.due_date ? format(new Date(item.due_date), "yyyy-MM-dd") : "",
+          item.amount.toFixed(2),
+          (item.amount_paid ?? 0).toFixed(2),
+          (item.amount_remaining ?? 0).toFixed(2),
+          item.status === "partially_paid" ? "Partially paid" : item.status,
+          item.paid_date ? format(new Date(item.paid_date), "yyyy-MM-dd") : "",
+          item.installment_label ?? "",
+          item.application_id,
+          item.is_deposit ? "Yes" : "No",
+        ]);
+        filename = `upcoming_payments_${format(new Date(), "yyyy-MM-dd")}.csv`;
+        break;
     }
 
     const csvContent = [
@@ -355,7 +428,7 @@ const AccountingReports = () => {
           <CardContent>
             <Tabs value={selectedReport} onValueChange={(value) => setSelectedReport(value as ReportType)}>
               <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 mb-4 scrollbar-hide scroll-smooth">
-                <TabsList className="inline-flex w-auto min-w-full md:grid md:w-full md:grid-cols-5 h-auto gap-1 md:gap-0">
+                <TabsList className="inline-flex w-auto min-w-full md:grid md:w-full md:grid-cols-6 h-auto gap-1 md:gap-0">
                   <TabsTrigger value="accounts-receivable" className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 md:whitespace-normal">
                     <CreditCard className="h-4 w-4 mr-2" />
                     AR Report
@@ -376,11 +449,15 @@ const AccountingReports = () => {
                     <FileText className="h-4 w-4 mr-2" />
                     Reconciliation
                   </TabsTrigger>
+                  <TabsTrigger value="upcoming-payments" className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 md:whitespace-normal">
+                    <Calendar className="h-4 w-4 mr-2" />
+                    Upcoming
+                  </TabsTrigger>
                 </TabsList>
               </div>
 
               {/* Date Filters for Revenue Summary and Bank Reconciliation */}
-              {(selectedReport === "revenue-summary" || selectedReport === "bank-reconciliation") && (
+              {(selectedReport === "revenue-summary" || selectedReport === "bank-reconciliation" || selectedReport === "upcoming-payments") && (
                 <div className="grid gap-4 md:grid-cols-3 mt-4">
                   <div>
                     <Label htmlFor="start-date">Start Date</Label>
@@ -416,7 +493,61 @@ const AccountingReports = () => {
                       </Select>
                     </div>
                   )}
+                  {selectedReport === "upcoming-payments" && (
+                    <>
+                      <div>
+                        <Label htmlFor="academic-year">Academic year</Label>
+                        <Select value={upcomingAcademicYearId} onValueChange={setUpcomingAcademicYearId}>
+                          <SelectTrigger id="academic-year" className="mt-2">
+                            <SelectValue placeholder="Academic year" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All academic years</SelectItem>
+                            {(academicYears ?? []).map((ay) => (
+                              <SelectItem key={ay.id} value={ay.id}>
+                                {ay.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="due-window">Due within</Label>
+                        <Select value={upcomingDueWindow} onValueChange={(v) => setUpcomingDueWindow(v as "7" | "14" | "30" | "all")}>
+                          <SelectTrigger id="due-window" className="mt-2">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="7">Next 7 days</SelectItem>
+                            <SelectItem value="14">Next 14 days</SelectItem>
+                            <SelectItem value="30">Next 30 days</SelectItem>
+                            <SelectItem value="all">All dates</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="status-filter">Status</Label>
+                        <Select value={upcomingStatusFilter} onValueChange={(v) => setUpcomingStatusFilter(v as "all" | "upcoming" | "overdue" | "paid" | "partially_paid")}>
+                          <SelectTrigger id="status-filter" className="mt-2">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All</SelectItem>
+                            <SelectItem value="upcoming">Upcoming</SelectItem>
+                            <SelectItem value="overdue">Overdue</SelectItem>
+                            <SelectItem value="paid">Paid</SelectItem>
+                            <SelectItem value="partially_paid">Partially paid</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
+                  )}
                 </div>
+              )}
+              {selectedReport === "upcoming-payments" && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  To see overdue installments (e.g. first installment already due), set <strong>Due within: All dates</strong> and <strong>Status: Overdue</strong>. Bulk-imported applications need schedule backfill (see docs) if nothing appears.
+                </p>
               )}
             </Tabs>
           </CardContent>
@@ -433,6 +564,7 @@ const AccountingReports = () => {
                   {selectedReport === "outstanding-balances" && "Outstanding Balances Report"}
                   {selectedReport === "deposit-installment" && "Deposit vs Installment Breakdown"}
                   {selectedReport === "bank-reconciliation" && "Bank Reconciliation Report"}
+                  {selectedReport === "upcoming-payments" && "Upcoming & Paid Installments"}
                 </CardTitle>
                 <CardDescription className="mt-1 text-xs md:text-sm">
                   {selectedReport === "accounts-receivable" &&
@@ -465,6 +597,10 @@ const AccountingReports = () => {
                       : bankData
                         ? `${bankData.length} payment${bankData.length !== 1 ? "s" : ""}`
                         : "No data available")}
+                  {selectedReport === "upcoming-payments" &&
+                    (upcomingLoading
+                      ? "Loading..."
+                      : `${filteredUpcomingData.length} installment${filteredUpcomingData.length !== 1 ? "s" : ""}${upcomingAcademicYearId !== "all" ? ` • ${academicYears?.find((ay) => ay.id === upcomingAcademicYearId)?.name ?? "Year"}` : ""} (${upcomingDueWindow === "all" ? "all dates" : `next ${upcomingDueWindow} days`}, ${upcomingStatusFilter === "all" ? "all statuses" : upcomingStatusFilter})`)}
                 </CardDescription>
               </div>
               <Button
@@ -490,7 +626,10 @@ const AccountingReports = () => {
                           <div className="flex-1 space-y-2">
                             <div className="flex items-center gap-3 flex-wrap">
                               <h3 className="text-sm md:text-lg font-bold">{item.student_name}</h3>
-                              <Badge variant="outline" className="uppercase text-xs">
+                              <Badge
+                                variant="outline"
+                                className={`uppercase text-xs ${item.application_status === "confirmed" ? "bg-green-600 text-white border-green-600 hover:bg-green-600" : ""}`}
+                              >
                                 {item.application_status}
                               </Badge>
                             </div>
@@ -565,7 +704,10 @@ const AccountingReports = () => {
                 <Card className="rounded-3xl border-dashed">
                   <CardHeader>
                     <CardTitle>No Data Found</CardTitle>
-                    <CardDescription>There is no revenue data for the selected period.</CardDescription>
+                    <CardDescription>
+                      No revenue in the selected period. Revenue is from Stripe and manual payments only (no backfill).
+                      Try a wider date range, or confirm payments exist under Payment History and that migrations are applied.
+                    </CardDescription>
                   </CardHeader>
                 </Card>
               ))}
@@ -583,7 +725,10 @@ const AccountingReports = () => {
                           <div className="flex-1 space-y-2">
                             <div className="flex items-center gap-3 flex-wrap">
                               <h3 className="text-sm md:text-lg font-bold">{item.student_name}</h3>
-                              <Badge variant="outline" className="uppercase text-xs">
+                              <Badge
+                                variant="outline"
+                                className={`uppercase text-xs ${item.application_status === "confirmed" ? "bg-green-600 text-white border-green-600 hover:bg-green-600" : ""}`}
+                              >
                                 {item.application_status}
                               </Badge>
                               {item.days_overdue > 0 && (
@@ -637,7 +782,10 @@ const AccountingReports = () => {
                           <div className="flex-1 space-y-2">
                             <div className="flex items-center gap-3 flex-wrap">
                               <h3 className="text-sm md:text-lg font-bold">{item.student_name}</h3>
-                              <Badge variant="outline" className="uppercase text-xs">
+                              <Badge
+                                variant="outline"
+                                className={`uppercase text-xs ${item.status === "confirmed" ? "bg-green-600 text-white border-green-600 hover:bg-green-600" : ""}`}
+                              >
                                 {item.status}
                               </Badge>
                             </div>
@@ -719,7 +867,81 @@ const AccountingReports = () => {
                 <Card className="rounded-3xl border-dashed">
                   <CardHeader>
                     <CardTitle>No Records Found</CardTitle>
-                    <CardDescription>There is no bank reconciliation data for the selected period.</CardDescription>
+                    <CardDescription>
+                      No payments in the selected period. Reconciliation lists Stripe and manual payments only (no backfill).
+                      Try a wider date range, or confirm payments under Payment History and that migrations are applied.
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              ))}
+
+            {/* Upcoming & Paid Installments Report */}
+            {selectedReport === "upcoming-payments" &&
+              (upcomingLoading ? (
+                <ReportSkeleton />
+              ) : filteredUpcomingData && filteredUpcomingData.length > 0 ? (
+                <div className="space-y-4">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Student</th>
+                          <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Studio</th>
+                          <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Contract</th>
+                          <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Due Date</th>
+                          <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Amount</th>
+                          <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Paid</th>
+                          <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Status</th>
+                          <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Paid Date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredUpcomingData.map((item, index) => (
+                          <tr key={`${item.installment_id}-${item.application_id}`} className={index % 2 === 0 ? "bg-muted/30" : ""}>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-medium">{item.student_name ?? "—"}</td>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">{item.studio_number ?? "—"} {item.studio_grade ? `(${item.studio_grade})` : ""}</td>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">{item.contract_name ?? "—"}</td>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">{item.due_date ? format(new Date(item.due_date), "MMM d, yyyy") : "—"}</td>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm text-right font-semibold">{formatCurrency(item.amount)}</td>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm text-right">
+                              {item.status === "paid"
+                                ? formatCurrency(item.amount)
+                                : item.status === "partially_paid" && item.amount_paid != null
+                                  ? `${formatCurrency(item.amount_paid)} / ${formatCurrency(item.amount)}`
+                                  : "—"}
+                            </td>
+                            <td className="py-2 md:py-3 px-2 md:px-4">
+                              <Badge
+                                variant={
+                                  item.status === "paid"
+                                    ? "default"
+                                    : item.status === "overdue"
+                                      ? "destructive"
+                                      : item.status === "partially_paid"
+                                        ? "secondary"
+                                        : "outline"
+                                }
+                                className="text-xs capitalize"
+                              >
+                                {item.status === "partially_paid" ? "Partially paid" : item.status}
+                              </Badge>
+                            </td>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">{item.paid_date ? format(new Date(item.paid_date), "MMM d, yyyy") : "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <Card className="rounded-3xl border-dashed">
+                  <CardHeader>
+                    <CardTitle>No Records Found</CardTitle>
+                    <CardDescription>
+                      {upcomingData?.length === 0
+                        ? "There are no installments in the system for confirmed applications."
+                        : "No installments match the selected filters (academic year, due window, or status). Try selecting All academic years or All dates."}
+                    </CardDescription>
                   </CardHeader>
                 </Card>
               ))}

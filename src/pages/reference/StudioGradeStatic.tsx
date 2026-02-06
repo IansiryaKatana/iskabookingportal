@@ -8,6 +8,7 @@ import Footer from "@/components/Footer";
 import FloatingContactRail from "@/components/FloatingContactRail";
 import WhatsAppButton from "@/components/WhatsAppButton";
 import ContractShowcase from "@/components/ContractShowcase";
+import { useBrandingSettings } from "@/hooks/useBranding";
 
 const galleryImages = [
   {
@@ -85,6 +86,16 @@ const amenities = [
   },
 ];
 
+function AmenitiesSectionWithBrandingVideo() {
+  const { data: brandingSettings } = useBrandingSettings();
+  return (
+    <AmenitiesSection
+      amenities={amenities}
+      videoUrl={brandingSettings?.amenities_video_url ?? undefined}
+    />
+  );
+}
+
 const StudioGradeStatic = () => (
   <div className="min-h-screen bg-background">
     <Navigation />
@@ -122,7 +133,7 @@ const StudioGradeStatic = () => (
         description={`The Silver studio delivers a boutique residential experience with full height windows, integrated blackout blinds, and a feature headboard with ambient lighting. Each unit includes a compact yet fully equipped kitchen—induction hob, combi oven, under-counter fridge/freezer—and bespoke storage to maximise every centimetre of space.\n\nWork from home in style at the full-width desk with pinboard, USB-C charging, and superfast Wi-Fi, then unwind in the lounge nook or descend to the communal cinema, fitness studio, and coworking lounge.`}
       />
 
-      <AmenitiesSection videoUrl="https://urbanhub.uk/wp-content/uploads/2025/01/URBAN-HUB-low-all-amenities.mp4" />
+      <AmenitiesSectionWithBrandingVideo />
     </main>
 
     <Footer />

@@ -48,6 +48,9 @@ const PaymentHistory = () => {
 
     const headers = [
       "Payment Date",
+      "Student Name",
+      "Studio",
+      "Studio Grade",
       "Student ID",
       "Application ID",
       "Contract",
@@ -63,6 +66,9 @@ const PaymentHistory = () => {
 
     const rows = payments.map((payment) => [
       format(new Date(payment.payment_date), "yyyy-MM-dd HH:mm:ss"),
+      payment.student_name?.trim() || "N/A",
+      payment.studio_number ?? "N/A",
+      payment.studio_grade ?? "N/A",
       payment.student_id,
       payment.student_application_id,
       payment.contract_name || "N/A",
@@ -598,27 +604,45 @@ const PaymentHistory = () => {
               </div>
             ) : (
               <Tabs defaultValue="all" className="w-full">
-                <TabsList className="grid w-full grid-cols-3 rounded-full bg-muted/50 mb-4">
-                  <TabsTrigger value="all" className="rounded-full">
+                <TabsList className="grid w-full grid-cols-3 rounded-full bg-muted border border-border p-1 mb-4">
+                  <TabsTrigger
+                    value="all"
+                    className="group rounded-full data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+                  >
                     All Payments
                     {allPayments.length > 0 && (
-                      <Badge variant="secondary" className="ml-2 text-xs">
+                      <Badge
+                        variant="secondary"
+                        className="ml-2 text-xs group-data-[state=active]:bg-primary-foreground/20 group-data-[state=active]:text-primary-foreground group-data-[state=active]:border-primary-foreground/30"
+                      >
                         {allPayments.length}
                       </Badge>
                     )}
                   </TabsTrigger>
-                  <TabsTrigger value="deposits" className="rounded-full">
+                  <TabsTrigger
+                    value="deposits"
+                    className="group rounded-full data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+                  >
                     Deposits
                     {deposits.length > 0 && (
-                      <Badge variant="secondary" className="ml-2 text-xs">
+                      <Badge
+                        variant="secondary"
+                        className="ml-2 text-xs group-data-[state=active]:bg-primary-foreground/20 group-data-[state=active]:text-primary-foreground group-data-[state=active]:border-primary-foreground/30"
+                      >
                         {deposits.length}
                       </Badge>
                     )}
                   </TabsTrigger>
-                  <TabsTrigger value="installments" className="rounded-full">
+                  <TabsTrigger
+                    value="installments"
+                    className="group rounded-full data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+                  >
                     Installments
                     {installments.length > 0 && (
-                      <Badge variant="secondary" className="ml-2 text-xs">
+                      <Badge
+                        variant="secondary"
+                        className="ml-2 text-xs group-data-[state=active]:bg-primary-foreground/20 group-data-[state=active]:text-primary-foreground group-data-[state=active]:border-primary-foreground/30"
+                      >
                         {installments.length}
                       </Badge>
                     )}

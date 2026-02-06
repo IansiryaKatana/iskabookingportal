@@ -21,7 +21,29 @@ export const useCreateManualPayment = () => {
   return useMutation({
     mutationFn: async (input: CreateManualPaymentInput) => {
       const { data: { user } } = await supabase.auth.getUser();
-      
+
+      // Prevent duplicate deposit: application must not already have a deposit recorded
+      if (input.paymentType === "deposit" && input.applicationId) {
+        const { data: app } = await supabase
+          .from("student_applications")
+          .select("deposit_payment_intent_id")
+          .eq("id", input.applicationId)
+          .single();
+        if (app?.deposit_payment_intent_id) {
+          throw new Error("This application already has a deposit recorded. You cannot add a second deposit.");
+        }
+        const { data: existingDeposit } = await supabase
+          .from("manual_payments")
+          .select("id")
+          .eq("application_id", input.applicationId)
+          .eq("payment_type", "deposit")
+          .limit(1)
+          .maybeSingle();
+        if (existingDeposit) {
+          throw new Error("This application already has a deposit recorded. You cannot add a second deposit.");
+        }
+      }
+
       const { data, error } = await supabase
         .from("manual_payments")
         .insert({
@@ -109,12 +131,18 @@ export const useCreateManualPayment = () => {
 
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["students"] });
       queryClient.invalidateQueries({ queryKey: ["admin-applications"] });
       queryClient.invalidateQueries({ queryKey: ["student-application"] });
+      if (variables.applicationId) {
+        queryClient.invalidateQueries({ queryKey: ["application-has-deposit", variables.applicationId] });
+      }
       queryClient.invalidateQueries({ queryKey: ["orphaned-payments"] });
       queryClient.invalidateQueries({ queryKey: ["verify-payment"] });
+      if (variables.paymentType === "deposit") {
+        queryClient.invalidateQueries({ queryKey: ["deposit-installment-breakdown"] });
+      }
     },
   });
 };

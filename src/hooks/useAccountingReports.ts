@@ -98,6 +98,29 @@ export type BankReconciliationItem = {
   invoice_generated_at: string | null;
 };
 
+export type UpcomingPaidInstallmentItem = {
+  application_id: string;
+  student_id: string;
+  student_name: string | null;
+  studio_number: string | null;
+  studio_grade: string | null;
+  contract_id: string;
+  contract_name: string | null;
+  academic_year_id: string | null;
+  academic_year_name: string | null;
+  installment_id: string;
+  sequence: number;
+  installment_label: string | null;
+  due_date: string;
+  amount: number;
+  amount_paid?: number;
+  amount_remaining?: number;
+  is_deposit: boolean;
+  is_paid: boolean;
+  paid_date: string | null;
+  status: "upcoming" | "overdue" | "paid" | "partially_paid";
+};
+
 // ============================================================================
 // Hooks
 // ============================================================================
@@ -227,6 +250,25 @@ export const useBankReconciliationReport = (
       }
 
       return (data || []) as BankReconciliationItem[];
+    },
+  });
+};
+
+export const useUpcomingPaidInstallmentsReport = () => {
+  return useQuery({
+    queryKey: ["upcoming-paid-installments-report"],
+    queryFn: async (): Promise<UpcomingPaidInstallmentItem[]> => {
+      const { data, error } = await supabase
+        .from("upcoming_and_paid_installments_report")
+        .select("*")
+        .order("due_date", { ascending: true });
+
+      if (error) {
+        console.error("Failed to fetch upcoming/paid installments report:", error);
+        throw error;
+      }
+
+      return (data || []) as UpcomingPaidInstallmentItem[];
     },
   });
 };
