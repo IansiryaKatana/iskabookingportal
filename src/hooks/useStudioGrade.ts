@@ -109,6 +109,7 @@ async function fetchStudioGrade(slug: string): Promise<StudioGradeData | null> {
       )
       .eq("studio_grade_id", gradeId)
       .eq("is_active", true)
+      .eq("visible_on_portal", true)
       .order("display_order", { ascending: true }),
     supabase
       .from("studio_grade_banners")

@@ -86,12 +86,17 @@ const amenities = [
   },
 ];
 
+const AMENITIES_VIDEO_FALLBACK = "https://pzptocwdaqpczexlbajr.supabase.co/storage/v1/object/public/branding/amenities-video.mp4";
+
 function AmenitiesSectionWithBrandingVideo() {
   const { data: brandingSettings } = useBrandingSettings();
+  const url = brandingSettings?.amenities_video_url?.trim();
+  const videoUrl = url && url.startsWith("http") ? url : AMENITIES_VIDEO_FALLBACK;
   return (
     <AmenitiesSection
       amenities={amenities}
-      videoUrl={brandingSettings?.amenities_video_url ?? undefined}
+      videoUrl={videoUrl}
+      fallbackVideoUrl={AMENITIES_VIDEO_FALLBACK}
     />
   );
 }

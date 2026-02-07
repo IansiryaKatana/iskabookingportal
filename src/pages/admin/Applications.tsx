@@ -31,14 +31,26 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Search } from "lucide-react";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { CreateCustomContractSheet } from "@/components/admin/CreateCustomContractSheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { FilePlus2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import {
@@ -175,6 +187,8 @@ const Applications = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [customContractSheetOpen, setCustomContractSheetOpen] = useState(false);
+  const isMobile = useIsMobile();
   // Mode: "existing" = select existing student, "new" = create new student inline
   const [studentMode, setStudentMode] = useState<"existing" | "new">("existing");
   const [createStudentId, setCreateStudentId] = useState<string>("");
@@ -232,10 +246,14 @@ const Applications = () => {
     return 999;
   };
 
+  // Only show contracts that have at least one linked payment plan (excludes "deleted" / orphaned custom contracts)
   const sortedContracts = useMemo(() => {
     if (!contracts) return [];
+    const withPlans = contracts.filter(
+      (c) => (c.contract_payment_plans?.length ?? 0) > 0
+    );
     const currentId = currentAcademicYear ?? undefined;
-    return [...contracts].sort((a, b) => {
+    return [...withPlans].sort((a, b) => {
       const yearFirst = (id: string | null | undefined) => (id && currentId && id === currentId ? 0 : 1);
       const ya = yearFirst(a.academic_year_id);
       const yb = yearFirst(b.academic_year_id);
@@ -246,6 +264,13 @@ const Applications = () => {
       return (a.weeks ?? 0) - (b.weeks ?? 0);
     });
   }, [contracts, currentAcademicYear]);
+
+  // Clear selected contract if it no longer has any payment plans (e.g. after plan was deleted)
+  useEffect(() => {
+    if (!createContractId || !sortedContracts.length) return;
+    const stillValid = sortedContracts.some((c) => c.id === createContractId);
+    if (!stillValid) setCreateContractId("");
+  }, [createContractId, sortedContracts, setCreateContractId]);
 
   const selectedContract = contracts?.find((c) => c.id === createContractId);
   const { data: studios } = useAdminStudios(
@@ -405,6 +430,7 @@ const Applications = () => {
     setNewStudentFirstName("");
     setNewStudentLastName("");
     setIsCreatingStudent(false);
+    setCustomContractSheetOpen(false);
   };
 
   const handleCreateApplication = () => {
@@ -774,17 +800,29 @@ const Applications = () => {
           paymentType={manualPaymentInitialType}
         />
       )}
-      <Dialog open={createDialogOpen} onOpenChange={(open) => { setCreateDialogOpen(open); if (!open) resetCreateDialog(); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Create application (on behalf of student)</DialogTitle>
-            <DialogDescription>
-              {studentMode === "existing"
-                ? "Select an existing student and contract to start an application."
-                : "Create a new student account and start an application for them."}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
+      <CreateCustomContractSheet
+        open={customContractSheetOpen}
+        onOpenChange={setCustomContractSheetOpen}
+        onSuccess={(contractId) => {
+          setCreateContractId(contractId);
+          setCustomContractSheetOpen(false);
+        }}
+      />
+      {isMobile ? (
+        <Drawer open={createDialogOpen} onOpenChange={(open) => { setCreateDialogOpen(open); if (!open) resetCreateDialog(); }}>
+          <DrawerContent className="max-h-[90vh] rounded-t-[28px]">
+            <DrawerHeader className="text-left px-4 pt-6 pb-2">
+              <DrawerTitle className="text-xl font-display uppercase tracking-wide">
+                Create application (on behalf of student)
+              </DrawerTitle>
+              <DrawerDescription>
+                {studentMode === "existing"
+                  ? "Select an existing student and contract to start an application."
+                  : "Create a new student account and start an application for them."}
+              </DrawerDescription>
+            </DrawerHeader>
+            <ScrollArea className="flex-1 px-4 pb-4">
+              <div className="space-y-4 py-2">
             {/* Mode toggle */}
             <div className="flex gap-2">
               <Button
@@ -873,7 +911,19 @@ const Applications = () => {
             )}
 
             <div className="space-y-2">
-              <Label>Contract</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label>Contract</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full gap-1.5 text-xs"
+                  onClick={() => setCustomContractSheetOpen(true)}
+                >
+                  <FilePlus2 className="h-3.5 w-3.5" />
+                  Create custom contract
+                </Button>
+              </div>
               <Select value={createContractId} onValueChange={(v) => { setCreateContractId(v); setCreateStudioId(""); }}>
                 <SelectTrigger className="rounded-full">
                   <SelectValue placeholder="Select contract" />
@@ -970,31 +1020,267 @@ const Applications = () => {
               </Select>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreateApplication}
-              disabled={
-                (studentMode === "existing" && !createStudentId) ||
-                (studentMode === "new" && (!newStudentEmail?.trim() || !newStudentFirstName?.trim() || !newStudentLastName?.trim())) ||
-                !createContractId ||
-                createApplicationMutation.isPending ||
-                isCreatingStudent
-              }
-            >
-              {isCreatingStudent
-                ? "Creating student…"
-                : createApplicationMutation.isPending
-                ? "Creating application…"
-                : studentMode === "new"
-                ? "Create student & application"
-                : "Create & open journey"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </ScrollArea>
+            <DrawerFooter className="gap-2 px-4 pb-6">
+              <Button variant="outline" onClick={() => setCreateDialogOpen(false)} className="rounded-full">
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateApplication}
+                disabled={
+                  (studentMode === "existing" && !createStudentId) ||
+                  (studentMode === "new" && (!newStudentEmail?.trim() || !newStudentFirstName?.trim() || !newStudentLastName?.trim())) ||
+                  !createContractId ||
+                  createApplicationMutation.isPending ||
+                  isCreatingStudent
+                }
+                className="rounded-full"
+              >
+                {isCreatingStudent
+                  ? "Creating student…"
+                  : createApplicationMutation.isPending
+                  ? "Creating application…"
+                  : studentMode === "new"
+                  ? "Create student & application"
+                  : "Create & open journey"}
+              </Button>
+            </DrawerFooter>
+          </DrawerContent>
+        </Drawer>
+      ) : (
+        <Sheet open={createDialogOpen} onOpenChange={(open) => { setCreateDialogOpen(open); if (!open) resetCreateDialog(); }}>
+          <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle className="text-xl font-display uppercase tracking-wide">
+                Create application (on behalf of student)
+              </SheetTitle>
+              <SheetDescription>
+                {studentMode === "existing"
+                  ? "Select an existing student and contract to start an application."
+                  : "Create a new student account and start an application for them."}
+              </SheetDescription>
+            </SheetHeader>
+            <div className="space-y-4 py-4">
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={studentMode === "existing" ? "default" : "outline"}
+                size="sm"
+                className="flex-1 rounded-full gap-2"
+                onClick={() => setStudentMode("existing")}
+              >
+                <Users className="h-4 w-4" />
+                Existing student
+              </Button>
+              <Button
+                type="button"
+                variant={studentMode === "new" ? "default" : "outline"}
+                size="sm"
+                className="flex-1 rounded-full gap-2"
+                onClick={() => setStudentMode("new")}
+              >
+                <UserPlus className="h-4 w-4" />
+                Create new
+              </Button>
+            </div>
+            {studentMode === "existing" ? (
+              <div className="space-y-2">
+                <Label>Student</Label>
+                <Select value={createStudentId} onValueChange={setCreateStudentId}>
+                  <SelectTrigger className="rounded-full">
+                    <SelectValue placeholder="Select student" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {studentProfiles?.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.first_name} {p.last_name} {p.phone ? `(${p.phone})` : ""}
+                      </SelectItem>
+                    ))}
+                    {(!studentProfiles || studentProfiles.length === 0) && (
+                      <SelectItem value="_none" disabled>
+                        No students found. Switch to "Create new" to add one.
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="space-y-3 p-3 bg-muted/50 rounded-xl">
+                <div className="space-y-2">
+                  <Label htmlFor="new-student-email-sheet">Email *</Label>
+                  <Input
+                    id="new-student-email-sheet"
+                    type="email"
+                    placeholder="student@example.com"
+                    value={newStudentEmail}
+                    onChange={(e) => setNewStudentEmail(e.target.value)}
+                    className="rounded-full"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="new-student-first-name-sheet">First name *</Label>
+                    <Input
+                      id="new-student-first-name-sheet"
+                      placeholder="John"
+                      value={newStudentFirstName}
+                      onChange={(e) => setNewStudentFirstName(e.target.value)}
+                      className="rounded-full"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="new-student-last-name-sheet">Last name *</Label>
+                    <Input
+                      id="new-student-last-name-sheet"
+                      placeholder="Doe"
+                      value={newStudentLastName}
+                      onChange={(e) => setNewStudentLastName(e.target.value)}
+                      className="rounded-full"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  The student can use "Forgot Password" to set their password and log in.
+                </p>
+              </div>
+            )}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label>Contract</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full gap-1.5 text-xs"
+                  onClick={() => setCustomContractSheetOpen(true)}
+                >
+                  <FilePlus2 className="h-3.5 w-3.5" />
+                  Create custom contract
+                </Button>
+              </div>
+              <Select value={createContractId} onValueChange={(v) => { setCreateContractId(v); setCreateStudioId(""); }}>
+                <SelectTrigger className="rounded-full">
+                  <SelectValue placeholder="Select contract" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sortedContracts?.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name} {c.academic_year?.name ? `(${c.academic_year.name})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {selectedContract && (
+              <div className="space-y-2">
+                <Label>Studio</Label>
+                {studios && studios.length > 0 ? (
+                  <Popover open={studioPickerOpen} onOpenChange={(open) => { setStudioPickerOpen(open); if (!open) setStudioSearch(""); }}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={studioPickerOpen}
+                        className="w-full justify-between rounded-full font-normal"
+                      >
+                        <span className="truncate">{selectedStudioDisplay}</span>
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                      <Command>
+                        <CommandInput
+                          placeholder="Search studios by number..."
+                          value={studioSearch}
+                          onValueChange={setStudioSearch}
+                        />
+                        <CommandList>
+                          <CommandEmpty>No studio found.</CommandEmpty>
+                          <CommandGroup>
+                            <CommandItem
+                              value="__none__"
+                              onSelect={() => {
+                                setCreateStudioId("");
+                                setStudioPickerOpen(false);
+                                setStudioSearch("");
+                              }}
+                              className="cursor-pointer"
+                            >
+                              <Check className={cn("mr-2 h-4 w-4", !createStudioId ? "opacity-100" : "opacity-0")} />
+                              — None —
+                            </CommandItem>
+                            {filteredStudios.map((s) => (
+                              <CommandItem
+                                key={s.id}
+                                value={s.studio_number ?? s.id}
+                                onSelect={() => {
+                                  setCreateStudioId(s.id);
+                                  setStudioPickerOpen(false);
+                                  setStudioSearch("");
+                                }}
+                                className="cursor-pointer"
+                              >
+                                <Check className={cn("mr-2 h-4 w-4 shrink-0", createStudioId === s.id ? "opacity-100" : "opacity-0")} />
+                                <span className="flex-1 truncate">{s.studio_number}</span>
+                                <Badge variant="secondary" className="ml-2 shrink-0 text-xs font-normal">Available</Badge>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                ) : (
+                  <div className="rounded-full border border-dashed border-muted-foreground/40 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                    <p className="font-medium">Fully booked currently</p>
+                    <p className="mt-0.5 text-xs">No studios available for this contract. You can still create the application; the student can select a studio later in the journey.</p>
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Booking source</Label>
+              <Select value={createBookingSource} onValueChange={setCreateBookingSource}>
+                <SelectTrigger className="rounded-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {BOOKING_SOURCE_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            </div>
+            <SheetFooter>
+              <Button variant="outline" onClick={() => setCreateDialogOpen(false)} className="rounded-full">
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateApplication}
+                disabled={
+                  (studentMode === "existing" && !createStudentId) ||
+                  (studentMode === "new" && (!newStudentEmail?.trim() || !newStudentFirstName?.trim() || !newStudentLastName?.trim())) ||
+                  !createContractId ||
+                  createApplicationMutation.isPending ||
+                  isCreatingStudent
+                }
+                className="rounded-full"
+              >
+                {isCreatingStudent
+                  ? "Creating student…"
+                  : createApplicationMutation.isPending
+                  ? "Creating application…"
+                  : studentMode === "new"
+                  ? "Create student & application"
+                  : "Create & open journey"}
+              </Button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
+      )}
     </AdminLayout>
   );
 };

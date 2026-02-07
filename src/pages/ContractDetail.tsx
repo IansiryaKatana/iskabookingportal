@@ -239,8 +239,13 @@ const ContractDetail = () => {
     return null;
   }, [contract?.deposit_override, activePlan]);
 
+  const isStaffOnlyContract = contract?.visible_on_portal === false;
+  const isStaff = profile?.role && ["staff", "admin", "superadmin"].includes(profile.role);
+  const canApplyForContract = !isStaffOnlyContract || isStaff;
+
   const handleEnquire = async () => {
     if (!contract) return;
+    if (!canApplyForContract) return;
 
     if (!user) {
       navigate("/portal/login", {
@@ -756,22 +761,34 @@ const ContractDetail = () => {
                 </Button>
               ) : null}
 
-              {/* Regular Booking Button */}
-              <Button
-                className="w-full rounded-full uppercase tracking-wide bg-white text-primary hover:bg-white/90"
-                size="lg"
-                onClick={handleEnquire}
-                disabled={creating || creatingRebooking}
-              >
-                {creating ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Preparing your application
-                  </>
-                ) : (
-                  "Start Booking Journey"
-                )}
-              </Button>
+              {/* Staff-only contract: not available for direct booking by students */}
+              {isStaffOnlyContract && !isStaff && (
+                <Alert className="rounded-2xl border-amber-500/50 bg-amber-500/10">
+                  <AlertTitle className="uppercase tracking-wide">Not available for direct booking</AlertTitle>
+                  <AlertDescription>
+                    This contract is offered by arrangement only. If you have been given this link by our team, please contact us to complete your booking.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* Regular Booking Button — hidden when staff-only and user is not staff */}
+              {canApplyForContract && (
+                <Button
+                  className="w-full rounded-full uppercase tracking-wide bg-white text-primary hover:bg-white/90"
+                  size="lg"
+                  onClick={handleEnquire}
+                  disabled={creating || creatingRebooking}
+                >
+                  {creating ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Preparing your application
+                    </>
+                  ) : (
+                    "Start Booking Journey"
+                  )}
+                </Button>
+              )}
             </div>
 
             <CardContent className="space-y-6 pt-6">

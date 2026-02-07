@@ -136,7 +136,8 @@ const loadStudioGrade = async (slug: string, academicYearName?: string): Promise
           `,
         )
         .eq("studio_grade_id", gradeId)
-        .eq("is_active", true);
+        .eq("is_active", true)
+        .eq("visible_on_portal", true);
       
       // Filter by academic year if specified
       if (academicYearId) {
@@ -355,12 +356,18 @@ const StudioGradePage = () => {
     return firstImage?.url ?? galleryImages[0]?.src ?? null;
   }, [grade, galleryImages]);
 
+  const AMENITIES_VIDEO_FALLBACK = "https://pzptocwdaqpczexlbajr.supabase.co/storage/v1/object/public/branding/amenities-video.mp4";
+  const isValidVideoUrl = (u: string | null | undefined) =>
+    typeof u === "string" && u.trim().startsWith("http") && u.trim().length > 10;
+
   const videoUrl = useMemo(() => {
     if (!grade) return null;
-    if (grade.promo_video_url) return grade.promo_video_url;
+    if (isValidVideoUrl(grade.promo_video_url)) return grade.promo_video_url?.trim() ?? null;
     const mediaVideo = grade.studio_grade_media.find((media) => media.media_type === "video")?.url;
-    if (mediaVideo) return mediaVideo;
-    return brandingSettings?.amenities_video_url || null;
+    if (isValidVideoUrl(mediaVideo)) return mediaVideo?.trim() ?? null;
+    const url = brandingSettings?.amenities_video_url?.trim();
+    if (isValidVideoUrl(url)) return url ?? null;
+    return AMENITIES_VIDEO_FALLBACK;
   }, [grade, brandingSettings?.amenities_video_url]);
 
   const amenities = useMemo(() => {
@@ -601,7 +608,11 @@ const StudioGradePage = () => {
           description={grade.long_description ?? undefined}
         />
 
-        <AmenitiesSection amenities={amenities} videoUrl={videoUrl ?? undefined} />
+        <AmenitiesSection
+          amenities={amenities}
+          videoUrl={videoUrl ?? undefined}
+          fallbackVideoUrl={AMENITIES_VIDEO_FALLBACK}
+        />
       </main>
 
       <Footer />

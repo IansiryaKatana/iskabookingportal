@@ -4,9 +4,11 @@ import {
   useAdminContracts,
   useCreateContract,
   useUpdateContract,
+  useDeleteContract,
   useContractPaymentPlans,
   useDuplicateContracts,
 } from "@/hooks/useAdminContracts";
+import { useAuth } from "@/contexts/AuthContext";
 import { useAdminAcademicYears } from "@/hooks/useAdminAcademicYears";
 import { useAdminStudioGrades } from "@/hooks/useAdminStudioGrades";
 import { useAllAcademicYears } from "@/hooks/useAdminPaymentPlans";
@@ -18,7 +20,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Pencil, Plus, Copy } from "lucide-react";
+import { Loader2, Pencil, Plus, Copy, Trash2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -59,6 +61,7 @@ const schema = z.object({
   summary: z.string().optional(),
   display_order: z.coerce.number().min(1),
   cta_label: z.string().optional(),
+  visible_on_portal: z.boolean(),
 });
 
 // Default order for payment plans
@@ -74,11 +77,13 @@ const getDefaultPaymentPlanOrder = (planName: string): number => {
 };
 
 const Contracts = () => {
+  const { role } = useAuth();
   const { data, isLoading } = useAdminContracts();
   const { data: academicYears } = useAdminAcademicYears();
   const { data: studioGradesData } = useAdminStudioGrades();
   const createContract = useCreateContract();
   const updateContract = useUpdateContract();
+  const deleteContract = useDeleteContract();
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string | null>(null);
@@ -90,9 +95,11 @@ const Contracts = () => {
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [sourceYearId, setSourceYearId] = useState<string>("");
   const [targetYearId, setTargetYearId] = useState<string>("");
-  
+  const [contractToDelete, setContractToDelete] = useState<{ id: string; name: string } | null>(null);
+
   const { data: allAcademicYears } = useAllAcademicYears();
   const duplicateContracts = useDuplicateContracts();
+  const isSuperadmin = role === "superadmin";
 
   const form = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
@@ -107,6 +114,7 @@ const Contracts = () => {
       summary: "",
       display_order: 1,
       cta_label: "",
+      visible_on_portal: true,
     },
   });
 
@@ -243,6 +251,7 @@ const Contracts = () => {
       summary: "",
       display_order: 1,
       cta_label: "",
+      visible_on_portal: true,
     });
     setEditingId(null);
     setOpen(true);
@@ -266,6 +275,7 @@ const Contracts = () => {
       summary: contract.summary ?? "",
       display_order: contract.display_order ?? 1,
       cta_label: contract.cta_label ?? "",
+      visible_on_portal: contract.visible_on_portal ?? true,
     });
     setEditingId(id);
     setOpen(true);
@@ -325,6 +335,7 @@ const Contracts = () => {
           summary: values.summary ?? null,
           display_order: values.display_order,
           cta_label: values.cta_label ?? null,
+          visible_on_portal: values.visible_on_portal,
           payment_plan_ids: orderedPlans.map(p => p.planId),
           payment_plan_orders: orderedPlans.map(p => p.order),
         });
@@ -342,6 +353,7 @@ const Contracts = () => {
           summary: values.summary ?? null,
           display_order: values.display_order,
           cta_label: values.cta_label ?? null,
+          visible_on_portal: values.visible_on_portal,
           is_active: true,
           payment_plan_ids: orderedPlans.map(p => p.planId),
           payment_plan_orders: orderedPlans.map(p => p.order),
@@ -536,6 +548,18 @@ const Contracts = () => {
                           <Pencil className="h-4 w-4" />
                           Edit
                         </Button>
+                        {isSuperadmin && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="rounded-full uppercase tracking-wide gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => setContractToDelete({ id: contract.id, name: contract.name })}
+                            disabled={deleteContract.isPending}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Delete
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -713,6 +737,28 @@ const Contracts = () => {
                   )}
                 />
               </div>
+              <FormField
+                control={form.control}
+                name="visible_on_portal"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-xl border border-border/60 px-4 py-3 bg-muted/40">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-sm font-semibold uppercase tracking-wide">
+                        Visible on room grade (student-facing)
+                      </FormLabel>
+                      <p className="text-xs text-muted-foreground">
+                        When on, this contract appears on the studio grade page for students. Turn off for custom/finance/staff-only contracts.
+                      </p>
+                    </div>
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
               <div className="space-y-3">
                 <div>
                   <FormLabel className="block">Available payment plans</FormLabel>
@@ -965,6 +1011,58 @@ const Contracts = () => {
                 </>
               ) : (
                 "Duplicate Contracts"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete contract (superadmin only) */}
+      <AlertDialog open={!!contractToDelete} onOpenChange={(open) => !open && setContractToDelete(null)}>
+        <AlertDialogContent className="rounded-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-display uppercase tracking-wide">
+              Delete contract
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {contractToDelete ? (
+                <>
+                  Are you sure you want to delete <strong>{contractToDelete.name}</strong>? This cannot be undone.
+                  The contract can only be deleted if it has no applications linked to it.
+                </>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-full uppercase tracking-wide" onClick={() => setContractToDelete(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!contractToDelete) return;
+                try {
+                  await deleteContract.mutateAsync(contractToDelete.id);
+                  toast({ title: "Contract deleted" });
+                  setContractToDelete(null);
+                } catch (error: unknown) {
+                  const message = error instanceof Error ? error.message : "Unable to delete contract.";
+                  toast({
+                    variant: "destructive",
+                    title: "Cannot delete contract",
+                    description: message,
+                  });
+                }
+              }}
+              disabled={deleteContract.isPending || !contractToDelete}
+              className="rounded-full uppercase tracking-wide bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteContract.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

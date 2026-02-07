@@ -1,3 +1,5 @@
+import { useRef, useEffect, useState } from "react";
+
 type Amenity = {
   id: string;
   name: string;
@@ -8,10 +10,38 @@ type Amenity = {
 type AmenitiesSectionProps = {
   amenities?: Amenity[];
   videoUrl?: string | null;
+  /** If the primary video fails to load, we try this URL (e.g. known-good Supabase storage URL). */
+  fallbackVideoUrl?: string | null;
 };
 
-const AmenitiesSection = ({ amenities, videoUrl }: AmenitiesSectionProps) => {
+const AmenitiesSection = ({ amenities, videoUrl, fallbackVideoUrl }: AmenitiesSectionProps) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [currentSrc, setCurrentSrc] = useState<string | null>(() => {
+    const u = typeof videoUrl === "string" ? videoUrl.trim() || null : videoUrl || null;
+    return u || null;
+  });
   const hasAmenities = amenities && amenities.length > 0;
+  const normalizedVideoUrl = typeof videoUrl === "string" ? videoUrl.trim() || null : videoUrl || null;
+  const fallback = typeof fallbackVideoUrl === "string" ? fallbackVideoUrl.trim() || null : fallbackVideoUrl || null;
+
+  // Sync currentSrc when videoUrl prop changes (e.g. after branding loads)
+  useEffect(() => {
+    if (normalizedVideoUrl) setCurrentSrc(normalizedVideoUrl);
+    else if (fallback) setCurrentSrc(fallback);
+    else setCurrentSrc(null);
+  }, [normalizedVideoUrl, fallback]);
+
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el || !currentSrc) return;
+    const p = el.play();
+    if (p?.catch) p.catch(() => {});
+  }, [currentSrc]);
+
+  const handleVideoError = () => {
+    if (!fallback || currentSrc === fallback) return;
+    setCurrentSrc(fallback);
+  };
 
   return (
     <section
@@ -56,19 +86,20 @@ const AmenitiesSection = ({ amenities, videoUrl }: AmenitiesSectionProps) => {
           </div>
         )}
 
-        {videoUrl && (
+        {currentSrc && (
         <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden p-1">
           <video
+            ref={videoRef}
+            key={currentSrc}
+            src={currentSrc}
             className="w-full h-full object-cover rounded"
             autoPlay
             loop
             muted
             playsInline
-              controls={false}
-          >
-              <source src={videoUrl} type="video/mp4" />
-            Your browser does not support the video tag.
-          </video>
+            preload="auto"
+            onError={handleVideoError}
+          />
         </div>
         )}
       </div>

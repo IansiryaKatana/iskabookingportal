@@ -345,7 +345,7 @@ const Branding = () => {
 
       toast({
         title: "Amenities video uploaded",
-        description: "The video will be used in the Amenities section and no longer relies on external links.",
+        description: "Refresh the studio page if the video does not appear. If it still fails, in Supabase Dashboard go to Storage → branding → set bucket to Public.",
       });
 
       await logActivity({ action: "branding_updated", payload: { type: "amenities_video_upload" } });
@@ -938,7 +938,14 @@ const Branding = () => {
                     />
                   </div>
                 )}
-                <div className="flex-1 w-full">
+                <div className="flex-1 w-full space-y-2">
+                  <Input
+                    type="url"
+                    placeholder="Or paste video URL (e.g. https://...mp4)"
+                    value={amenitiesVideoPath}
+                    onChange={(e) => setAmenitiesVideoPath(e.target.value)}
+                    className="rounded-xl text-xs md:text-sm"
+                  />
                   <Input
                     type="file"
                     accept="video/mp4,video/webm,video/ogg"
@@ -950,7 +957,7 @@ const Branding = () => {
                 {uploadingAmenitiesVideo && <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />}
               </div>
               <p className="text-xs text-muted-foreground">
-                Recommended: MP4 (H.264), max 100MB. Replaces the need for external links like urbanhub.uk.
+                Paste a URL and click Save, or upload a file (MP4/WebM/OGG, max 100MB). Uploaded files are served from your storage to avoid CSP issues.
               </p>
             </div>
           </CardContent>

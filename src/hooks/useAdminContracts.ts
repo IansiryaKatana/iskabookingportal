@@ -232,6 +232,53 @@ export const useUpdateContract = () => {
   });
 };
 
+/**
+ * Delete a contract. Only superadmin can delete (enforced by RLS).
+ * Fails if any student applications reference this contract (DB ON DELETE RESTRICT).
+ */
+export const useDeleteContract = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (contractId: string) => {
+      const { count, error: countError } = await supabase
+        .from("student_applications")
+        .select("*", { count: "exact", head: true })
+        .eq("contract_id", contractId);
+
+      if (countError) throw countError;
+      if ((count ?? 0) > 0) {
+        throw new Error(
+          "Cannot delete this contract because it has existing applications. Remove or reassign applications first."
+        );
+      }
+
+      const { data: contract, error: fetchError } = await supabase
+        .from("contracts")
+        .select("id, name, slug")
+        .eq("id", contractId)
+        .single();
+
+      if (fetchError || !contract) throw fetchError ?? new Error("Contract not found");
+
+      const { error } = await supabase.from("contracts").delete().eq("id", contractId);
+
+      if (error) throw error;
+
+      await logActivity({
+        action: "delete",
+        entityType: "contract",
+        entityId: contractId,
+        payload: { name: contract.name, slug: contract.slug },
+      });
+
+      return contractId;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-contracts"] });
+    },
+  });
+};
+
 export const useContractPaymentPlans = (academicYearId?: string | null) =>
   useQuery({
     queryKey: ["admin-payment-plans-active", academicYearId],

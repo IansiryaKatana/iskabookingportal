@@ -48,7 +48,7 @@ export const useBrandingSettings = () => {
 
       return settings;
     },
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    staleTime: 60 * 1000, // 1 minute so studio page picks up new amenities video soon after upload
   });
 };
 
