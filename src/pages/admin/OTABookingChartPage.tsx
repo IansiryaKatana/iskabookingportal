@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { useOTABookings, type OTABookingWithRelations } from "@/hooks/useOTABookings";
+import { useOTABookings, useUpdateOTABooking, type OTABookingWithRelations } from "@/hooks/useOTABookings";
 import { useOutOfOrderRecords } from "@/hooks/useOutOfOrder";
 import { useAdminStudios } from "@/hooks/useAdminStudios";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,7 +19,7 @@ import {
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isToday, isSameDay, parseISO } from "date-fns";
 import {
   Calendar, ChevronLeft, ChevronRight, Filter, Building2, AlertTriangle,
-  CheckCircle2, XCircle, Users, Clock
+  CheckCircle2, XCircle, Users, Clock, Pencil, Loader2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/drawer";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 // Status color mapping
@@ -94,6 +95,7 @@ const OTABookingChartPage = () => {
   // Details drawer/sheet
   const [selectedBooking, setSelectedBooking] = useState<OTABookingWithRelations | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsEditing, setDetailsEditing] = useState(false);
 
   // Fetch data
   const { data: bookings, isLoading: bookingsLoading } = useOTABookings({
@@ -497,7 +499,7 @@ const OTABookingChartPage = () => {
         {selectedBooking && (
           <>
             {isMobile ? (
-              <Drawer open={detailsOpen} onOpenChange={setDetailsOpen}>
+              <Drawer open={detailsOpen} onOpenChange={(open) => { setDetailsOpen(open); if (!open) setDetailsEditing(false); }}>
                 <DrawerContent className="max-h-[96vh]">
                   <DrawerHeader className="text-left">
                     <DrawerTitle>{selectedBooking.guest_name}</DrawerTitle>
@@ -506,9 +508,33 @@ const OTABookingChartPage = () => {
                     </DrawerDescription>
                   </DrawerHeader>
                   <ScrollArea className="flex-1 px-4">
-                    <OTABookingDetails booking={selectedBooking} />
+                    <OTABookingDetails
+                      booking={selectedBooking}
+                      studios={filteredStudios}
+                      onClose={() => setDetailsOpen(false)}
+                      isEditing={detailsEditing}
+                      setIsEditing={setDetailsEditing}
+                    />
                   </ScrollArea>
-                  <DrawerFooter className="gap-2">
+                  <DrawerFooter className="gap-2 flex-wrap">
+                    {detailsEditing ? (
+                      <Button
+                        variant="outline"
+                        onClick={() => setDetailsEditing(false)}
+                        className="rounded-full"
+                      >
+                        Cancel
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="default"
+                        onClick={() => setDetailsEditing(true)}
+                        className="rounded-full"
+                      >
+                        <Pencil className="h-4 w-4 mr-2" />
+                        Edit booking
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       onClick={() => setDetailsOpen(false)}
@@ -520,7 +546,7 @@ const OTABookingChartPage = () => {
                 </DrawerContent>
               </Drawer>
             ) : (
-              <Sheet open={detailsOpen} onOpenChange={setDetailsOpen}>
+              <Sheet open={detailsOpen} onOpenChange={(open) => { setDetailsOpen(open); if (!open) setDetailsEditing(false); }}>
                 <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
                   <SheetHeader>
                     <SheetTitle>{selectedBooking.guest_name}</SheetTitle>
@@ -529,9 +555,33 @@ const OTABookingChartPage = () => {
                     </SheetDescription>
                   </SheetHeader>
                   <ScrollArea className="flex-1 mt-6">
-                    <OTABookingDetails booking={selectedBooking} />
+                    <OTABookingDetails
+                      booking={selectedBooking}
+                      studios={filteredStudios}
+                      onClose={() => setDetailsOpen(false)}
+                      isEditing={detailsEditing}
+                      setIsEditing={setDetailsEditing}
+                    />
                   </ScrollArea>
-                  <SheetFooter>
+                  <SheetFooter className="gap-2 flex-wrap">
+                    {detailsEditing ? (
+                      <Button
+                        variant="outline"
+                        onClick={() => setDetailsEditing(false)}
+                        className="rounded-full"
+                      >
+                        Cancel
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="default"
+                        onClick={() => setDetailsEditing(true)}
+                        className="rounded-full"
+                      >
+                        <Pencil className="h-4 w-4 mr-2" />
+                        Edit booking
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       onClick={() => setDetailsOpen(false)}
@@ -550,14 +600,74 @@ const OTABookingChartPage = () => {
   );
 };
 
-// OTA Booking Details Component
-const OTABookingDetails = ({ booking }: { booking: OTABookingWithRelations }) => {
+// Studio type for dropdown
+type StudioOption = { id: string; studio_number: string };
+
+// OTA Booking Details Component – view + edit all fields
+const OTABookingDetails = ({
+  booking,
+  studios,
+  onClose,
+  isEditing,
+  setIsEditing,
+}: {
+  booking: OTABookingWithRelations;
+  studios: StudioOption[];
+  onClose: () => void;
+  isEditing: boolean;
+  setIsEditing: (v: boolean) => void;
+}) => {
+  const { toast } = useToast();
+  const updateBooking = useUpdateOTABooking();
+  const [form, setForm] = useState({
+    external_ref: booking.external_ref,
+    channel: booking.channel,
+    guest_name: booking.guest_name,
+    guest_phone: booking.guest_phone ?? "",
+    guest_email: booking.guest_email ?? "",
+    studio_id: booking.studio_id ?? "",
+    check_in: format(parseISO(booking.check_in), "yyyy-MM-dd"),
+    check_out: format(parseISO(booking.check_out), "yyyy-MM-dd"),
+    status: booking.status,
+    notes: booking.notes ?? "",
+    internal_notes: booking.internal_notes ?? "",
+    price_per_night: booking.price_per_night != null ? String(booking.price_per_night) : "",
+    commission_amount: booking.commission_amount != null ? String(booking.commission_amount) : "",
+    currency: booking.currency ?? "GBP",
+  });
+
+  useEffect(() => {
+    setForm({
+      external_ref: booking.external_ref,
+      channel: booking.channel,
+      guest_name: booking.guest_name,
+      guest_phone: booking.guest_phone ?? "",
+      guest_email: booking.guest_email ?? "",
+      studio_id: booking.studio_id ?? "",
+      check_in: format(parseISO(booking.check_in), "yyyy-MM-dd"),
+      check_out: format(parseISO(booking.check_out), "yyyy-MM-dd"),
+      status: booking.status,
+      notes: booking.notes ?? "",
+      internal_notes: booking.internal_notes ?? "",
+      price_per_night: booking.price_per_night != null ? String(booking.price_per_night) : "",
+      commission_amount: booking.commission_amount != null ? String(booking.commission_amount) : "",
+      currency: booking.currency ?? "GBP",
+    });
+    setIsEditing(false);
+  }, [booking.id]);
+
   const getStatusBadge = (status: string) => {
     const configs: Record<string, { className: string; label: string }> = {
       arriving: { className: "bg-blue-500 text-white", label: "Arriving" },
+      expected_arrivals: { className: "bg-green-500 text-white", label: "Expected Arrivals" },
+      pre_check_in: { className: "bg-purple-500 text-white", label: "Pre Check-in" },
       checked_in: { className: "bg-emerald-500 text-white", label: "Checked In" },
       in_house_guest: { className: "bg-teal-500 text-white", label: "In House Guest" },
+      day_use: { className: "bg-indigo-500 text-white", label: "Day Use" },
       checked_out: { className: "bg-gray-500 text-white", label: "Checked Out" },
+      expected_departures: { className: "bg-orange-500 text-white", label: "Expected Departures" },
+      departing: { className: "bg-amber-500 text-white", label: "Departing" },
+      no_show: { className: "bg-red-500 text-white", label: "No Show" },
       cancelled: { className: "bg-slate-500 text-white", label: "Cancelled" },
     };
     const config = configs[status] || configs.arriving;
@@ -584,75 +694,300 @@ const OTABookingDetails = ({ booking }: { booking: OTABookingWithRelations }) =>
     );
   };
 
+  const handleSave = async () => {
+    try {
+      await updateBooking.mutateAsync({
+        id: booking.id,
+        updates: {
+          external_ref: form.external_ref,
+          channel: form.channel as "airbnb" | "booking" | "agoda" | "expedia" | "other",
+          guest_name: form.guest_name,
+          guest_phone: form.guest_phone || null,
+          guest_email: form.guest_email || null,
+          studio_id: form.studio_id || null,
+          check_in: form.check_in,
+          check_out: form.check_out,
+          status: form.status,
+          notes: form.notes || null,
+          internal_notes: form.internal_notes || null,
+          price_per_night: form.price_per_night ? Number(form.price_per_night) : null,
+          commission_amount: form.commission_amount ? Number(form.commission_amount) : null,
+          currency: form.currency || "GBP",
+        },
+      });
+      toast({ title: "Booking updated", description: "OTA booking has been saved." });
+      setIsEditing(false);
+    } catch (e) {
+      toast({
+        title: "Error",
+        description: e instanceof Error ? e.message : "Failed to update booking",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const statusOptions = [
+    "arriving", "expected_arrivals", "pre_check_in", "checked_in", "in_house_guest",
+    "day_use", "checked_out", "expected_departures", "departing", "no_show", "cancelled",
+  ];
+  const channelOptions = ["airbnb", "booking", "agoda", "expedia", "other"];
+
   return (
     <div className="space-y-6">
-      <div className="space-y-4">
-        <div>
-          <Label className="text-xs text-muted-foreground">Status</Label>
-          <div className="mt-1">{getStatusBadge(booking.status)}</div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <Label className="text-xs text-muted-foreground">Booking Reference</Label>
-            <div className="mt-1 text-sm font-semibold">{booking.external_ref}</div>
-          </div>
-          <div>
-            <Label className="text-xs text-muted-foreground">Channel</Label>
-            <div className="mt-1">{getChannelBadge(booking.channel)}</div>
-          </div>
-          <div>
-            <Label className="text-xs text-muted-foreground">Guest Name</Label>
-            <div className="mt-1 text-sm font-semibold">{booking.guest_name}</div>
-          </div>
-          {booking.guest_email && (
-            <div>
-              <Label className="text-xs text-muted-foreground">Email</Label>
-              <div className="mt-1 text-sm">{booking.guest_email}</div>
-            </div>
-          )}
-          {booking.guest_phone && (
-            <div>
-              <Label className="text-xs text-muted-foreground">Phone</Label>
-              <div className="mt-1 text-sm">{booking.guest_phone}</div>
-            </div>
-          )}
-          <div>
-            <Label className="text-xs text-muted-foreground">Studio</Label>
-            <div className="mt-1 text-sm">
-              {booking.studio ? (
-                <span className="font-medium">{booking.studio.studio_number}</span>
-              ) : (
-                <span className="text-muted-foreground">Unallocated</span>
-              )}
-            </div>
-          </div>
-          <div>
-            <Label className="text-xs text-muted-foreground">Check-in</Label>
-            <div className="mt-1 text-sm">
-              {format(parseISO(booking.check_in), "MMM d, yyyy")}
-            </div>
-          </div>
-          <div>
-            <Label className="text-xs text-muted-foreground">Check-out</Label>
-            <div className="mt-1 text-sm">
-              {format(parseISO(booking.check_out), "MMM d, yyyy")}
-            </div>
-          </div>
-        </div>
-
-        {booking.notes && (
-          <div>
-            <Label className="text-xs text-muted-foreground">Notes</Label>
-            <p className="text-sm mt-1 whitespace-pre-wrap">{booking.notes}</p>
+      <div className="flex items-center justify-between">
+        {!isEditing ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-full"
+            onClick={() => setIsEditing(true)}
+          >
+            <Pencil className="h-4 w-4 mr-2" />
+            Edit booking
+          </Button>
+        ) : (
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" className="rounded-full" onClick={() => setIsEditing(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="rounded-full"
+              disabled={updateBooking.isPending || !form.guest_name.trim() || !form.external_ref.trim()}
+              onClick={handleSave}
+            >
+              {updateBooking.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save changes"}
+            </Button>
           </div>
         )}
+      </div>
 
-        {booking.internal_notes && (
-          <div>
-            <Label className="text-xs text-muted-foreground">Internal Notes</Label>
-            <p className="text-sm mt-1 whitespace-pre-wrap">{booking.internal_notes}</p>
-          </div>
+      <div className="space-y-4">
+        {isEditing ? (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Booking reference</Label>
+                <Input
+                  value={form.external_ref}
+                  onChange={(e) => setForm((f) => ({ ...f, external_ref: e.target.value }))}
+                  className="rounded-full"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Channel</Label>
+                <Select value={form.channel} onValueChange={(v) => setForm((f) => ({ ...f, channel: v }))}>
+                  <SelectTrigger className="rounded-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {channelOptions.map((ch) => (
+                      <SelectItem key={ch} value={ch}>{ch}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label>Guest name</Label>
+                <Input
+                  value={form.guest_name}
+                  onChange={(e) => setForm((f) => ({ ...f, guest_name: e.target.value }))}
+                  className="rounded-full"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Guest email</Label>
+                <Input
+                  type="email"
+                  value={form.guest_email}
+                  onChange={(e) => setForm((f) => ({ ...f, guest_email: e.target.value }))}
+                  className="rounded-full"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Guest phone</Label>
+                <Input
+                  value={form.guest_phone}
+                  onChange={(e) => setForm((f) => ({ ...f, guest_phone: e.target.value }))}
+                  className="rounded-full"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Studio</Label>
+                <Select value={form.studio_id || "none"} onValueChange={(v) => setForm((f) => ({ ...f, studio_id: v === "none" ? "" : v }))}>
+                  <SelectTrigger className="rounded-full">
+                    <SelectValue placeholder="Unallocated" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Unallocated</SelectItem>
+                    {studios.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>{s.studio_number}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select value={form.status} onValueChange={(v) => setForm((f) => ({ ...f, status: v }))}>
+                  <SelectTrigger className="rounded-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {statusOptions.map((s) => (
+                      <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Check-in</Label>
+                <Input
+                  type="date"
+                  value={form.check_in}
+                  onChange={(e) => setForm((f) => ({ ...f, check_in: e.target.value }))}
+                  className="rounded-full"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Check-out</Label>
+                <Input
+                  type="date"
+                  value={form.check_out}
+                  onChange={(e) => setForm((f) => ({ ...f, check_out: e.target.value }))}
+                  className="rounded-full"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Price per night</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={form.price_per_night}
+                  onChange={(e) => setForm((f) => ({ ...f, price_per_night: e.target.value }))}
+                  className="rounded-full"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Commission amount</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={form.commission_amount}
+                  onChange={(e) => setForm((f) => ({ ...f, commission_amount: e.target.value }))}
+                  className="rounded-full"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Currency</Label>
+                <Input
+                  value={form.currency}
+                  onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}
+                  className="rounded-full"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Textarea
+                value={form.notes}
+                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                placeholder="Guest-facing notes"
+                className="rounded-2xl min-h-[80px] resize-none"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Internal notes</Label>
+              <Textarea
+                value={form.internal_notes}
+                onChange={(e) => setForm((f) => ({ ...f, internal_notes: e.target.value }))}
+                placeholder="Internal only"
+                className="rounded-2xl min-h-[80px] resize-none"
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <Label className="text-xs text-muted-foreground">Status</Label>
+              <div className="mt-1">{getStatusBadge(booking.status)}</div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-xs text-muted-foreground">Booking Reference</Label>
+                <div className="mt-1 text-sm font-semibold">{booking.external_ref}</div>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Channel</Label>
+                <div className="mt-1">{getChannelBadge(booking.channel)}</div>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Guest Name</Label>
+                <div className="mt-1 text-sm font-semibold">{booking.guest_name}</div>
+              </div>
+              {(booking.guest_email || booking.guest_phone) && (
+                <>
+                  {booking.guest_email && (
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Email</Label>
+                      <div className="mt-1 text-sm">{booking.guest_email}</div>
+                    </div>
+                  )}
+                  {booking.guest_phone && (
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Phone</Label>
+                      <div className="mt-1 text-sm">{booking.guest_phone}</div>
+                    </div>
+                  )}
+                </>
+              )}
+              <div>
+                <Label className="text-xs text-muted-foreground">Studio</Label>
+                <div className="mt-1 text-sm">
+                  {booking.studio ? (
+                    <span className="font-medium">{booking.studio.studio_number}</span>
+                  ) : (
+                    <span className="text-muted-foreground">Unallocated</span>
+                  )}
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Check-in</Label>
+                <div className="mt-1 text-sm">{format(parseISO(booking.check_in), "MMM d, yyyy")}</div>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Check-out</Label>
+                <div className="mt-1 text-sm">{format(parseISO(booking.check_out), "MMM d, yyyy")}</div>
+              </div>
+              {(booking.price_per_night != null || booking.commission_amount != null) && (
+                <>
+                  {booking.price_per_night != null && (
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Price per night</Label>
+                      <div className="mt-1 text-sm">{booking.currency} {Number(booking.price_per_night).toFixed(2)}</div>
+                    </div>
+                  )}
+                  {booking.commission_amount != null && (
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Commission</Label>
+                      <div className="mt-1 text-sm">{booking.currency} {Number(booking.commission_amount).toFixed(2)}</div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            {booking.notes && (
+              <div>
+                <Label className="text-xs text-muted-foreground">Notes</Label>
+                <p className="text-sm mt-1 whitespace-pre-wrap">{booking.notes}</p>
+              </div>
+            )}
+            {booking.internal_notes && (
+              <div>
+                <Label className="text-xs text-muted-foreground">Internal Notes</Label>
+                <p className="text-sm mt-1 whitespace-pre-wrap">{booking.internal_notes}</p>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

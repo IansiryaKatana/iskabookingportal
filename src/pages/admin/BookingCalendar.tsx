@@ -125,10 +125,7 @@ const BookingCalendar = () => {
 
     // Filter by allocation
     if (allocationFilter === "Student") {
-      filtered = filtered.filter(s => 
-        s.allocation === "Student" || 
-        (s.application_status === "confirmed" && s.allocation !== "OTA" && s.allocation !== "Keyworkers")
-      );
+      filtered = filtered.filter(s => s.allocation === "Student");
     } else if (allocationFilter === "OTA") {
       filtered = filtered.filter(s => s.allocation === "OTA");
     } else if (allocationFilter === "Keyworkers") {
@@ -198,6 +195,32 @@ const BookingCalendar = () => {
 
   const handleStudioClick = (studioId: string) => {
     setSelectedStudioId(selectedStudioId === studioId ? null : studioId);
+  };
+
+  const getInitials = (name: string | null): string => {
+    if (!name || !name.trim()) return "?";
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase().slice(0, 2);
+    }
+    return name.slice(0, 2).toUpperCase();
+  };
+
+  const getBookingBarClassName = (applicationStatus: string | null, allocation: string | null): string => {
+    if (applicationStatus === "cancelled") return "bg-slate-400/40 border-slate-500/50 text-slate-700 dark:text-slate-300";
+    if (applicationStatus === "awaiting_deposit" || applicationStatus === "awaiting_signature")
+      return "bg-amber-500/30 border-amber-500/50 text-amber-900 dark:text-amber-100";
+    if (allocation === "OTA" || allocation === "Keyworkers")
+      return "bg-green-500/30 border-green-500/50 text-green-900 dark:text-green-100";
+    return "bg-blue-500/30 border-blue-500/50 text-blue-900 dark:text-blue-100";
+  };
+
+  const getBookingBarBgOnly = (applicationStatus: string | null, allocation: string | null): string => {
+    if (applicationStatus === "cancelled") return "bg-slate-400/40 border-slate-500/50";
+    if (applicationStatus === "awaiting_deposit" || applicationStatus === "awaiting_signature")
+      return "bg-amber-500/30 border-amber-500/50";
+    if (allocation === "OTA" || allocation === "Keyworkers") return "bg-green-500/30 border-green-500/50";
+    return "bg-blue-500/30 border-blue-500/50";
   };
 
   const handleDateClick = (studio: typeof bookingData[0], date: Date) => {
@@ -546,6 +569,7 @@ const BookingCalendar = () => {
                               end: Date;
                               info: {
                                 studentName: string;
+                                applicationStatus: string | null;
                                 contractName: string;
                                 applicationId: string;
                                 hasActualCheckIn?: boolean;
@@ -560,7 +584,6 @@ const BookingCalendar = () => {
                             }> = [];
 
                             if (studio.application_id) {
-                              // Use effective dates (actual if set, otherwise contract dates)
                               const start = studio.effective_check_in_date 
                                 ? new Date(studio.effective_check_in_date)
                                 : studio.contract_start 
@@ -578,6 +601,7 @@ const BookingCalendar = () => {
                                   end,
                                   info: {
                                     studentName: studio.student_name || "Unknown",
+                                    applicationStatus: studio.application_status ?? null,
                                     contractName: studio.contract_name || "",
                                     applicationId: studio.application_id,
                                     hasActualCheckIn: !!studio.actual_check_in_date,
@@ -671,28 +695,24 @@ const BookingCalendar = () => {
                                           : "Available"
                                       }
                                     >
-                                      {/* Booking bar spanning multiple days - only render on start date */}
+                                      {/* Booking bar spanning multiple days - only render on start date; show initials and status-based color */}
                                       {isStartDate && bookingSpan && spanWidth > 0 && (
                                         <div
                                           className={cn(
                                             "absolute inset-y-0 left-0 border flex items-center justify-center px-1",
-                                            // Color based on allocation type
-                                            studio.allocation === "Student" || !studio.allocation || studio.allocation === "null"
-                                              ? "bg-blue-500/30 border-blue-500/50 text-blue-900 dark:text-blue-100"
-                                              : studio.allocation === "OTA" || studio.allocation === "Keyworkers"
-                                              ? "bg-green-500/30 border-green-500/50 text-green-900 dark:text-green-100"
-                                              : "bg-primary/30 border-primary/50 text-primary-foreground",
+                                            getBookingBarClassName(bookingSpan.info.applicationStatus, studio.allocation),
                                             isEndDate ? "rounded-r" : "rounded-l",
                                             "md:!w-[var(--span-width)]"
                                           )}
                                           style={{
-                                            width: `${spanWidth * 60}px`, // Mobile: 60px per cell
+                                            width: `${spanWidth * 60}px`,
                                             zIndex: 1,
-                                            "--span-width": `${spanWidth * 80}px`, // Desktop: 80px per cell
+                                            "--span-width": `${spanWidth * 80}px`,
                                           } as React.CSSProperties & { "--span-width": string }}
+                                          title={`${bookingSpan.info.studentName}${bookingSpan.info.applicationStatus ? ` (${bookingSpan.info.applicationStatus.replace(/_/g, " ")})` : ""} - ${bookingSpan.info.contractName}`}
                                         >
-                                          <div className="text-[10px] md:text-xs font-medium truncate">
-                                            {bookingSpan.info.studentName.split(" ")[0]}
+                                          <div className="text-[10px] md:text-xs font-medium truncate" title={bookingSpan.info.studentName}>
+                                            {getInitials(bookingSpan.info.studentName)}
                                           </div>
                                         </div>
                                       )}
@@ -701,12 +721,7 @@ const BookingCalendar = () => {
                                         <div
                                           className={cn(
                                             "absolute inset-y-0 left-0 right-0 border-y",
-                                            // Color based on allocation type
-                                            studio.allocation === "Student" || !studio.allocation || studio.allocation === "null"
-                                              ? "bg-blue-500/30 border-blue-500/50"
-                                              : studio.allocation === "OTA" || studio.allocation === "Keyworkers"
-                                              ? "bg-green-500/30 border-green-500/50"
-                                              : "bg-primary/30 border-primary/50"
+                                            getBookingBarBgOnly(bookingSpan.info.applicationStatus, studio.allocation)
                                           )}
                                           style={{ zIndex: 1 }}
                                         />

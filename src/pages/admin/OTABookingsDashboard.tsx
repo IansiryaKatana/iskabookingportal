@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useOTABookings, useCreateOTABooking, useUpdateOTABooking, useBulkUpdateOTABookings, type OTABookingWithRelations } from "@/hooks/useOTABookings";
 import { useActivityLog } from "@/hooks/useActivityLog";
@@ -11,7 +11,7 @@ import { format, parseISO, isToday, isPast, isFuture, differenceInDays } from "d
 import {
   Calendar, Clock, UserCheck, XCircle, CheckCircle2, AlertCircle, 
   Loader2, Building2, Filter, Trash2, Phone, Mail, ExternalLink,
-  Check, X, Users, TrendingUp, TrendingDown, FileText, Plus, Search, ChevronsUpDown
+  Check, X, Users, TrendingUp, TrendingDown, FileText, Plus, Search, ChevronsUpDown, Pencil
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -151,6 +151,7 @@ const OTABookingsDashboard = () => {
   // Details drawer/sheet
   const [selectedBooking, setSelectedBooking] = useState<OTABookingWithRelations | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsEditing, setDetailsEditing] = useState(false);
   
   // Bulk actions dialogs
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
@@ -1015,13 +1016,30 @@ const OTABookingsDashboard = () => {
         {selectedBooking && (
           <>
             {isMobile ? (
-              <Drawer open={detailsOpen} onOpenChange={setDetailsOpen}>
+              <Drawer open={detailsOpen} onOpenChange={(open) => { setDetailsOpen(open); if (!open) setDetailsEditing(false); }}>
                 <DrawerContent className="max-h-[96vh]">
-                  <DrawerHeader className="text-left">
-                    <DrawerTitle>{selectedBooking.guest_name}</DrawerTitle>
-                    <DrawerDescription>
-                      Booking {selectedBooking.external_ref}
-                    </DrawerDescription>
+                  <DrawerHeader className="text-left flex flex-row flex-wrap items-start justify-between gap-3 pr-10">
+                    <div className="space-y-1.5 min-w-0 flex-1">
+                      <DrawerTitle>{selectedBooking.guest_name}</DrawerTitle>
+                      <DrawerDescription>
+                        Booking {selectedBooking.external_ref}
+                      </DrawerDescription>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {detailsEditing ? (
+                        <Button variant="outline" size="sm" onClick={() => setDetailsEditing(false)} className="rounded-full gap-2">
+                          Cancel
+                        </Button>
+                      ) : (
+                        <Button variant="outline" size="sm" onClick={() => setDetailsEditing(true)} className="rounded-full gap-2">
+                          <Pencil className="h-4 w-4" />
+                          Edit booking
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="sm" onClick={() => setDetailsOpen(false)} className="rounded-full">
+                        Close
+                      </Button>
+                    </div>
                   </DrawerHeader>
                   <ScrollArea className="flex-1 px-4">
                     <OTABookingDetailsContent
@@ -1030,27 +1048,38 @@ const OTABookingsDashboard = () => {
                       onStatusUpdate={handleStatusUpdate}
                       isReservationist={isReservationist}
                       isOpsManager={isOpsManager}
+                      isEditing={detailsEditing}
+                      setIsEditing={setDetailsEditing}
+                      studios={otaStudios.map((s) => ({ id: s.id, studio_number: s.studio_number }))}
                     />
                   </ScrollArea>
-                  <DrawerFooter className="gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => setDetailsOpen(false)}
-                      className="rounded-full"
-                    >
-                      Close
-                    </Button>
-                  </DrawerFooter>
                 </DrawerContent>
               </Drawer>
             ) : (
-              <Sheet open={detailsOpen} onOpenChange={setDetailsOpen}>
+              <Sheet open={detailsOpen} onOpenChange={(open) => { setDetailsOpen(open); if (!open) setDetailsEditing(false); }}>
                 <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
-                  <SheetHeader>
-                    <SheetTitle>{selectedBooking.guest_name}</SheetTitle>
-                    <SheetDescription>
-                      Booking {selectedBooking.external_ref}
-                    </SheetDescription>
+                  <SheetHeader className="flex flex-row flex-wrap items-start justify-between gap-3 pr-10">
+                    <div className="space-y-1.5 min-w-0 flex-1">
+                      <SheetTitle>{selectedBooking.guest_name}</SheetTitle>
+                      <SheetDescription>
+                        Booking {selectedBooking.external_ref}
+                      </SheetDescription>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {detailsEditing ? (
+                        <Button variant="outline" size="sm" onClick={() => setDetailsEditing(false)} className="rounded-full gap-2">
+                          Cancel
+                        </Button>
+                      ) : (
+                        <Button variant="outline" size="sm" onClick={() => setDetailsEditing(true)} className="rounded-full gap-2">
+                          <Pencil className="h-4 w-4" />
+                          Edit booking
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="sm" onClick={() => setDetailsOpen(false)} className="rounded-full">
+                        Close
+                      </Button>
+                    </div>
                   </SheetHeader>
                   <ScrollArea className="flex-1 mt-6">
                     <OTABookingDetailsContent
@@ -1059,17 +1088,11 @@ const OTABookingsDashboard = () => {
                       onStatusUpdate={handleStatusUpdate}
                       isReservationist={isReservationist}
                       isOpsManager={isOpsManager}
+                      isEditing={detailsEditing}
+                      setIsEditing={setDetailsEditing}
+                      studios={otaStudios.map((s) => ({ id: s.id, studio_number: s.studio_number }))}
                     />
                   </ScrollArea>
-                  <SheetFooter>
-                    <Button
-                      variant="outline"
-                      onClick={() => setDetailsOpen(false)}
-                      className="rounded-full"
-                    >
-                      Close
-                    </Button>
-                  </SheetFooter>
                 </SheetContent>
               </Sheet>
             )}
@@ -1430,6 +1453,15 @@ const OTABookingsDashboard = () => {
   );
 };
 
+// Studio option for edit form
+type StudioOption = { id: string; studio_number: string };
+
+const STATUS_OPTIONS = [
+  "arriving", "expected_arrivals", "pre_check_in", "checked_in", "in_house_guest",
+  "day_use", "checked_out", "expected_departures", "departing", "no_show", "cancelled",
+];
+const CHANNEL_OPTIONS = ["airbnb", "booking", "agoda", "expedia", "other"];
+
 // OTA Booking Details Content Component
 const OTABookingDetailsContent = ({
   booking,
@@ -1437,12 +1469,18 @@ const OTABookingDetailsContent = ({
   onStatusUpdate,
   isReservationist,
   isOpsManager,
+  isEditing,
+  setIsEditing,
+  studios,
 }: {
   booking: OTABookingWithRelations;
   activityLog: any[];
   onStatusUpdate: (status: string) => void;
   isReservationist: boolean;
   isOpsManager: boolean;
+  isEditing?: boolean;
+  setIsEditing?: (v: boolean) => void;
+  studios?: StudioOption[];
 }) => {
   const { toast } = useToast();
   const updateBooking = useUpdateOTABooking();
@@ -1450,6 +1488,46 @@ const OTABookingDetailsContent = ({
   const [selectedStatus, setSelectedStatus] = useState<string>(booking.status);
   const [internalNotes, setInternalNotes] = useState<string>(booking.internal_notes || "");
   const [notesDialogOpen, setNotesDialogOpen] = useState(false);
+
+  const [editForm, setEditForm] = useState({
+    external_ref: booking.external_ref,
+    channel: booking.channel,
+    guest_name: booking.guest_name,
+    guest_phone: booking.guest_phone ?? "",
+    guest_email: booking.guest_email ?? "",
+    studio_id: booking.studio_id ?? "",
+    check_in: format(parseISO(booking.check_in), "yyyy-MM-dd"),
+    check_out: format(parseISO(booking.check_out), "yyyy-MM-dd"),
+    status: booking.status,
+    notes: booking.notes ?? "",
+    internal_notes: booking.internal_notes ?? "",
+    price_per_night: booking.price_per_night != null ? String(booking.price_per_night) : "",
+    commission_amount: booking.commission_amount != null ? String(booking.commission_amount) : "",
+    currency: booking.currency ?? "GBP",
+  });
+
+  // Sync form from booking only when booking.id changes; use prev to avoid overwriting with empty when booking has null/undefined
+  useEffect(() => {
+    const checkIn = booking.check_in ? format(parseISO(booking.check_in), "yyyy-MM-dd") : "";
+    const checkOut = booking.check_out ? format(parseISO(booking.check_out), "yyyy-MM-dd") : "";
+    setEditForm((prev) => ({
+      external_ref: booking.external_ref ?? prev.external_ref,
+      channel: booking.channel ?? prev.channel,
+      guest_name: booking.guest_name ?? prev.guest_name,
+      guest_phone: booking.guest_phone ?? prev.guest_phone ?? "",
+      guest_email: booking.guest_email ?? prev.guest_email ?? "",
+      studio_id: booking.studio_id ?? prev.studio_id ?? "",
+      check_in: checkIn || prev.check_in,
+      check_out: checkOut || prev.check_out,
+      status: booking.status ?? prev.status,
+      notes: booking.notes ?? prev.notes ?? "",
+      internal_notes: booking.internal_notes ?? prev.internal_notes ?? "",
+      price_per_night: booking.price_per_night != null ? String(booking.price_per_night) : (prev.price_per_night ?? ""),
+      commission_amount: booking.commission_amount != null ? String(booking.commission_amount) : (prev.commission_amount ?? ""),
+      currency: booking.currency ?? prev.currency ?? "GBP",
+    }));
+    if (setIsEditing) setIsEditing(false);
+  }, [booking.id]);
 
   const handleUpdateNotes = async () => {
     try {
@@ -1500,6 +1578,38 @@ const OTABookingDetailsContent = ({
     }
   };
 
+  const handleSaveEdit = async () => {
+    if (!editForm.guest_name.trim() || !editForm.external_ref.trim()) {
+      toast({ variant: "destructive", title: "Error", description: "Guest name and booking reference are required." });
+      return;
+    }
+    try {
+      await updateBooking.mutateAsync({
+        id: booking.id,
+        updates: {
+          external_ref: editForm.external_ref,
+          channel: editForm.channel as "airbnb" | "booking" | "agoda" | "expedia" | "other",
+          guest_name: editForm.guest_name,
+          guest_phone: editForm.guest_phone || null,
+          guest_email: editForm.guest_email || null,
+          studio_id: editForm.studio_id || null,
+          check_in: editForm.check_in,
+          check_out: editForm.check_out,
+          status: editForm.status,
+          notes: editForm.notes || null,
+          internal_notes: editForm.internal_notes || null,
+          price_per_night: editForm.price_per_night ? Number(editForm.price_per_night) : null,
+          commission_amount: editForm.commission_amount ? Number(editForm.commission_amount) : null,
+          currency: editForm.currency || "GBP",
+        },
+      });
+      toast({ title: "Booking updated", description: "OTA booking has been saved." });
+      if (setIsEditing) setIsEditing(false);
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error", description: error?.message || "Failed to update booking." });
+    }
+  };
+
   // Determine next possible statuses based on current status
   const getNextStatuses = (currentStatus: string) => {
     const statusFlow: Record<string, string[]> = {
@@ -1519,6 +1629,95 @@ const OTABookingDetailsContent = ({
   };
 
   const nextStatuses = getNextStatuses(booking.status);
+
+  if (isEditing && setIsEditing && studios && studios.length >= 0) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-wrap gap-2 items-center">
+          <Button variant="outline" size="sm" className="rounded-full gap-2" onClick={() => setIsEditing(false)}>
+            Cancel
+          </Button>
+          <Button variant="default" size="sm" className="rounded-full gap-2" disabled={updateBooking.isPending || !editForm.guest_name.trim() || !editForm.external_ref.trim()} onClick={handleSaveEdit}>
+            {updateBooking.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save changes"}
+          </Button>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Booking reference</Label>
+            <Input value={editForm.external_ref} onChange={(e) => setEditForm((f) => ({ ...f, external_ref: e.target.value }))} className="rounded-full" />
+          </div>
+          <div className="space-y-2">
+            <Label>Channel</Label>
+            <Select value={editForm.channel} onValueChange={(v) => setEditForm((f) => ({ ...f, channel: v }))}>
+              <SelectTrigger className="rounded-full"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {CHANNEL_OPTIONS.map((ch) => <SelectItem key={ch} value={ch}>{ch}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label>Guest name</Label>
+            <Input value={editForm.guest_name} onChange={(e) => setEditForm((f) => ({ ...f, guest_name: e.target.value }))} className="rounded-full" />
+          </div>
+          <div className="space-y-2">
+            <Label>Guest email</Label>
+            <Input type="email" value={editForm.guest_email} onChange={(e) => setEditForm((f) => ({ ...f, guest_email: e.target.value }))} className="rounded-full" />
+          </div>
+          <div className="space-y-2">
+            <Label>Guest phone</Label>
+            <Input value={editForm.guest_phone} onChange={(e) => setEditForm((f) => ({ ...f, guest_phone: e.target.value }))} className="rounded-full" />
+          </div>
+          <div className="space-y-2">
+            <Label>Studio</Label>
+            <Select value={editForm.studio_id || "none"} onValueChange={(v) => setEditForm((f) => ({ ...f, studio_id: v === "none" ? "" : v }))}>
+              <SelectTrigger className="rounded-full"><SelectValue placeholder="Unallocated" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Unallocated</SelectItem>
+                {studios.map((s) => <SelectItem key={s.id} value={s.id}>{s.studio_number}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Status</Label>
+            <Select value={editForm.status} onValueChange={(v) => setEditForm((f) => ({ ...f, status: v }))}>
+              <SelectTrigger className="rounded-full"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {STATUS_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Check-in</Label>
+            <Input type="date" value={editForm.check_in} onChange={(e) => setEditForm((f) => ({ ...f, check_in: e.target.value }))} className="rounded-full" />
+          </div>
+          <div className="space-y-2">
+            <Label>Check-out</Label>
+            <Input type="date" value={editForm.check_out} onChange={(e) => setEditForm((f) => ({ ...f, check_out: e.target.value }))} className="rounded-full" />
+          </div>
+          <div className="space-y-2">
+            <Label>Price per night</Label>
+            <Input type="number" step="0.01" value={editForm.price_per_night} onChange={(e) => setEditForm((f) => ({ ...f, price_per_night: e.target.value }))} className="rounded-full" />
+          </div>
+          <div className="space-y-2">
+            <Label>Commission amount</Label>
+            <Input type="number" step="0.01" value={editForm.commission_amount} onChange={(e) => setEditForm((f) => ({ ...f, commission_amount: e.target.value }))} className="rounded-full" />
+          </div>
+          <div className="space-y-2">
+            <Label>Currency</Label>
+            <Input value={editForm.currency} onChange={(e) => setEditForm((f) => ({ ...f, currency: e.target.value }))} className="rounded-full" />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label>Notes</Label>
+          <Textarea value={editForm.notes} onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))} placeholder="Guest-facing notes" className="rounded-2xl min-h-[80px] resize-none" />
+        </div>
+        <div className="space-y-2">
+          <Label>Internal notes</Label>
+          <Textarea value={editForm.internal_notes} onChange={(e) => setEditForm((f) => ({ ...f, internal_notes: e.target.value }))} placeholder="Internal only" className="rounded-2xl min-h-[80px] resize-none" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -1699,46 +1898,52 @@ const OTABookingDetailsContent = ({
 
       {/* Actions - Role Based */}
       {isReservationist && (
-        <div className="space-y-3">
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Actions</p>
           {nextStatuses.length > 0 && (
             <Button
+              variant="outline"
+              size="sm"
               onClick={() => {
                 setSelectedStatus(booking.status);
                 setStatusDialogOpen(true);
               }}
-              className="rounded-full w-full"
+              className="rounded-full w-full justify-center gap-2"
             >
-              <CheckCircle2 className="h-4 w-4 mr-2" />
+              <CheckCircle2 className="h-4 w-4" />
               Update Status
             </Button>
           )}
           <Button
-            onClick={() => setNotesDialogOpen(true)}
             variant="outline"
-            className="rounded-full w-full"
+            size="sm"
+            onClick={() => setNotesDialogOpen(true)}
+            className="rounded-full w-full justify-center gap-2"
           >
-            <FileText className="h-4 w-4 mr-2" />
+            <FileText className="h-4 w-4" />
             Edit Internal Notes
           </Button>
           {booking.status !== "no_show" && booking.status !== "cancelled" && (
-            <>
+            <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-border/60">
               <Button
-                onClick={() => onStatusUpdate("no_show")}
                 variant="outline"
-                className="rounded-full w-full text-red-600 hover:text-red-700"
+                size="sm"
+                onClick={() => onStatusUpdate("no_show")}
+                className="rounded-full flex-1 justify-center gap-2 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
               >
-                <XCircle className="h-4 w-4 mr-2" />
+                <XCircle className="h-4 w-4" />
                 Mark as No Show
               </Button>
               <Button
-                onClick={() => onStatusUpdate("cancelled")}
                 variant="destructive"
-                className="rounded-full w-full"
+                size="sm"
+                onClick={() => onStatusUpdate("cancelled")}
+                className="rounded-full flex-1 justify-center gap-2"
               >
-                <Trash2 className="h-4 w-4 mr-2" />
+                <Trash2 className="h-4 w-4" />
                 Cancel Booking
               </Button>
-            </>
+            </div>
           )}
         </div>
       )}

@@ -32,6 +32,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 
 type PendingRequestRow = {
@@ -67,10 +77,10 @@ const ManualPaymentEntry = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
-  const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectRequestId, setRejectRequestId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [paymentToDelete, setPaymentToDelete] = useState<{ id: string } | null>(null);
 
   // Form state
   const [paymentType, setPaymentType] = useState<"deposit" | "instalment">("deposit");
@@ -372,7 +382,7 @@ const ManualPaymentEntry = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      setDeletingPaymentId(null);
+      setPaymentToDelete(null);
       queryClient.invalidateQueries({ queryKey: ["orphaned-payments"] });
       toast({
         title: "Payment deleted",
@@ -380,7 +390,7 @@ const ManualPaymentEntry = () => {
       });
     },
     onError: (error) => {
-      setDeletingPaymentId(null);
+      setPaymentToDelete(null);
       toast({
         title: "Error",
         description:
@@ -859,22 +869,11 @@ const ManualPaymentEntry = () => {
                         variant="outline"
                         size="icon"
                         className="rounded-full bg-red-50 hover:bg-red-100 text-red-600"
-                        disabled={
-                          deletingPaymentId === payment.id ||
-                          deleteOrphanedPayment.isPending
-                        }
-                        onClick={() => {
-                          if (deletingPaymentId) return;
-                          setDeletingPaymentId(payment.id);
-                          deleteOrphanedPayment.mutate(payment.id);
-                        }}
+                        disabled={deleteOrphanedPayment.isPending}
+                        onClick={() => setPaymentToDelete({ id: payment.id })}
                         aria-label="Delete payment"
                       >
-                        {deletingPaymentId === payment.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <XCircle className="h-3.5 w-3.5" />
-                        )}
+                        <XCircle className="h-3.5 w-3.5" />
                       </Button>
                     </div>
                   </div>
@@ -1054,6 +1053,41 @@ const ManualPaymentEntry = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <AlertDialog open={!!paymentToDelete} onOpenChange={(open) => !open && setPaymentToDelete(null)}>
+          <AlertDialogContent className="rounded-3xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="font-display uppercase tracking-wide">
+                Delete payment?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                This unlinked payment will be permanently removed. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="gap-2">
+              <AlertDialogCancel className="rounded-full uppercase tracking-wide" onClick={() => setPaymentToDelete(null)}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                className="rounded-full uppercase tracking-wide bg-destructive hover:bg-destructive/90"
+                onClick={() => {
+                  if (paymentToDelete) {
+                    deleteOrphanedPayment.mutate(paymentToDelete.id);
+                  }
+                }}
+              >
+                {deleteOrphanedPayment.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AdminLayout>
   );
