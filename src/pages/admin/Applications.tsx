@@ -121,36 +121,12 @@ const getStatusBadge = (status: string) => {
 
 const ITEMS_PER_PAGE = 20;
 
-const BOOKING_SOURCE_OPTIONS = [
-  { value: "website", label: "Website" },
-  { value: "imported", label: "Imported" },
-  { value: "rebooker", label: "Rebooker" },
-  { value: "partner_referral", label: "Partner referral" },
-];
+import {
+  BOOKING_SOURCE_OPTIONS,
+  BOOKING_SOURCE_BADGE_CONFIG,
+} from "@/constants/bookingSources";
 
 const getBookingSourceBadge = (source?: string | null) => {
-  const config: Record<
-    string,
-    { label: string; className: string }
-  > = {
-    website: {
-      label: "Website",
-      className: "bg-blue-500 hover:bg-blue-600 text-white",
-    },
-    imported: {
-      label: "Imported",
-      className: "bg-slate-500 hover:bg-slate-600 text-white",
-    },
-    rebooker: {
-      label: "Rebooker",
-      className: "bg-purple-500 hover:bg-purple-600 text-white",
-    },
-    partner_referral: {
-      label: "Partner referral",
-      className: "bg-teal-500 hover:bg-teal-600 text-white",
-    },
-  };
-
   if (!source) {
     return (
       <Badge className="uppercase bg-muted text-muted-foreground rounded-full px-2.5 py-0.5 text-[10px] font-medium">
@@ -159,7 +135,7 @@ const getBookingSourceBadge = (source?: string | null) => {
     );
   }
 
-  const cfg = config[source] ?? {
+  const cfg = BOOKING_SOURCE_BADGE_CONFIG[source] ?? {
     label: source,
     className: "bg-muted text-foreground",
   };

@@ -142,14 +142,19 @@ export function CreateCustomContractSheet({
   const watchWeeks = form.watch("contract_weeks");
   const watchExtraDays = form.watch("contract_extra_days");
 
+  // Computed end date so it always shows in UI (for both "just weeks" and "weeks + days")
+  const computedEndDate = (() => {
+    if (!watchStart || watchWeeks == null || Number(watchWeeks) < 1) return "";
+    const extra = Math.min(6, Math.max(0, Number(watchExtraDays) || 0));
+    const totalDays = Number(watchWeeks) * 7 + extra;
+    return addDays(watchStart, totalDays);
+  })();
+
   useEffect(() => {
-    if (watchStart && watchWeeks != null && watchWeeks >= 1) {
-      const extra = Math.min(6, Math.max(0, Number(watchExtraDays) || 0));
-      const totalDays = watchWeeks * 7 + extra;
-      const end = addDays(watchStart, totalDays);
-      form.setValue("contract_end", end);
+    if (computedEndDate) {
+      form.setValue("contract_end", computedEndDate);
     }
-  }, [watchStart, watchWeeks, watchExtraDays, form]);
+  }, [computedEndDate, form]);
 
   useEffect(() => {
     if (!open) return;
@@ -489,7 +494,13 @@ export function CreateCustomContractSheet({
           <FormItem>
             <FormLabel>End date (auto from weeks + start)</FormLabel>
             <FormControl>
-              <Input type="date" className="rounded-full bg-muted/50 px-3 min-w-0" readOnly {...field} />
+              <Input
+                type="date"
+                className="rounded-full bg-muted/50 px-3 min-w-0"
+                readOnly
+                value={computedEndDate || field.value || ""}
+                onChange={() => {}}
+              />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -498,8 +509,10 @@ export function CreateCustomContractSheet({
       {watchWeeks >= 1 && watchStart && (
         <p className="text-xs text-muted-foreground">
           Duration: <strong>{watchWeeks} weeks{Number(watchExtraDays) > 0 ? ` ${watchExtraDays} days` : ""}</strong>
-          {Number(watchExtraDays) > 0 && (
-            <span className="block text-muted-foreground/80">End date auto: start + {watchWeeks}×7 + {watchExtraDays} days</span>
+          {computedEndDate && (
+            <span className="block text-muted-foreground/80">
+              End date: {new Date(computedEndDate + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+            </span>
           )}
         </p>
       )}

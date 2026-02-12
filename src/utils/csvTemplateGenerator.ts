@@ -4,6 +4,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { BOOKING_SOURCE_VALUES } from "@/constants/bookingSources";
 
 export interface CSVTemplateOptions {
   includeHeaders?: boolean;
@@ -543,7 +544,7 @@ export async function generateApplicationsTemplate(
           bank_statement_path: PLACEHOLDER_DOCUMENT_PATH,
           contract_pdf_path: PLACEHOLDER_DOCUMENT_PATH,
           referral_code: "",
-          booking_source: ["website", "rebooker", "imported", "partner_referral"][exampleCounter % 4] || "",
+          booking_source: BOOKING_SOURCE_VALUES[exampleCounter % BOOKING_SOURCE_VALUES.length] ?? "",
           deposit_amount: depositAmount,
           deposit_paid_date: depositPaidDate,
         });

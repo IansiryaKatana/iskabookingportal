@@ -34,6 +34,7 @@ import { logActivity } from "@/utils/auditLog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
+import { BOOKING_SOURCE_OPTIONS } from "@/constants/bookingSources";
 
 const getStatusBadge = (status: string) => {
   const statusConfig: Record<string, { className: string; label: string }> = {
@@ -590,10 +591,9 @@ const ApplicationDetail = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={BOOKING_SOURCE_NONE}>—</SelectItem>
-                  <SelectItem value="rebooker">Rebooker</SelectItem>
-                  <SelectItem value="website">Website</SelectItem>
-                  <SelectItem value="imported">Imported</SelectItem>
-                  <SelectItem value="partner_referral">Partner referral</SelectItem>
+                  {BOOKING_SOURCE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -640,10 +640,9 @@ const ApplicationDetail = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={BOOKING_SOURCE_NONE}>—</SelectItem>
-                <SelectItem value="rebooker">Rebooker</SelectItem>
-                <SelectItem value="website">Website</SelectItem>
-                <SelectItem value="imported">Imported</SelectItem>
-                <SelectItem value="partner_referral">Partner referral</SelectItem>
+                {BOOKING_SOURCE_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import type { DiscountCampaign } from "@/hooks/useDiscount";
+import { BOOKING_SOURCE_OPTIONS } from "@/constants/bookingSources";
 import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
 import { useAdminAcademicYears } from "@/hooks/useAdminAcademicYears";
 import { logActivity } from "@/utils/auditLog";
@@ -678,10 +679,9 @@ const CampaignForm = ({ campaign, onSubmit, onCancel, isSubmitting }: CampaignFo
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All booking sources</SelectItem>
-              <SelectItem value="website">Website</SelectItem>
-              <SelectItem value="rebooker">Rebooker</SelectItem>
-              <SelectItem value="imported">Imported</SelectItem>
-              <SelectItem value="partner_referral">Partner referral</SelectItem>
+              {BOOKING_SOURCE_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
