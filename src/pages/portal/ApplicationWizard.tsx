@@ -391,6 +391,59 @@ const StudentApplicationWizard = () => {
   const previewUrlsRef = useRef<Record<string, string>>({});
   const loadedPathsRef = useRef<Record<string, string>>({});
 
+  // When staff are completing a journey on behalf of a student, we want to
+  // prefill step 1/2 with the student's name/email rather than the staff profile.
+  const [applicationStudentProfile, setApplicationStudentProfile] = useState<{
+    first_name: string | null;
+    last_name: string | null;
+  } | null>(null);
+  const [applicationStudentEmail, setApplicationStudentEmail] = useState<string>("");
+
+  useEffect(() => {
+    const loadStudentProfileForApplication = async () => {
+      if (!application?.student_id || !isStaffOrSubRole) {
+        setApplicationStudentProfile(null);
+        setApplicationStudentEmail("");
+        return;
+      }
+
+      try {
+        const [profileResult, emailsResult] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("first_name, last_name")
+            .eq("id", application.student_id)
+            .maybeSingle(),
+          supabase.functions.invoke("get-user-emails", {
+            body: { userIds: [application.student_id] },
+          }),
+        ]);
+
+        if (profileResult.data) {
+          setApplicationStudentProfile({
+            first_name: profileResult.data.first_name ?? null,
+            last_name: profileResult.data.last_name ?? null,
+          });
+        } else {
+          setApplicationStudentProfile(null);
+        }
+
+        const emailsMap = (emailsResult.data as any)?.emails as
+          | Record<string, string>
+          | undefined;
+        const email = emailsMap?.[application.student_id] ?? "";
+        setApplicationStudentEmail(email);
+      } catch (error) {
+        console.warn(
+          "Could not load student profile/email for application:",
+          error,
+        );
+      }
+    };
+
+    loadStudentProfileForApplication();
+  }, [application?.student_id, isStaffOrSubRole]);
+
   useEffect(
     () => () => {
       Object.values(previewUrlsRef.current).forEach((url) => {
@@ -458,11 +511,26 @@ const StudentApplicationWizard = () => {
         : typeof payload.age === "string"
           ? payload.age
           : "");
+    // Prefer the actual student's profile when staff are filling the journey;
+    // fall back to the logged-in profile for student self-service.
+    const studentProfileForDefaults =
+      applicationStudentProfile ??
+      (profile?.role === "student"
+        ? {
+            first_name: profile.first_name ?? null,
+            last_name: profile.last_name ?? null,
+          }
+        : null);
+
     return {
       first_name:
-        (payload.first_name as string) || profile?.first_name || "",
+        (payload.first_name as string) ||
+        studentProfileForDefaults?.first_name ||
+        "",
       last_name:
-        (payload.last_name as string) || profile?.last_name || "",
+        (payload.last_name as string) ||
+        studentProfileForDefaults?.last_name ||
+        "",
       date_of_birth: dob,
       age: derivedAge,
       ethnicity: (payload.ethnicity as string) || "",
@@ -471,7 +539,7 @@ const StudentApplicationWizard = () => {
       country: (payload.country as string) || "",
       referral_code: (payload.referral_code as string) || "",
     };
-  }, [application, profile, rebookingData]);
+  }, [application, profile, rebookingData, applicationStudentProfile]);
 
   const [personalValues, setPersonalValues] = useState<PersonalValues>(
     () => personalDefaults,
@@ -561,7 +629,11 @@ const StudentApplicationWizard = () => {
       return trimmed;
     };
 
-    const emailFallback = user?.email ?? "";
+    const emailFallback =
+      // When staff are filling the journey, prefer the student's email if available
+      isStaffOrSubRole && applicationStudentEmail
+        ? applicationStudentEmail
+        : user?.email ?? "";
 
     return {
       email: sanitize(payload.email, "email", emailFallback),
@@ -571,7 +643,7 @@ const StudentApplicationWizard = () => {
       postcode: sanitize(payload.postcode, "postcode"),
       town: sanitize(payload.town, "town"),
     };
-  }, [application, user, personalComparisonValues]);
+  }, [application, user, personalComparisonValues, isStaffOrSubRole, applicationStudentEmail]);
 
   const [contactValues, setContactValues] = useState<ContactValues>(
     () => contactDefaults,
