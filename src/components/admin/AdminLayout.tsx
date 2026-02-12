@@ -164,6 +164,11 @@ export const navSections: NavSection[] = [
         to: "/admin/students",
         icon: Users,
       },
+      {
+        label: "Booking Calendar",
+        to: "/admin/booking-calendar",
+        icon: Calendar,
+      },
     ],
   },
   {
@@ -200,6 +205,12 @@ export const navSections: NavSection[] = [
         to: "/housekeeping/communal-areas",
         icon: Sparkles,
       },
+    ],
+  },
+  {
+    label: "OTA",
+    icon: Building2,
+    items: [
       {
         label: "OTA Bookings",
         to: "/ota-bookings",
@@ -292,11 +303,6 @@ export const navSections: NavSection[] = [
         label: "Operational Reports",
         to: "/admin/reports",
         icon: FileText,
-      },
-      {
-        label: "Booking Calendar",
-        to: "/admin/booking-calendar",
-        icon: Calendar,
       },
     ],
   },
@@ -407,12 +413,11 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
   };
 
   const isActiveRoute = (path: string) => {
-    if (path === "/admin") {
-      // Dashboard should only be active when exactly on /admin
-      return location.pathname === "/admin";
+    // Paths that have sibling sub-routes in the nav: only active when exact match
+    if (path === "/admin" || path === "/ota-bookings") {
+      return location.pathname === path;
     }
     // For other routes, check if pathname starts with the route
-    // But ensure it's not just matching /admin prefix
     return location.pathname === path || location.pathname.startsWith(path + "/");
   };
 

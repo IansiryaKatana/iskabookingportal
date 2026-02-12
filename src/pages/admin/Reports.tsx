@@ -4,7 +4,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { useReport, useOccupancyReport, useStudioAllocationReport, type ReportType } from "@/hooks/useReports";
+import {
+  useReport,
+  useOccupancyReport,
+  useStudioAllocationReport,
+  useApplicationsPipelineReport,
+  usePendingDocumentsReport,
+  useMoveOutsReport,
+  type ReportType,
+  type MoveOutWindow,
+} from "@/hooks/useReports";
 import { Download, FileText, AlertCircle, CreditCard, Users, Building2, LayoutGrid } from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,8 +22,17 @@ import { useToast } from "@/hooks/use-toast";
 import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { Link } from "react-router-dom";
 
-const reportTypes: Array<{ value: ReportType; label: string; icon: typeof FileText; description: string }> = [
+type ExtendedReportType =
+  | ReportType
+  | "applications-pipeline"
+  | "weekly-payments"
+  | "move-outs"
+  | "ota-vs-direct"
+  | "document-status";
+
+const reportTypes: Array<{ value: ExtendedReportType; label: string; icon: typeof FileText; description: string }> = [
   {
     value: "awaiting_signatures",
     label: "Awaiting Signatures",
@@ -40,6 +58,30 @@ const reportTypes: Array<{ value: ReportType; label: string; icon: typeof FileTe
     description: "Students with outstanding balances",
   },
   {
+    value: "applications-pipeline",
+    label: "Applications Pipeline (Summary)",
+    icon: Users,
+    description: "Counts of applications in each pipeline stage",
+  },
+  {
+    value: "move-outs",
+    label: "Upcoming Move-outs",
+    icon: Building2,
+    description: "Confirmed bookings with contracts ending soon",
+  },
+  {
+    value: "document-status",
+    label: "Document Verification",
+    icon: FileText,
+    description: "Applications with pending document verification",
+  },
+  {
+    value: "weekly-payments",
+    label: "Weekly Payment Summary",
+    icon: CreditCard,
+    description: "Summary of payments for a given week",
+  },
+  {
     value: "occupancy",
     label: "Occupancy",
     icon: Building2,
@@ -50,6 +92,12 @@ const reportTypes: Array<{ value: ReportType; label: string; icon: typeof FileTe
     label: "Studio Allocation",
     icon: LayoutGrid,
     description: "Studio allocation counts by grade and allocation type",
+  },
+  {
+    value: "ota-vs-direct",
+    label: "OTA vs Direct Allocation",
+    icon: LayoutGrid,
+    description: "Studios allocated via OTA vs direct student bookings",
   },
 ];
 
@@ -120,13 +168,30 @@ const OccupancyDetailsCollapsible = ({
 
 const Reports = () => {
   const { toast } = useToast();
-  const [selectedReport, setSelectedReport] = useState<ReportType>("awaiting_signatures");
+  const [selectedReport, setSelectedReport] = useState<ExtendedReportType>("awaiting_signatures");
   const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string | undefined>();
-  const { data: reportData, isLoading } = useReport(selectedReport);
+  const [moveOutWindow] = useState<MoveOutWindow>("30");
+  const listReportType: ReportType =
+    selectedReport === "awaiting_signatures" ||
+    selectedReport === "awaiting_deposit" ||
+    selectedReport === "overdue_payments" ||
+    selectedReport === "debtors"
+      ? selectedReport
+      : "awaiting_signatures";
+
+  const { data: reportData, isLoading } = useReport(listReportType);
   const { data: occupancyReport, isLoading: isLoadingOccupancy } = useOccupancyReport(
     selectedReport === "occupancy" ? selectedAcademicYearId : undefined
   );
   const { data: studioAllocationReport, isLoading: isLoadingStudioAllocation } = useStudioAllocationReport();
+  const { data: pipelineReport, isLoading: isLoadingPipeline } = useApplicationsPipelineReport(
+    selectedAcademicYearId
+  );
+  const { data: pendingDocuments, isLoading: isLoadingPendingDocuments } = usePendingDocumentsReport();
+  const { data: moveOutsReport, isLoading: isLoadingMoveOuts } = useMoveOutsReport(
+    moveOutWindow,
+    selectedAcademicYearId
+  );
 
   const formatCurrency = (amount: number | null) => {
     if (!amount) return "—";
@@ -452,7 +517,9 @@ const Reports = () => {
                   </div>
                 </div>
               )}
-              {selectedReport === "occupancy" && (
+              {(selectedReport === "occupancy" ||
+                selectedReport === "applications-pipeline" ||
+                selectedReport === "move-outs") && (
                 <div className="mt-4">
                   <Label htmlFor="academic-year">Academic Year (Optional)</Label>
                   <div className="mt-2">
@@ -492,6 +559,47 @@ const Reports = () => {
                       : occupancyReport
                         ? `${occupancyReport.total_studios} studios, ${occupancyReport.total_occupied} occupied (${occupancyReport.overall_occupancy_percentage}%)`
                         : "No occupancy data available"
+                    : selectedReport === "applications-pipeline"
+                    ? isLoadingPipeline
+                      ? "Loading pipeline summary..."
+                      : pipelineReport
+                        ? `${pipelineReport.total} application${pipelineReport.total !== 1 ? "s" : ""} across ${pipelineReport.byStatus.length} status${pipelineReport.byStatus.length !== 1 ? "es" : ""}`
+                        : "No applications found for this pipeline"
+                    : selectedReport === "move-outs"
+                    ? isLoadingMoveOuts
+                      ? "Loading upcoming move-outs..."
+                      : moveOutsReport
+                        ? `${moveOutsReport.length} upcoming move-out${moveOutsReport.length !== 1 ? "s" : ""}${moveOutWindow !== "all" ? ` in the next ${moveOutWindow} days` : ""}`
+                        : "No upcoming move-outs in this period"
+                    : selectedReport === "document-status"
+                    ? isLoadingPendingDocuments
+                      ? "Loading pending documents..."
+                      : pendingDocuments
+                        ? `${pendingDocuments.length} pending document${pendingDocuments.length !== 1 ? "s" : ""} awaiting verification`
+                        : "No pending documents at the moment"
+                    : selectedReport === "weekly-payments"
+                    ? "Open the Weekly Payments report for a detailed weekly breakdown."
+                    : selectedReport === "ota-vs-direct"
+                    ? isLoadingStudioAllocation
+                      ? "Loading allocation data..."
+                      : studioAllocationReport
+                        ? (() => {
+                            const totalStudents = studioAllocationReport.reduce(
+                              (sum, g) => sum + g.allocated_to_students,
+                              0,
+                            );
+                            const totalOta = studioAllocationReport.reduce(
+                              (sum, g) => sum + g.allocated_to_ota,
+                              0,
+                            );
+                            const totalKeyworkers = studioAllocationReport.reduce(
+                              (sum, g) => sum + g.allocated_to_keyworkers,
+                              0,
+                            );
+                            const totalAllocated = totalStudents + totalOta + totalKeyworkers;
+                            return `${totalAllocated} allocated studios • ${totalStudents} student, ${totalOta} OTA, ${totalKeyworkers} keyworker`;
+                          })()
+                        : "No allocation data available"
                     : isLoading
                       ? "Loading report data..."
                       : reportData
@@ -501,7 +609,15 @@ const Reports = () => {
               </div>
               {((selectedReport === "studio-allocation" && studioAllocationReport && studioAllocationReport.length > 0) ||
                 (selectedReport === "occupancy" && occupancyReport && occupancyReport.by_grade.length > 0) ||
-                (selectedReport !== "occupancy" && selectedReport !== "studio-allocation" && reportData && reportData.length > 0)) && (
+                (selectedReport !== "occupancy" &&
+                  selectedReport !== "studio-allocation" &&
+                  selectedReport !== "applications-pipeline" &&
+                  selectedReport !== "move-outs" &&
+                  selectedReport !== "document-status" &&
+                  selectedReport !== "weekly-payments" &&
+                  selectedReport !== "ota-vs-direct" &&
+                  reportData &&
+                  reportData.length > 0)) && (
                 <Button
                   onClick={exportToCSV}
                   className="rounded-full uppercase tracking-wide gap-2 hidden lg:flex"
@@ -720,6 +836,287 @@ const Reports = () => {
                     </CardTitle>
                     <CardDescription>
                       There is no occupancy data available for the selected academic year.
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              )
+            ) : selectedReport === "applications-pipeline" ? (
+              isLoadingPipeline ? (
+                <ReportSkeleton />
+              ) : pipelineReport && pipelineReport.byStatus.length > 0 ? (
+                <div className="space-y-6">
+                  <Card className="rounded-2xl bg-primary/5">
+                    <CardHeader>
+                      <CardTitle className="text-base md:text-lg font-display font-bold uppercase">
+                        Pipeline Overview
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground">
+                        {pipelineReport.total} application
+                        {pipelineReport.total !== 1 ? "s" : ""} across{" "}
+                        {pipelineReport.byStatus.length} status
+                        {pipelineReport.byStatus.length !== 1 ? "es" : ""}.
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {pipelineReport.byStatus.map((item) => (
+                      <Card key={item.status} className="rounded-2xl">
+                        <CardContent className="p-4 space-y-1">
+                          <p className="text-xs md:text-sm text-muted-foreground uppercase truncate">
+                            {item.status.replace(/_/g, " ")}
+                          </p>
+                          <p className="text-xl md:text-2xl font-bold">{item.count}</p>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <Card className="rounded-3xl border-dashed">
+                  <CardHeader>
+                    <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide">
+                      No Applications Found
+                    </CardTitle>
+                    <CardDescription>
+                      There are no applications to show in the pipeline for the selected academic year.
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              )
+            ) : selectedReport === "move-outs" ? (
+              isLoadingMoveOuts ? (
+                <ReportSkeleton />
+              ) : moveOutsReport && moveOutsReport.length > 0 ? (
+                <div className="space-y-4">
+                  {moveOutsReport.map((item) => (
+                    <Card key={item.application_id} className="rounded-2xl">
+                      <CardContent className="p-6">
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                          <div className="flex-1 space-y-2">
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <h3 className="text-base md:text-lg font-bold">{item.student_name}</h3>
+                              {item.academic_year_name && (
+                                <Badge variant="outline" className="uppercase text-xs">
+                                  {item.academic_year_name}
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-muted-foreground">
+                              <div>
+                                <span className="font-medium">Email:</span> {item.student_email || "—"}
+                              </div>
+                              <div>
+                                <span className="font-medium">Contract:</span> {item.contract_name}
+                              </div>
+                              <div>
+                                <span className="font-medium">Studio:</span>{" "}
+                                {item.studio_number || "Unassigned"}
+                              </div>
+                              <div>
+                                <span className="font-medium">Contract end:</span>{" "}
+                                {format(new Date(item.contract_end), "yyyy-MM-dd")}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <Card className="rounded-3xl border-dashed">
+                  <CardHeader>
+                    <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide">
+                      No Upcoming Move-outs
+                    </CardTitle>
+                    <CardDescription>
+                      There are no confirmed contracts ending in the selected time window.
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              )
+            ) : selectedReport === "document-status" ? (
+              isLoadingPendingDocuments ? (
+                <ReportSkeleton />
+              ) : pendingDocuments && pendingDocuments.length > 0 ? (
+                <div className="space-y-4">
+                  {pendingDocuments.map((doc) => (
+                    <Card key={doc.id} className="rounded-2xl">
+                      <CardContent className="p-6">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <h3 className="text-base md:text-lg font-bold">{doc.student_name}</h3>
+                            <Badge variant="outline" className="uppercase text-xs">
+                              {doc.document_type}
+                            </Badge>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-muted-foreground">
+                            <div>
+                              <span className="font-medium">Email:</span> {doc.student_email || "—"}
+                            </div>
+                            <div>
+                              <span className="font-medium">Status:</span>{" "}
+                              <span className="uppercase">{doc.status}</span>
+                            </div>
+                            <div>
+                              <span className="font-medium">Uploaded:</span>{" "}
+                              {doc.uploaded_at ? format(new Date(doc.uploaded_at), "yyyy-MM-dd") : "—"}
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <Card className="rounded-3xl border-dashed">
+                  <CardHeader>
+                    <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide">
+                      No Pending Documents
+                    </CardTitle>
+                    <CardDescription>
+                      There are currently no documents awaiting verification.
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              )
+            ) : selectedReport === "weekly-payments" ? (
+              <div className="space-y-4">
+                <Card className="rounded-2xl bg-primary/5">
+                  <CardHeader>
+                    <CardTitle className="text-base md:text-lg font-display font-bold uppercase">
+                      Weekly Payment Summary
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Use the dedicated Weekly Payments report to run a detailed weekly breakdown,
+                      export CSV, and inspect individual payments.
+                    </p>
+                    <Button asChild className="rounded-full">
+                      <Link to="/admin/weekly-payment-report">Open Weekly Payments</Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            ) : selectedReport === "ota-vs-direct" ? (
+              isLoadingStudioAllocation ? (
+                <ReportSkeleton />
+              ) : studioAllocationReport && studioAllocationReport.length > 0 ? (
+                <div className="space-y-6">
+                  <Card className="rounded-2xl bg-primary/5">
+                    <CardHeader>
+                      <CardTitle className="text-base md:text-lg font-display font-bold uppercase">
+                        Overall Allocation Mix
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {(() => {
+                        const totalStudents = studioAllocationReport.reduce(
+                          (sum, g) => sum + g.allocated_to_students,
+                          0,
+                        );
+                        const totalOta = studioAllocationReport.reduce(
+                          (sum, g) => sum + g.allocated_to_ota,
+                          0,
+                        );
+                        const totalKeyworkers = studioAllocationReport.reduce(
+                          (sum, g) => sum + g.allocated_to_keyworkers,
+                          0,
+                        );
+                        const totalAllocated = totalStudents + totalOta + totalKeyworkers;
+                        const pct = (value: number) =>
+                          totalAllocated > 0
+                            ? Math.round((value / totalAllocated) * 100 * 10) / 10
+                            : 0;
+
+                        return (
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                              <p className="text-sm text-muted-foreground">Student allocation</p>
+                              <p className="text-xl md:text-2xl font-bold">
+                                {totalStudents} ({pct(totalStudents)}%)
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-muted-foreground">OTA allocation</p>
+                              <p className="text-xl md:text-2xl font-bold">
+                                {totalOta} ({pct(totalOta)}%)
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-muted-foreground">Keyworker allocation</p>
+                              <p className="text-xl md:text-2xl font-bold">
+                                {totalKeyworkers} ({pct(totalKeyworkers)}%)
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </CardContent>
+                  </Card>
+                  <div className="space-y-4">
+                    <h3 className="text-base md:text-lg font-bold">By Studio Grade</h3>
+                    {studioAllocationReport.map((grade) => {
+                      const totalAllocated =
+                        grade.allocated_to_students +
+                        grade.allocated_to_ota +
+                        grade.allocated_to_keyworkers;
+                      const pct = (value: number) =>
+                        totalAllocated > 0
+                          ? Math.round((value / totalAllocated) * 100 * 10) / 10
+                          : 0;
+                      return (
+                        <Card key={grade.studio_grade_id} className="rounded-2xl">
+                          <CardHeader>
+                            <CardTitle className="text-base md:text-lg font-display font-bold uppercase">
+                              {grade.studio_grade_name}
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div>
+                                <p className="text-xs md:text-sm text-muted-foreground">
+                                  Student allocation
+                                </p>
+                                <p className="text-lg md:text-xl font-bold">
+                                  {grade.allocated_to_students} ({pct(grade.allocated_to_students)}%)
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-xs md:text-sm text-muted-foreground">
+                                  OTA allocation
+                                </p>
+                                <p className="text-lg md:text-xl font-bold">
+                                  {grade.allocated_to_ota} ({pct(grade.allocated_to_ota)}%)
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-xs md:text-sm text-muted-foreground">
+                                  Keyworker allocation
+                                </p>
+                                <p className="text-lg md:text-xl font-bold">
+                                  {grade.allocated_to_keyworkers} (
+                                  {pct(grade.allocated_to_keyworkers)}%)
+                                </p>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <Card className="rounded-3xl border-dashed">
+                  <CardHeader>
+                    <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide">
+                      No Allocation Data Found
+                    </CardTitle>
+                    <CardDescription>
+                      There is no allocation data available to compare OTA vs direct bookings.
                     </CardDescription>
                   </CardHeader>
                 </Card>

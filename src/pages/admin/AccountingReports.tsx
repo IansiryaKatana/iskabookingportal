@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,12 +15,22 @@ import {
   type UpcomingPaidInstallmentItem,
 } from "@/hooks/useAccountingReports";
 import { useAdminAcademicYears } from "@/hooks/useAdminAcademicYears";
-import { Download, FileText, TrendingUp, AlertCircle, CreditCard, Receipt, Calendar } from "lucide-react";
+import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
+import { Download, FileText, TrendingUp, AlertCircle, CreditCard, Receipt, Calendar, Search } from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from "@/components/ui/pagination";
 
 type ReportType =
   | "accounts-receivable"
@@ -41,6 +51,11 @@ const AccountingReports = () => {
   const [upcomingDueWindow, setUpcomingDueWindow] = useState<"7" | "14" | "30" | "all">("30");
   const [upcomingStatusFilter, setUpcomingStatusFilter] = useState<"all" | "upcoming" | "overdue" | "paid" | "partially_paid">("all");
   const [upcomingAcademicYearId, setUpcomingAcademicYearId] = useState<string>("all");
+
+  const [arSearchQuery, setArSearchQuery] = useState("");
+  const [arPage, setArPage] = useState(1);
+  const [arAcademicYearId, setArAcademicYearId] = useState<string>("all");
+  const AR_PER_PAGE = 10;
 
   // Fetch data based on selected report
   const { data: arData, isLoading: arLoading } = useAccountsReceivableReport();
@@ -69,6 +84,47 @@ const AccountingReports = () => {
   };
 
   const today = useMemo(() => format(new Date(), "yyyy-MM-dd"), []);
+
+  const filteredArData = useMemo(() => {
+    if (!arData) return [];
+    let list = arData;
+    const selectedYearName =
+      arAcademicYearId && arAcademicYearId !== "all"
+        ? academicYears?.find((ay) => ay.id === arAcademicYearId)?.name
+        : null;
+    if (selectedYearName) {
+      list = list.filter(
+        (item) => (item.academic_year_name ?? "").trim() === selectedYearName.trim()
+      );
+    }
+    const q = arSearchQuery.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter(
+      (item) =>
+        (item.student_name && item.student_name.toLowerCase().includes(q)) ||
+        (item.contract_name && item.contract_name.toLowerCase().includes(q)) ||
+        (item.studio_grade && item.studio_grade.toLowerCase().includes(q)) ||
+        (item.application_status && item.application_status.toLowerCase().includes(q)) ||
+        (item.studio_number && item.studio_number.toLowerCase().includes(q)) ||
+        (item.payment_status && item.payment_status.toLowerCase().includes(q)) ||
+        (item.academic_year_name && item.academic_year_name.toLowerCase().includes(q))
+    );
+  }, [arData, arSearchQuery, arAcademicYearId, academicYears]);
+
+  const arTotalPages = Math.max(1, Math.ceil(filteredArData.length / AR_PER_PAGE));
+  const paginatedArData = useMemo(() => {
+    const start = (arPage - 1) * AR_PER_PAGE;
+    return filteredArData.slice(start, start + AR_PER_PAGE);
+  }, [filteredArData, arPage]);
+
+  useEffect(() => {
+    setArPage(1);
+  }, [arSearchQuery, arAcademicYearId]);
+
+  useEffect(() => {
+    setArPage((p) => Math.min(p, arTotalPages));
+  }, [arTotalPages]);
+
   const filteredUpcomingData = useMemo(() => {
     if (!upcomingData) return [];
     let list = [...upcomingData];
@@ -95,10 +151,12 @@ const AccountingReports = () => {
 
     switch (selectedReport) {
       case "accounts-receivable":
-        if (!arData || arData.length === 0) {
+        if (!filteredArData.length) {
           toast({
             title: "No data to export",
-            description: "There is no accounts receivable data available.",
+            description: arSearchQuery.trim()
+              ? "No accounts receivable records match your search."
+              : "There is no accounts receivable data available.",
             variant: "destructive",
           });
           return;
@@ -123,7 +181,7 @@ const AccountingReports = () => {
           "Contract End",
           "Academic Year",
         ];
-        rows = arData.map((item) => [
+        rows = filteredArData.map((item) => [
           item.application_id,
           item.student_name,
           item.application_status,
@@ -391,10 +449,10 @@ const AccountingReports = () => {
     </div>
   );
 
-  const getTotalOutstanding = () => {
-    if (!arData) return 0;
-    return arData.reduce((sum, item) => sum + item.outstanding_balance, 0);
-  };
+  const filteredArTotalOutstanding = useMemo(
+    () => filteredArData.reduce((sum, item) => sum + item.outstanding_balance, 0),
+    [filteredArData]
+  );
 
   const getTotalRevenue = () => {
     if (!revenueData) return 0;
@@ -571,7 +629,7 @@ const AccountingReports = () => {
                     (arLoading
                       ? "Loading..."
                       : arData
-                        ? `${arData.length} record${arData.length !== 1 ? "s" : ""} • Total Outstanding: ${formatCurrency(getTotalOutstanding())}`
+                        ? `${filteredArData.length} record${filteredArData.length !== 1 ? "s" : ""} • Total Outstanding: ${formatCurrency(filteredArTotalOutstanding)}`
                         : "No data available")}
                   {selectedReport === "revenue-summary" &&
                     (revenueLoading
@@ -619,42 +677,143 @@ const AccountingReports = () => {
                 <ReportSkeleton />
               ) : arData && arData.length > 0 ? (
                 <div className="space-y-4">
-                  {arData.map((item) => (
-                    <Card key={item.application_id} className="rounded-2xl">
-                      <CardContent className="p-6">
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                          <div className="flex-1 space-y-2">
-                            <div className="flex items-center gap-3 flex-wrap">
-                              <h3 className="text-sm md:text-lg font-bold">{item.student_name}</h3>
-                              <Badge
-                                variant="outline"
-                                className={`uppercase text-xs ${item.application_status === "confirmed" ? "bg-green-600 text-white border-green-600 hover:bg-green-600" : ""}`}
-                              >
-                                {item.application_status}
-                              </Badge>
+                  <div className="flex flex-col gap-3">
+                    <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+                      <div className="relative flex-1 max-w-md">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search by student, contract, studio, status..."
+                          value={arSearchQuery}
+                          onChange={(e) => setArSearchQuery(e.target.value)}
+                          className="rounded-full pl-9"
+                        />
+                      </div>
+                      <div className="w-full sm:w-56">
+                        <AcademicYearSelector
+                          value={arAcademicYearId}
+                          onValueChange={(id) => setArAcademicYearId(id ?? "all")}
+                          allowEmpty
+                          label="Academic year"
+                          className="[&_button]:rounded-full"
+                        />
+                      </div>
+                      <div className="text-sm text-muted-foreground self-center shrink-0">
+                        {filteredArData.length} record{filteredArData.length !== 1 ? "s" : ""}
+                        {(arSearchQuery.trim() || (arAcademicYearId && arAcademicYearId !== "all")) ? " (filtered)" : ""}
+                      </div>
+                    </div>
+                  </div>
+                  {paginatedArData.length > 0 ? (
+                    <>
+                      {paginatedArData.map((item) => (
+                        <Card key={item.application_id} className="rounded-2xl">
+                          <CardContent className="p-6">
+                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                              <div className="flex-1 space-y-2">
+                                <div className="flex items-center gap-3 flex-wrap">
+                                  <h3 className="text-sm md:text-lg font-bold">{item.student_name}</h3>
+                                  <Badge
+                                    variant="outline"
+                                    className={`uppercase text-xs ${item.application_status === "confirmed" ? "bg-green-600 text-white border-green-600 hover:bg-green-600" : ""}`}
+                                  >
+                                    {item.application_status}
+                                  </Badge>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs md:text-sm text-muted-foreground">
+                                  <div>
+                                    <span className="font-medium">Contract:</span> {item.contract_name}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Studio Grade:</span> {item.studio_grade}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Total Due:</span> {formatCurrency(item.total_due)}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Total Paid:</span> {formatCurrency(item.total_paid)}
+                                  </div>
+                                </div>
+                                <div className="text-base md:text-lg font-bold text-destructive">
+                                  Outstanding Balance: {formatCurrency(item.outstanding_balance)}
+                                </div>
+                              </div>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs md:text-sm text-muted-foreground">
-                              <div>
-                                <span className="font-medium">Contract:</span> {item.contract_name}
-                              </div>
-                              <div>
-                                <span className="font-medium">Studio Grade:</span> {item.studio_grade}
-                              </div>
-                              <div>
-                                <span className="font-medium">Total Due:</span> {formatCurrency(item.total_due)}
-                              </div>
-                              <div>
-                                <span className="font-medium">Total Paid:</span> {formatCurrency(item.total_paid)}
-                              </div>
-                            </div>
-                            <div className="text-base md:text-lg font-bold text-destructive">
-                              Outstanding Balance: {formatCurrency(item.outstanding_balance)}
-                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                      {filteredArData.length > AR_PER_PAGE && (
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t">
+                          <div className="text-sm text-muted-foreground">
+                            Showing {(arPage - 1) * AR_PER_PAGE + 1} to{" "}
+                            {Math.min(arPage * AR_PER_PAGE, filteredArData.length)} of {filteredArData.length}
                           </div>
+                          <Pagination>
+                            <PaginationContent>
+                              <PaginationItem>
+                                <PaginationPrevious
+                                  href="#"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    if (arPage > 1) setArPage(arPage - 1);
+                                  }}
+                                  className={arPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                />
+                              </PaginationItem>
+                              {Array.from({ length: arTotalPages }, (_, i) => i + 1).map((page) => {
+                                if (
+                                  page === 1 ||
+                                  page === arTotalPages ||
+                                  (page >= arPage - 1 && page <= arPage + 1)
+                                ) {
+                                  return (
+                                    <PaginationItem key={page}>
+                                      <PaginationLink
+                                        href="#"
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          setArPage(page);
+                                        }}
+                                        isActive={arPage === page}
+                                        className="cursor-pointer"
+                                      >
+                                        {page}
+                                      </PaginationLink>
+                                    </PaginationItem>
+                                  );
+                                } else if (page === arPage - 2 || page === arPage + 2) {
+                                  return (
+                                    <PaginationItem key={page}>
+                                      <PaginationEllipsis />
+                                    </PaginationItem>
+                                  );
+                                }
+                                return null;
+                              })}
+                              <PaginationItem>
+                                <PaginationNext
+                                  href="#"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    if (arPage < arTotalPages) setArPage(arPage + 1);
+                                  }}
+                                  className={arPage === arTotalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                />
+                              </PaginationItem>
+                            </PaginationContent>
+                          </Pagination>
                         </div>
-                      </CardContent>
+                      )}
+                    </>
+                  ) : (
+                    <Card className="rounded-3xl border-dashed">
+                      <CardHeader>
+                        <CardTitle>No matches</CardTitle>
+                        <CardDescription>
+                          No accounts receivable records match &quot;{arSearchQuery}&quot;. Try a different search.
+                        </CardDescription>
+                      </CardHeader>
                     </Card>
-                  ))}
+                  )}
                 </div>
               ) : (
                 <Card className="rounded-3xl border-dashed">

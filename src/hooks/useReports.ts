@@ -115,6 +115,8 @@ const fetchReport = async (reportType: ReportType): Promise<ReportItem[]> => {
     .select(
       `
       id,
+      student_id,
+      contract_id,
       status,
       deposit_payment_intent_id,
       total_contract_value,
@@ -217,7 +219,7 @@ const fetchReport = async (reportType: ReportType): Promise<ReportItem[]> => {
     }));
 
     if (schedulesWithAppId && schedulesWithAppId.length > 0) {
-      // Check which instalments are paid via manual_payments or Stripe
+      // Check which instalments are paid via manual_payments or Stripe (stripe_payments)
       const instalmentIds = schedulesWithAppId.map((s) => s.id);
       
       // Check manual payments
@@ -226,9 +228,20 @@ const fetchReport = async (reportType: ReportType): Promise<ReportItem[]> => {
         .select("instalment_id")
         .in("instalment_id", instalmentIds);
       
-      // For Stripe payments, we'd need to check payment intents
-      // For now, we'll use manual payments as the source of truth
+      // Check Stripe instalment payments (stripe_payments stores instalment_id in metadata)
       const paidInstalmentIds = new Set((manualPayments || []).map((p) => p.instalment_id));
+      const instalmentIdStrs = instalmentIds.map((id) => String(id));
+      const { data: stripeInstalmentPayments } = await supabase
+        .from("stripe_payments")
+        .select("metadata")
+        .eq("payment_type", "instalment")
+        .in("status", ["succeeded", "completed"]);
+      (stripeInstalmentPayments || []).forEach((sp: { metadata?: { instalment_id?: string } | null }) => {
+        const instId = sp.metadata?.instalment_id;
+        if (instId && instalmentIdStrs.includes(instId)) paidInstalmentIds.add(instId);
+      });
+      // Normalise to schedule id type (UUID string) for .has() below
+      const paidSet = new Set(instalmentIds.filter((id) => paidInstalmentIds.has(String(id))));
 
       paymentSchedules = schedulesWithAppId
         .filter((s) => s.application_id) // Only include schedules with valid application_id
@@ -237,7 +250,7 @@ const fetchReport = async (reportType: ReportType): Promise<ReportItem[]> => {
           instalment_id: schedule.id,
           due_date: schedule.due_date,
           amount: Number(schedule.amount),
-          paid: paidInstalmentIds.has(schedule.id),
+          paid: paidSet.has(schedule.id),
         }));
     }
   }
@@ -667,4 +680,385 @@ export const useStudioAllocationReport = () =>
     queryKey: ["studio-allocation-report"],
     queryFn: fetchStudioAllocationReport,
   });
+
+// =============================================================================
+// Additional Operational Reports
+// =============================================================================
+
+export type ApplicationsPipelineStatusSummary = {
+  status: ApplicationRow["status"];
+  count: number;
+};
+
+export type ApplicationsPipelineReport = {
+  total: number;
+  byStatus: ApplicationsPipelineStatusSummary[];
+};
+
+const fetchApplicationsPipelineReport = async (
+  academicYearId?: string,
+): Promise<ApplicationsPipelineReport> => {
+  let query = supabase
+    .from("student_applications")
+    .select(
+      `
+      id,
+      status,
+      contract:contracts(
+        academic_year_id
+      )
+    `,
+    );
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error("Failed to fetch applications pipeline report:", error);
+    throw error;
+  }
+
+  const rows =
+    (data || []) as Array<{
+      id: string;
+      status: ApplicationRow["status"];
+      contract: { academic_year_id: string | null } | null;
+    }>;
+
+  const filtered = academicYearId
+    ? rows.filter((row) => (row.contract as any)?.academic_year_id === academicYearId)
+    : rows;
+
+  const total = filtered.length;
+  const counts = new Map<ApplicationRow["status"], number>();
+
+  filtered.forEach((row) => {
+    counts.set(row.status, (counts.get(row.status) ?? 0) + 1);
+  });
+
+  const byStatus: ApplicationsPipelineStatusSummary[] = Array.from(counts.entries()).map(
+    ([status, count]) => ({
+      status,
+      count,
+    }),
+  );
+
+  return { total, byStatus };
+};
+
+export const useApplicationsPipelineReport = (academicYearId?: string) => {
+  return useQuery({
+    queryKey: ["applications-pipeline-report", academicYearId],
+    queryFn: () => fetchApplicationsPipelineReport(academicYearId),
+  });
+};
+
+export type PendingDocumentReportItem = {
+  id: string;
+  application_id: string;
+  student_id: string | null;
+  student_name: string;
+  student_email: string;
+  document_type: string;
+  status: string;
+  uploaded_at: string | null;
+};
+
+const fetchPendingDocumentsReport = async (): Promise<PendingDocumentReportItem[]> => {
+  const { data: docs, error } = await supabase
+    .from("student_documents")
+    .select("id, application_id, document_type, status, uploaded_at")
+    .eq("status", "pending");
+
+  if (error) {
+    console.error("Failed to fetch pending documents report:", error);
+    throw error;
+  }
+
+  if (!docs || docs.length === 0) {
+    return [];
+  }
+
+  const applicationIds = [
+    ...new Set(docs.map((d) => d.application_id).filter((id): id is string => Boolean(id))),
+  ];
+
+  let applications: Array<{ id: string; student_id: string | null }> = [];
+  if (applicationIds.length > 0) {
+    const { data: appsData, error: appsError } = await supabase
+      .from("student_applications")
+      .select("id, student_id")
+      .in("id", applicationIds);
+
+    if (appsError) {
+      console.error("Failed to fetch applications for pending documents report:", appsError);
+      throw appsError;
+    }
+
+    applications = appsData || [];
+  }
+
+  const appById = new Map(applications.map((app) => [app.id, app]));
+  const studentIds = [
+    ...new Set(
+      applications
+        .map((app) => app.student_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+
+  let profiles: any[] = [];
+  if (studentIds.length > 0) {
+    const { data: profilesData } = await supabase
+      .from("profiles")
+      .select("id, first_name, last_name")
+      .in("id", studentIds);
+
+    profiles = profilesData || [];
+  }
+
+  const emailsMap = new Map<string, string>();
+  try {
+    if (studentIds.length > 0) {
+      const { data, error: emailsError } = await supabase.functions.invoke("get-user-emails", {
+        body: { userIds: studentIds },
+      });
+
+      if (!emailsError && data?.emails) {
+        Object.entries(data.emails).forEach(([userId, email]) => {
+          emailsMap.set(userId, email as string);
+        });
+      }
+    }
+  } catch (error) {
+    console.warn("Could not fetch user emails for pending documents report:", error);
+  }
+
+  const profilesMap = new Map(
+    (profiles || []).map((p) => [
+      p.id,
+      {
+        first_name: p.first_name,
+        last_name: p.last_name,
+      },
+    ]),
+  );
+
+  return docs.map((doc) => {
+    const app = appById.get(doc.application_id);
+    const studentId = app?.student_id ?? null;
+
+    let student_name = "Student";
+    let student_email = "";
+
+    if (studentId) {
+      const profile = profilesMap.get(studentId);
+      const email = emailsMap.get(studentId) || "";
+      const nameFromProfile =
+        ((profile?.first_name || "") + " " + (profile?.last_name || "")).trim();
+
+      student_email = email;
+      if (nameFromProfile) {
+        student_name = nameFromProfile;
+      } else if (email) {
+        student_name = email.split("@")[0] || "Student";
+      }
+    }
+
+    return {
+      id: doc.id,
+      application_id: doc.application_id,
+      student_id: studentId,
+      student_name,
+      student_email,
+      document_type: doc.document_type,
+      status: doc.status,
+      uploaded_at: doc.uploaded_at,
+    };
+  });
+};
+
+export const usePendingDocumentsReport = () => {
+  return useQuery({
+    queryKey: ["pending-documents-report"],
+    queryFn: fetchPendingDocumentsReport,
+  });
+};
+
+export type MoveOutWindow = "7" | "14" | "30" | "all";
+
+export type MoveOutReportItem = {
+  application_id: string;
+  student_id: string | null;
+  student_name: string;
+  student_email: string;
+  contract_name: string;
+  contract_end: string;
+  studio_number: string | null;
+  academic_year_name: string | null;
+};
+
+const fetchMoveOutsReport = async (
+  window: MoveOutWindow,
+  academicYearId?: string,
+): Promise<MoveOutReportItem[]> => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const startDateStr = today.toISOString().split("T")[0];
+
+  let endDateStr: string | null = null;
+  if (window !== "all") {
+    const endDate = new Date(today);
+    endDate.setDate(endDate.getDate() + Number(window));
+    endDate.setHours(23, 59, 59, 999);
+    endDateStr = endDate.toISOString().split("T")[0];
+  }
+
+  const { data, error } = await supabase
+    .from("student_applications")
+    .select(
+      `
+      id,
+      student_id,
+      status,
+      contract_end,
+      contract:contracts(
+        name,
+        academic_year_id,
+        academic_year:academic_years(name)
+      ),
+      assigned_studio:studios(studio_number)
+    `,
+    )
+    .eq("status", "confirmed")
+    .not("contract_end", "is", null)
+    .gte("contract_end", startDateStr);
+
+  if (error) {
+    console.error("Failed to fetch move-outs report:", error);
+    throw error;
+  }
+
+  if (!data || data.length === 0) {
+    return [];
+  }
+
+  const rows = data as Array<{
+    id: string;
+    student_id: string | null;
+    status: ApplicationRow["status"];
+    contract_end: string | null;
+    contract: {
+      name: string | null;
+      academic_year_id: string | null;
+      academic_year: { name: string | null } | null;
+    } | null;
+    assigned_studio: { studio_number: string | null } | null;
+  }>;
+
+  const filteredByWindow = rows.filter((row) => {
+    if (!row.contract_end) return false;
+    const end = new Date(row.contract_end);
+    end.setHours(0, 0, 0, 0);
+    if (end < today) return false;
+    if (endDateStr) {
+      const maxEnd = new Date(endDateStr);
+      maxEnd.setHours(23, 59, 59, 999);
+      if (end > maxEnd) return false;
+    }
+    return true;
+  });
+
+  const filteredByYear = academicYearId
+    ? filteredByWindow.filter(
+        (row) => (row.contract as any)?.academic_year_id === academicYearId,
+      )
+    : filteredByWindow;
+
+  if (filteredByYear.length === 0) {
+    return [];
+  }
+
+  const studentIds = [
+    ...new Set(
+      filteredByYear
+        .map((row) => row.student_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+
+  let profiles: any[] = [];
+  if (studentIds.length > 0) {
+    const { data: profilesData } = await supabase
+      .from("profiles")
+      .select("id, first_name, last_name")
+      .in("id", studentIds);
+
+    profiles = profilesData || [];
+  }
+
+  const emailsMap = new Map<string, string>();
+  try {
+    if (studentIds.length > 0) {
+      const { data, error: emailsError } = await supabase.functions.invoke("get-user-emails", {
+        body: { userIds: studentIds },
+      });
+
+      if (!emailsError && data?.emails) {
+        Object.entries(data.emails).forEach(([userId, email]) => {
+          emailsMap.set(userId, email as string);
+        });
+      }
+    }
+  } catch (error) {
+    console.warn("Could not fetch user emails for move-outs report:", error);
+  }
+
+  const profilesMap = new Map(
+    (profiles || []).map((p) => [
+      p.id,
+      {
+        first_name: p.first_name,
+        last_name: p.last_name,
+      },
+    ]),
+  );
+
+  return filteredByYear.map((row) => {
+    const studentId = row.student_id;
+    let student_name = "Student";
+    let student_email = "";
+
+    if (studentId) {
+      const profile = profilesMap.get(studentId);
+      const email = emailsMap.get(studentId) || "";
+      const nameFromProfile =
+        ((profile?.first_name || "") + " " + (profile?.last_name || "")).trim();
+
+      student_email = email;
+      if (nameFromProfile) {
+        student_name = nameFromProfile;
+      } else if (email) {
+        student_name = email.split("@")[0] || "Student";
+      }
+    }
+
+    return {
+      application_id: row.id,
+      student_id: row.student_id,
+      student_name,
+      student_email,
+      contract_name: (row.contract as any)?.name || "—",
+      contract_end: row.contract_end!,
+      studio_number: row.assigned_studio?.studio_number ?? null,
+      academic_year_name: row.contract?.academic_year?.name ?? null,
+    };
+  });
+};
+
+export const useMoveOutsReport = (window: MoveOutWindow, academicYearId?: string) => {
+  return useQuery({
+    queryKey: ["move-outs-report", window, academicYearId],
+    queryFn: () => fetchMoveOutsReport(window, academicYearId),
+  });
+};
 
