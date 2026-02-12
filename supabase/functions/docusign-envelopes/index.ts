@@ -428,6 +428,7 @@ serve(async (req) => {
           contract_start,
           contract_end,
           weeks,
+          extra_days,
           weekly_price_override,
           deposit_override,
           studio_grade:studio_grades ( 
@@ -724,7 +725,7 @@ serve(async (req) => {
       contract?.contract_start && contract?.contract_end
         ? `${formatGbDate(contract.contract_start)} – ${formatGbDate(
             contract.contract_end,
-          )}${contract?.weeks ? ` (${contract.weeks} weeks)` : ""}`
+          )}${contract?.weeks != null ? ` (${contract.weeks}${(contract as any)?.extra_days ? ` weeks ${(contract as any).extra_days} days` : " weeks"})` : ""}`
         : "";
 
     // Calculate weekly rate, deposit, and payment schedule
@@ -749,9 +750,11 @@ serve(async (req) => {
       }
     }
 
-    // Calculate total contract value
-    if (weeklyRate && contract?.weeks) {
-      totalContractValue = weeklyRate * contract.weeks;
+    // Calculate total contract value (effective weeks = weeks + extra_days/7)
+    if (weeklyRate && contract?.weeks != null) {
+      const extraDays = Math.min(6, Math.max(0, Number((contract as any)?.extra_days) || 0));
+      const effectiveWeeks = Number(contract.weeks) + extraDays / 7;
+      totalContractValue = weeklyRate * effectiveWeeks;
     }
 
     // Get deposit amount: contract override > payment plan > studio_grade_prices override

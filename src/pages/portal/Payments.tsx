@@ -27,6 +27,7 @@ import { Elements } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
 import StripePaymentForm from "@/components/StripePaymentForm";
 import { supabase } from "@/integrations/supabase/client";
+import { getEffectiveWeeks } from "@/utils/contractDuration";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 
@@ -574,7 +575,7 @@ const PaymentCard = ({
   const contractTotal = useMemo(() => {
     if (!contract) return 0;
     const weeklyPrice = contract.weekly_price_override || gradePrice?.weekly_price || 0;
-    return weeklyPrice * (contract.weeks || 0);
+    return weeklyPrice * getEffectiveWeeks(contract);
   }, [contract, gradePrice]);
 
   const depositAmount = useMemo(() => {

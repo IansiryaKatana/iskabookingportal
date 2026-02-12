@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useStudentApplication } from "@/hooks/useStudentApplication";
 import { ArrowLeft, User, Mail, Phone, MapPin, Calendar, Building2, CreditCard, FileText, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
+import { formatContractDuration } from "@/utils/contractDuration";
 import { Skeleton } from "@/components/ui/skeleton";
 import ManualPaymentDialog from "@/components/admin/ManualPaymentDialog";
 import { useState } from "react";
@@ -257,7 +258,7 @@ const StudentDetail = () => {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Duration</p>
-                <p className="font-medium">{application.contract?.weeks || "—"} weeks</p>
+                <p className="font-medium">{formatContractDuration(application.contract)}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Start Date</p>

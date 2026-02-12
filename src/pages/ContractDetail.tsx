@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useCanRebook, useMarkAsRebooking } from "@/hooks/useRebooking";
 import { useBrandingSettings } from "@/hooks/useBranding";
 import { format } from "date-fns";
+import { formatContractDuration } from "@/utils/contractDuration";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -522,7 +523,7 @@ const ContractDetail = () => {
               <CardDescription>
                 {format(new Date(contract.contract_start), "d MMM yyyy")} to{" "}
                 {format(new Date(contract.contract_end), "d MMM yyyy")} ·{" "}
-                {contract.weeks} weeks
+                {formatContractDuration(contract)}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">

@@ -38,6 +38,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
+import { formatContractDuration } from "@/utils/contractDuration";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog,
@@ -513,7 +514,7 @@ const Contracts = () => {
                             ? contract.contract_end.slice(0, 10)
                             : "TBC"
                           ).toString()}{" "}
-                          · {contract.weeks ?? "?"} weeks
+                          · {formatContractDuration(contract)}
                         </p>
                         <p className="text-sm text-primary font-semibold">
                           £

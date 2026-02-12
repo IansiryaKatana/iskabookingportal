@@ -53,6 +53,7 @@ async function calculateForecast(input: ForecastInput): Promise<ForecastResult> 
       id,
       name,
       weeks,
+      extra_days,
       weekly_price_override,
       studio_grade_id,
       studio_grade:studio_grades!inner(id, name)
@@ -158,12 +159,15 @@ async function calculateForecast(input: ForecastInput): Promise<ForecastResult> 
     }
   }
 
-  // Create a map of contract_id to contract details for quick lookup
+  // Effective weeks for pricing: weeks + (extra_days || 0) / 7
+  const getEffectiveWeeks = (c: { weeks: number; extra_days?: number | null }) =>
+    (c?.weeks ?? 0) + (Math.min(6, Math.max(0, Number(c?.extra_days) || 0)) / 7);
+
   const contractsMap = new Map(
     contracts.map((c) => [
       c.id,
       {
-        weeks: c.weeks,
+        effectiveWeeks: getEffectiveWeeks(c as any),
         weekly_price_override: c.weekly_price_override,
         studio_grade_id: c.studio_grade_id,
       },
@@ -186,7 +190,7 @@ async function calculateForecast(input: ForecastInput): Promise<ForecastResult> 
         const joinedContract = booking.contract;
         const contract = joinedContract 
           ? {
-              weeks: joinedContract.weeks,
+              effectiveWeeks: getEffectiveWeeks(joinedContract as any),
               weekly_price_override: joinedContract.weekly_price_override,
               studio_grade_id: joinedContract.studio_grade_id,
             }
@@ -198,8 +202,8 @@ async function calculateForecast(input: ForecastInput): Promise<ForecastResult> 
             ? Number(contract.weekly_price_override)
             : pricesMap.get(contract.studio_grade_id) || 0;
 
-          bookingRevenue = weeklyPrice * contract.weeks;
-          console.log(`💰 Calculated revenue: £${bookingRevenue} (${weeklyPrice} × ${contract.weeks}) for booking ${booking.id}`);
+          bookingRevenue = weeklyPrice * contract.effectiveWeeks;
+          console.log(`💰 Calculated revenue: £${bookingRevenue} (${weeklyPrice} × ${contract.effectiveWeeks}) for booking ${booking.id}`);
         } else {
           // If no contract found, log warning and skip
           console.warn(`⚠️ No contract found for booking ${booking.id} with contract_id ${booking.contract_id}`);
@@ -238,7 +242,8 @@ async function calculateForecast(input: ForecastInput): Promise<ForecastResult> 
       ? Number(contract.weekly_price_override)
       : pricesMap.get(contract.studio_grade_id) || 0;
 
-    const contractValue = weeklyPrice * contract.weeks;
+    const effectiveWeeks = getEffectiveWeeks(contract as any);
+    const contractValue = weeklyPrice * effectiveWeeks;
     const studentsNeeded = contractValue > 0
       ? Math.ceil(revenueGap / contractValue)
       : 0;

@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/pagination";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
+import { formatContractDuration } from "@/utils/contractDuration";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -234,7 +235,7 @@ const Students = () => {
                   ? `${student.profile.first_name} ${student.profile.last_name}`
                   : student.profile?.first_name || student.profile?.last_name || "—";
                 const contractName = student.contract?.studio_grade?.name || "—";
-                const weeks = student.contract?.weeks || "—";
+                const durationLabel = formatContractDuration(student.contract);
                 const startDate = student.contract?.contract_start
                   ? format(new Date(student.contract.contract_start), "d MMM yyyy")
                   : "—";
@@ -271,7 +272,7 @@ const Students = () => {
                           <div className="flex-1 min-w-0">
                             <span className="text-muted-foreground">Contract: </span>
                             <span className="font-medium">{contractName} Studio</span>
-                            <span className="text-muted-foreground"> · {weeks} Weeks</span>
+                            <span className="text-muted-foreground"> · {durationLabel}</span>
                           </div>
                         </div>
 
@@ -326,7 +327,7 @@ const Students = () => {
                             : student.profile?.first_name || student.profile?.last_name || "—"}
                         </TableCell>
                         <TableCell>
-                          {student.contract?.studio_grade?.name || "—"} Studio · {student.contract?.weeks || "—"} Weeks
+                          {student.contract?.studio_grade?.name || "—"} Studio · {formatContractDuration(student.contract)}
                         </TableCell>
                         <TableCell>
                           {student.contract?.studio_grade?.name || "—"}

@@ -50,6 +50,7 @@ const schema = z.object({
   studio_grade_id: z.string().min(1, "Studio grade required"),
   name: z.string().min(1, "Contract name required"),
   contract_weeks: z.coerce.number().min(1, "Enter at least 1 week"),
+  contract_extra_days: z.coerce.number().min(0, "Extra days must be 0–6").max(6, "Extra days must be 0–6"),
   contract_start: z.string().min(1, "Start date required"),
   contract_end: z.string().min(1, "End date required"),
   weekly_price_override: z.coerce.number().min(1, "Weekly price required"),
@@ -128,6 +129,7 @@ export function CreateCustomContractSheet({
       studio_grade_id: "",
       name: "",
       contract_weeks: 21,
+      contract_extra_days: 0,
       contract_start: "",
       contract_end: "",
       weekly_price_override: 0,
@@ -138,13 +140,16 @@ export function CreateCustomContractSheet({
 
   const watchStart = form.watch("contract_start");
   const watchWeeks = form.watch("contract_weeks");
+  const watchExtraDays = form.watch("contract_extra_days");
 
   useEffect(() => {
-    if (watchStart && watchWeeks && watchWeeks >= 1) {
-      const end = addDays(watchStart, watchWeeks * 7);
+    if (watchStart && watchWeeks != null && watchWeeks >= 1) {
+      const extra = Math.min(6, Math.max(0, Number(watchExtraDays) || 0));
+      const totalDays = watchWeeks * 7 + extra;
+      const end = addDays(watchStart, totalDays);
       form.setValue("contract_end", end);
     }
-  }, [watchStart, watchWeeks, form]);
+  }, [watchStart, watchWeeks, watchExtraDays, form]);
 
   useEffect(() => {
     if (!open) return;
@@ -156,6 +161,7 @@ export function CreateCustomContractSheet({
         studio_grade_id: "",
         name: "",
         contract_weeks: 21,
+        contract_extra_days: 0,
         contract_start: "",
         contract_end: "",
         weekly_price_override: 0,
@@ -197,6 +203,7 @@ export function CreateCustomContractSheet({
   const handleGenerateInstallments = () => {
     const start = form.getValues("contract_start");
     const weeks = form.getValues("contract_weeks") || 0;
+    const extraDays = Math.min(6, Math.max(0, Number(form.getValues("contract_extra_days")) || 0));
     if (!start || numInstallments < 1) {
       toast({ variant: "destructive", title: "Set start date and number of instalments first." });
       return;
@@ -204,7 +211,8 @@ export function CreateCustomContractSheet({
     const rows: GeneratedInstallment[] = [];
     const pctEach = Math.floor(100 / numInstallments);
     const remainder = 100 - pctEach * (numInstallments - 1);
-    const labelPrefix = `${weeks} weeks plan `;
+    const durationLabel = extraDays > 0 ? `${weeks} weeks ${extraDays} days` : `${weeks} weeks`;
+    const labelPrefix = `${durationLabel} plan `;
     for (let i = 0; i < numInstallments; i++) {
       let offset: number;
       if (i === 0) {
@@ -234,6 +242,7 @@ export function CreateCustomContractSheet({
 
   const handleSubmit = form.handleSubmit(async (values) => {
     const weeks = values.contract_weeks;
+    const extraDays = Math.min(6, Math.max(0, Number(values.contract_extra_days) || 0));
     let paymentPlanIds: string[] = [];
     let paymentPlanOrders: number[] = [];
 
@@ -290,6 +299,7 @@ export function CreateCustomContractSheet({
         contract_start: values.contract_start,
         contract_end: values.contract_end,
         weeks,
+        extra_days: extraDays,
         weekly_price_override: values.weekly_price_override,
         deposit_override: values.deposit_override,
         display_order: values.display_order,
@@ -424,13 +434,33 @@ export function CreateCustomContractSheet({
           name="contract_weeks"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Contract length (weeks)</FormLabel>
+              <FormLabel>Weeks</FormLabel>
               <FormControl>
                 <Input
                   type="number"
                   min={1}
                   className="rounded-full px-3 min-w-0"
                   value={field.value ?? ""}
+                  onChange={(e) => field.onChange(e.target.value === "" ? 0 : Number(e.target.value))}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="contract_extra_days"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Extra days (0–6)</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  min={0}
+                  max={6}
+                  className="rounded-full px-3 min-w-0"
+                  value={field.value ?? 0}
                   onChange={(e) => field.onChange(e.target.value === "" ? 0 : Number(e.target.value))}
                 />
               </FormControl>
@@ -467,7 +497,10 @@ export function CreateCustomContractSheet({
       />
       {watchWeeks >= 1 && watchStart && (
         <p className="text-xs text-muted-foreground">
-          Duration: <strong>{watchWeeks} weeks</strong>
+          Duration: <strong>{watchWeeks} weeks{Number(watchExtraDays) > 0 ? ` ${watchExtraDays} days` : ""}</strong>
+          {Number(watchExtraDays) > 0 && (
+            <span className="block text-muted-foreground/80">End date auto: start + {watchWeeks}×7 + {watchExtraDays} days</span>
+          )}
         </p>
       )}
     </div>

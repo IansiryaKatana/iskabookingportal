@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import { formatContractDuration } from "@/utils/contractDuration";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { StudioContract } from "@/hooks/useStudioGrade";
@@ -58,7 +59,7 @@ const PanelCard = ({
     <Card className="rounded-3xl border border-white/10 bg-background shadow-lg shadow-black/10">
       <CardHeader className="space-y-1">
         <CardTitle className="text-xl font-display uppercase tracking-wide">
-          {contract.weeks} Weeks
+          {formatContractDuration(contract)}
         </CardTitle>
         <p className="text-2xl font-bold text-primary">{amountLabel}</p>
         <p className="text-xs uppercase tracking-wide text-muted-foreground">

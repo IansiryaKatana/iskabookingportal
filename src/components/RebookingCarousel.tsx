@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { formatContractDuration, getEffectiveWeeks } from "@/utils/contractDuration";
 
 type RebookingContract = {
   contract: {
@@ -57,10 +58,10 @@ const RebookingCarousel = ({ contracts, onNavigate }: RebookingCarouselProps) =>
         return gradeA.localeCompare(gradeB);
       }
       
-      // Then by weeks
-      if (a.contract.weeks !== b.contract.weeks) {
-        return a.contract.weeks - b.contract.weeks;
-      }
+      // Then by effective weeks (weeks + extra_days/7)
+      const effA = getEffectiveWeeks(a.contract);
+      const effB = getEffectiveWeeks(b.contract);
+      if (effA !== effB) return effA - effB;
       
       // Finally by academic year
       const yearA = a.contract.academic_year?.name || "";
@@ -167,7 +168,7 @@ const RebookingCarousel = ({ contracts, onNavigate }: RebookingCarouselProps) =>
                         {gradeName}
                       </h3>
                       <p className="text-sm sm:text-base text-white/90 font-semibold mb-3">
-                        {contract.weeks} Weeks
+                        {formatContractDuration(contract)}
                       </p>
                       {previousYear ? (
                         <p className="text-[10px] sm:text-xs text-white/80 leading-tight max-w-[90%] mx-auto">

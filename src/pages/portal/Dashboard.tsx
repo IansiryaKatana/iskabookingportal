@@ -11,6 +11,7 @@ import PortalLayout from "@/components/portal/PortalLayout";
 import RebookingCarousel from "@/components/RebookingCarousel";
 import LoginMessageDialog from "@/components/portal/LoginMessageDialog";
 import { format } from "date-fns";
+import { formatContractDuration } from "@/utils/contractDuration";
 
 const statusLabels: Record<string, string> = {
   draft: "In Progress",
@@ -250,7 +251,7 @@ const Dashboard = () => {
                 <div className="flex flex-wrap items-center gap-6 text-sm text-muted-foreground">
                   <div className="flex items-center gap-2">
                     <CalendarRange className="h-4 w-4 text-primary" />
-                    {contract?.weeks ?? "—"} weeks
+                    {formatContractDuration(contract)}
                   </div>
                   <div className="flex items-center gap-2">
                     <ArrowRightCircle className="h-4 w-4 text-primary" />

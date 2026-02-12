@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { getEffectiveWeeks } from "@/utils/contractDuration";
 
 type PaymentScheduleRow =
   Database["public"]["Tables"]["contract_payment_schedule"]["Row"];
@@ -65,6 +66,7 @@ const fetchPaymentSchedule = async (
         contract_start,
         contract_end,
         weeks,
+        extra_days,
         weekly_price_override,
         deposit_override,
         academic_year_id,
@@ -88,7 +90,7 @@ const fetchPaymentSchedule = async (
       .maybeSingle();
 
     const weeklyPrice = contract.weekly_price_override || priceData?.weekly_price || 0;
-    const totalContractValue = weeklyPrice * contract.weeks;
+    const totalContractValue = weeklyPrice * getEffectiveWeeks(contract);
 
     // Get deposit amount with proper priority (matches database function logic):
     // 1. contract.deposit_override (highest priority)
