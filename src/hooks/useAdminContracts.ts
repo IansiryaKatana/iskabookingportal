@@ -131,6 +131,16 @@ export const useCreateContract = () => {
           .from("contract_payment_plans")
           .insert(insertPayload);
         if (linkError) throw linkError;
+
+        // Always create contract_payment_schedule so instalments show (e.g. in Record Manual Payment)
+        const { error: backfillError } = await supabase.rpc(
+          "backfill_contract_payment_schedule_for_contract",
+          {
+            p_contract_id: contract.id,
+            p_payment_plan_id: payment_plan_ids[0],
+          },
+        );
+        if (backfillError) throw backfillError;
       }
 
       // Log contract creation
@@ -190,6 +200,9 @@ export const useUpdateContract = () => {
         .delete()
         .eq("contract_id", id);
 
+      // Rebuild schedule when plans change: remove old schedule then backfill from first plan
+      await supabase.from("contract_payment_schedule").delete().eq("contract_id", id);
+
       if (payment_plan_ids && payment_plan_ids.length) {
         const insertPayload = payment_plan_ids.map((planId, index) => ({
           contract_id: id,
@@ -200,6 +213,15 @@ export const useUpdateContract = () => {
           .from("contract_payment_plans")
           .insert(insertPayload);
         if (linkError) throw linkError;
+
+        const { error: backfillError } = await supabase.rpc(
+          "backfill_contract_payment_schedule_for_contract",
+          {
+            p_contract_id: id,
+            p_payment_plan_id: payment_plan_ids[0],
+          },
+        );
+        if (backfillError) throw backfillError;
       }
 
       // Log contract update

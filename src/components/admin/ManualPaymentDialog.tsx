@@ -9,7 +9,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateManualPayment } from "@/hooks/useManualPayment";
@@ -226,113 +225,94 @@ const ManualPaymentDialog = ({
             Record a payment that was made in person (cash, card, bank transfer, or cheque).
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-4">
-          <div>
-            <Label htmlFor="payment-type">Payment Type</Label>
-            <Select
-              value={selectedType}
-              onValueChange={(value) => setSelectedType(value as "deposit" | "instalment")}
-            >
-              <SelectTrigger id="payment-type" className="mt-2">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="deposit" disabled={hasDeposit === true}>
-                  Deposit{hasDeposit === true ? " (already recorded)" : ""}
-                </SelectItem>
-                <SelectItem value="instalment">Instalment</SelectItem>
-              </SelectContent>
-            </Select>
-            {hasDeposit === true && (
-              <p className="text-xs text-muted-foreground mt-1">This application already has a deposit. Record an instalment instead if needed.</p>
-            )}
-          </div>
-
-          {selectedType === "instalment" && (
-            <div>
-              <Label htmlFor="instalment">Instalment</Label>
-              <Select value={selectedInstalmentId} onValueChange={setSelectedInstalmentId}>
-                <SelectTrigger id="instalment" className="mt-2">
-                  <SelectValue placeholder="Select instalment" />
-                </SelectTrigger>
-                <SelectContent>
-                  {instalments?.map((instalment) => (
-                    <SelectItem key={instalment.id} value={instalment.id}>
-                      Instalment {instalment.instalment_number} - £{instalment.amount} (Due:{" "}
-                      {new Date(instalment.due_date).toLocaleDateString("en-GB")})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+        <div className="space-y-3 py-2">
+          <Select
+            value={selectedType}
+            onValueChange={(value) => setSelectedType(value as "deposit" | "instalment")}
+          >
+            <SelectTrigger id="payment-type" aria-label="Payment type">
+              <SelectValue placeholder="Deposit or instalment" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="deposit" disabled={hasDeposit === true}>
+                Deposit{hasDeposit === true ? " (already recorded)" : ""}
+              </SelectItem>
+              <SelectItem value="instalment">Instalment</SelectItem>
+            </SelectContent>
+          </Select>
+          {hasDeposit === true && (
+            <p className="text-xs text-muted-foreground">Deposit already recorded—use Instalment if needed.</p>
           )}
 
-          <div>
-            <Label htmlFor="amount">Amount (£)</Label>
-            <Input
-              id="amount"
-              type="number"
-              step="0.01"
-              min="0"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="mt-2"
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="payment-method">Payment Method</Label>
-            <Select
-              value={paymentMethod}
-              onValueChange={(value) =>
-                setPaymentMethod(value as "cash" | "card" | "bank_transfer" | "cheque")
-              }
-            >
-              <SelectTrigger id="payment-method" className="mt-2">
-                <SelectValue />
+          {selectedType === "instalment" && (
+            <Select value={selectedInstalmentId} onValueChange={setSelectedInstalmentId}>
+              <SelectTrigger id="instalment" aria-label="Instalment">
+                <SelectValue placeholder="Select instalment (number, amount, due date)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="cash">Cash</SelectItem>
-                <SelectItem value="card">Card</SelectItem>
-                <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                <SelectItem value="cheque">Cheque</SelectItem>
+                {instalments?.map((instalment) => (
+                  <SelectItem key={instalment.id} value={instalment.id}>
+                    Instalment {instalment.instalment_number} - £{instalment.amount} (Due:{" "}
+                    {new Date(instalment.due_date).toLocaleDateString("en-GB")})
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
-          </div>
+          )}
 
-          <div>
-            <Label htmlFor="receipt-number">Receipt Number (Optional)</Label>
-            <Input
-              id="receipt-number"
-              value={receiptNumber}
-              onChange={(e) => setReceiptNumber(e.target.value)}
-              placeholder="Enter receipt number"
-              className="mt-2"
-            />
-          </div>
+          <Input
+            id="amount"
+            type="number"
+            step="0.01"
+            min="0"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="Amount (£)"
+            aria-label="Amount in pounds"
+          />
 
-          <div>
-            <Label htmlFor="payment-date">Payment Date</Label>
-            <Input
-              id="payment-date"
-              type="date"
-              value={paymentDate}
-              onChange={(e) => setPaymentDate(e.target.value)}
-              className="mt-2"
-            />
-          </div>
+          <Select
+            value={paymentMethod}
+            onValueChange={(value) =>
+              setPaymentMethod(value as "cash" | "card" | "bank_transfer" | "cheque")
+            }
+          >
+            <SelectTrigger id="payment-method" aria-label="Payment method">
+              <SelectValue placeholder="Cash, card, bank transfer or cheque" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="cash">Cash</SelectItem>
+              <SelectItem value="card">Card</SelectItem>
+              <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+              <SelectItem value="cheque">Cheque</SelectItem>
+            </SelectContent>
+          </Select>
 
-          <div>
-            <Label htmlFor="notes">Notes (Optional)</Label>
-            <Textarea
-              id="notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Add any additional notes..."
-              className="mt-2"
-              rows={3}
-            />
-          </div>
+          <Input
+            id="receipt-number"
+            value={receiptNumber}
+            onChange={(e) => setReceiptNumber(e.target.value)}
+            placeholder="Receipt number (optional)"
+            aria-label="Receipt number optional"
+          />
+
+          <Input
+            id="payment-date"
+            type="date"
+            value={paymentDate}
+            onChange={(e) => setPaymentDate(e.target.value)}
+            aria-label="Payment date"
+          />
+
+          <Textarea
+            id="notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Notes (optional)"
+            className="min-h-[60px] resize-none"
+            rows={2}
+            aria-label="Notes optional"
+          />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-full uppercase tracking-wide">

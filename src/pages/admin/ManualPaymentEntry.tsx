@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import {
   Card,
@@ -20,7 +20,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateManualPayment } from "@/hooks/useManualPayment";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Search, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, Plus, Search, CheckCircle2, XCircle, Pencil } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
@@ -67,6 +67,7 @@ const ManualPaymentEntry = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectRequestId, setRejectRequestId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -78,6 +79,14 @@ const ManualPaymentEntry = () => {
   const [receiptNumber, setReceiptNumber] = useState<string>("");
   const [paymentDate, setPaymentDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState<string>("");
+
+  // Edit state for unlinked (orphaned) payments
+  const [editingPayment, setEditingPayment] = useState<any | null>(null);
+  const [editAmount, setEditAmount] = useState<string>("");
+  const [editPaymentMethod, setEditPaymentMethod] = useState<"cash" | "card" | "bank_transfer" | "cheque">("cash");
+  const [editReceiptNumber, setEditReceiptNumber] = useState<string>("");
+  const [editPaymentDate, setEditPaymentDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [editNotes, setEditNotes] = useState<string>("");
 
   // Pending student manual payment requests (approve → create manual_payment)
   const { data: pendingRequests, isLoading: pendingLoading, refetch: refetchPending } = useQuery({
@@ -287,6 +296,101 @@ const ManualPaymentEntry = () => {
     };
     return labels[method] || method;
   };
+
+  // Populate edit fields when a payment is selected for editing
+  useEffect(() => {
+    if (!editingPayment) return;
+    setEditAmount(String(editingPayment.amount ?? ""));
+    setEditPaymentMethod(
+      (editingPayment.payment_method as "cash" | "card" | "bank_transfer" | "cheque") ?? "cash",
+    );
+    setEditReceiptNumber(editingPayment.receipt_number ?? "");
+    setEditPaymentDate(
+      editingPayment.payment_date ?? new Date().toISOString().split("T")[0],
+    );
+    setEditNotes(editingPayment.notes ?? "");
+  }, [editingPayment]);
+
+  const updateOrphanedPayment = useMutation({
+    mutationFn: async ({
+      id,
+      amount,
+      paymentMethod,
+      receiptNumber,
+      paymentDate,
+      notes,
+    }: {
+      id: string;
+      amount: number;
+      paymentMethod: "cash" | "card" | "bank_transfer" | "cheque";
+      receiptNumber: string;
+      paymentDate: string;
+      notes?: string;
+    }) => {
+      const { error } = await supabase
+        .from("manual_payments")
+        .update({
+          amount,
+          payment_method: paymentMethod,
+          receipt_number: receiptNumber || null,
+          payment_date: paymentDate,
+          notes: notes || null,
+        })
+        .eq("id", id)
+        .is("application_id", null);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orphaned-payments"] });
+      setEditingPayment(null);
+      toast({
+        title: "Payment updated",
+        description: "The unlinked payment has been updated.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to update payment. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteOrphanedPayment = useMutation({
+    mutationFn: async (paymentId: string) => {
+      const { error } = await supabase
+        .from("manual_payments")
+        .delete()
+        .eq("id", paymentId)
+        .is("application_id", null);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setDeletingPaymentId(null);
+      queryClient.invalidateQueries({ queryKey: ["orphaned-payments"] });
+      toast({
+        title: "Payment deleted",
+        description: "The unlinked payment has been removed.",
+      });
+    },
+    onError: (error) => {
+      setDeletingPaymentId(null);
+      toast({
+        title: "Error",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to delete payment. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
 
   return (
     <AdminLayout
@@ -737,6 +841,42 @@ const ManualPaymentEntry = () => {
                         <p className="text-xs text-muted-foreground italic">{payment.notes}</p>
                       )}
                     </div>
+                    <div className="flex items-center gap-2 md:ml-4">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="rounded-full bg-muted/80 hover:bg-muted text-foreground"
+                        onClick={() => setEditingPayment(payment)}
+                        disabled={
+                          updateOrphanedPayment.isPending &&
+                          editingPayment?.id === payment.id
+                        }
+                        aria-label="Edit payment"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="rounded-full bg-red-50 hover:bg-red-100 text-red-600"
+                        disabled={
+                          deletingPaymentId === payment.id ||
+                          deleteOrphanedPayment.isPending
+                        }
+                        onClick={() => {
+                          if (deletingPaymentId) return;
+                          setDeletingPaymentId(payment.id);
+                          deleteOrphanedPayment.mutate(payment.id);
+                        }}
+                        aria-label="Delete payment"
+                      >
+                        {deletingPaymentId === payment.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <XCircle className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -761,6 +901,159 @@ const ManualPaymentEntry = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Edit unlinked payment dialog */}
+        <Dialog
+          open={!!editingPayment}
+          onOpenChange={(open) => {
+            if (!open) {
+              setEditingPayment(null);
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-md rounded-2xl">
+            <DialogHeader>
+              <DialogTitle>Edit unlinked payment</DialogTitle>
+              <DialogDescription>
+                Adjust the details of this payment before it is linked to any application.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              {editingPayment && (
+                <>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Badge
+                      className={`uppercase rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                        editingPayment.payment_type === "deposit"
+                          ? "bg-blue-500 hover:bg-blue-600 text-white"
+                          : "bg-purple-500 hover:bg-purple-600 text-white"
+                      }`}
+                    >
+                      {editingPayment.payment_type}
+                    </Badge>
+                    <span>
+                      Created{" "}
+                      {format(
+                        new Date(editingPayment.created_at),
+                        "dd MMM yyyy",
+                      )}
+                    </span>
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-amount">Amount (£) *</Label>
+                    <Input
+                      id="edit-amount"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editAmount}
+                      onChange={(e) => setEditAmount(e.target.value)}
+                      className="mt-2"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-payment-method">Payment Method</Label>
+                    <Select
+                      value={editPaymentMethod}
+                      onValueChange={(value) =>
+                        setEditPaymentMethod(
+                          value as "cash" | "card" | "bank_transfer" | "cheque",
+                        )
+                      }
+                    >
+                      <SelectTrigger id="edit-payment-method" className="mt-2">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="cash">Cash</SelectItem>
+                        <SelectItem value="card">Card</SelectItem>
+                        <SelectItem value="bank_transfer">
+                          Bank Transfer
+                        </SelectItem>
+                        <SelectItem value="cheque">Cheque</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-receipt">Receipt/Cheque Number</Label>
+                    <Input
+                      id="edit-receipt"
+                      value={editReceiptNumber}
+                      onChange={(e) => setEditReceiptNumber(e.target.value)}
+                      className="mt-2"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-payment-date">Payment Date</Label>
+                    <Input
+                      id="edit-payment-date"
+                      type="date"
+                      value={editPaymentDate}
+                      onChange={(e) => setEditPaymentDate(e.target.value)}
+                      className="mt-2"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-notes">Notes (Optional)</Label>
+                    <Textarea
+                      id="edit-notes"
+                      value={editNotes}
+                      onChange={(e) => setEditNotes(e.target.value)}
+                      rows={3}
+                      className="mt-2 resize-none rounded-xl"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+            <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+              <Button
+                variant="outline"
+                className="rounded-full"
+                onClick={() => setEditingPayment(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="rounded-full"
+                disabled={
+                  updateOrphanedPayment.isPending ||
+                  !editingPayment ||
+                  !editAmount ||
+                  parseFloat(editAmount) <= 0
+                }
+                onClick={() => {
+                  if (!editingPayment) return;
+                  if (!editAmount || parseFloat(editAmount) <= 0) {
+                    toast({
+                      title: "Invalid amount",
+                      description: "Please enter a valid payment amount.",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  updateOrphanedPayment.mutate({
+                    id: editingPayment.id,
+                    amount: parseFloat(editAmount),
+                    paymentMethod: editPaymentMethod,
+                    receiptNumber: editReceiptNumber.trim(),
+                    paymentDate: editPaymentDate,
+                    notes: editNotes.trim() || undefined,
+                  });
+                }}
+              >
+                {updateOrphanedPayment.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save changes"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </AdminLayout>
   );
