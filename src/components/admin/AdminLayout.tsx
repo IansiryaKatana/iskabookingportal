@@ -2,7 +2,6 @@ import { useNavigate, NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
   FileSpreadsheet,
-  LogOut,
   Settings,
   Calendar,
   Layers,
@@ -22,6 +21,7 @@ import {
   Percent,
   Handshake,
   DollarSign,
+  ArrowUpRight,
   ChevronDown,
   ChevronRight,
   Image,
@@ -659,11 +659,11 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
           <Button
             variant="outline"
             size="sm"
-            className="w-full gap-2"
+            className="w-full flex justify-between items-center bg-black hover:bg-black/90 text-white hover:text-white border-0"
             onClick={() => setShowSignOutDialog(true)}
           >
-            <LogOut className="h-4 w-4" />
-            Sign out
+            <span>Sign out</span>
+            <ArrowUpRight className="h-4 w-4" />
           </Button>
         </div>
       </aside>
@@ -807,11 +807,11 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
                 <Button
                   variant="outline"
                   size="sm"
-                  className="w-full rounded-full uppercase tracking-wide gap-2"
+                  className="w-full rounded-full flex justify-between items-center bg-black hover:bg-black/90 text-white hover:text-white border-0"
                   onClick={() => setShowSignOutDialog(true)}
                 >
-                  <LogOut className="h-4 w-4" />
-                  Sign Out
+                  <span>Sign out</span>
+                  <ArrowUpRight className="h-4 w-4" />
                 </Button>
               </div>
             </nav>

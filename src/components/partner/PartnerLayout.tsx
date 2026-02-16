@@ -1,7 +1,7 @@
 import { useNavigate, NavLink, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { ChevronLeft, UserCircle2, LayoutDashboard, Users, DollarSign, User } from "lucide-react";
+import { ChevronLeft, UserCircle2, LayoutDashboard, Users, DollarSign, User, ArrowUpRight } from "lucide-react";
 import clsx from "clsx";
 import { useState } from "react";
 import { usePartner } from "@/hooks/usePartner";
@@ -144,10 +144,11 @@ const PartnerLayout = ({
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full rounded-full uppercase tracking-wide mt-2"
+                className="w-full rounded-full flex justify-between items-center bg-black hover:bg-black/90 text-white hover:text-white border-0 mt-2"
                 onClick={() => setShowSignOutDialog(true)}
               >
-                Sign Out
+                <span>Sign out</span>
+                <ArrowUpRight className="h-4 w-4" />
               </Button>
             </div>
           </aside>
@@ -212,10 +213,11 @@ const PartnerLayout = ({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="w-full rounded-full uppercase tracking-wide mt-4"
+                    className="w-full rounded-full flex justify-between items-center bg-black hover:bg-black/90 text-white hover:text-white border-0 mt-4"
                     onClick={() => setShowSignOutDialog(true)}
                   >
-                    Sign Out
+                    <span>Sign out</span>
+                    <ArrowUpRight className="h-4 w-4" />
                   </Button>
                 </nav>
               )}
@@ -262,10 +264,11 @@ const PartnerLayout = ({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="rounded-full uppercase tracking-wide"
+                  className="rounded-full flex justify-between items-center gap-2 bg-black hover:bg-black/90 text-white hover:text-white border-0"
                   onClick={() => setShowSignOutDialog(true)}
                 >
-                  Sign Out
+                  <span>Sign out</span>
+                  <ArrowUpRight className="h-4 w-4" />
                 </Button>
               </div>
             </div>

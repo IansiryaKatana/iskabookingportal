@@ -245,86 +245,114 @@ export function CreateCustomContractSheet({
     });
   };
 
-  const handleSubmit = form.handleSubmit(async (values) => {
-    const weeks = values.contract_weeks;
-    const extraDays = Math.min(6, Math.max(0, Number(values.contract_extra_days) || 0));
-    let paymentPlanIds: string[] = [];
-    let paymentPlanOrders: number[] = [];
+  const handleSubmit = form.handleSubmit(
+    async (values) => {
+      const weeks = values.contract_weeks;
+      const extraDays = Math.min(6, Math.max(0, Number(values.contract_extra_days) || 0));
+      let paymentPlanIds: string[] = [];
+      let paymentPlanOrders: number[] = [];
 
-    if (planSource === "new" && generatedInstallments.length > 0) {
-      try {
-        const plan = await createPaymentPlan.mutateAsync({
-          academic_year_id: values.academic_year_id,
-          name: newPlanName.trim() || `${values.name} – ${numInstallments} inst`,
-          description: null,
-          deposit_amount: values.deposit_override != null ? Number(values.deposit_override) : null,
-          is_active: true,
-          installments: generatedInstallments.map((inst) => ({
-            label: inst.label,
-            due_date_offset_days: inst.due_date_offset_days,
-            due_date: null,
-            amount_type: inst.amount_type,
-            amount_value: inst.amount_value,
-          })),
+      if (planSource === "new" && generatedInstallments.length > 0) {
+        try {
+          const plan = await createPaymentPlan.mutateAsync({
+            academic_year_id: values.academic_year_id,
+            name: newPlanName.trim() || `${values.name} – ${numInstallments} inst`,
+            description: null,
+            deposit_amount: values.deposit_override != null ? Number(values.deposit_override) : null,
+            is_active: true,
+            installments: generatedInstallments.map((inst) => ({
+              label: inst.label,
+              due_date_offset_days: inst.due_date_offset_days,
+              due_date: null,
+              amount_type: inst.amount_type,
+              amount_value: inst.amount_value,
+            })),
+          });
+          paymentPlanIds = [plan.id];
+          paymentPlanOrders = [1];
+          queryClient.invalidateQueries({ queryKey: ["admin-payment-plans"] });
+        } catch (err) {
+          console.error(err);
+          toast({
+            variant: "destructive",
+            title: "Could not create payment plan",
+            description: "Check instalment details and try again.",
+          });
+          return;
+        }
+      } else {
+        const ordered = Object.entries(selectedPlans)
+          .filter(([, v]) => v.selected)
+          .sort((a, b) => (a[1].order ?? 0) - (b[1].order ?? 0));
+        paymentPlanIds = ordered.map(([id]) => id);
+        paymentPlanOrders = ordered.map(([, v]) => v.order);
+      }
+
+      if (paymentPlanIds.length === 0) {
+        toast({
+          variant: "destructive",
+          title: "Select or create a payment plan",
+          description: "Use existing plans or generate a new one.",
         });
-        paymentPlanIds = [plan.id];
-        paymentPlanOrders = [1];
-        queryClient.invalidateQueries({ queryKey: ["admin-payment-plans"] });
+        return;
+      }
+
+      try {
+        const contract = await createContract.mutateAsync({
+          academic_year_id: values.academic_year_id,
+          studio_grade_id: values.studio_grade_id,
+          name: values.name,
+          contract_start: values.contract_start,
+          contract_end: values.contract_end,
+          weeks,
+          extra_days: extraDays,
+          weekly_price_override: values.weekly_price_override,
+          deposit_override: values.deposit_override,
+          display_order: values.display_order,
+          visible_on_portal: false,
+          is_active: true,
+          payment_plan_ids: paymentPlanIds,
+          payment_plan_orders: paymentPlanOrders,
+        });
+        toast({ title: "Custom contract created" });
+        onSuccess(contract.id);
+        onOpenChange(false);
       } catch (err) {
         console.error(err);
         toast({
           variant: "destructive",
-          title: "Could not create payment plan",
-          description: "Check instalment details and try again.",
+          title: "Could not create contract",
+          description: "Check dates and pricing, then try again.",
         });
-        return;
       }
-    } else {
-      const ordered = Object.entries(selectedPlans)
-        .filter(([, v]) => v.selected)
-        .sort((a, b) => (a[1].order ?? 0) - (b[1].order ?? 0));
-      paymentPlanIds = ordered.map(([id]) => id);
-      paymentPlanOrders = ordered.map(([, v]) => v.order);
-    }
-
-    if (paymentPlanIds.length === 0) {
+    },
+    (errors) => {
+      const firstMessage = Object.values(errors)[0]?.message;
       toast({
         variant: "destructive",
-        title: "Select or create a payment plan",
-        description: "Use existing plans or generate a new one.",
+        title: "Please fix the form",
+        description: typeof firstMessage === "string" ? firstMessage : "Complete all steps and check required fields (Step 1: details, Step 2: price & deposit, Step 3: payment plan).",
       });
-      return;
+      setCurrentStep(1);
+      const firstErrorField = Object.keys(errors)[0] as keyof FormValues | undefined;
+      if (firstErrorField) {
+        const stepForField: Record<string, number> = {
+          academic_year_id: 1,
+          studio_grade_id: 1,
+          name: 1,
+          contract_weeks: 1,
+          contract_extra_days: 1,
+          contract_start: 1,
+          contract_end: 1,
+          weekly_price_override: 2,
+          deposit_override: 2,
+          display_order: 1,
+        };
+        const step = stepForField[firstErrorField];
+        if (step) setCurrentStep(step);
+      }
     }
-
-    try {
-      const contract = await createContract.mutateAsync({
-        academic_year_id: values.academic_year_id,
-        studio_grade_id: values.studio_grade_id,
-        name: values.name,
-        contract_start: values.contract_start,
-        contract_end: values.contract_end,
-        weeks,
-        extra_days: extraDays,
-        weekly_price_override: values.weekly_price_override,
-        deposit_override: values.deposit_override,
-        display_order: values.display_order,
-        visible_on_portal: false,
-        is_active: true,
-        payment_plan_ids: paymentPlanIds,
-        payment_plan_orders: paymentPlanOrders,
-      });
-      toast({ title: "Custom contract created" });
-      onSuccess(contract.id);
-      onOpenChange(false);
-    } catch (err) {
-      console.error(err);
-      toast({
-        variant: "destructive",
-        title: "Could not create contract",
-        description: "Check dates and pricing, then try again.",
-      });
-    }
-  });
+  );
 
   const handlePlanToggle = (planId: string, checked: boolean) => {
     setSelectedPlans((prev) => {
@@ -808,27 +836,47 @@ export function CreateCustomContractSheet({
           Cancel
         </Button>
         {currentStep === TOTAL_STEPS && (
-          <Button
-            type="button"
-            className="rounded-full"
-            onClick={handleSubmit}
-            disabled={
-              createContract.isPending ||
-              createPaymentPlan.isPending ||
-              (planSource === "new"
-                ? generatedInstallments.length < 1
-                : !Object.entries(selectedPlans).some(([, v]) => v.selected))
-            }
-          >
-            {(createContract.isPending || createPaymentPlan.isPending) ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Creating…
-              </>
-            ) : (
-              "Create & use contract"
+          <div className="flex flex-col items-end gap-1">
+            <Button
+              type="button"
+              className="rounded-full"
+              onClick={handleSubmit}
+              disabled={
+                createContract.isPending ||
+                createPaymentPlan.isPending ||
+                (planSource === "new"
+                  ? generatedInstallments.length < 1
+                  : !Object.entries(selectedPlans).some(([, v]) => v.selected))
+              }
+              title={
+                createContract.isPending || createPaymentPlan.isPending
+                  ? "Creating…"
+                  : planSource === "new"
+                    ? generatedInstallments.length < 1
+                      ? "Generate or add at least one instalment in Step 3"
+                      : undefined
+                    : !Object.entries(selectedPlans).some(([, v]) => v.selected)
+                      ? "Select at least one payment plan in Step 3"
+                      : undefined
+              }
+            >
+              {(createContract.isPending || createPaymentPlan.isPending) ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating…
+                </>
+              ) : (
+                "Create & use contract"
+              )}
+            </Button>
+            {!createContract.isPending && !createPaymentPlan.isPending && (
+              planSource === "new" && generatedInstallments.length < 1 ? (
+                <p className="text-xs text-muted-foreground">Generate instalments above to enable</p>
+              ) : planSource === "existing" && !Object.entries(selectedPlans).some(([, v]) => v.selected) ? (
+                <p className="text-xs text-muted-foreground">Select at least one payment plan to enable</p>
+              ) : null
             )}
-          </Button>
+          </div>
         )}
       </div>
     </div>

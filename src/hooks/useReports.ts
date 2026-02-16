@@ -921,12 +921,12 @@ const fetchMoveOutsReport = async (
       student_id,
       status,
       contract_end,
-      contract:contracts(
+      contract:contracts!contract_id(
         name,
         academic_year_id,
-        academic_year:academic_years(name)
+        academic_year:academic_years!academic_year_id(name)
       ),
-      assigned_studio:studios(studio_number)
+      assigned_studio:studios!assigned_studio_id(studio_number)
     `,
     )
     .eq("status", "confirmed")
