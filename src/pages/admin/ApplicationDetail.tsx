@@ -25,6 +25,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import ManualPaymentDialog from "@/components/admin/ManualPaymentDialog";
+import { usePaymentSummary } from "@/hooks/useUnifiedPayments";
 import { useCreateNotification } from "@/hooks/useNotifications";
 import { useApplicationCashback, useActiveCashbackCampaigns, useApplyCashback } from "@/hooks/useCashback";
 import { useApplicationDiscount, useActiveDiscountCampaigns, useApplyDiscount, useRemoveDiscount } from "@/hooks/useDiscount";
@@ -35,6 +36,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
 import { BOOKING_SOURCE_OPTIONS } from "@/constants/bookingSources";
+import { Progress } from "@/components/ui/progress";
 
 const getStatusBadge = (status: string) => {
   const statusConfig: Record<string, { className: string; label: string }> = {
@@ -118,6 +120,7 @@ const ApplicationDetail = () => {
   const { data: partnerReferral } = useApplicationPartnerReferral(applicationId);
   const { data: partners } = usePartners(true);
   const createPartnerReferral = useCreatePartnerReferral();
+  const { data: paymentSummary } = usePaymentSummary(applicationId);
 
   // Fetch available studios for reassignment
   const { data: studios } = useAdminStudios({
@@ -1298,6 +1301,46 @@ const ApplicationDetail = () => {
                 )}
               </div>
 
+              {/* Installment progress – only when schedule exists and total_due > 0 */}
+              {paymentSummary && paymentSummary.total_due > 0 && (
+                <div className="space-y-2 pt-2 border-t">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs sm:text-sm text-muted-foreground">Installment progress</span>
+                    <Badge
+                      variant="outline"
+                      className={
+                        paymentSummary.payment_status === "fully_paid"
+                          ? "border-green-600 text-green-700 bg-green-50"
+                          : paymentSummary.payment_status === "partially_paid"
+                            ? "border-amber-600 text-amber-700 bg-amber-50"
+                            : "text-muted-foreground"
+                      }
+                    >
+                      {paymentSummary.payment_status === "fully_paid"
+                        ? "Fully paid"
+                        : paymentSummary.payment_status === "partially_paid"
+                          ? "Partially paid"
+                          : "Unpaid"}
+                    </Badge>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Progress
+                      value={Math.min(100, (Number(paymentSummary.total_paid) / Number(paymentSummary.total_due)) * 100)}
+                      className="h-2"
+                    />
+                    <p className="text-xs sm:text-sm font-medium">
+                      {formatCurrency(Number(paymentSummary.total_paid))} of {formatCurrency(Number(paymentSummary.total_due))} paid
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Remaining: {formatCurrency(Number(paymentSummary.remaining_balance))}
+                    </p>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground italic">
+                      Deposit recorded separately.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <Button
                 variant="outline"
                 className="w-full rounded-full uppercase tracking-wide gap-2 mt-4"
@@ -1390,29 +1433,29 @@ const ApplicationDetail = () => {
             <div className="flex flex-col sm:flex-row flex-wrap gap-3">
               <Button
                 variant="outline"
-                className="rounded-full uppercase tracking-wide gap-2 text-xs sm:text-sm w-full sm:w-auto"
+                className="rounded-full tracking-wide gap-2 text-xs sm:text-sm w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-white hover:text-white border-0"
                 onClick={() => handleSendNotification("Deposit Reminder", "Please complete your deposit payment to proceed with your application.")}
               >
                 <Send className="h-4 w-4" />
-                <span className="hidden sm:inline">Send Deposit Reminder</span>
-                <span className="sm:hidden">Deposit Reminder</span>
+                <span className="hidden sm:inline">Send deposit reminder</span>
+                <span className="sm:hidden">Deposit reminder</span>
               </Button>
               <Button
                 variant="outline"
-                className="rounded-full uppercase tracking-wide gap-2 text-xs sm:text-sm w-full sm:w-auto"
+                className="rounded-full tracking-wide gap-2 text-xs sm:text-sm w-full sm:w-auto bg-blue-500 hover:bg-blue-600 text-white hover:text-white border-0"
                 onClick={() => handleSendNotification("Signature Reminder", "Please complete signing your tenancy agreement.")}
               >
                 <Send className="h-4 w-4" />
-                <span className="hidden sm:inline">Send Signature Reminder</span>
-                <span className="sm:hidden">Signature Reminder</span>
+                <span className="hidden sm:inline">Send signature reminder</span>
+                <span className="sm:hidden">Signature reminder</span>
               </Button>
               <Button
                 variant="outline"
-                className="rounded-full uppercase tracking-wide gap-2 text-xs sm:text-sm w-full sm:w-auto"
+                className="rounded-full tracking-wide gap-2 text-xs sm:text-sm w-full sm:w-auto bg-green-500 hover:bg-green-600 text-white hover:text-white border-0"
                 onClick={() => handleSendNotification("Application Confirmed", "Your application has been confirmed! Welcome to Urban Hub.")}
               >
                 <Send className="h-4 w-4" />
-                <span className="hidden sm:inline">Send Confirmation</span>
+                <span className="hidden sm:inline">Send confirmation</span>
                 <span className="sm:hidden">Confirmation</span>
               </Button>
             </div>

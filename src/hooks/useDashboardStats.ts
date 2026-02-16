@@ -58,10 +58,10 @@ const normalizeRow = (row?: RpcRow | null): DashboardStats => {
 
 const fetchDashboardStats = async (academicYearId?: string): Promise<DashboardStats> => {
   try {
-    // Only pass p_academic_year_id when set. Omitting it lets the DB use DEFAULT NULL; passing null can cause 400.
+    // Always pass p_academic_year_id explicitly; passing {} can cause 400 (PostgREST schema mismatch).
     const { data, error } = await supabase.rpc(
       "get_admin_dashboard_stats",
-      academicYearId ? { p_academic_year_id: academicYearId } : {}
+      { p_academic_year_id: academicYearId || null }
     );
 
     if (error) {

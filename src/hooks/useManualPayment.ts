@@ -137,6 +137,7 @@ export const useCreateManualPayment = () => {
       queryClient.invalidateQueries({ queryKey: ["student-application"] });
       if (variables.applicationId) {
         queryClient.invalidateQueries({ queryKey: ["application-has-deposit", variables.applicationId] });
+        queryClient.invalidateQueries({ queryKey: ["payment-summary", variables.applicationId] });
       }
       queryClient.invalidateQueries({ queryKey: ["orphaned-payments"] });
       queryClient.invalidateQueries({ queryKey: ["verify-payment"] });

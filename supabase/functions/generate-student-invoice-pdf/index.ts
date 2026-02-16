@@ -186,7 +186,7 @@ serve(async (req) => {
 
     // Extract branding values with fallbacks
     const companyName = branding.company_name || "Urban Hub";
-    const contactEmail = branding.contact_email || "info@urbanhub.uk";
+    const contactEmail = branding.contact_email || "Accounts@unitylivin.com";
     const contactPhone = branding.contact_phone || "";
     const companyAddress = branding.company_address || "";
 
@@ -428,10 +428,10 @@ serve(async (req) => {
     }
     yPosition -= 20;
 
-    // Invoice title and number (right-aligned)
-    const invoiceTitle = "INVOICE";
-    const titleWidth = helveticaBold.widthOfTextAtSize(invoiceTitle, 28);
-    page.drawText(invoiceTitle, {
+    // Receipt title and reference (right-aligned) — student download is post-payment
+    const docTitle = "RECEIPT";
+    const titleWidth = helveticaBold.widthOfTextAtSize(docTitle, 28);
+    page.drawText(docTitle, {
       x: width - 50 - titleWidth,
       y: yPosition + 20,
       size: 28,
@@ -439,10 +439,11 @@ serve(async (req) => {
       color: rgb(primaryColor.r, primaryColor.g, primaryColor.b),
     });
 
-    const invoiceNumText = `Invoice #: ${invoiceNumber}`;
-    const invoiceNumWidth = helveticaBold.widthOfTextAtSize(invoiceNumText, 12);
-    page.drawText(invoiceNumText, {
-      x: width - 50 - invoiceNumWidth,
+    const receiptRef = (invoiceNumber || "").replace(/^INV-/, "RCP-");
+    const refText = `Receipt #: ${receiptRef}`;
+    const refWidth = helveticaBold.widthOfTextAtSize(refText, 12);
+    page.drawText(refText, {
+      x: width - 50 - refWidth,
       y: yPosition - 10,
       size: 12,
       font: helveticaBold,
@@ -874,7 +875,7 @@ serve(async (req) => {
       JSON.stringify({
         pdf: base64,
         invoiceNumber: invoiceNumber,
-        filename: `Invoice-${invoiceNumber}-${studentName.replace(/\s+/g, "-")}.pdf`,
+        filename: `Receipt-${(invoiceNumber || "").replace(/^INV-/, "RCP-")}-${studentName.replace(/\s+/g, "-")}.pdf`,
       }),
       {
         status: 200,

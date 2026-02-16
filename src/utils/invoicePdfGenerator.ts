@@ -14,6 +14,8 @@ type InvoiceData = {
     postcode?: string;
   } | null;
   invoiceNumber: string;
+  /** When true, document is presented as a Receipt (post-payment); when false, as Invoice */
+  asReceipt?: boolean;
   branding?: {
     companyName?: string;
     contactPhone?: string;
@@ -34,11 +36,16 @@ export const generateInvoicePDF = async (data: InvoiceData): Promise<void> => {
   const contentWidth = pageWidth - 2 * margin;
   let yPos = margin;
 
-  const { payment, studentName, studentEmail, studentPhone, studentAddress, invoiceNumber, branding } = data;
+  const { payment, studentName, studentEmail, studentPhone, studentAddress, invoiceNumber, asReceipt = false, branding } = data;
+
+  const docTitle = asReceipt ? "RECEIPT" : "INVOICE";
+  const refLabel = asReceipt ? "Receipt/Ref:" : "Invoice Number:";
+  const footerHelp = asReceipt ? "this receipt" : "this invoice";
+  const fileNamePrefix = asReceipt ? "receipt" : "invoice";
 
   const companyName = branding?.companyName || "StudentStaySolutions";
   const contactPhone = branding?.contactPhone || "+44 123 456 7890";
-  const contactEmail = branding?.contactEmail || "info@urbanhub.uk";
+  const contactEmail = branding?.contactEmail || "Accounts@unitylivin.com";
   const contactAddress1 = branding?.contactAddress1 || "123 Student Street";
   const contactAddress2 = branding?.contactAddress2 || "City Centre";
   const contactAddress3 = branding?.contactAddress3 || "Preston, PR1 1AA";
@@ -57,18 +64,20 @@ export const generateInvoicePDF = async (data: InvoiceData): Promise<void> => {
   doc.setFontSize(24);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(220, 38, 38); // Primary red color
-  doc.text("INVOICE", pageWidth - margin, yPos, { align: "right" });
+  doc.text(docTitle, pageWidth - margin, yPos, { align: "right" });
   yPos += 10;
 
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
   doc.setFont("helvetica", "normal");
-  doc.text(`Invoice Number: ${invoiceNumber}`, pageWidth - margin, yPos, { align: "right" });
+  doc.text(`${refLabel} ${invoiceNumber}`, pageWidth - margin, yPos, { align: "right" });
   yPos += 5;
   doc.text(`Date: ${format(new Date(payment.payment_date), "dd MMM yyyy")}`, pageWidth - margin, yPos, { align: "right" });
   yPos += 15;
 
-  // Company Info (Left)
+  const lineHeight = 5;
+
+  // ——— From section (full width, left-aligned) ———
   doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
   doc.text("From:", margin, yPos);
@@ -78,67 +87,42 @@ export const generateInvoicePDF = async (data: InvoiceData): Promise<void> => {
   yPos += 7;
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  doc.text(contactAddress1, margin, yPos);
-  yPos += 5;
-  if (contactAddress2) {
-    doc.text(contactAddress2, margin, yPos);
-    yPos += 5;
+  const fromLines: string[] = [contactAddress1];
+  if (contactAddress2) fromLines.push(contactAddress2);
+  if (contactAddress3) fromLines.push(contactAddress3);
+  fromLines.push(`Phone: ${contactPhone}`, `Email: ${contactEmail}`);
+  if (vatNumber) fromLines.push(`VAT Number: ${vatNumber}`);
+  if (companyNumber) fromLines.push(`Company Number: ${companyNumber}`);
+  for (const line of fromLines) {
+    const wrapped = doc.splitTextToSize(line, contentWidth);
+    doc.text(wrapped, margin, yPos);
+    yPos += wrapped.length * lineHeight;
   }
-  if (contactAddress3) {
-    doc.text(contactAddress3, margin, yPos);
-    yPos += 5;
-  }
-  doc.text(`Phone: ${contactPhone}`, margin, yPos);
-  yPos += 5;
-  doc.text(`Email: ${contactEmail}`, margin, yPos);
-  yPos += 5;
-  if (vatNumber) {
-    doc.text(`VAT Number: ${vatNumber}`, margin, yPos);
-    yPos += 5;
-  }
-  if (companyNumber) {
-    doc.text(`Company Number: ${companyNumber}`, margin, yPos);
-    yPos += 5;
-  }
+  yPos += 10;
 
-  // Student Info (Right)
-  const studentX = pageWidth / 2 + 10;
-  yPos = margin + 20;
+  // ——— Bill To section (full width, left-aligned) ———
   doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
-  doc.text("Bill To:", studentX, yPos);
+  doc.text("Bill To:", margin, yPos);
   yPos += 7;
   doc.setFontSize(11);
   doc.setFont("helvetica", "normal");
-  doc.text(studentName, studentX, yPos);
-  yPos += 5;
-  doc.setFontSize(10);
-  doc.text(studentEmail, studentX, yPos);
-  yPos += 5;
-  if (studentPhone) {
-    doc.text(`Phone: ${studentPhone}`, studentX, yPos);
-    yPos += 5;
-  }
+  const billToLines: string[] = [studentName, studentEmail];
+  if (studentPhone) billToLines.push(`Phone: ${studentPhone}`);
   if (studentAddress) {
-    if (studentAddress.line1) {
-      doc.text(studentAddress.line1, studentX, yPos);
-      yPos += 5;
-    }
-    if (studentAddress.line2) {
-      doc.text(studentAddress.line2, studentX, yPos);
-      yPos += 5;
-    }
-    if (studentAddress.city) {
-      doc.text(studentAddress.city, studentX, yPos);
-      yPos += 5;
-    }
-    if (studentAddress.postcode) {
-      doc.text(studentAddress.postcode, studentX, yPos);
-    }
+    if (studentAddress.line1) billToLines.push(studentAddress.line1);
+    if (studentAddress.line2) billToLines.push(studentAddress.line2);
+    if (studentAddress.city) billToLines.push(studentAddress.city);
+    if (studentAddress.postcode) billToLines.push(studentAddress.postcode);
   }
+  for (const line of billToLines) {
+    const wrapped = doc.splitTextToSize(line, contentWidth);
+    doc.text(wrapped, margin, yPos);
+    yPos += wrapped.length * lineHeight;
+  }
+  yPos += 15;
 
-  // Payment Details Table
-  yPos = Math.max(yPos, margin + 80) + 20;
+  // ——— Payment Details ———
   doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
   doc.text("Payment Details", margin, yPos);
@@ -223,7 +207,7 @@ export const generateInvoicePDF = async (data: InvoiceData): Promise<void> => {
   doc.text("Thank you for your payment!", pageWidth / 2, yPos, { align: "center" });
   yPos += 5;
   doc.text(
-    `If you have any questions about this invoice, please contact us at ${contactEmail} or ${contactPhone}`,
+    `If you have any questions about ${footerHelp}, please contact us at ${contactEmail} or ${contactPhone}`,
     pageWidth / 2,
     yPos,
     { align: "center", maxWidth: contentWidth }
@@ -240,7 +224,7 @@ export const generateInvoicePDF = async (data: InvoiceData): Promise<void> => {
   }
 
   // Save PDF
-  const fileName = `invoice-${invoiceNumber}-${format(new Date(), "yyyy-MM-dd")}.pdf`;
+  const fileName = `${fileNamePrefix}-${invoiceNumber}-${format(new Date(), "yyyy-MM-dd")}.pdf`;
   doc.save(fileName);
 };
 

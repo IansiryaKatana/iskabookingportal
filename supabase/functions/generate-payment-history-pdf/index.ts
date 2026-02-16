@@ -102,7 +102,7 @@ serve(async (req) => {
 
     // Extract branding values with fallbacks
     const companyName = branding.company_name || branding["company_name"] || "Urban Hub";
-    const contactEmail = branding.contact_email || "info@urbanhub.uk";
+    const contactEmail = branding.contact_email || "Accounts@unitylivin.com";
     const contactPhone = branding.contact_phone || "";
 
     // Branding colors with fallbacks
@@ -521,8 +521,9 @@ serve(async (req) => {
       font: helveticaBold,
       color: rgb(foregroundColor.r, foregroundColor.g, foregroundColor.b),
     });
+    const amountHeaderWidth = helveticaBold.widthOfTextAtSize("Amount", 10);
     page.drawText("Amount", {
-      x: 450,
+      x: width - 50 - amountHeaderWidth,
       y: tableY,
       size: 10,
       font: helveticaBold,
@@ -599,8 +600,10 @@ serve(async (req) => {
           color: rgb(foregroundColor.r, foregroundColor.g, foregroundColor.b),
         });
 
-        currentPage.drawText(`£${Number(amount).toFixed(2)}`, {
-          x: 450,
+        const amountText = `£${Number(amount).toFixed(2)}`;
+        const amountTextWidth = helvetica.widthOfTextAtSize(amountText, 9);
+        currentPage.drawText(amountText, {
+          x: width - 50 - amountTextWidth,
           y: yPosition,
           size: 9,
           font: helvetica,

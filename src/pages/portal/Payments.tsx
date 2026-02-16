@@ -1213,13 +1213,13 @@ type PaymentListProps = {
 };
 
 const PaymentList = ({ payments }: PaymentListProps) => {
-  const [downloadingInvoice, setDownloadingInvoice] = useState<string | null>(null);
+  const [downloadingReceipt, setDownloadingReceipt] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const handleDownloadInvoice = async (payment: PaymentListProps["payments"][0]) => {
-    if (downloadingInvoice) return;
+  const handleDownloadReceipt = async (payment: PaymentListProps["payments"][0]) => {
+    if (downloadingReceipt) return;
 
-    setDownloadingInvoice(payment.payment_id);
+    setDownloadingReceipt(payment.payment_id);
     try {
       const { data, error } = await supabase.functions.invoke("generate-student-invoice-pdf", {
         body: {
@@ -1229,10 +1229,10 @@ const PaymentList = ({ payments }: PaymentListProps) => {
       });
 
       if (error) {
-        console.error("Error generating invoice:", error);
+        console.error("Error generating receipt:", error);
         toast({
           title: "Error",
-          description: "Failed to generate invoice. Please try again.",
+          description: "Failed to generate receipt. Please try again.",
           variant: "destructive",
         });
         return;
@@ -1249,26 +1249,26 @@ const PaymentList = ({ payments }: PaymentListProps) => {
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-        link.download = data.filename || `Invoice-${payment.payment_id}.pdf`;
+        link.download = data.filename || `Receipt-${payment.payment_id}.pdf`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
 
         toast({
-          title: "Invoice Downloaded",
-          description: "Your invoice has been downloaded successfully.",
+          title: "Receipt Downloaded",
+          description: "Your receipt has been downloaded successfully.",
         });
       }
     } catch (error) {
-      console.error("Error downloading invoice:", error);
+      console.error("Error downloading receipt:", error);
       toast({
         title: "Error",
-        description: "Failed to download invoice. Please try again.",
+        description: "Failed to download receipt. Please try again.",
         variant: "destructive",
       });
     } finally {
-      setDownloadingInvoice(null);
+      setDownloadingReceipt(null);
     }
   };
 
@@ -1276,7 +1276,7 @@ const PaymentList = ({ payments }: PaymentListProps) => {
     <div className="space-y-3">
       {payments.map((payment) => {
         const isPaid = payment.payment_status === "completed" || payment.payment_status === "succeeded";
-        const isDownloading = downloadingInvoice === payment.payment_id;
+        const isDownloading = downloadingReceipt === payment.payment_id;
 
         return (
           <div
@@ -1336,9 +1336,9 @@ const PaymentList = ({ payments }: PaymentListProps) => {
                   variant="outline"
                   size="sm"
                   className="rounded-full"
-                  onClick={() => handleDownloadInvoice(payment)}
+                  onClick={() => handleDownloadReceipt(payment)}
                   disabled={isDownloading}
-                  title="Download Invoice"
+                  title="Download Receipt"
                 >
                   {isDownloading ? (
                     <>
@@ -1348,7 +1348,7 @@ const PaymentList = ({ payments }: PaymentListProps) => {
                   ) : (
                     <>
                       <FileDown className="h-4 w-4 mr-2" />
-                      Invoice
+                      Receipt
                     </>
                   )}
                 </Button>

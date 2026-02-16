@@ -96,19 +96,41 @@ export const useCreateNotification = () => {
       type?: "info" | "success" | "warning" | "error";
       link?: string;
     }) => {
+      const typeValue = payload.type || "info";
+      // Try current schema first (type, link)
       const { data, error } = await supabase
         .from("notifications")
         .insert({
           user_id: payload.user_id,
           title: payload.title,
           message: payload.message,
-          type: payload.type || "info",
-          link: payload.link || null,
+          type: typeValue,
+          link: payload.link ?? null,
         })
         .select("*")
         .single();
 
-      if (error) throw error;
+      if (error) {
+        // 400 often means schema mismatch (e.g. table has notification_type not type). Retry with legacy schema.
+        const isBadRequest =
+          String(error.code) === "400" ||
+          (error.message && /column|unknown|does not exist/i.test(error.message));
+        if (isBadRequest) {
+          const legacy = await supabase
+            .from("notifications")
+            .insert({
+              user_id: payload.user_id,
+              title: payload.title,
+              message: payload.message,
+              notification_type: typeValue,
+            })
+            .select("*")
+            .single();
+          if (legacy.error) throw legacy.error;
+          return legacy.data;
+        }
+        throw error;
+      }
       return data;
     },
     onSuccess: () => {

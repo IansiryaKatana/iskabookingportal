@@ -26,7 +26,7 @@ const PaymentHistory = () => {
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
   const [selectedPayments, setSelectedPayments] = useState<Set<string>>(new Set());
-  const [isGeneratingInvoices, setIsGeneratingInvoices] = useState(false);
+  const [isGeneratingReceipts, setIsGeneratingReceipts] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<{ synced: number; errors?: Array<{ paymentIntentId: string; error: string }> } | null>(null);
 
@@ -173,11 +173,11 @@ const PaymentHistory = () => {
     };
   };
 
-  const handleDownloadInvoice = async (payment: UnifiedPayment) => {
+  const handleDownloadReceipt = async (payment: UnifiedPayment) => {
     try {
       const studentInfo = await fetchStudentInfo(payment.student_id, payment.student_application_id);
 
-      const invoiceNumber = `INV-${payment.payment_id.slice(0, 8).toUpperCase()}-${format(new Date(payment.payment_date), "yyyyMMdd")}`;
+      const receiptRef = `RCP-${payment.payment_id.slice(0, 8).toUpperCase()}-${format(new Date(payment.payment_date), "yyyyMMdd")}`;
 
       await generateInvoicePDF({
         payment,
@@ -185,7 +185,8 @@ const PaymentHistory = () => {
         studentEmail: studentInfo.email,
         studentPhone: studentInfo.phone,
         studentAddress: studentInfo.address,
-        invoiceNumber,
+        invoiceNumber: receiptRef,
+        asReceipt: true,
         branding: {
           companyName: branding?.company_name,
           contactPhone: branding?.contact_phone,
@@ -199,30 +200,30 @@ const PaymentHistory = () => {
       });
 
       toast({
-        title: "Invoice downloaded",
-        description: "Invoice PDF has been generated and downloaded.",
+        title: "Receipt downloaded",
+        description: "Receipt PDF has been generated and downloaded.",
       });
     } catch (error) {
-      console.error("Error generating invoice:", error);
+      console.error("Error generating receipt:", error);
       toast({
         title: "Error",
-        description: "Failed to generate invoice. Please try again.",
+        description: "Failed to generate receipt. Please try again.",
         variant: "destructive",
       });
     }
   };
 
-  const handleBulkDownloadInvoices = async () => {
+  const handleBulkDownloadReceipts = async () => {
     if (selectedPayments.size === 0) {
       toast({
-        title: "No invoices selected",
-        description: "Please select at least one payment to download invoices.",
+        title: "No receipts selected",
+        description: "Please select at least one payment to download receipts.",
         variant: "destructive",
       });
       return;
     }
 
-    setIsGeneratingInvoices(true);
+    setIsGeneratingReceipts(true);
     try {
       const selectedPaymentList = payments?.filter((p) =>
         selectedPayments.has(`${p.payment_source}-${p.payment_id}`)
@@ -232,7 +233,7 @@ const PaymentHistory = () => {
         try {
           const studentInfo = await fetchStudentInfo(payment.student_id, payment.student_application_id);
 
-          const invoiceNumber = `INV-${payment.payment_id.slice(0, 8).toUpperCase()}-${format(new Date(payment.payment_date), "yyyyMMdd")}`;
+          const receiptRef = `RCP-${payment.payment_id.slice(0, 8).toUpperCase()}-${format(new Date(payment.payment_date), "yyyyMMdd")}`;
 
           await generateInvoicePDF({
             payment,
@@ -240,7 +241,8 @@ const PaymentHistory = () => {
             studentEmail: studentInfo.email,
             studentPhone: studentInfo.phone,
             studentAddress: studentInfo.address,
-            invoiceNumber,
+            invoiceNumber: receiptRef,
+            asReceipt: true,
             branding: {
               companyName: branding?.company_name,
               contactPhone: branding?.contact_phone,
@@ -256,25 +258,25 @@ const PaymentHistory = () => {
           // Small delay between downloads to prevent browser blocking
           await new Promise((resolve) => setTimeout(resolve, 500));
         } catch (error) {
-          console.error(`Error generating invoice for payment ${payment.payment_id}:`, error);
-          // Continue with next invoice even if one fails
+          console.error(`Error generating receipt for payment ${payment.payment_id}:`, error);
+          // Continue with next receipt even if one fails
         }
       }
 
       toast({
-        title: "Invoices downloaded",
-        description: `Successfully downloaded ${selectedPaymentList.length} invoice(s).`,
+        title: "Receipts downloaded",
+        description: `Successfully downloaded ${selectedPaymentList.length} receipt(s).`,
       });
       setSelectedPayments(new Set());
     } catch (error) {
-      console.error("Error generating invoices:", error);
+      console.error("Error generating receipts:", error);
       toast({
         title: "Error",
-        description: "Failed to generate some invoices. Please try again.",
+        description: "Failed to generate some receipts. Please try again.",
         variant: "destructive",
       });
     } finally {
-      setIsGeneratingInvoices(false);
+      setIsGeneratingReceipts(false);
     }
   };
 
@@ -569,13 +571,13 @@ const PaymentHistory = () => {
                   <>
                     {selectedPayments.size > 0 && (
                       <Button
-                        onClick={handleBulkDownloadInvoices}
-                        disabled={isGeneratingInvoices}
+                        onClick={handleBulkDownloadReceipts}
+                        disabled={isGeneratingReceipts}
                         variant="outline"
                         className="rounded-full uppercase tracking-wide gap-2"
                       >
                         <Download className="h-4 w-4" />
-                        Download {selectedPayments.size} Invoice{selectedPayments.size !== 1 ? "s" : ""}
+                        Download {selectedPayments.size} Receipt{selectedPayments.size !== 1 ? "s" : ""}
                       </Button>
                     )}
                     <Button
@@ -654,7 +656,7 @@ const PaymentHistory = () => {
                     payments={allPayments} 
                     selectedPayments={selectedPayments}
                     togglePaymentSelection={togglePaymentSelection}
-                    handleDownloadInvoice={handleDownloadInvoice}
+                    handleDownloadReceipt={handleDownloadReceipt}
                   />
                 </TabsContent>
                 
@@ -668,7 +670,7 @@ const PaymentHistory = () => {
                       payments={deposits} 
                       selectedPayments={selectedPayments}
                       togglePaymentSelection={togglePaymentSelection}
-                      handleDownloadInvoice={handleDownloadInvoice}
+                      handleDownloadReceipt={handleDownloadReceipt}
                     />
                   )}
                 </TabsContent>
@@ -683,7 +685,7 @@ const PaymentHistory = () => {
                       payments={installments} 
                       selectedPayments={selectedPayments}
                       togglePaymentSelection={togglePaymentSelection}
-                      handleDownloadInvoice={handleDownloadInvoice}
+                      handleDownloadReceipt={handleDownloadReceipt}
                     />
                   )}
                 </TabsContent>
@@ -701,10 +703,10 @@ type PaymentListProps = {
   payments: UnifiedPayment[];
   selectedPayments: Set<string>;
   togglePaymentSelection: (key: string) => void;
-  handleDownloadInvoice: (payment: UnifiedPayment) => Promise<void>;
+  handleDownloadReceipt: (payment: UnifiedPayment) => Promise<void>;
 };
 
-const PaymentList = ({ payments, selectedPayments, togglePaymentSelection, handleDownloadInvoice }: PaymentListProps) => {
+const PaymentList = ({ payments, selectedPayments, togglePaymentSelection, handleDownloadReceipt }: PaymentListProps) => {
   return (
     <div className="space-y-4">
       {payments.map((payment) => {
@@ -762,13 +764,13 @@ const PaymentList = ({ payments, selectedPayments, togglePaymentSelection, handl
                 {payment.payment_status}
               </Badge>
               <Button
-                onClick={() => handleDownloadInvoice(payment)}
+                onClick={() => handleDownloadReceipt(payment)}
                 variant="ghost"
                 size="sm"
                 className="rounded-full gap-2"
               >
                 <FileText className="h-4 w-4" />
-                <span className="hidden sm:inline">Invoice</span>
+                <span className="hidden sm:inline">Receipt</span>
               </Button>
             </div>
           </div>

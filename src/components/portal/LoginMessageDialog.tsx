@@ -46,21 +46,34 @@ const LoginMessageDialog = () => {
 
     const checkUnreadMessages = async () => {
       try {
-        // Fetch all unread notifications that haven't had the login dialog shown yet
-        // We'll filter for bulk/targeted messages client-side by checking metadata
-        // Use select("*") to get all columns and handle schema differences
-        const { data: notifications, error } = await supabase
-          .from("notifications")
-          .select("*")
-          .eq("user_id", user.id)
-          .eq("is_read", false)
-          .eq("login_dialog_shown", false)
-          .order("created_at", { ascending: false })
-          .limit(20); // Fetch more to filter, then limit to 10
+        // Fetch unread notifications. Try with login_dialog_shown first (requires 20251210 migration).
+        // If that column doesn't exist (400), fall back to unread-only.
+        let notifications: Record<string, unknown>[] | null = null;
+        let error: { code?: string; message?: string } | null = null;
+
+        const baseQuery = () =>
+          supabase
+            .from("notifications")
+            .select("*")
+            .eq("user_id", user.id)
+            .eq("is_read", false)
+            .order("created_at", { ascending: false })
+            .limit(20);
+
+        const withLoginDialog = await baseQuery().eq("login_dialog_shown", false);
+
+        if (withLoginDialog.error) {
+          // login_dialog_shown column may not exist (e.g. migration not run); retry without it
+          const fallback = await baseQuery();
+          notifications = fallback.data;
+          error = fallback.error;
+        } else {
+          notifications = withLoginDialog.data;
+          error = null;
+        }
 
         if (error) {
           console.error("Error checking unread messages:", error);
-          // Don't show dialog if there's an error
           return;
         }
 
