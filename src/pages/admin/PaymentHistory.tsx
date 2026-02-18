@@ -385,19 +385,47 @@ const PaymentHistory = () => {
       pageTitle="Payment History"
       subtitle="View all payment records (Stripe and manual entries)"
       mobileActionButton={
-        <Button
-          size="sm"
-          variant="outline"
-          className="rounded-full p-2 h-9 w-9 flex-shrink-0"
-          onClick={exportToCSV}
-          disabled={!payments || payments.length === 0}
-        >
-          <Download className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-2">
+          <Select value={selectedYear} onValueChange={setSelectedYear}>
+            <SelectTrigger id="year-mobile" className="h-9 w-[140px] rounded-full">
+              <SelectValue placeholder="Academic Year" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Years</SelectItem>
+              {academicYears?.map((year) => (
+                <SelectItem key={year.id} value={year.id}>
+                  {year.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-full p-2 h-9 w-9 flex-shrink-0"
+            onClick={exportToCSV}
+            disabled={!payments || payments.length === 0}
+          >
+            <Download className="h-4 w-4" />
+          </Button>
+        </div>
       }
     >
       <div className="space-y-6">
-        <div className="hidden lg:flex items-center justify-end">
+        <div className="hidden lg:flex items-center justify-end gap-3">
+          <Select value={selectedYear} onValueChange={setSelectedYear}>
+            <SelectTrigger id="year-header" className="w-[180px] rounded-full">
+              <SelectValue placeholder="Academic Year" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Years</SelectItem>
+              {academicYears?.map((year) => (
+                <SelectItem key={year.id} value={year.id}>
+                  {year.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button
             onClick={exportToCSV}
             disabled={!payments || payments.length === 0}

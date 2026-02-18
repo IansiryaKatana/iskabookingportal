@@ -66,7 +66,7 @@ Contract Details:
 Contract: ${application.contract?.slug || ""}
 Start Date: ${application.contract?.contract_start || ""}
 End Date: ${application.contract?.contract_end || ""}
-Duration: ${application.contract?.weeks || ""} weeks
+Duration: ${application.contract?.weeks != null ? `${application.contract.weeks} weeks${(application.contract as any)?.extra_days ? ` ${(application.contract as any).extra_days} days` : ""}` : ""}
 
 Payment Plan:
 ${step5?.payload?.selected_plan_name || "Not selected"}

@@ -35,6 +35,7 @@ interface ImportResults {
   total_rows: number;
   succeeded: number;
   failed: number;
+  skipped?: number;
   pre_import_failed?: number;
   import_failed?: number;
   errors?: FailedRecord[];
@@ -57,8 +58,8 @@ const ImportResultsDialog = ({
 }: ImportResultsDialogProps) => {
   if (!results) return null;
 
-  const { succeeded, failed, total_rows, partial, errors = [], user_creation_errors = [] } = results;
-  const successRate = total_rows > 0 ? ((succeeded / total_rows) * 100).toFixed(1) : "0";
+  const { succeeded, failed, total_rows, partial, skipped = 0, errors = [], user_creation_errors = [] } = results;
+  const successRate = total_rows > 0 ? (((succeeded + skipped) / total_rows) * 100).toFixed(1) : "0";
 
   const handleDownloadFailed = () => {
     if (!errors || errors.length === 0) return;
@@ -127,7 +128,7 @@ const ImportResultsDialog = ({
 
         <div className="flex-1 overflow-hidden flex flex-col gap-4">
           {/* Summary Cards */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className={`grid gap-4 ${skipped > 0 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
             <div className="rounded-2xl border border-border/60 p-4 bg-muted/30">
               <div className="text-sm text-muted-foreground mb-1">Total Rows</div>
               <div className="text-2xl font-bold">{total_rows}</div>
@@ -140,6 +141,13 @@ const ImportResultsDialog = ({
               <div className="text-2xl font-bold text-green-600">{succeeded}</div>
               <div className="text-xs text-muted-foreground mt-1">{successRate}%</div>
             </div>
+            {skipped > 0 && (
+              <div className="rounded-2xl border border-amber-500/20 p-4 bg-amber-500/5">
+                <div className="text-sm text-muted-foreground mb-1">Skipped</div>
+                <div className="text-2xl font-bold text-amber-600">{skipped}</div>
+                <div className="text-xs text-muted-foreground mt-1">Already had application</div>
+              </div>
+            )}
             <div className="rounded-2xl border border-red-500/20 p-4 bg-red-500/5">
               <div className="text-sm text-muted-foreground mb-1 flex items-center gap-1">
                 <XCircle className="h-3 w-3 text-red-600" />

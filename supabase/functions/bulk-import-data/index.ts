@@ -184,21 +184,9 @@ async function ensureUserExists(
     throw new Error(`Invalid email: contains whitespace: ${email}`);
   }
 
-  // Check if user exists - use listUsers and filter by email
-  // Note: getUserByEmail doesn't exist in this Supabase JS version
-  const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
-  
-  if (listError) {
-    console.error(`Error listing users:`, listError);
-    throw new Error(`Failed to check if user exists: ${listError.message}`);
-  }
-
-  const existingUser = users?.find((u) => u.email?.toLowerCase() === normalizedEmail);
-
-  if (existingUser) {
+  // Resolve existing user by email (RPC reads auth.users; avoids listUsers pagination so rebookers are found)
+  const useExistingUser = async (existingUser: { id: string; user_metadata?: Record<string, unknown> }) => {
     console.log(`User already exists: ${normalizedEmail} (${existingUser.id})`);
-    
-    // Ensure profile exists (upsert to handle cases where profile was deleted)
     const { error: profileError } = await supabaseAdmin
       .from("profiles")
       .upsert({
@@ -206,35 +194,26 @@ async function ensureUserExists(
         first_name: firstName || null,
         last_name: lastName || null,
         role: "student",
-      }, {
-        onConflict: "id"
-      });
-
-    if (profileError) {
-      console.error(`Failed to upsert profile for ${normalizedEmail}:`, profileError);
-      // Don't fail - profile might exist, just log the error
-    }
-    
-    // Update account_status to pending_activation if it's not already set or if it's an old import
-    // This ensures bulk imported users start as pending
+      }, { onConflict: "id" });
+    if (profileError) console.error(`Failed to upsert profile for ${normalizedEmail}:`, profileError);
     const currentMetadata = (existingUser.user_metadata as any) || {};
     if (!currentMetadata.account_status || currentMetadata.account_status === "active") {
       try {
         await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
-          user_metadata: {
-            ...currentMetadata,
-            account_status: "pending_activation",
-            imported_at: new Date().toISOString(),
-          },
+          user_metadata: { ...currentMetadata, account_status: "pending_activation", imported_at: new Date().toISOString() },
         });
-      } catch (updateError) {
-        console.warn(`Failed to update user metadata for ${normalizedEmail}:`, updateError);
-        // Don't fail - continue with existing metadata
-      }
+      } catch (_) { /* non-fatal */ }
     }
-    
     return { userId: existingUser.id, created: false };
-  }
+  };
+
+  try {
+    const { data: existingUserId, error: rpcError } = await supabaseAdmin.rpc("find_user_by_email", { p_email: normalizedEmail });
+    if (!rpcError && existingUserId && typeof existingUserId === "string") {
+      const { data: existingUserById } = await supabaseAdmin.auth.admin.getUserById(existingUserId);
+      if (existingUserById?.user) return await useExistingUser(existingUserById.user);
+    }
+  } catch (_) { /* fall through to create */ }
 
   if (!createUsers) {
     throw new Error(`User with email ${normalizedEmail} does not exist and user creation is disabled`);
@@ -257,6 +236,16 @@ async function ensureUserExists(
   });
 
   if (createError) {
+    const msg = (createError.message || "").toLowerCase();
+    if (msg.includes("already") || msg.includes("registered")) {
+      try {
+        const { data: existingUserId2 } = await supabaseAdmin.rpc("find_user_by_email", { p_email: normalizedEmail });
+        if (existingUserId2 && typeof existingUserId2 === "string") {
+          const { data: d } = await supabaseAdmin.auth.admin.getUserById(existingUserId2);
+          if (d?.user) return await useExistingUser(d.user);
+        }
+      } catch (_) { /* ignore */ }
+    }
     console.error(`User creation error for ${normalizedEmail}:`, createError);
     throw new Error(`Failed to create user ${normalizedEmail}: ${createError.message || "Unknown error"}`);
   }
@@ -775,20 +764,54 @@ serve(async (req) => {
       console.log(`Calling database function: ${functionName}`);
       console.log(`Data rows: ${jsonbData.length}`);
       
-      const { data: results, error: functionError } = await supabaseAdmin.rpc(
-        functionName,
-        {
-          p_data: jsonbData,
-          p_imported_by: user.id,
+      const rpcParams: Record<string, unknown> = {
+        p_data: jsonbData,
+        p_imported_by: user.id,
+      };
+      if (import_type === "applications") {
+        rpcParams.p_skip_existing = options?.skip_duplicates === true;
+      }
+      let results: unknown = null;
+      let functionError: { message?: string; details?: string; hint?: string } | null = null;
+
+      let rpcResult = await supabaseAdmin.rpc(functionName, rpcParams);
+      results = rpcResult.data;
+      functionError = rpcResult.error;
+
+      // Applications: if 3-param call fails (migration not applied), retry with 2 params so import still works
+      if (import_type === "applications" && functionError) {
+        const msg = (functionError.message || "").toLowerCase();
+        if (msg.includes("does not exist") || msg.includes("could not find") || msg.includes("no function matches")) {
+          console.warn("Applications RPC failed (new signature?), retrying without p_skip_existing:", functionError.message);
+          rpcResult = await supabaseAdmin.rpc(functionName, {
+            p_data: jsonbData,
+            p_imported_by: user.id,
+          });
+          results = rpcResult.data;
+          functionError = rpcResult.error;
         }
-      );
+      }
 
       if (functionError) {
         console.error(`Database function error:`, functionError);
         console.error(`Error message:`, functionError.message);
-        console.error(`Error details:`, functionError.details);
-        console.error(`Error hint:`, functionError.hint);
-        throw new Error(`Database function failed: ${functionError.message || "Unknown error"}`);
+        const errMsg = `Database function failed: ${functionError.message || "Unknown error"}`;
+        const hint = import_type === "applications"
+          ? "Ensure migration 20260239_bulk_import_skip_duplicates_and_find_user is applied (skip-duplicates and rebooker linking)."
+          : undefined;
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: errMsg,
+            hint,
+            total_rows: rows.length,
+            succeeded: 0,
+            failed: 0,
+            errors: [{ reason: hint ? `${errMsg} ${hint}` : errMsg, stage: "database_import" }],
+            import_history_id: importHistoryId,
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
 
       if (!results) {
@@ -798,9 +821,10 @@ serve(async (req) => {
 
       console.log(`Database function returned ${results.length} results`);
 
-      // Process results
+      // Process results (success, error, skipped)
       const succeeded = results?.filter((r: any) => r.status === "success").length || 0;
       const failed = results?.filter((r: any) => r.status === "error").length || 0;
+      const skipped = results?.filter((r: any) => r.status === "skipped").length || 0;
       const errors = results?.filter((r: any) => r.status === "error").map((r: any) => ({
         row_number: r.row_number,
         error: r.error_message,
@@ -837,6 +861,7 @@ serve(async (req) => {
               total_rows: rows.length,
               succeeded,
               failed: totalFailed,
+              skipped: skipped || 0,
               pre_import_failed: preImportFailedRows.length,
               import_failed: failed,
             },
@@ -870,6 +895,7 @@ serve(async (req) => {
           total_rows: rows.length,
           succeeded,
           failed: totalFailed,
+          skipped: skipped || 0,
           pre_import_failed: preImportFailedRows.length,
           import_failed: failed,
           results: results || [],

@@ -145,6 +145,7 @@ const DataImport = () => {
   const [showResultsDialog, setShowResultsDialog] = useState(false);
   const [loadingTemplate, setLoadingTemplate] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [skipDuplicates, setSkipDuplicates] = useState(true);
 
   const { toast } = useToast();
 
@@ -264,7 +265,7 @@ const DataImport = () => {
           file_name: selectedFile?.name || "import.csv",
           options: {
             validate_only: false,
-            skip_duplicates: false,
+            skip_duplicates: importType === "applications" ? skipDuplicates : false,
             dry_run: false,
             // For applications import: create placeholder users (no emails sent)
             // Admin can send invitations later via bulk invitation system
@@ -477,6 +478,25 @@ const DataImport = () => {
               </div>
             )}
 
+            {importType === "applications" && (
+              <div className="space-y-2 p-4 rounded-lg bg-muted/30 border">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={skipDuplicates}
+                    onChange={(e) => setSkipDuplicates(e.target.checked)}
+                    className="h-4 w-4 rounded border-primary"
+                  />
+                  <span className="text-sm font-medium">
+                    Skip rows that already have an application for the same student + contract
+                  </span>
+                </label>
+                <p className="text-xs text-muted-foreground pl-7">
+                  Recommended for re-uploads: already-imported rows are skipped; existing users (e.g. rebookers) are linked to the new application.
+                </p>
+              </div>
+            )}
+
             <Separator />
 
             {/* File Upload Section */}
@@ -611,14 +631,14 @@ const DataImport = () => {
                       className="text-sm"
                     >
                       {importResults.success && importResults.failed === 0
-                        ? "Complete"
+                        ? (importResults.skipped ? "Complete (with skips)" : "Complete")
                         : `${importResults.failed} Error${importResults.failed !== 1 ? "s" : ""}`}
                     </Badge>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   {/* Stats Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className={`grid grid-cols-1 gap-4 ${importResults.skipped ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
                     <div className="text-center p-5 rounded-lg border-2 bg-muted/30">
                       <div className="text-3xl font-bold mb-1">{importResults.total_rows || 0}</div>
                       <div className="text-sm text-muted-foreground font-medium">Total Rows</div>
@@ -629,6 +649,14 @@ const DataImport = () => {
                       </div>
                       <div className="text-sm text-muted-foreground font-medium">Succeeded</div>
                     </div>
+                    {importResults.skipped > 0 && (
+                      <div className="text-center p-5 rounded-lg border-2 bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
+                        <div className="text-3xl font-bold text-amber-600 dark:text-amber-400 mb-1">
+                          {importResults.skipped}
+                        </div>
+                        <div className="text-sm text-muted-foreground font-medium">Skipped (already exist)</div>
+                      </div>
+                    )}
                     <div className="text-center p-5 rounded-lg border-2 bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800">
                       <div className="text-3xl font-bold text-red-600 dark:text-red-400 mb-1">
                         {importResults.failed || 0}
@@ -645,7 +673,9 @@ const DataImport = () => {
                         All rows imported successfully
                       </AlertTitle>
                       <AlertDescription className="text-green-800 dark:text-green-200">
-                        All {importResults.succeeded} rows have been imported successfully. Your data is now available in the system.
+                        {importResults.skipped
+                          ? `${importResults.succeeded} row(s) imported; ${importResults.skipped} row(s) skipped (already had an application for that student + contract).`
+                          : `All ${importResults.succeeded} rows have been imported successfully. Your data is now available in the system.`}
                       </AlertDescription>
                     </Alert>
                   )}
