@@ -55,6 +55,33 @@ export type SalesRebookersMonthlyRow = {
   rebooker_share_percentage: number;
 };
 
+export type SalesReportCashSummary = {
+  total_received: number;
+  total_deposits_collected: number;
+  total_installments_collected: number;
+};
+
+export const useSalesReportCashSummary = (academicYearId?: string) => {
+  return useQuery({
+    queryKey: ["sales-report-cash-summary", academicYearId],
+    queryFn: async (): Promise<SalesReportCashSummary> => {
+      const { data, error } = await supabase.rpc("get_sales_report_cash_summary", {
+        p_academic_year_id: academicYearId || null,
+      });
+      if (error) {
+        console.error("Failed to fetch sales report cash summary:", error);
+        throw error;
+      }
+      const row = Array.isArray(data) ? data[0] : data;
+      return {
+        total_received: Number(row?.total_received ?? 0),
+        total_deposits_collected: Number(row?.total_deposits_collected ?? 0),
+        total_installments_collected: Number(row?.total_installments_collected ?? 0),
+      };
+    },
+  });
+};
+
 export const useSalesDemographicsReport = (academicYearId?: string) => {
   return useQuery({
     queryKey: ["sales-demographics-report", academicYearId],

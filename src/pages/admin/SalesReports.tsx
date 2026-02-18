@@ -5,11 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { useSalesDemographicsReport, useSalesOccupancyMonthly, useSalesRebookersMonthly, useDownloadSalesReport } from "@/hooks/useSalesReports";
+import { useSalesDemographicsReport, useSalesOccupancyMonthly, useSalesRebookersMonthly, useDownloadSalesReport, useSalesReportCashSummary } from "@/hooks/useSalesReports";
 import { useToast } from "@/hooks/use-toast";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from "@/components/ui/chart";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
-import { Download, Users, BarChart3, RefreshCw } from "lucide-react";
+import { Download, Users, BarChart3, RefreshCw, PiggyBank, Receipt } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const chartConfig = {
   occupancy: {
@@ -29,6 +30,7 @@ const SalesReports = () => {
   const { data: demographics, isLoading: loadingDemographics } = useSalesDemographicsReport(academicYearId);
   const { data: occupancy, isLoading: loadingOccupancy } = useSalesOccupancyMonthly(academicYearId);
   const { data: rebookers, isLoading: loadingRebookers } = useSalesRebookersMonthly(academicYearId);
+  const { data: cashSummary, isLoading: loadingCash } = useSalesReportCashSummary(academicYearId);
   const downloadMutation = useDownloadSalesReport();
 
   const handleDownload = async () => {
@@ -89,6 +91,7 @@ const SalesReports = () => {
     "All Academic Years";
 
   const isLoading = loadingDemographics || loadingOccupancy || loadingRebookers;
+  const isLoadingOverview = isLoading || loadingCash;
 
   return (
     <AdminLayout
@@ -164,24 +167,63 @@ const SalesReports = () => {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <div className="rounded-2xl bg-primary/5 p-4 flex flex-col gap-1">
+            {/* Desktop: one row of 7 cards (xl). Mobile: 2 cols; sm 3; md 4 */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7 gap-3 sm:gap-4 mb-6">
+              <div className="rounded-2xl bg-primary/5 p-3 sm:p-4 flex flex-col gap-1 min-w-0">
                 <p className="text-xs text-muted-foreground uppercase tracking-wide">Confirmed Contracts</p>
-                <p className="text-2xl font-bold">{totalContracts}</p>
+                <p className="text-xl sm:text-2xl font-bold">{totalContracts}</p>
               </div>
-              <div className="rounded-2xl bg-primary/5 p-4 flex flex-col gap-1">
+              <div className="rounded-2xl bg-primary/5 p-3 sm:p-4 flex flex-col gap-1 min-w-0">
                 <p className="text-xs text-muted-foreground uppercase tracking-wide">Total Sales Value</p>
-                <p className="text-2xl font-bold">
+                <p className="text-xs text-muted-foreground/80 hidden sm:block">Expected when all paid in full</p>
+                <p className="text-xl sm:text-2xl font-bold">
                   £{Math.round(totalSalesValue).toLocaleString("en-GB")}
                 </p>
               </div>
-              <div className="rounded-2xl bg-primary/5 p-4 flex flex-col gap-1">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide">Rebooker Share</p>
-                <p className="text-2xl font-bold">{rebookerRate}%</p>
+              <div className="rounded-2xl bg-primary/5 p-3 sm:p-4 flex flex-col gap-1 min-w-0">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Total Received</p>
+                <p className="text-xs text-muted-foreground/80 hidden sm:block">Cash collected so far</p>
+                {loadingCash ? (
+                  <Skeleton className="h-8 w-20 sm:h-9 sm:w-24" />
+                ) : (
+                  <p className="text-xl sm:text-2xl font-bold text-green-700 dark:text-green-400">
+                    £{Math.round(cashSummary?.total_received ?? 0).toLocaleString("en-GB")}
+                  </p>
+                )}
               </div>
-              <div className="rounded-2xl bg-primary/5 p-4 flex flex-col gap-1">
+              <div className="rounded-2xl bg-primary/5 p-3 sm:p-4 flex flex-col gap-1 min-w-0">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                  <PiggyBank className="h-3 w-3 flex-shrink-0" />
+                  Deposits Collected
+                </p>
+                {loadingCash ? (
+                  <Skeleton className="h-8 w-20 sm:h-9 sm:w-24" />
+                ) : (
+                  <p className="text-xl sm:text-2xl font-bold">
+                    £{Math.round(cashSummary?.total_deposits_collected ?? 0).toLocaleString("en-GB")}
+                  </p>
+                )}
+              </div>
+              <div className="rounded-2xl bg-primary/5 p-3 sm:p-4 flex flex-col gap-1 min-w-0">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                  <Receipt className="h-3 w-3 flex-shrink-0" />
+                  Installments Collected
+                </p>
+                {loadingCash ? (
+                  <Skeleton className="h-8 w-20 sm:h-9 sm:w-24" />
+                ) : (
+                  <p className="text-xl sm:text-2xl font-bold">
+                    £{Math.round(cashSummary?.total_installments_collected ?? 0).toLocaleString("en-GB")}
+                  </p>
+                )}
+              </div>
+              <div className="rounded-2xl bg-primary/5 p-3 sm:p-4 flex flex-col gap-1 min-w-0">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Rebooker Share</p>
+                <p className="text-xl sm:text-2xl font-bold">{rebookerRate}%</p>
+              </div>
+              <div className="rounded-2xl bg-primary/5 p-3 sm:p-4 flex flex-col gap-1 min-w-0">
                 <p className="text-xs text-muted-foreground uppercase tracking-wide">Summer Sales</p>
-                <p className="text-2xl font-bold">
+                <p className="text-xl sm:text-2xl font-bold">
                   £{Math.round(totalSummerSales).toLocaleString("en-GB")}
                 </p>
               </div>
