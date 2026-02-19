@@ -35,7 +35,7 @@ const fetchPaymentSchedule = async (
     .select(
       `
       *,
-      contract:contracts (
+      contract:contracts!contract_id (
         id,
         name,
         contract_start,

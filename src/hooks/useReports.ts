@@ -124,7 +124,7 @@ const fetchReport = async (reportType: ReportType): Promise<ReportItem[]> => {
       discount_amount,
       referred_by_partner_id,
       created_at,
-      contract:contracts(
+      contract:contracts!contract_id(
         name,
         contract_start,
         contract_end,
@@ -507,7 +507,7 @@ const fetchOccupancyReport = async (academicYearId?: string): Promise<OccupancyR
         student_id,
         assigned_studio_id,
         status,
-        contract:contracts(
+        contract:contracts!contract_id(
           name,
           contract_start,
           contract_end,
@@ -704,7 +704,7 @@ const fetchApplicationsPipelineReport = async (
       `
       id,
       status,
-      contract:contracts(
+      contract:contracts!contract_id(
         academic_year_id
       )
     `,

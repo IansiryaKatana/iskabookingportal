@@ -41,7 +41,7 @@ const fetchApplicationsWithPlaceholders = async (
       status,
       created_at,
       contract_id,
-      contract:contracts (
+      contract:contracts!contract_id (
         id,
         name,
         academic_year_id,

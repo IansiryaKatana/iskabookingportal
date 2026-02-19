@@ -262,6 +262,20 @@ export const useDeleteContract = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (contractId: string) => {
+      const { data: contract, error: fetchError } = await supabase
+        .from("contracts")
+        .select("id, name, slug, student_application_id")
+        .eq("id", contractId)
+        .single();
+
+      if (fetchError || !contract) throw fetchError ?? new Error("Contract not found");
+
+      if ((contract as { student_application_id?: string | null }).student_application_id) {
+        throw new Error(
+          "Cannot delete a custom (per-application) contract. Edit the application's payment schedule from the application review page instead."
+        );
+      }
+
       const { count, error: countError } = await supabase
         .from("student_applications")
         .select("*", { count: "exact", head: true })
@@ -273,14 +287,6 @@ export const useDeleteContract = () => {
           "Cannot delete this contract because it has existing applications. Remove or reassign applications first."
         );
       }
-
-      const { data: contract, error: fetchError } = await supabase
-        .from("contracts")
-        .select("id, name, slug")
-        .eq("id", contractId)
-        .single();
-
-      if (fetchError || !contract) throw fetchError ?? new Error("Contract not found");
 
       const { error } = await supabase.from("contracts").delete().eq("id", contractId);
 

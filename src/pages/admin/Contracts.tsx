@@ -20,6 +20,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Loader2, Pencil, Plus, Copy, Trash2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -97,6 +98,7 @@ const Contracts = () => {
   const [sourceYearId, setSourceYearId] = useState<string>("");
   const [targetYearId, setTargetYearId] = useState<string>("");
   const [contractToDelete, setContractToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [showCustomContracts, setShowCustomContracts] = useState(false);
 
   const { data: allAcademicYears } = useAllAcademicYears();
   const duplicateContracts = useDuplicateContracts();
@@ -119,12 +121,17 @@ const Contracts = () => {
     },
   });
 
-  // Filter contracts by academic year if filter is set
+  // Filter contracts: optionally exclude student-specific (custom) contracts; then by academic year
   const filteredData = useMemo(() => {
     if (!data) return [];
-    if (!filterAcademicYearId) return data;
-    return data.filter((contract) => contract.academic_year_id === filterAcademicYearId);
-  }, [data, filterAcademicYearId]);
+    const list = showCustomContracts
+      ? data
+      : data.filter(
+          (contract) => !(contract as { student_application_id?: string | null }).student_application_id
+        );
+    if (!filterAcademicYearId) return list;
+    return list.filter((contract) => contract.academic_year_id === filterAcademicYearId);
+  }, [data, filterAcademicYearId, showCustomContracts]);
 
   // Set default filter to active year on mount
   useEffect(() => {
@@ -478,6 +485,23 @@ const Contracts = () => {
                 </Select>
               </div>
             )}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="show-custom-contracts"
+                  checked={showCustomContracts}
+                  onCheckedChange={(checked) => setShowCustomContracts(!!checked)}
+                />
+                <Label htmlFor="show-custom-contracts" className="text-sm text-muted-foreground cursor-pointer">
+                  Show custom (per-application) contracts
+                </Label>
+              </div>
+              {showCustomContracts && (
+                <p className="text-xs text-muted-foreground">
+                  Custom contracts are per-application; edit from application review only.
+                </p>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -498,9 +522,16 @@ const Contracts = () => {
                       className="rounded-2xl border border-border/60 px-5 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
                     >
                       <div>
-                        <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-                          {contract.academic_year?.name ?? "Academic year"}
-                        </p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                            {contract.academic_year?.name ?? "Academic year"}
+                          </p>
+                          {(contract as { student_application_id?: string | null }).student_application_id && (
+                            <Badge variant="secondary" className="rounded-full text-[10px] uppercase">
+                              Custom
+                            </Badge>
+                          )}
+                        </div>
                         <h4 className="text-lg font-display font-semibold uppercase tracking-wide">
                           {contract.name}
                         </h4>
@@ -540,16 +571,20 @@ const Contracts = () => {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="rounded-full uppercase tracking-wide gap-2"
-                          onClick={() => handleEdit(contract.id)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                          Edit
-                        </Button>
-                        {isSuperadmin && (
+                        {(contract as { student_application_id?: string | null }).student_application_id ? (
+                          <span className="text-xs text-muted-foreground italic">Edit from application review</span>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="rounded-full uppercase tracking-wide gap-2"
+                            onClick={() => handleEdit(contract.id)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                            Edit
+                          </Button>
+                        )}
+                        {isSuperadmin && !(contract as { student_application_id?: string | null }).student_application_id && (
                           <Button
                             variant="ghost"
                             size="sm"

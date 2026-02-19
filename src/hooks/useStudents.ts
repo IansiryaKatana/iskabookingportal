@@ -48,7 +48,7 @@ const fetchStudents = async (filters?: {
       status,
       total_contract_value,
       created_at,
-      contract:contracts(
+      contract:contracts!contract_id(
         id,
         name,
         weeks,

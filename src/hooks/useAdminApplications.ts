@@ -51,7 +51,7 @@ const fetchApplications = async (academicYearId?: string): Promise<AdminApplicat
     .select(
       `
         *,
-        contract:contracts (
+        contract:contracts!contract_id (
           id,
           name,
           weeks,
@@ -159,7 +159,7 @@ export const useUpdateApplicationStatus = () => {
       // Get current application to check if status is changing to confirmed
       const { data: currentApp } = await supabase
         .from("student_applications")
-        .select("status, student_id, contract:contracts(contract_start), assigned_studio:studios(studio_number)")
+        .select("status, student_id, contract:contracts!contract_id(contract_start), assigned_studio:studios(studio_number)")
         .eq("id", id)
         .single();
 

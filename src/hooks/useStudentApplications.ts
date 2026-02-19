@@ -33,7 +33,7 @@ const fetchApplications = async (
     .select(
       `
         *,
-        contract:contracts (
+        contract:contracts!contract_id (
           *,
           studio_grade:studio_grades (*),
           contract_payment_plans:contract_payment_plans (

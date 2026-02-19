@@ -75,7 +75,7 @@ const getDefaultPaymentPlanOrder = (planName: string): number => {
 export type GeneratedInstallment = {
   label: string;
   due_date_offset_days: number;
-  amount_type: "percentage";
+  amount_type: "percentage" | "fixed";
   amount_value: number;
 };
 
@@ -236,14 +236,22 @@ export function CreateCustomContractSheet({
     toast({ title: "Instalments generated. You can edit below." });
   };
 
-  const updateGeneratedInstallment = (index: number, field: keyof GeneratedInstallment, value: number) => {
+  const updateGeneratedInstallment = (index: number, field: keyof GeneratedInstallment, value: number | string) => {
     setGeneratedInstallments((prev) => {
       const next = [...prev];
       if (index < 0 || index >= next.length) return prev;
-      (next[index] as any)[field] = value;
+      const row = next[index] as Record<string, unknown>;
+      row[field] = field === "amount_type" ? value : Number(value);
       return next;
     });
   };
+
+  const contractTotal = (() => {
+    const w = form.watch("contract_weeks") || 0;
+    const extra = Math.min(6, Math.max(0, Number(form.watch("contract_extra_days")) || 0));
+    const price = Number(form.watch("weekly_price_override")) || 0;
+    return price * (w + extra / 7);
+  })();
 
   const handleSubmit = form.handleSubmit(
     async (values) => {
@@ -253,6 +261,21 @@ export function CreateCustomContractSheet({
       let paymentPlanOrders: number[] = [];
 
       if (planSource === "new" && generatedInstallments.length > 0) {
+        const weeks = values.contract_weeks;
+        const extraDays = Math.min(6, Math.max(0, Number(values.contract_extra_days) || 0));
+        const totalForValidation = (Number(values.weekly_price_override) || 0) * (weeks + extraDays / 7);
+        const allFixed = generatedInstallments.every((i) => i.amount_type === "fixed");
+        if (allFixed) {
+          const sumFixed = generatedInstallments.reduce((s, i) => s + i.amount_value, 0);
+          if (Math.abs(sumFixed - totalForValidation) > 0.01) {
+            toast({
+              variant: "destructive",
+              title: "Amounts must equal contract total",
+              description: `Sum of instalments is £${sumFixed.toFixed(2)} but contract total is £${totalForValidation.toFixed(2)}. Use "Put remaining in last instalment" or adjust amounts.`,
+            });
+            return;
+          }
+        }
         try {
           const plan = await createPaymentPlan.mutateAsync({
             academic_year_id: values.academic_year_id,
@@ -725,14 +748,18 @@ export function CreateCustomContractSheet({
           {generatedInstallments.length > 0 && (
             <div className="space-y-2">
               <Label>Edit instalments (then create contract)</Label>
+              <p className="text-xs text-muted-foreground">
+                Contract total: £{contractTotal > 0 ? contractTotal.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0.00"}
+              </p>
               <div className="rounded-xl border border-border/60 overflow-x-auto">
-                <table className="w-full text-sm min-w-[420px]">
+                <table className="w-full text-sm min-w-[520px]">
                   <thead>
                     <tr className="bg-muted/50 border-b border-border/60">
                       <th className="text-left p-2 pl-3">Label</th>
                       <th className="text-left p-2">Due (days)</th>
                       <th className="text-left p-2">Due date</th>
-                      <th className="text-left p-2">Amount %</th>
+                      <th className="text-left p-2">Type</th>
+                      <th className="text-left p-2">Amount</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -775,20 +802,55 @@ export function CreateCustomContractSheet({
                             {dueDateLabel}
                           </td>
                           <td className="p-2">
-                            <Input
-                              type="number"
-                              min={0}
-                              max={100}
-                              className="h-8 w-16 rounded-full text-xs px-3"
-                              value={row.amount_value}
-                              onChange={(e) =>
-                                updateGeneratedInstallment(
-                                  i,
-                                  "amount_value",
-                                  Number(e.target.value) || 0
-                                )
+                            <Select
+                              value={row.amount_type}
+                              onValueChange={(v: "percentage" | "fixed") =>
+                                updateGeneratedInstallment(i, "amount_type", v)
                               }
-                            />
+                            >
+                              <SelectTrigger className="h-8 rounded-full text-xs w-[100px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="percentage">%</SelectItem>
+                                <SelectItem value="fixed">£</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </td>
+                          <td className="p-2">
+                            {row.amount_type === "percentage" ? (
+                              <Input
+                                type="number"
+                                min={0}
+                                max={100}
+                                step={0.01}
+                                className="h-8 w-16 rounded-full text-xs px-3"
+                                value={row.amount_value}
+                                onChange={(e) =>
+                                  updateGeneratedInstallment(
+                                    i,
+                                    "amount_value",
+                                    Number(e.target.value) ?? 0
+                                  )
+                                }
+                              />
+                            ) : (
+                              <Input
+                                type="number"
+                                min={0}
+                                step={0.01}
+                                className="h-8 w-20 rounded-full text-xs px-3"
+                                value={row.amount_value > 0 ? row.amount_value : ""}
+                                placeholder="0"
+                                onChange={(e) =>
+                                  updateGeneratedInstallment(
+                                    i,
+                                    "amount_value",
+                                    parseFloat(e.target.value) || 0
+                                  )
+                                }
+                              />
+                            )}
                           </td>
                         </tr>
                       );
@@ -796,6 +858,46 @@ export function CreateCustomContractSheet({
                   </tbody>
                 </table>
               </div>
+              {(() => {
+                const fixedRows = generatedInstallments.filter((r) => r.amount_type === "fixed");
+                const fixedSum = fixedRows.reduce((s, r) => s + r.amount_value, 0);
+                const remaining = Math.round((contractTotal - fixedSum) * 100) / 100;
+                const allFixed = generatedInstallments.length > 0 && generatedInstallments.every((r) => r.amount_type === "fixed");
+                const valid = !allFixed || Math.abs(remaining) <= 0.01;
+                if (fixedRows.length === 0) return null;
+                return (
+                  <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border/60 text-sm">
+                    <span className={valid ? "text-muted-foreground" : "text-amber-600 font-medium"}>
+                      Sum of amounts: £{fixedSum.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {allFixed && (
+                        <> · Remaining: £{remaining.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</>
+                      )}
+                    </span>
+                    {allFixed && remaining > 0 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs h-7"
+                        onClick={() => {
+                          const lastIndex = generatedInstallments.length - 1;
+                          const sumPrev = generatedInstallments
+                            .slice(0, lastIndex)
+                            .reduce((s, r) => s + (r.amount_type === "fixed" ? r.amount_value : 0), 0);
+                          const lastAmount = Math.round((contractTotal - sumPrev) * 100) / 100;
+                          setGeneratedInstallments((prev) => {
+                            const n = [...prev];
+                            n[lastIndex] = { ...n[lastIndex], amount_value: lastAmount };
+                            return n;
+                          });
+                        }}
+                      >
+                        Put remaining in last instalment
+                      </Button>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>
@@ -917,7 +1019,7 @@ export function CreateCustomContractSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-xl flex flex-col pr-6 pl-6">
+      <SheetContent side="right" className="w-full sm:max-w-[626px] flex flex-col pr-6 pl-6">
         <SheetHeader>
           <SheetTitle className="text-xl font-display uppercase tracking-wide">
             Create custom contract

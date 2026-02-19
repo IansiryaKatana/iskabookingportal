@@ -47,7 +47,7 @@ const fetchApplication = async (
     .from("student_applications")
     .select(`
         *,
-        contract:contracts (
+        contract:contracts!contract_id (
           id,
           slug,
           deposit_override,

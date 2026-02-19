@@ -67,7 +67,7 @@ const PartnerCommissions = () => {
           application:student_applications(
             id,
             student_id,
-            contract:contracts(
+            contract:contracts!contract_id(
               name,
               academic_year:academic_years(name)
             )

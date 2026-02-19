@@ -55,7 +55,7 @@ const Refunds = () => {
           id,
           student_id,
           deposit_payment_intent_id,
-          contract:contracts(slug),
+          contract:contracts!contract_id(slug),
           created_at
         `)
         .not("deposit_payment_intent_id", "is", null)

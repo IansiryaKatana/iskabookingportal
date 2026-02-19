@@ -747,6 +747,23 @@ const PaymentPlans = () => {
                     </div>
                   ))}
                 </div>
+                {(() => {
+                  const installments = form.watch("installments");
+                  const fixedSum = installments?.reduce(
+                    (sum, inst) => sum + (inst.amount_type === "fixed" ? Number(inst.amount_value) || 0 : 0),
+                    0
+                  ) ?? 0;
+                  const hasFixed = installments?.some((i) => i.amount_type === "fixed");
+                  if (!hasFixed || fixedSum === 0) return null;
+                  return (
+                    <p className="text-sm text-muted-foreground pt-2 border-t border-border/60">
+                      Sum of fixed amounts: <strong>£{fixedSum.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                      {installments?.every((i) => i.amount_type === "fixed") && installments.length > 0 && (
+                        <span className="block text-xs mt-1">Ensure this matches your contract total when this plan is used.</span>
+                      )}
+                    </p>
+                  );
+                })()}
               </div>
               </div>
 

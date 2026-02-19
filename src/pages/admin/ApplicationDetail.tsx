@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useStudentApplication } from "@/hooks/useStudentApplication";
 import { useUpdateApplicationStatus } from "@/hooks/useAdminApplications";
 import { useAdminStudios } from "@/hooks/useAdminStudios";
-import { ArrowLeft, User, Mail, Phone, MapPin, Calendar, Building2, CreditCard, FileText, CheckCircle2, XCircle, Download, Send, RotateCcw, Gift, Percent, Handshake, Upload } from "lucide-react";
+import { ArrowLeft, User, Mail, Phone, MapPin, Calendar, Building2, CreditCard, FileText, CheckCircle2, XCircle, Download, Send, RotateCcw, Gift, Percent, Handshake, Upload, Pencil } from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -26,6 +26,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import ManualPaymentDialog from "@/components/admin/ManualPaymentDialog";
 import { usePaymentSummary } from "@/hooks/useUnifiedPayments";
+import { useStudentPayments } from "@/hooks/useStudentPayments";
+import {
+  useCreateCustomContractFromApplication,
+  applicationHasInstalmentPayments,
+  type CustomInstallmentInput,
+} from "@/hooks/useCreateCustomContractFromApplication";
 import { useCreateNotification } from "@/hooks/useNotifications";
 import { useApplicationCashback, useActiveCashbackCampaigns, useApplyCashback } from "@/hooks/useCashback";
 import { useApplicationDiscount, useActiveDiscountCampaigns, useApplyDiscount, useRemoveDiscount } from "@/hooks/useDiscount";
@@ -103,7 +109,17 @@ const ApplicationDetail = () => {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [selectedRejectedDoc, setSelectedRejectedDoc] = useState<{ id: string; documentType: string; notes?: string } | null>(null);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [customScheduleOpen, setCustomScheduleOpen] = useState(false);
+  const [customInstallments, setCustomInstallments] = useState<CustomInstallmentInput[]>([]);
   const uploadDocument = useDocumentUpload();
+
+  const { data: paymentSchedule } = useStudentPayments(applicationId);
+  const { data: hasInstalmentPayments } = useQuery({
+    queryKey: ["application-has-instalment-payments", applicationId],
+    queryFn: () => applicationHasInstalmentPayments(applicationId ?? ""),
+    enabled: !!applicationId,
+  });
+  const createCustomContract = useCreateCustomContractFromApplication();
 
   // Cashback, Discount and Partner hooks
   const { data: cashback } = useApplicationCashback(applicationId);
@@ -1197,7 +1213,51 @@ const ApplicationDetail = () => {
                   )}
                 </div>
               </div>
-              
+
+              {/* Payment schedule preview & Customise (staff only, when no installment payments yet) */}
+              {application.selected_payment_plan_id && paymentSchedule && paymentSchedule.length > 0 && (
+                <div className="space-y-2 pt-2 border-t">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs sm:text-sm text-muted-foreground">Payment schedule</p>
+                    {!hasInstalmentPayments && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="rounded-full uppercase tracking-wide text-xs gap-1"
+                        onClick={() => {
+                          setCustomInstallments(
+                            paymentSchedule.map((row) => ({
+                              sequence: row.sequence,
+                              label: row.label ?? `Instalment ${row.sequence}`,
+                              amount: Number(row.amount) || 0,
+                              due_date: row.due_date ?? "",
+                            }))
+                          );
+                          setCustomScheduleOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-3 w-3" />
+                        Customise schedule
+                      </Button>
+                    )}
+                  </div>
+                  <ul className="text-xs sm:text-sm space-y-1">
+                    {paymentSchedule.map((row) => (
+                      <li key={row.id} className="flex justify-between gap-2">
+                        <span className="text-muted-foreground">{row.label ?? `Instalment ${row.sequence}`}</span>
+                        <span className="font-medium">{formatCurrency(Number(row.amount))}</span>
+                        <span className="text-muted-foreground">{row.due_date ? format(new Date(row.due_date), "d MMM yyyy") : "—"}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {hasInstalmentPayments && (
+                    <p className="text-[10px] text-muted-foreground italic">
+                      Schedule cannot be customised after installment payments have been recorded.
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* Cashback Section */}
               <div className="space-y-2 pt-2 border-t">
                 <div className="flex items-center justify-between">
@@ -1647,6 +1707,155 @@ const ApplicationDetail = () => {
               className="rounded-full uppercase tracking-wide"
             >
               {createPartnerReferral.isPending ? "Assigning..." : "Assign Partner"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Customise payment schedule Dialog */}
+      <Dialog open={customScheduleOpen} onOpenChange={setCustomScheduleOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-display uppercase tracking-wide">
+              Customise payment schedule
+            </DialogTitle>
+            <DialogDescription>
+              Enter amounts per instalment. Total must equal the contract total. Saving creates a new contract and plan for this student only; the default contract is unchanged.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="flex justify-between items-center text-sm font-semibold">
+              <span>Contract total</span>
+              <span>{formatCurrency(application?.total_contract_value ?? 0)}</span>
+            </div>
+            <div className="space-y-3">
+              {customInstallments.map((inst, index) => (
+                <div key={inst.sequence} className="grid grid-cols-[1fr_100px_1fr] gap-2 items-center">
+                  <Label className="text-xs col-span-1 truncate">{inst.label}</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    className="col-span-1"
+                    value={inst.amount > 0 ? inst.amount : ""}
+                    placeholder="0"
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value);
+                      const next = [...customInstallments];
+                      next[index] = { ...next[index], amount: isNaN(v) ? 0 : v };
+                      setCustomInstallments(next);
+                    }}
+                  />
+                  <Input
+                    type="date"
+                    className="col-span-1"
+                    value={inst.due_date}
+                    onChange={(e) => {
+                      const next = [...customInstallments];
+                      next[index] = { ...next[index], due_date: e.target.value };
+                      setCustomInstallments(next);
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+            {customInstallments.length > 0 && (() => {
+              const sum = customInstallments.reduce((s, i) => s + i.amount, 0);
+              const total = Number(application?.total_contract_value ?? 0);
+              const remaining = Math.round((total - sum) * 100) / 100;
+              const valid = Math.abs(remaining) <= 0.01;
+              return (
+                <div className="flex flex-wrap justify-between items-center gap-2 text-sm pt-2 border-t">
+                  <span className={valid ? "text-muted-foreground" : "text-amber-600 font-medium"}>
+                    Allocated: {formatCurrency(sum)} · Remaining: {formatCurrency(remaining)}
+                  </span>
+                  {!valid && remaining > 0 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => {
+                        const lastIndex = customInstallments.length - 1;
+                        const sumPrev = customInstallments.slice(0, lastIndex).reduce((s, i) => s + i.amount, 0);
+                        const total = Number(application?.total_contract_value ?? 0);
+                        const lastAmount = Math.round((total - sumPrev) * 100) / 100;
+                        const next = [...customInstallments];
+                        next[lastIndex] = { ...next[lastIndex], amount: lastAmount };
+                        setCustomInstallments(next);
+                      }}
+                    >
+                      Put remaining in last instalment
+                    </Button>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setCustomScheduleOpen(false)}
+              className="rounded-full uppercase tracking-wide"
+            >
+              Cancel
+            </Button>
+            <Button
+              className="rounded-full uppercase tracking-wide"
+              disabled={
+                createCustomContract.isPending ||
+                customInstallments.length === 0 ||
+                customInstallments.some((i) => !i.due_date) ||
+                Math.abs(customInstallments.reduce((s, i) => s + i.amount, 0) - Number(application?.total_contract_value ?? 0)) > 0.01
+              }
+              onClick={async () => {
+                const total = Number(application?.total_contract_value ?? 0);
+                const sum = customInstallments.reduce((s, i) => s + i.amount, 0);
+                if (Math.abs(sum - total) > 0.01) {
+                  toast({
+                    title: "Invalid amounts",
+                    description: `Total of instalments must equal contract total (${formatCurrency(total)}).`,
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                const studentName =
+                  step1Data?.first_name && step1Data?.last_name
+                    ? `${step1Data.first_name} ${step1Data.last_name}`.trim()
+                    : "Student";
+                try {
+                  await createCustomContract.mutateAsync({
+                    applicationId: applicationId!,
+                    studentDisplayName: studentName,
+                    installments: customInstallments.map((i) => ({
+                      sequence: i.sequence,
+                      label: i.label,
+                      amount: Math.round(i.amount * 100) / 100,
+                      due_date: i.due_date,
+                    })),
+                  });
+                  toast({
+                    title: "Schedule customised",
+                    description: "A new contract and payment plan have been created for this student.",
+                  });
+                  setCustomScheduleOpen(false);
+                } catch (err: unknown) {
+                  toast({
+                    title: "Error",
+                    description: err instanceof Error ? err.message : "Failed to save custom schedule.",
+                    variant: "destructive",
+                  });
+                }
+              }}
+            >
+              {createCustomContract.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Saving…
+                </>
+              ) : (
+                "Save custom schedule"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
