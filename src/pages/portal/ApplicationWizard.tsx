@@ -992,9 +992,10 @@ const StudentApplicationWizard = () => {
       application?.student_application_steps.find(
         (step) => step.step_number === 5,
       )?.payload ?? rebookingStep5 ?? {};
+    // Prefer DB (single source of truth) over step payload so import/staff changes show correctly
     const initialPlanId =
-      (payload.selected_plan_id as string | undefined) ??
       application?.selected_payment_plan_id ??
+      (payload.selected_plan_id as string | undefined) ??
       resolvedPlans[0]?.planId ??
       "";
     return {

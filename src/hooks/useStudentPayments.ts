@@ -29,32 +29,9 @@ const fetchPaymentSchedule = async (
   if (appError) throw appError;
   if (!application?.contract_id) return [];
 
-  // Fetch payment schedule for the contract
-  const { data: scheduleData, error: scheduleError } = await supabase
-    .from("contract_payment_schedule")
-    .select(
-      `
-      *,
-      contract:contracts!contract_id (
-        id,
-        name,
-        contract_start,
-        contract_end,
-        studio_grade:studio_grades ( name )
-      )
-    `,
-    )
-    .eq("contract_id", application.contract_id)
-    .order("sequence", { ascending: true });
-
-  if (scheduleError) throw scheduleError;
-  
-  // If schedule exists, return it
-  if (scheduleData && scheduleData.length > 0) {
-    return (scheduleData as unknown as PaymentSchedule[]) ?? [];
-  }
-
-  // If no schedule exists (e.g., Pay in Full plans), generate from payment_plan_installments
+  // Prefer the application's selected payment plan for the schedule (single source of truth).
+  // When the student/staff chose a plan (e.g. 4 instalments), we show that plan's schedule,
+  // not the contract-level contract_payment_schedule which may be from a different plan (e.g. 3).
   if (application.selected_payment_plan_id) {
     // Get contract details
     const { data: contract, error: contractError } = await supabase
@@ -207,6 +184,29 @@ const fetchPaymentSchedule = async (
       generatedSchedule[lastIndex].amount = adjustedAmount;
     }
     return generatedSchedule;
+  }
+
+  // No selected plan: fall back to contract-level schedule if it exists (e.g. legacy or single-plan contract)
+  const { data: scheduleData, error: scheduleError } = await supabase
+    .from("contract_payment_schedule")
+    .select(
+      `
+      *,
+      contract:contracts!contract_id (
+        id,
+        name,
+        contract_start,
+        contract_end,
+        studio_grade:studio_grades ( name )
+      )
+    `,
+    )
+    .eq("contract_id", application.contract_id)
+    .order("sequence", { ascending: true });
+
+  if (scheduleError) throw scheduleError;
+  if (scheduleData && scheduleData.length > 0) {
+    return (scheduleData as unknown as PaymentSchedule[]) ?? [];
   }
 
   return [];

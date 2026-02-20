@@ -1182,6 +1182,52 @@ const ApplicationDetail = () => {
                 <p className="text-xs sm:text-sm text-muted-foreground mb-1">Contract</p>
                 <p className="font-medium text-sm sm:text-base break-words">{application.contract?.slug || "—"}</p>
               </div>
+              {application.contract?.contract_payment_plans && application.contract.contract_payment_plans.length > 0 && (
+                <div>
+                  <Label className="text-xs sm:text-sm text-muted-foreground">Payment plan</Label>
+                  <Select
+                    value={application.selected_payment_plan_id ?? ""}
+                    onValueChange={async (planId) => {
+                      if (!applicationId || !planId) return;
+                      try {
+                        const { error } = await supabase.rpc("set_selected_payment_plan", {
+                          p_application_id: applicationId,
+                          p_plan_id: planId,
+                        });
+                        if (error) throw error;
+                        await queryClient.invalidateQueries({ queryKey: ["student-application", applicationId] });
+                        await queryClient.invalidateQueries({ queryKey: ["student-payments", applicationId] });
+                        await queryClient.invalidateQueries({ queryKey: ["payment-summary", applicationId] });
+                        toast({ title: "Payment plan updated", description: "Schedule and journey will show the selected plan." });
+                      } catch (err: unknown) {
+                        toast({
+                          variant: "destructive",
+                          title: "Failed to update plan",
+                          description: err instanceof Error ? err.message : "Please try again.",
+                        });
+                      }
+                    }}
+                    disabled={!!hasInstalmentPayments}
+                  >
+                    <SelectTrigger className="mt-1.5 rounded-full">
+                      <SelectValue placeholder="Select plan" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[...(application.contract.contract_payment_plans || [])]
+                        .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0))
+                        .filter((link) => link.payment_plan_id && link.payment_plan)
+                        .map((link) => (
+                          <SelectItem key={link.payment_plan_id!} value={link.payment_plan_id!}>
+                            {link.payment_plan?.name ?? link.payment_plan_id}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  {hasInstalmentPayments && (
+                    <p className="text-[10px] text-muted-foreground mt-1 italic">Cannot change plan after instalment payments are recorded.</p>
+                  )}
+                </div>
+              )}
               <div>
                 <p className="text-xs sm:text-sm text-muted-foreground mb-1">Total Value</p>
                 <div className="space-y-1">
