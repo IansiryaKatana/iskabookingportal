@@ -421,7 +421,7 @@ serve(async (req) => {
           studio_number,
           floor
         ),
-        contract:contracts (
+        contract:contracts!contract_id (
           id,
           name,
           academic_year_id,

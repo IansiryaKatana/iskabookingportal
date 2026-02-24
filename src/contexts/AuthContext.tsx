@@ -17,6 +17,14 @@ type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"] & {
 type Role = "student" | "staff" | "superadmin" | "partner" | "admin" | StaffSubrole;
 export type StaffSubrole = "operations_manager" | "reservationist" | "accountant" | "front_desk" | "maintenance_officer" | "housekeeper";
 
+/** Returns true if the error was an invalid/expired refresh token and session was cleared */
+function isInvalidRefreshTokenError(error: unknown): boolean {
+  const msg = error && typeof error === "object" && "message" in error
+    ? String((error as { message?: unknown }).message)
+    : "";
+  return msg.includes("Refresh Token") || msg.includes("refresh_token") || msg.includes("Invalid Refresh Token");
+}
+
 type AuthContextValue = {
   user: User | null;
   profile: ProfileRow | null;
@@ -31,6 +39,8 @@ type AuthContextValue = {
   ) => Promise<{ error?: string } | { requiresConfirmation: true; email: string }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  /** If error is invalid refresh token, signs out and returns true so UI can show "Session expired" */
+  clearSessionIfExpired: (error: unknown) => Promise<boolean>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -90,6 +100,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       if (error) {
         console.error("Error retrieving session:", error);
+        // Invalid/expired refresh token: clear stored session so user can sign in again
+        const isRefreshTokenError =
+          error.message?.includes("Refresh Token") ||
+          error.message?.includes("refresh_token") ||
+          (error as { status?: number })?.status === 400;
+        if (isRefreshTokenError) {
+          await supabase.auth.signOut({ scope: "local" });
+          if (mounted) {
+            setSession(null);
+            updateUser(null);
+            setProfile(null);
+          }
+          setLoading(false);
+          return;
+        }
       }
 
       if (!mounted) return;
@@ -328,6 +353,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setProfile(null);
   }, [updateUser]);
 
+  const clearSessionIfExpired = useCallback(async (error: unknown): Promise<boolean> => {
+    if (!isInvalidRefreshTokenError(error)) return false;
+    await supabase.auth.signOut({ scope: "local" });
+    setSession(null);
+    updateUser(null);
+    setProfile(null);
+    return true;
+  }, [updateUser]);
+
   const value = useMemo(
     () => {
       // For staff with sub-roles, use the sub-role as the role
@@ -353,9 +387,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         signUp,
         signOut,
         refreshProfile,
+        clearSessionIfExpired,
       };
     },
-    [user, profile, session, loading, signIn, signUp, signOut, refreshProfile],
+    [user, profile, session, loading, signIn, signUp, signOut, refreshProfile, clearSessionIfExpired],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

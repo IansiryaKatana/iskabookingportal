@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
+import { invokeCreatePayment } from "@/utils/invokeCreatePayment";
 import { useToast } from "@/hooks/use-toast";
 import { useBrandingSettings } from "@/hooks/useBranding";
 import { Label } from "@/components/ui/label";
@@ -328,7 +329,7 @@ const StudentApplicationWizard = () => {
   const successColorBorder = successColorHex; // Full color for border
   const { applicationId } = useParams<{ applicationId: string }>();
   const navigate = useNavigate();
-  const { user, profile, refreshProfile } = useAuth();
+  const { user, profile, refreshProfile, clearSessionIfExpired } = useAuth();
   const { toast } = useToast();
   const isStaff = profile?.role === "staff" || profile?.role === "superadmin";
   const isStaffOrSubRole =
@@ -364,6 +365,26 @@ const StudentApplicationWizard = () => {
   const initialStepSyncedRef = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
   const [sendingAgreements, setSendingAgreements] = useState(false);
+  const [agreementSendError, setAgreementSendErrorState] = useState<string | null>(() => {
+    if (typeof window === "undefined" || !applicationId) return null;
+    try {
+      return window.sessionStorage.getItem(`agreement-send-error-${applicationId}`);
+    } catch {
+      return null;
+    }
+  });
+  const setAgreementSendError = useCallback((value: string | null) => {
+    setAgreementSendErrorState(value);
+    if (applicationId) {
+      try {
+        const key = `agreement-send-error-${applicationId}`;
+        if (value) window.sessionStorage.setItem(key, value);
+        else window.sessionStorage.removeItem(key);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [applicationId]);
   const [stripePromise, setStripePromise] =
     useState<ReturnType<typeof loadStripe> | null>(null);
   const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(
@@ -1957,7 +1978,18 @@ useEffect(() => {
     }
 
     try {
-      setSendingAgreements(true);
+      await sendAgreements();
+    } catch {
+      // sendAgreements already set agreementSendError and showed toast; student can use Retry button
+    }
+  };
+
+  /** Send tenancy + guarantor agreements via DocuSign. Sets agreementSendError on failure so Retry can be shown. */
+  const sendAgreements = async () => {
+    if (!application?.id) return;
+    setAgreementSendError(null);
+    setSendingAgreements(true);
+    try {
       const { data, error } = await supabase.functions.invoke<{
         tenancyEnvelopeId?: string;
         guarantorEnvelopeId?: string;
@@ -2003,33 +2035,29 @@ useEffect(() => {
               status: "sent",
               updated_at: nowIso,
             }
-            : prev.guarantor,
+          : prev.guarantor,
       }));
 
-      // Move to Step 6 first so user can see the success
       if (application.id) {
         setCurrentStep(MAX_STEP_NUMBER);
         writeStoredStep(application.id, MAX_STEP_NUMBER);
       }
 
-      // Wait a moment for the database to save the envelope records, then refetch
-      // The pendingEnvelopes state will be used as fallback until real data arrives
       await new Promise((resolve) => setTimeout(resolve, 500));
       await refetchApplication();
-      
-      // Refetch again after a short delay to ensure envelope data is available
-      // This handles cases where database replication might have a slight delay
       setTimeout(async () => {
         await refetchApplication();
       }, 1000);
     } catch (error) {
+      const message = error instanceof Error ? error.message : "Please try again later.";
+      setAgreementSendError(message);
       console.error("Unable to trigger DocuSign:", error);
       toast({
         variant: "destructive",
         title: "Unable to send agreements",
-        description:
-          error instanceof Error ? error.message : "Please try again later.",
+        description: message,
       });
+      throw error;
     } finally {
       setSendingAgreements(false);
     }
@@ -2353,25 +2381,22 @@ useEffect(() => {
     }
     setCreatingIntent(true);
 
-    const { data, error } = await supabase.functions.invoke<{
-      clientSecret?: string;
-      amount?: number;
-      currency?: string;
-      error?: string;
-    }>("create-payment", {
-      body: { applicationId: application.id },
-    });
+    const { data, error } = await invokeCreatePayment({ applicationId: application.id });
 
     setCreatingIntent(false);
 
-    if (error || data?.error || !data?.clientSecret || !data.amount) {
+    if (import.meta.env.DEV && (error || data?.error)) {
+      console.warn("[create-payment] Error:", error?.message ?? data?.error);
+    }
+
+    if (error || data?.error || !data?.clientSecret || !data?.amount) {
+      const cleared = await clearSessionIfExpired(error ?? data?.error);
       toast({
         variant: "destructive",
-        title: "Unable to start payment",
-        description:
-          data?.error ??
-          error?.message ??
-          "Please ensure a studio is reserved and try again.",
+        title: cleared ? "Session expired" : "Unable to start payment",
+        description: cleared
+          ? "Please sign in again to continue."
+          : (data?.error ?? (error && "message" in error ? String((error as { message: string }).message) : null) ?? "Please ensure a studio is reserved and try again."),
       });
       return;
     }
@@ -2425,6 +2450,22 @@ useEffect(() => {
       );
     }
   }, [guarantorEnvelope, pendingEnvelopes.guarantor]);
+
+  // Rehydrate agreement send error from sessionStorage when applicationId is available (e.g. after refresh)
+  useEffect(() => {
+    if (!applicationId) return;
+    try {
+      const stored = window.sessionStorage.getItem(`agreement-send-error-${applicationId}`);
+      if (stored) setAgreementSendErrorState(stored);
+    } catch {
+      /* ignore */
+    }
+  }, [applicationId]);
+
+  // Clear send error once we have an envelope (e.g. after successful retry or refetch)
+  useEffect(() => {
+    if (effectiveTenancyEnvelope?.envelope_id) setAgreementSendError(null);
+  }, [effectiveTenancyEnvelope?.envelope_id, setAgreementSendError]);
 
   // Calculate completed steps - safe even if application is null
   const completedSteps = useMemo(() => {
@@ -3965,11 +4006,9 @@ useEffect(() => {
                   </div>
                 ) : paymentClientSecret && stripePromise ? (
                   <Elements
+                    key={paymentClientSecret}
                     stripe={stripePromise}
-                    options={{
-                      clientSecret: paymentClientSecret,
-                      appearance: { theme: "flat" },
-                    }}
+                    options={{ clientSecret: paymentClientSecret }}
                   >
                     <StripePaymentForm
                       amountPence={
@@ -4027,6 +4066,29 @@ useEffect(() => {
                 )}
               </Button>
             </div>
+            {agreementSendError && (
+              <Alert variant="destructive" className="mt-4 rounded-2xl">
+                <AlertTitle>Agreements could not be sent</AlertTitle>
+                <AlertDescription className="mt-1">{agreementSendError}</AlertDescription>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 rounded-full border-destructive/50 text-destructive hover:bg-destructive/10"
+                  onClick={() => sendAgreements()}
+                  disabled={sendingAgreements}
+                >
+                  {sendingAgreements ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Sending…
+                    </>
+                  ) : (
+                    "Retry sending agreements"
+                  )}
+                </Button>
+              </Alert>
+            )}
           </form>
         );
       case 6: {
@@ -4145,8 +4207,26 @@ useEffect(() => {
                   </Alert>
                 )}
 
-                {/* Status message when waiting for documents/agreement */}
-                {!sendingAgreements && !canLaunchSigning && !effectiveTenancyEnvelope && depositPaid && (
+                {/* Retry after failed send (Step 6) */}
+                {!sendingAgreements && agreementSendError && !effectiveTenancyEnvelope && depositPaid && (
+                  <Alert variant="destructive" className="rounded-2xl">
+                    <AlertTitle>Agreements could not be sent</AlertTitle>
+                    <AlertDescription className="mt-1">{agreementSendError}</AlertDescription>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-3 rounded-full border-destructive/50 text-destructive hover:bg-destructive/10"
+                      onClick={() => sendAgreements()}
+                      disabled={sendingAgreements}
+                    >
+                      Retry sending agreements
+                    </Button>
+                  </Alert>
+                )}
+
+                {/* Status message when waiting for documents/agreement (no error) */}
+                {!sendingAgreements && !agreementSendError && !canLaunchSigning && !effectiveTenancyEnvelope && depositPaid && (
                   <Alert className="border-blue-500/40 bg-blue-500/10">
                     <Info className="h-4 w-4" />
                     <AlertTitle className="font-semibold">Preparing Your Agreement</AlertTitle>
@@ -4156,8 +4236,8 @@ useEffect(() => {
                   </Alert>
                 )}
 
-                {/* Progress checklist when waiting */}
-                {!sendingAgreements && !canLaunchSigning && !effectiveTenancyEnvelope && depositPaid && (
+                {/* Progress checklist when waiting (not when retry is shown) */}
+                {!sendingAgreements && !agreementSendError && !canLaunchSigning && !effectiveTenancyEnvelope && depositPaid && (
                   <div className="space-y-2 rounded-lg border border-border/60 bg-muted/30 p-4">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
                       Application Progress
@@ -4203,8 +4283,16 @@ useEffect(() => {
                       <Button
                         type="button"
                         className="rounded-full uppercase tracking-wide"
-                        onClick={handleLaunchSigning}
-                        disabled={!canLaunchSigning || sendingAgreements}
+                        onClick={
+                          agreementSendError && !effectiveTenancyEnvelope && depositPaid
+                            ? () => sendAgreements()
+                            : handleLaunchSigning
+                        }
+                        disabled={
+                          agreementSendError && !effectiveTenancyEnvelope && depositPaid
+                            ? sendingAgreements
+                            : !canLaunchSigning || sendingAgreements
+                        }
                       >
                         {sendingAgreements ? (
                           <>
@@ -4216,6 +4304,8 @@ useEffect(() => {
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             Launching…
                           </>
+                        ) : agreementSendError && !effectiveTenancyEnvelope && depositPaid ? (
+                          "Retry sending agreements"
                         ) : !canLaunchSigning && !effectiveTenancyEnvelope && depositPaid ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />

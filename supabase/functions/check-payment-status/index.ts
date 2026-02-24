@@ -1,18 +1,19 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import Stripe from "https://esm.sh/stripe@18.5.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { getCorsHeaders, handleCorsPrelight } from "../_shared/cors.ts";
+import { listPaymentIntents, searchPaymentIntents } from "../_shared/stripe_rest.ts";
 
 const stripeSecret = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
-const stripe = new Stripe(stripeSecret);
 const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+
+type PaymentIntentLike = { id: string; status: string; amount: number; created: number; metadata?: Record<string, string> };
 
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
-  
+
   const preflightResponse = handleCorsPrelight(req);
   if (preflightResponse) return preflightResponse;
 
@@ -89,7 +90,6 @@ serve(async (req) => {
     }
 
     // Approved student requests: manual_payment may have instalment_id = null (payment_plan_installments case).
-    // The request's instalment_id is what the student UI uses, so add those so the instalment shows as Paid.
     const { data: approvedRequests } = await supabaseAdmin
       .from("manual_payment_requests")
       .select("instalment_id, amount, reviewed_at, submitted_at")
@@ -107,7 +107,6 @@ serve(async (req) => {
       });
     }
 
-    // If no Stripe customer, return only manual-paid instalments
     if (!application.stripe_customer_id) {
       const paidInstalments = Array.from(manualInstalmentIds).map((instalmentId) => ({
         instalmentId,
@@ -121,139 +120,92 @@ serve(async (req) => {
       });
     }
 
-    // Get all payment intents for this customer with instalment type
-    const allPaymentIntents: Stripe.PaymentIntent[] = [];
-    
-    // First, try to get payment intents by customer
+    const allPaymentIntents: PaymentIntentLike[] = [];
+
     if (application.stripe_customer_id) {
-      try {
-        const customerPayments = await stripe.paymentIntents.list({
-          customer: application.stripe_customer_id,
-          limit: 100,
-        });
-        allPaymentIntents.push(...customerPayments.data);
-        console.log(`Found ${customerPayments.data.length} payment intents for customer ${application.stripe_customer_id}`);
-      } catch (err) {
-        console.error("Error fetching payment intents by customer:", err);
+      const listRes = await listPaymentIntents(stripeSecret, {
+        customer: application.stripe_customer_id,
+        limit: 100,
+      });
+      if (listRes.data?.data) {
+        allPaymentIntents.push(...listRes.data.data);
+        console.log(`Found ${listRes.data.data.length} payment intents for customer ${application.stripe_customer_id}`);
       }
     }
-    
-    // Also search by application_id metadata directly (more reliable)
+
     if (applicationId) {
-      try {
-        const metadataSearch = await stripe.paymentIntents.search({
-          query: `metadata['application_id']:'${applicationId}'`,
-          limit: 100,
+      const searchRes = await searchPaymentIntents(stripeSecret, {
+        query: `metadata['application_id']:'${applicationId}'`,
+        limit: 100,
+      });
+      if (searchRes.data?.data) {
+        const existingIds = new Set(allPaymentIntents.map((pi) => pi.id));
+        searchRes.data.data.forEach((pi) => {
+          if (!existingIds.has(pi.id)) allPaymentIntents.push(pi);
         });
-        console.log(`Found ${metadataSearch.data.length} payment intents by metadata for application ${applicationId}`);
-        
-        // Merge results, avoiding duplicates
-        const existingIds = new Set(allPaymentIntents.map(pi => pi.id));
-        metadataSearch.data.forEach(pi => {
-          if (!existingIds.has(pi.id)) {
-            allPaymentIntents.push(pi);
-          }
-        });
-      } catch (err) {
-        console.error("Error searching payment intents by metadata:", err);
-        // Continue with customer-based search if metadata search fails
+        console.log(`Found ${searchRes.data.data.length} payment intents by metadata for application ${applicationId}`);
       }
     }
-    
+
     console.log(`Total payment intents found: ${allPaymentIntents.length}`);
 
-    // Log all payment intents for debugging
-    console.log("All payment intents:", allPaymentIntents.map(pi => ({
-      id: pi.id,
-      status: pi.status,
-      metadata: pi.metadata,
-      customer: pi.customer,
-    })));
-
-    // Also check stripe_payments table for recorded payments
     const { data: dbPayments } = await supabaseAdmin
       .from("stripe_payments")
       .select("stripe_payment_intent_id, metadata, amount, created_at")
       .eq("student_application_id", applicationId)
       .eq("payment_type", "instalment")
       .in("status", ["succeeded", "completed"]);
-    
-    console.log(`Found ${dbPayments?.length || 0} installment payments in database`);
-    
-    // Combine Stripe API results with database records
+
     const dbInstalmentIds = new Set<string>();
     if (dbPayments) {
-      dbPayments.forEach((payment) => {
+      dbPayments.forEach((payment: { metadata?: { instalment_id?: string } }) => {
         const instalmentId = payment.metadata?.instalment_id;
-        if (instalmentId) {
-          dbInstalmentIds.add(instalmentId);
-        }
+        if (instalmentId) dbInstalmentIds.add(instalmentId);
       });
     }
 
-    // Filter for successful instalment payments for this application
     const paidInstalments = allPaymentIntents
       .filter((pi) => {
         const isSucceeded = pi.status === "succeeded";
         const isInstalment = pi.metadata?.type === "instalment";
         const matchesApplication = pi.metadata?.application_id === applicationId;
         const hasInstalmentId = !!pi.metadata?.instalment_id;
-        
-        console.log(`Payment intent ${pi.id}:`, {
-          isSucceeded,
-          isInstalment,
-          matchesApplication,
-          hasInstalmentId,
-          metadata: pi.metadata,
-        });
-        
         return isSucceeded && isInstalment && matchesApplication && hasInstalmentId;
       })
       .map((pi) => ({
-        instalmentId: pi.metadata.instalment_id as string,
+        instalmentId: pi.metadata!.instalment_id as string,
         paymentIntentId: pi.id,
-        amount: pi.amount / 100, // Convert from pence to pounds
+        amount: pi.amount / 100,
         paidAt: new Date(pi.created * 1000).toISOString(),
       }));
-    
-    // Add any instalment IDs from stripe_payments that aren't in Stripe API results
-    dbInstalmentIds.forEach((instalmentId) => {
-      const alreadyIncluded = paidInstalments.some(pi => pi.instalmentId === instalmentId);
-      if (!alreadyIncluded) {
-        const dbPayment = dbPayments?.find(p => p.metadata?.instalment_id === instalmentId);
-        if (dbPayment) {
-          paidInstalments.push({
-            instalmentId: instalmentId,
-            paymentIntentId: dbPayment.stripe_payment_intent_id,
-            amount: Number(dbPayment.amount),
-            paidAt: dbPayment.created_at,
-          });
-        }
-      }
-    });
 
-    // Add manual payment instalments (staff-recorded or approved student requests)
-    manualInstalmentIds.forEach((instalmentId) => {
-      const alreadyIncluded = paidInstalments.some(pi => pi.instalmentId === instalmentId);
-      if (!alreadyIncluded) {
+    dbInstalmentIds.forEach((instalmentId) => {
+      if (paidInstalments.some((p) => p.instalmentId === instalmentId)) return;
+      const dbPayment = dbPayments?.find((p: { metadata?: { instalment_id?: string } }) => p.metadata?.instalment_id === instalmentId);
+      if (dbPayment) {
         paidInstalments.push({
           instalmentId,
-          paymentIntentId: null,
-          amount: manualAmountByInstalment.get(instalmentId) ?? 0,
-          paidAt: manualPaidAtByInstalment.get(instalmentId) ?? new Date().toISOString(),
+          paymentIntentId: dbPayment.stripe_payment_intent_id,
+          amount: Number(dbPayment.amount),
+          paidAt: dbPayment.created_at,
         });
       }
     });
 
-    console.log(`Found ${paidInstalments.length} paid instalments (Stripe + stripe_payments + manual_payments):`, paidInstalments.length);
+    manualInstalmentIds.forEach((instalmentId) => {
+      if (paidInstalments.some((p) => p.instalmentId === instalmentId)) return;
+      paidInstalments.push({
+        instalmentId,
+        paymentIntentId: null,
+        amount: manualAmountByInstalment.get(instalmentId) ?? 0,
+        paidAt: manualPaidAtByInstalment.get(instalmentId) ?? new Date().toISOString(),
+      });
+    });
 
-    return new Response(
-      JSON.stringify({ paidInstalments }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      },
-    );
+    return new Response(JSON.stringify({ paidInstalments }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 200,
+    });
   } catch (error) {
     console.error("Error checking payment status:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
@@ -263,4 +215,3 @@ serve(async (req) => {
     });
   }
 });
-

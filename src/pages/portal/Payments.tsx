@@ -27,6 +27,7 @@ import { Elements } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
 import StripePaymentForm from "@/components/StripePaymentForm";
 import { supabase } from "@/integrations/supabase/client";
+import { invokeCreatePayment } from "@/utils/invokeCreatePayment";
 import { getEffectiveWeeks } from "@/utils/contractDuration";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
@@ -37,7 +38,7 @@ const stripePromise = loadStripe(
 
 const Payments = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, clearSessionIfExpired } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedInstalment, setSelectedInstalment] = useState<{
@@ -156,21 +157,19 @@ const Payments = () => {
     
     setCreatingIntentId(instalmentId);
     try {
-      const { data, error } = await supabase.functions.invoke("create-payment", {
-        body: {
-          applicationId,
-          amount: amount, // Amount in pounds, function will convert to pence
-          type: "instalment",
-          label,
-          instalmentId,
-        },
+      const { data, error } = await invokeCreatePayment({
+        applicationId,
+        amount,
+        type: "instalment",
+        label,
+        instalmentId,
       });
 
       if (error) {
         console.error("Error from create-payment function:", error);
         throw error;
       }
-      
+
       if (!data?.clientSecret) {
         throw new Error("No client secret returned");
       }
@@ -184,10 +183,13 @@ const Payments = () => {
       setPaymentClientSecret(data.clientSecret);
     } catch (error) {
       console.error("Error creating payment intent:", error);
+      const cleared = await clearSessionIfExpired(error);
       toast({
         variant: "destructive",
-        title: "Payment error",
-        description: error instanceof Error ? error.message : "Unable to create payment. Please try again.",
+        title: cleared ? "Session expired" : "Payment error",
+        description: cleared
+          ? "Please sign in again to continue."
+          : (error && typeof error === "object" && "message" in error ? (error as { message: string }).message : "Unable to create payment. Please try again."),
       });
       setCreatingIntentId(null);
       setSelectedInstalment(null);
@@ -964,11 +966,9 @@ const PaymentCard = ({
                     </Button>
                   </div>
                   <Elements
+                    key={paymentClientSecret}
                     stripe={stripePromise}
-                    options={{
-                      clientSecret: paymentClientSecret,
-                      appearance: { theme: "flat" },
-                    }}
+                    options={{ clientSecret: paymentClientSecret }}
                   >
                     <StripePaymentForm
                       amountPence={Math.round(selectedInstalment.amount * 100)}

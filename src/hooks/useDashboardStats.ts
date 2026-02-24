@@ -56,43 +56,57 @@ const normalizeRow = (row?: RpcRow | null): DashboardStats => {
   };
 };
 
+// Only pass a value that Postgres will accept as UUID; invalid values cause 400.
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const toValidAcademicYearParam = (id?: string | null): string | null => {
+  if (id == null || id === "" || id === "all") return null;
+  return UUID_REGEX.test(id) ? id : null;
+};
+
 const fetchDashboardStats = async (academicYearId?: string): Promise<DashboardStats> => {
   try {
-    // Always pass p_academic_year_id explicitly; passing {} can cause 400 (PostgREST schema mismatch).
-    const { data, error } = await supabase.rpc(
-      "get_admin_dashboard_stats",
-      { p_academic_year_id: academicYearId || null }
-    );
+    const pAcademicYearId = toValidAcademicYearParam(academicYearId ?? null);
+    // Always pass p_academic_year_id explicitly; passing {} or invalid UUID can cause 400.
+    const { data, error } = await supabase.rpc("get_admin_dashboard_stats", {
+      p_academic_year_id: pAcademicYearId,
+    });
 
     if (error) {
-      // Log detailed error information for debugging
       const errorDetails = {
         message: error.message,
         details: error.details,
         hint: error.hint,
         code: error.code,
         academicYearId: academicYearId ?? "(none)",
+        paramSent: pAcademicYearId,
       };
-      
       console.error("Failed to load dashboard stats:", errorDetails);
       console.error("Full error object:", error);
-      
-      // If function doesn't exist (code 42883), log a helpful message
-      if (error.code === '42883' || error.message?.includes('does not exist')) {
+
+      if (error.code === "42883" || error.message?.includes("does not exist")) {
         console.error(
           "⚠️ The get_admin_dashboard_stats function doesn't exist in the database. " +
-          "Please run the migration: supabase/migrations/20250214_fix_admin_dashboard_stats_function.sql"
+            "Run migrations and ensure supabase/migrations (e.g. 20260216_dashboard_occupancy_total_all_studios.sql) are applied."
         );
       }
-      
-      // Return empty stats instead of throwing to prevent UI crashes
-      // This allows the app to continue functioning even if stats fail
+      if (error.code === "PGRST202" || (error.message && error.message.includes("Could not find the function"))) {
+        console.error(
+          "⚠️ PostgREST schema cache may be stale. In Supabase SQL Editor run: NOTIFY pgrst, 'reload schema';"
+        );
+      }
+      if (error.code === "22P02" || (error.message && error.message.includes("invalid input syntax for type uuid"))) {
+        console.error("⚠️ An invalid UUID was passed. Ensure academic year selector sends a valid UUID or null.");
+      }
+      // 400 often means PostgREST schema cache or missing migration
+      console.error(
+        "💡 If you see HTTP 400: apply migrations on your Supabase project and run in SQL Editor: NOTIFY pgrst, 'reload schema';"
+      );
+
       return normalizeRow(null);
     }
 
     return normalizeRow(data?.[0]);
   } catch (err) {
-    // Catch any unexpected errors
     console.error("Unexpected error in fetchDashboardStats:", err);
     return normalizeRow(null);
   }

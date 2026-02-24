@@ -1,17 +1,23 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import Stripe from "https://esm.sh/stripe@18.5.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { getCorsHeaders, handleCorsPrelight } from "../_shared/cors.ts";
+import {
+  listCustomersByEmail,
+  createCustomer,
+  createPaymentIntent,
+} from "../_shared/stripe_rest.ts";
 
 const stripeSecret = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
-const stripe = new Stripe(stripeSecret);
 const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
+/** Prevent browsers and proxies from caching payment responses (avoids stale 404/200) */
+const noCacheHeaders = { "Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache" };
+
 serve(async (req) => {
-  const corsHeaders = getCorsHeaders(req);
+  const corsHeaders = { ...getCorsHeaders(req), ...noCacheHeaders };
   
   const preflightResponse = handleCorsPrelight(req);
   if (preflightResponse) return preflightResponse;
@@ -51,17 +57,15 @@ serve(async (req) => {
     }
 
     const { applicationId, amount, type, label, instalmentId } = requestBody;
-    
-    console.log("Received payment request:", {
-      applicationId,
-      amount,
-      type,
-      label,
-      instalmentId,
-      typeOfType: typeof type,
-      typeOfAmount: typeof amount,
-    });
-    
+    const isInstalment = String(type || "").toLowerCase().trim() === "instalment";
+
+    console.log(
+      isInstalment
+        ? "Instalment payment request"
+        : "Deposit payment request (amount from contract)",
+      { applicationId }
+    );
+
     if (!applicationId) {
       return new Response(JSON.stringify({ error: "applicationId required" }), {
         status: 400,
@@ -79,7 +83,7 @@ serve(async (req) => {
           stripe_customer_id,
           assigned_studio_id,
           deposit_payment_intent_id,
-          contract:contracts (
+          contract:contracts!contract_id (
             id,
             slug,
             deposit_override,
@@ -93,6 +97,7 @@ serve(async (req) => {
       .single();
 
     if (applicationError || !application) {
+      console.error("Application lookup failed:", { applicationId, applicationError: applicationError?.message });
       return new Response(JSON.stringify({ error: "Application not found" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -107,20 +112,13 @@ serve(async (req) => {
     }
 
     // Handle instalment payments FIRST - before deposit logic
-    // Check type explicitly and handle case sensitivity
-    const paymentType = String(type || "").toLowerCase().trim();
-    console.log("Payment type check:", { originalType: type, normalizedType: paymentType });
-    
-    if (paymentType === "instalment") {
+    if (isInstalment) {
       console.log("=== INSTALMENT PAYMENT PATH ===");
       console.log("Creating instalment payment:", {
         applicationId,
         instalmentId,
         amount,
         label,
-        amountType: typeof amount,
-        typeReceived: type,
-        normalizedType: paymentType,
       });
       
       if (!instalmentId) {
@@ -162,28 +160,31 @@ serve(async (req) => {
         console.error("Original amount received:", amount);
       }
 
-      if (!application.stripe_customer_id) {
-        // Create customer if doesn't exist
+      let customerId = application.stripe_customer_id ?? "";
+      if (!customerId) {
         const { data: profile } = await supabaseAdmin
           .from("profiles")
           .select("first_name, last_name")
           .eq("id", user.id)
           .maybeSingle();
 
-        const existing = await stripe.customers.list({
-          email: user.email ?? undefined,
-          limit: 1,
-        });
-
-        let customerId: string;
-        if (existing.data.length > 0) {
-          customerId = existing.data[0].id;
+        const listRes = await listCustomersByEmail(stripeSecret, user.email ?? "");
+        const list = listRes.data as { data: { id: string }[] } | null;
+        if (list?.data?.length) {
+          customerId = list.data[0].id;
         } else {
-          const customer = await stripe.customers.create({
+          const created = await createCustomer(stripeSecret, {
             email: user.email ?? undefined,
             name: [profile?.first_name, profile?.last_name].filter(Boolean).join(" "),
           });
-          customerId = customer.id;
+          if (created.error || !created.data) {
+            console.error("Stripe create customer failed:", created.error);
+            return new Response(JSON.stringify({ error: created.error?.message ?? "Failed to create customer" }), {
+              status: 500,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+          customerId = created.data.id;
         }
 
         await supabaseAdmin
@@ -192,10 +193,10 @@ serve(async (req) => {
           .eq("id", application.id);
       }
 
-      const paymentIntent = await stripe.paymentIntents.create({
+      const piRes = await createPaymentIntent(stripeSecret, {
         amount: paymentAmount,
         currency: "gbp",
-        customer: application.stripe_customer_id,
+        customer: customerId,
         receipt_email: user.email ?? undefined,
         description: `Urban Hub instalment – ${label || "Payment"} – ${application.contract?.studio_grade?.name ?? "Studio"}`,
         metadata: {
@@ -207,8 +208,15 @@ serve(async (req) => {
           label: label || "",
           amount_pounds: String(amount),
         },
-        automatic_payment_methods: { enabled: true },
       });
+      if (piRes.error || !piRes.data) {
+        console.error("Stripe create payment intent failed:", piRes.error);
+        return new Response(JSON.stringify({ error: piRes.error?.message ?? "Failed to create payment intent" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const paymentIntent = piRes.data;
 
       console.log("Payment intent created:", {
         id: paymentIntent.id,
@@ -233,8 +241,7 @@ serve(async (req) => {
     }
 
     // Handle deposit payments (existing logic)
-    console.log("=== DEPOSIT PAYMENT PATH ===");
-    console.log("Type received:", type, "Expected 'instalment' but got:", type);
+    console.log("Deposit payment path: creating PaymentIntent");
     if (!application.assigned_studio_id) {
       return new Response(
         JSON.stringify({
@@ -270,24 +277,26 @@ serve(async (req) => {
       .eq("id", user.id)
       .maybeSingle();
 
-    let customerId = application.stripe_customer_id ?? undefined;
+    let customerId = application.stripe_customer_id ?? "";
 
     if (!customerId) {
-      const existing = await stripe.customers.list({
-        email: user.email ?? undefined,
-        limit: 1,
-      });
-
-      if (existing.data.length > 0) {
-        customerId = existing.data[0].id;
+      const listRes = await listCustomersByEmail(stripeSecret, user.email ?? "");
+      const list = listRes.data as { data: { id: string }[] } | null;
+      if (list?.data?.length) {
+        customerId = list.data[0].id;
       } else {
-        const customer = await stripe.customers.create({
+        const created = await createCustomer(stripeSecret, {
           email: user.email ?? undefined,
-          name: [profile?.first_name, profile?.last_name].filter(Boolean).join(
-            " ",
-          ),
+          name: [profile?.first_name, profile?.last_name].filter(Boolean).join(" "),
         });
-        customerId = customer.id;
+        if (created.error || !created.data) {
+          console.error("Stripe create customer failed:", created.error);
+          return new Response(JSON.stringify({ error: created.error?.message ?? "Failed to create customer" }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        customerId = created.data.id;
       }
 
       await supabaseAdmin
@@ -296,7 +305,7 @@ serve(async (req) => {
         .eq("id", application.id);
     }
 
-    const paymentIntent = await stripe.paymentIntents.create({
+    const piRes = await createPaymentIntent(stripeSecret, {
       amount: depositAmount,
       currency: "gbp",
       customer: customerId,
@@ -308,8 +317,15 @@ serve(async (req) => {
         contract_id: application.contract?.id ?? "",
         type: "deposit",
       },
-      automatic_payment_methods: { enabled: true },
     });
+    if (piRes.error || !piRes.data) {
+      console.error("Stripe create payment intent failed:", piRes.error);
+      return new Response(JSON.stringify({ error: piRes.error?.message ?? "Failed to create payment intent" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const paymentIntent = piRes.data;
 
     await supabaseAdmin
       .from("student_applications")

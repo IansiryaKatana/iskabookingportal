@@ -1,18 +1,17 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import Stripe from "https://esm.sh/stripe@18.5.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { getCorsHeaders, handleCorsPrelight } from "../_shared/cors.ts";
+import { retrievePaymentIntent } from "../_shared/stripe_rest.ts";
 
 const stripeSecret = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
-const stripe = new Stripe(stripeSecret);
 const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
-  
+
   const preflightResponse = handleCorsPrelight(req);
   if (preflightResponse) return preflightResponse;
 
@@ -62,13 +61,20 @@ serve(async (req) => {
       });
     }
 
-    // Retrieve payment intent from Stripe
-    const paymentIntent = await stripe.paymentIntents.retrieve(payment_intent_id);
+    const result = await retrievePaymentIntent(stripeSecret, payment_intent_id);
+    if (result.error || !result.data) {
+      console.error("Error fetching payment intent:", result.error);
+      return new Response(JSON.stringify({ error: result.error?.message ?? "Failed to retrieve payment intent" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const paymentIntent = result.data;
 
     return new Response(
       JSON.stringify({
         id: paymentIntent.id,
-        amount: paymentIntent.amount, // Amount in pence
+        amount: paymentIntent.amount,
         currency: paymentIntent.currency,
         status: paymentIntent.status,
         created: paymentIntent.created,
@@ -87,4 +93,3 @@ serve(async (req) => {
     });
   }
 });
-

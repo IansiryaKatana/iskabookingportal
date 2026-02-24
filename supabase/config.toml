@@ -1,5 +1,10 @@
 project_id = "pzptocwdaqpczexlbajr"
 
+# Use Deno 2 for Edge Functions (avoids "Deno.core.runMicrotasks() is not supported"
+# when Stripe SDK or other npm compat code runs in the runtime).
+[edge_runtime]
+deno_version = 2
+
 [functions.get-publishable-key]
 verify_jwt = false
 

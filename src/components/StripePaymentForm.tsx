@@ -138,29 +138,11 @@ const StripePaymentForm = ({
   return (
     <div className="space-y-4">
       <div className="min-h-[200px]">
-        <PaymentElement 
+        <PaymentElement
           onReady={() => setIsReady(true)}
           options={{
             layout: "tabs",
-            business: {
-              name: "Urban Hub",
-            },
-            appearance: {
-              variables: {
-                colorPrimary: "hsl(0, 85%, 45%)",
-                colorBackground: "hsl(0, 0%, 100%)",
-                colorText: "hsl(0, 0%, 0%)",
-                colorDanger: "hsl(0, 84%, 60%)",
-                fontFamily: "system-ui, sans-serif",
-                spacingUnit: "4px",
-                borderRadius: "8px",
-              },
-              rules: {
-                ".Input": {
-                  border: "1px solid hsl(0, 0%, 80%)",
-                },
-              },
-            },
+            business: { name: "Urban Hub" },
           }}
         />
       </div>

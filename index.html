@@ -23,6 +23,8 @@
   </head>
 
   <body>
+    <!-- Preload Stripe.js Clover with cache-busting so Payment Element always uses correct API version -->
+    <script async src="https://js.stripe.com/clover/stripe.js?v=8.3.0"></script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
