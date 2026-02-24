@@ -10,18 +10,22 @@ import { toast } from "sonner";
 interface StripePaymentFormProps {
   amountPence: number;
   currency?: string;
-  onSuccess: () => void;
+  onSuccess: (paymentIntentId?: string) => void;
+  /** Called when Payment Element fails to load (e.g. 400 from Stripe). Parent can clear clientSecret and retry. */
+  onLoadError?: () => void;
 }
 
 const StripePaymentForm = ({
   amountPence,
   currency = "GBP",
   onSuccess,
+  onLoadError,
 }: StripePaymentFormProps) => {
   const stripe = useStripe();
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
   const [isReady, setIsReady] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
 
   // Wait for Elements to be ready
@@ -135,11 +139,36 @@ const StripePaymentForm = ({
     );
   }
 
+  const handleLoadError = (event: { elementType?: string; error?: { message?: string } }) => {
+    const msg = event?.error?.message ?? "Payment form could not load.";
+    console.error("Stripe Payment Element load error:", event?.error);
+    setLoadError(msg);
+    toast.error(msg + " Please try again or use a different payment method.");
+    onLoadError?.();
+  };
+
+  if (loadError) {
+    return (
+      <div className="space-y-4 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+        <p className="text-sm text-destructive">{loadError}</p>
+        <p className="text-xs text-muted-foreground">
+          Close this form and click Pay again to get a fresh payment link. If it keeps failing, check that your Stripe keys (test/live) match.
+        </p>
+        {onLoadError && (
+          <Button type="button" variant="outline" size="sm" onClick={onLoadError}>
+            Close and try again
+          </Button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="min-h-[200px]">
         <PaymentElement
           onReady={() => setIsReady(true)}
+          onLoadError={handleLoadError}
           options={{
             layout: "tabs",
             business: { name: "Urban Hub" },

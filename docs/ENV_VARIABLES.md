@@ -11,7 +11,7 @@ These variables are accessible in the browser and must be prefixed with `VITE_`.
 - `VITE_SUPABASE_PUBLISHABLE_KEY` - Supabase anon/public key
 
 ### Stripe
-- `VITE_STRIPE_PUBLISHABLE_KEY` - Stripe publishable key (starts with `pk_`)
+- `VITE_STRIPE_PUBLISHABLE_KEY` - Stripe publishable key (starts with `pk_`). Optional for the student portal and booking panel: those pages load the key at runtime from the `get-publishable-key` Edge Function. The **Edge Function** must have `VITE_STRIPE_PUBLISHABLE_KEY` set in Supabase secrets so it can return the key; it must match the same Stripe mode (test/live) as `STRIPE_SECRET_KEY`.
 
 ### Sentry (Optional)
 - `VITE_SENTRY_DSN` - Sentry DSN for error tracking

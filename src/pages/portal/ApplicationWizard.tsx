@@ -4016,6 +4016,10 @@ useEffect(() => {
                       }
                       currency={paymentCurrency}
                       onSuccess={handleDepositSuccess}
+                      onLoadError={() => {
+                        setPaymentClientSecret(null);
+                        setCreatingIntent(false);
+                      }}
                     />
                   </Elements>
                 ) : (

@@ -92,7 +92,6 @@ const BookingPanel = () => {
   const [email, setEmail] = useState("");
   const [stayDuration, setStayDuration] = useState("");
   const [paymentPlan, setPaymentPlan] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [clientSecret, setClientSecret] = useState("");
 
   useEffect(() => {
@@ -340,9 +339,11 @@ const BookingPanel = () => {
         <div className="space-y-4 pt-4">
           {clientSecret && BookingPanelStripe.stripePromise ? (
             <Elements stripe={BookingPanelStripe.stripePromise} options={{ clientSecret }}>
-              <StripePaymentForm 
-                isSubmitting={isSubmitting}
+              <StripePaymentForm
+                amountPence={9900}
+                currency="GBP"
                 onSuccess={handlePaymentSuccess}
+                onLoadError={() => setClientSecret("")}
               />
             </Elements>
           ) : (

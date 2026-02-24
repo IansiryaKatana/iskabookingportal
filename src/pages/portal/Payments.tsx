@@ -32,15 +32,12 @@ import { getEffectiveWeeks } from "@/utils/contractDuration";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 
-const stripePromise = loadStripe(
-  import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? "",
-);
-
 const Payments = () => {
   const navigate = useNavigate();
   const { user, clearSessionIfExpired } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [stripePromise, setStripePromise] = useState<ReturnType<typeof loadStripe> | null>(null);
   const [selectedInstalment, setSelectedInstalment] = useState<{
     applicationId: string;
     instalmentId: string;
@@ -52,6 +49,25 @@ const Payments = () => {
   const [paidInstalmentIds, setPaidInstalmentIds] = useState<Set<string>>(new Set());
   const [isLoadingPaidStatus, setIsLoadingPaidStatus] = useState(true);
   const isInitialPaidStatusLoad = useRef(true);
+
+  // Load Stripe publishable key from backend (same as ApplicationWizard) so it always matches
+  // STRIPE_SECRET_KEY and avoids 400 from elements/sessions when key is missing or test/live mismatch.
+  useEffect(() => {
+    let mounted = true;
+    const loadKey = async () => {
+      const { data, error } = await supabase.functions.invoke<{ publishableKey?: string }>("get-publishable-key");
+      if (!mounted) return;
+      if (error || data?.error) {
+        console.error("Payments: failed to load Stripe publishable key", error ?? data?.error);
+        return;
+      }
+      if (data?.publishableKey) {
+        setStripePromise(loadStripe(data.publishableKey));
+      }
+    };
+    loadKey();
+    return () => { mounted = false; };
+  }, []);
 
   const {
     data: applications,
@@ -467,6 +483,7 @@ const Payments = () => {
               setCreatingIntentId(null);
             }}
             getInstalmentStatus={getInstalmentStatus}
+            stripePromise={stripePromise}
           />
         ))}
 
@@ -501,6 +518,7 @@ type PaymentCardProps = {
   onPayInstalment: (applicationId: string, instalmentId: string, amount: number, label: string) => void;
   onPaymentSuccess: (paymentIntentId?: string) => void;
   onCancelPayment: () => void;
+  stripePromise: ReturnType<typeof loadStripe> | null;
   getInstalmentStatus: (
     instalment: { id: string; due_date: string; label?: string | null; sequence: number },
     application: { 
@@ -519,6 +537,7 @@ const PaymentCard = ({
   onPayInstalment,
   onPaymentSuccess,
   onCancelPayment,
+  stripePromise,
   getInstalmentStatus,
 }: PaymentCardProps) => {
   const queryClient = useQueryClient();
@@ -974,6 +993,11 @@ const PaymentCard = ({
                       amountPence={Math.round(selectedInstalment.amount * 100)}
                       currency="GBP"
                       onSuccess={onPaymentSuccess}
+                      onLoadError={() => {
+                        setPaymentClientSecret(null);
+                        setSelectedInstalment(null);
+                        setCreatingIntentId(null);
+                      }}
                     />
                   </Elements>
                 </div>
