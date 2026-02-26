@@ -741,6 +741,163 @@ export async function generateApplicationsTemplate(
   return arrayToCSV(applicationsData, headers, options);
 }
 
+const APPLICATIONS_CUSTOM_CONTRACTS_HEADERS = [
+  "academic_year_name",
+  "contract_slug",
+  "Weekly Rate",
+  "Nearest Exceeding Duration",
+  "Custom contract start date",
+  "payment_plan_name",
+  "studio_number",
+  "Given Total",
+  "Chargeable Total",
+  "Discount Needed",
+  "email",
+  "first_name",
+  "last_name",
+  "date_of_birth",
+  "ethnicity",
+  "gender",
+  "ucas_id",
+  "country",
+  "mobile",
+  "address_line_1",
+  "address_line_2",
+  "postcode",
+  "town",
+  "year_of_study",
+  "field_of_study",
+  "disabled",
+  "smoker",
+  "medical_requirements",
+  "entry_into_uk",
+  "uk_citizen",
+  "guarantor_name",
+  "guarantor_email",
+  "guarantor_phone",
+  "guarantor_relationship",
+  "guarantor_dob",
+  "witness_name",
+  "witness_email",
+  "witness_phone",
+  "status",
+  "submitted_at",
+  "booking_source",
+  "deposit_amount",
+  "deposit_paid_date",
+  "referral_code",
+  "passport_path",
+  "visa_path",
+  "utility_bill_path",
+  "id_document_path",
+  "bank_statement_path",
+  "contract_pdf_path",
+  "instalment_due_dates",
+  "instalment_amounts",
+];
+
+/**
+ * Generate Applications with custom contracts CSV template.
+ * Column order: contract/pricing first, then student/application, then instalment_due_dates, instalment_amounts.
+ */
+export async function generateApplicationsWithCustomContractsTemplate(
+  options: CSVTemplateOptions = {}
+): Promise<string> {
+  const PLACEHOLDER_DOCUMENT_PATH = "documents/PLACEHOLDER.pdf";
+  const { data: contracts } = await supabase
+    .from("contracts")
+    .select(`
+      slug,
+      name,
+      academic_years!inner(name)
+    `)
+    .eq("is_active", true)
+    .is("student_application_id", null)
+    .order("academic_years(name)", { ascending: false })
+    .order("slug", { ascending: true })
+    .limit(20);
+
+  const { data: studios } = await supabase
+    .from("studios")
+    .select("studio_number")
+    .eq("is_active", true)
+    .limit(20);
+
+  const studioNumbers = (studios || []).map((s: any) => s.studio_number);
+  const exampleRows: Record<string, string>[] = [];
+
+  if (contracts && contracts.length > 0) {
+    const firstNames = ["John", "Sarah", "Michael", "Emily"];
+    const lastNames = ["Smith", "Johnson", "Williams", "Brown"];
+    for (let i = 0; i < Math.min(3, contracts.length); i++) {
+      const c = contracts[i] as any;
+      const ayName = c.academic_years?.name ?? "";
+      const slug = c.slug ?? "";
+      const email = `${(firstNames[i] ?? "user").toLowerCase()}.${(lastNames[i] ?? "example").toLowerCase()}@example.com`;
+      const startDate = "2025-09-24";
+      const endDate = "2026-08-29";
+      const dueDates = `${startDate},2026-01-01,2026-04-01`;
+      const amounts = "2308.57,2720.00,2720.00";
+      exampleRows.push({
+        academic_year_name: ayName,
+        contract_slug: slug,
+        "Weekly Rate": "160",
+        "Nearest Exceeding Duration": "48w 3d",
+        "Custom contract start date": `24 September 2025 to 29 August 2026`,
+        payment_plan_name: "3 Instalments",
+        studio_number: studioNumbers[i % Math.max(1, studioNumbers.length)] ?? "",
+        "Given Total": "7748.57",
+        "Chargeable Total": "7748.57",
+        "Discount Needed": "0",
+        email,
+        first_name: firstNames[i] ?? "First",
+        last_name: lastNames[i] ?? "Last",
+        date_of_birth: "2005-06-16",
+        ethnicity: "Other",
+        gender: "Prefer not to say",
+        ucas_id: "",
+        country: "United Kingdom",
+        mobile: "+447000000000",
+        address_line_1: "Example Street 1",
+        address_line_2: "",
+        postcode: "SW1A 1AA",
+        town: "London",
+        year_of_study: "2",
+        field_of_study: "Not Specified yet",
+        disabled: "no",
+        smoker: "no",
+        medical_requirements: "None",
+        entry_into_uk: "Student Visa",
+        uk_citizen: "No",
+        guarantor_name: "to be provided later",
+        guarantor_email: "guarantor@example.com",
+        guarantor_phone: "+447123456789",
+        guarantor_relationship: "Not Provided",
+        guarantor_dob: "16/04/1966",
+        witness_name: "Witness Name",
+        witness_email: "witness@example.com",
+        witness_phone: "+44 7123456789",
+        status: "confirmed",
+        submitted_at: new Date().toISOString(),
+        booking_source: "hfs_sales",
+        deposit_amount: "99",
+        deposit_paid_date: "11/11/2024",
+        referral_code: "",
+        passport_path: PLACEHOLDER_DOCUMENT_PATH,
+        visa_path: PLACEHOLDER_DOCUMENT_PATH,
+        utility_bill_path: PLACEHOLDER_DOCUMENT_PATH,
+        id_document_path: PLACEHOLDER_DOCUMENT_PATH,
+        bank_statement_path: PLACEHOLDER_DOCUMENT_PATH,
+        contract_pdf_path: PLACEHOLDER_DOCUMENT_PATH,
+        instalment_due_dates: dueDates,
+        instalment_amounts: amounts,
+      });
+    }
+  }
+
+  return arrayToCSV(exampleRows, APPLICATIONS_CUSTOM_CONTRACTS_HEADERS, options);
+}
+
 /**
  * Generate Payment Records CSV template (installment payments for existing applications).
  * Use application_id OR (student_email + academic_year_name) to identify the application.
@@ -1053,6 +1210,7 @@ export function getTemplateGenerator(importType: string): () => Promise<string> 
     cashback_campaigns: generateCashbackCampaignsTemplate,
     discount_campaigns: generateDiscountCampaignsTemplate,
     applications: generateApplicationsTemplate,
+    applications_custom_contracts: generateApplicationsWithCustomContractsTemplate,
     payment_records: generatePaymentRecordsTemplate,
     ota_bookings: generateOTABookingsTemplate,
   };

@@ -6,11 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { useStudentApplication } from "@/hooks/useStudentApplication";
 import { useUpdateApplicationStatus } from "@/hooks/useAdminApplications";
 import { useAdminStudios } from "@/hooks/useAdminStudios";
-import { ArrowLeft, User, Mail, Phone, MapPin, Calendar, Building2, CreditCard, FileText, CheckCircle2, XCircle, Download, Send, RotateCcw, Gift, Percent, Handshake, Upload, Pencil } from "lucide-react";
+import { ArrowLeft, User, Mail, Phone, MapPin, Calendar, Building2, CreditCard, FileText, CheckCircle2, XCircle, Download, Send, RotateCcw, Gift, Percent, Handshake, Upload, Pencil, Check, ChevronsUpDown } from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -43,6 +43,9 @@ import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
 import { BOOKING_SOURCE_OPTIONS } from "@/constants/bookingSources";
 import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
 const getStatusBadge = (status: string) => {
   const statusConfig: Record<string, { className: string; label: string }> = {
@@ -99,6 +102,8 @@ const ApplicationDetail = () => {
   const [manualPaymentOpen, setManualPaymentOpen] = useState(false);
   const [manualPaymentInitialType, setManualPaymentInitialType] = useState<"deposit" | "instalment">("deposit");
   const [selectedStudio, setSelectedStudio] = useState<string>("");
+  const [studioDropdownOpen, setStudioDropdownOpen] = useState(false);
+  const [studioSearchQuery, setStudioSearchQuery] = useState("");
   const [documentNotes, setDocumentNotes] = useState<Record<string, string>>({});
   const [cashbackDialogOpen, setCashbackDialogOpen] = useState(false);
   const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
@@ -138,11 +143,23 @@ const ApplicationDetail = () => {
   const createPartnerReferral = useCreatePartnerReferral();
   const { data: paymentSummary } = usePaymentSummary(applicationId);
 
-  // Fetch available studios for reassignment
+  // Fetch available studios for reassignment (same room grade + academic year as application; uses same "available" logic as Studio Roster)
   const { data: studios } = useAdminStudios({
     gradeId: application?.studio_grade_id,
     status: "available",
+    academicYearId: application?.contract?.academic_year_id ?? undefined,
   });
+
+  const filteredStudiosForAssignment = useMemo(() => {
+    if (!studios) return [];
+    const q = studioSearchQuery.trim().toLowerCase();
+    if (!q) return studios;
+    return studios.filter(
+      (s) =>
+        (s.studio_number ?? "").toLowerCase().includes(q) ||
+        (s.id ?? "").toLowerCase().includes(q)
+    );
+  }, [studios, studioSearchQuery]);
 
   // Fetch student documents
   const { data: documents } = useQuery({
@@ -1472,18 +1489,66 @@ const ApplicationDetail = () => {
             <CardContent className="space-y-4">
               <div>
                 <Label>Assign/Reassign Studio</Label>
-                <Select value={selectedStudio || application.assigned_studio_id || ""} onValueChange={setSelectedStudio}>
-                  <SelectTrigger className="mt-2">
-                    <SelectValue placeholder="Select a studio" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {studios?.map((studio) => (
-                      <SelectItem key={studio.id} value={studio.id}>
-                        {studio.studio_number} - {studio.status}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <p className="text-xs text-muted-foreground mt-1 mb-2">
+                  Available studios for this application&apos;s room grade. Search by studio number.
+                </p>
+                <Popover open={studioDropdownOpen} onOpenChange={setStudioDropdownOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={studioDropdownOpen}
+                      className={cn(
+                        "w-full justify-between rounded-full font-normal mt-0",
+                        !(selectedStudio || application.assigned_studio_id) && "text-muted-foreground"
+                      )}
+                    >
+                      <span className="truncate">
+                        {selectedStudio || application.assigned_studio_id
+                          ? studios?.find((s) => s.id === (selectedStudio || application.assigned_studio_id))?.studio_number ?? "Select a studio"
+                          : "Select a studio"}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                    <Command>
+                      <CommandInput
+                        placeholder="Search studio by number..."
+                        value={studioSearchQuery}
+                        onValueChange={setStudioSearchQuery}
+                      />
+                      <CommandList>
+                        <CommandEmpty>No studio found.</CommandEmpty>
+                        <CommandGroup>
+                          {filteredStudiosForAssignment.map((studio) => (
+                            <CommandItem
+                              key={studio.id}
+                              value={studio.studio_number ?? studio.id}
+                              onSelect={() => {
+                                setSelectedStudio(studio.id);
+                                setStudioDropdownOpen(false);
+                                setStudioSearchQuery("");
+                              }}
+                              className="cursor-pointer"
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  (selectedStudio || application.assigned_studio_id) === studio.id ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {studio.studio_number} - {studio.status}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+                {studios?.length === 0 && application?.studio_grade_id && (
+                  <p className="text-xs text-muted-foreground mt-2">No available studios for this room grade.</p>
+                )}
               </div>
               {application.assigned_studio && (
                 <div>

@@ -119,6 +119,13 @@ const IMPORT_TYPES = [
     icon: "📋",
   },
   {
+    value: "applications_custom_contracts",
+    label: "Applications with custom contracts",
+    description: "Import applications with per-row custom contract (weekly rate + duration) and fixed instalment schedule. Use instalment_due_dates and instalment_amounts (comma-separated). Discount applied when system total > Given Total.",
+    dependencies: ["contracts", "studios"],
+    icon: "📄",
+  },
+  {
     value: "payment_records",
     label: "Payment Records",
     description: "Import historical installment payments for existing applications. Use after applications are imported. Requires applications.",
@@ -421,6 +428,20 @@ const DataImport = () => {
                     the system will look up the contract and assign the application to that contract's academic year. The{" "}
                     <code className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900 rounded text-xs">academic_year_name</code> column
                     in the template is informational only - it shows which academic year each contract belongs to.
+                  </AlertDescription>
+                </Alert>
+              )}
+              {importType === "applications_custom_contracts" && (
+                <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950/20">
+                  <Info className="h-4 w-4 text-blue-600" />
+                  <AlertTitle className="text-blue-900 dark:text-blue-100">
+                    Custom contracts import
+                  </AlertTitle>
+                  <AlertDescription className="text-blue-800 dark:text-blue-200">
+                    Each row creates a <strong>custom contract</strong> (weekly rate + duration) and a <strong>fixed instalment plan</strong> from{" "}
+                    <code className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900 rounded text-xs">instalment_due_dates</code> and{" "}
+                    <code className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900 rounded text-xs">instalment_amounts</code> (comma-separated).
+                    When system total exceeds <strong>Given Total</strong>, the difference is applied as a discount (historical adjustment).
                   </AlertDescription>
                 </Alert>
               )}

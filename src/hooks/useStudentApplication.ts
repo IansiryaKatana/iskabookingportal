@@ -16,6 +16,7 @@ type StudentApplication = ApplicationRow & {
   contract: {
     id: string;
     slug: string;
+    academic_year_id: string | null;
     deposit_override: number | null;
     contract_start: string;
     contract_end: string;
@@ -50,6 +51,7 @@ const fetchApplication = async (
         contract:contracts!contract_id (
           id,
           slug,
+          academic_year_id,
           deposit_override,
           payment_plan_id,
           contract_start,

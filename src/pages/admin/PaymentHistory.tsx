@@ -13,8 +13,9 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Download, Calendar, Filter, FileText, RefreshCw, CheckCircle2, AlertCircle } from "lucide-react";
+import { Download, Calendar, Filter, FileText, RefreshCw, CheckCircle2, AlertCircle, Search } from "lucide-react";
 import { format } from "date-fns";
+import { Link } from "react-router-dom";
 import { generateInvoicePDF } from "@/utils/invoicePdfGenerator";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -25,6 +26,7 @@ const PaymentHistory = () => {
   const [selectedYear, setSelectedYear] = useState<string>("all");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+  const [searchByName, setSearchByName] = useState<string>("");
   const [selectedPayments, setSelectedPayments] = useState<Set<string>>(new Set());
   const [isGeneratingReceipts, setIsGeneratingReceipts] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -43,8 +45,41 @@ const PaymentHistory = () => {
 
   const { data: payments, isLoading } = useAllPayments(filters);
 
+  // Client-side filter by student name; then split into deposits/installments
+  const { filteredPayments, deposits, installments, allPayments } = useMemo(() => {
+    if (!payments) return { filteredPayments: [], deposits: [], installments: [], allPayments: [] };
+    const searchTrim = searchByName.trim().toLowerCase();
+    const filtered = searchTrim
+      ? payments.filter(
+          (p) => (p.student_name?.trim().toLowerCase() ?? "").includes(searchTrim)
+        )
+      : payments;
+
+    const depositsList = filtered.filter((payment) => {
+      const isDeposit =
+        !payment.installment_number &&
+        (payment.payment_metadata?.type === "deposit" ||
+          !payment.payment_metadata?.type ||
+          payment.payment_metadata?.type !== "instalment");
+      return isDeposit;
+    });
+
+    const installmentsList = filtered.filter(
+      (payment) =>
+        payment.installment_number !== null ||
+        payment.payment_metadata?.type === "instalment"
+    );
+
+    return {
+      filteredPayments: filtered,
+      deposits: depositsList,
+      installments: installmentsList,
+      allPayments: filtered,
+    };
+  }, [payments, searchByName]);
+
   const exportToCSV = () => {
-    if (!payments || payments.length === 0) return;
+    if (!filteredPayments || filteredPayments.length === 0) return;
 
     const headers = [
       "Payment Date",
@@ -64,7 +99,7 @@ const PaymentHistory = () => {
       "Notes",
     ];
 
-    const rows = payments.map((payment) => [
+    const rows = filteredPayments.map((payment) => [
       format(new Date(payment.payment_date), "yyyy-MM-dd HH:mm:ss"),
       payment.student_name?.trim() || "N/A",
       payment.studio_number ?? "N/A",
@@ -98,35 +133,11 @@ const PaymentHistory = () => {
     document.body.removeChild(link);
   };
 
-  const totalAmount = payments?.reduce((sum, p) => sum + p.amount_paid, 0) || 0;
-  const stripeCount = payments?.filter((p) => p.payment_source === "stripe").length || 0;
-  const manualCount = payments?.filter((p) => p.payment_source === "manual").length || 0;
-
-  // Separate payments into deposits and installments
-  const { deposits, installments, allPayments } = useMemo(() => {
-    if (!payments) return { deposits: [], installments: [], allPayments: [] };
-    
-    const depositsList = payments.filter(payment => {
-      // Deposit if: no installment_number AND (metadata type is deposit OR no type/installment_number)
-      const isDeposit = !payment.installment_number && 
-        (payment.payment_metadata?.type === "deposit" || 
-         !payment.payment_metadata?.type || 
-         payment.payment_metadata?.type !== "instalment");
-      return isDeposit;
-    });
-    
-    const installmentsList = payments.filter(payment => {
-      // Installment if: has installment_number OR metadata type is instalment
-      return payment.installment_number !== null || 
-             payment.payment_metadata?.type === "instalment";
-    });
-    
-    return {
-      deposits: depositsList,
-      installments: installmentsList,
-      allPayments: payments,
-    };
-  }, [payments]);
+  const totalAmount = filteredPayments?.reduce((sum, p) => sum + p.amount_paid, 0) || 0;
+  const stripeCount = filteredPayments?.filter((p) => p.payment_source === "stripe").length || 0;
+  const manualCount = filteredPayments?.filter((p) => p.payment_source === "manual").length || 0;
+  const stripeAmount = filteredPayments?.filter((p) => p.payment_source === "stripe").reduce((sum, p) => sum + p.amount_paid, 0) ?? 0;
+  const manualAmount = filteredPayments?.filter((p) => p.payment_source === "manual").reduce((sum, p) => sum + p.amount_paid, 0) ?? 0;
 
   // Fetch student info on demand
   const fetchStudentInfo = async (studentId: string, applicationId: string) => {
@@ -291,10 +302,10 @@ const PaymentHistory = () => {
   };
 
   const toggleSelectAll = () => {
-    if (selectedPayments.size === (payments?.length || 0)) {
+    if (selectedPayments.size === (filteredPayments?.length || 0)) {
       setSelectedPayments(new Set());
     } else {
-      const allKeys = new Set(payments?.map((p) => `${p.payment_source}-${p.payment_id}`) || []);
+      const allKeys = new Set(filteredPayments?.map((p) => `${p.payment_source}-${p.payment_id}`) || []);
       setSelectedPayments(allKeys);
     }
   };
@@ -404,7 +415,7 @@ const PaymentHistory = () => {
             variant="outline"
             className="rounded-full p-2 h-9 w-9 flex-shrink-0"
             onClick={exportToCSV}
-            disabled={!payments || payments.length === 0}
+            disabled={!filteredPayments || filteredPayments.length === 0}
           >
             <Download className="h-4 w-4" />
           </Button>
@@ -428,7 +439,7 @@ const PaymentHistory = () => {
           </Select>
           <Button
             onClick={exportToCSV}
-            disabled={!payments || payments.length === 0}
+            disabled={!filteredPayments || filteredPayments.length === 0}
             className="rounded-full uppercase tracking-wide gap-2"
           >
             <Download className="h-4 w-4" />
@@ -446,7 +457,8 @@ const PaymentHistory = () => {
             <CardContent>
               <div className="text-xl md:text-2xl font-bold">£{totalAmount.toLocaleString("en-GB", { minimumFractionDigits: 2 })}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                {payments?.length || 0} payment{payments?.length !== 1 ? "s" : ""}
+                {filteredPayments?.length || 0} payment{filteredPayments?.length !== 1 ? "s" : ""}
+                {searchByName.trim() ? " (filtered)" : ""}
               </p>
             </CardContent>
           </Card>
@@ -459,7 +471,7 @@ const PaymentHistory = () => {
             <CardContent>
               <div className="text-xl md:text-2xl font-bold">{stripeCount}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                {stripeCount > 0 ? `£${payments?.filter((p) => p.payment_source === "stripe").reduce((sum, p) => sum + p.amount_paid, 0).toLocaleString("en-GB", { minimumFractionDigits: 2 })}` : "No payments"}
+                {stripeCount > 0 ? `£${stripeAmount.toLocaleString("en-GB", { minimumFractionDigits: 2 })}` : "No payments"}
               </p>
             </CardContent>
           </Card>
@@ -472,7 +484,7 @@ const PaymentHistory = () => {
             <CardContent>
               <div className="text-xl md:text-2xl font-bold">{manualCount}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                {manualCount > 0 ? `£${payments?.filter((p) => p.payment_source === "manual").reduce((sum, p) => sum + p.amount_paid, 0).toLocaleString("en-GB", { minimumFractionDigits: 2 })}` : "No entries"}
+                {manualCount > 0 ? `£${manualAmount.toLocaleString("en-GB", { minimumFractionDigits: 2 })}` : "No entries"}
               </p>
             </CardContent>
           </Card>
@@ -488,6 +500,20 @@ const PaymentHistory = () => {
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <div className="space-y-2 lg:col-span-2 md:col-span-2">
+                <Label htmlFor="searchByName">Search by student name</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="searchByName"
+                    type="text"
+                    placeholder="e.g. John Smith"
+                    value={searchByName}
+                    onChange={(e) => setSearchByName(e.target.value)}
+                    className="pl-9 rounded-full"
+                  />
+                </div>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="contract">Contract</Label>
                 <Select value={selectedContract} onValueChange={setSelectedContract}>
@@ -595,7 +621,7 @@ const PaymentHistory = () => {
                   <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
                   {isSyncing ? "Syncing..." : "Sync Missing Payments"}
                 </Button>
-                {payments && payments.length > 0 && (
+                {filteredPayments && filteredPayments.length > 0 && (
                   <>
                     {selectedPayments.size > 0 && (
                       <Button
@@ -614,7 +640,7 @@ const PaymentHistory = () => {
                       size="sm"
                       className="rounded-full"
                     >
-                      {selectedPayments.size === payments.length ? "Deselect All" : "Select All"}
+                      {selectedPayments.size === filteredPayments.length ? "Deselect All" : "Select All"}
                     </Button>
                   </>
                 )}
@@ -631,6 +657,10 @@ const PaymentHistory = () => {
             ) : !payments || payments.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 No payments found matching your filters.
+              </div>
+            ) : filteredPayments.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No payments match &quot;{searchByName.trim()}&quot;. Try a different name or clear the search.
               </div>
             ) : (
               <Tabs defaultValue="all" className="w-full">
@@ -753,7 +783,23 @@ const PaymentList = ({ payments, selectedPayments, togglePaymentSelection, handl
                 onCheckedChange={() => togglePaymentSelection(paymentKey)}
                 className="mt-1"
               />
-              <div className="flex-1 space-y-1">
+              <div className="flex-1 space-y-1 min-w-0">
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                  <span className="text-sm font-semibold text-foreground">
+                    {payment.student_name?.trim() || "Unknown student"}
+                  </span>
+                  {(payment.studio_number != null || payment.studio_grade) && (
+                    <span className="text-xs text-muted-foreground">
+                      {[payment.studio_number, payment.studio_grade].filter(Boolean).join(" · ")}
+                    </span>
+                  )}
+                  <Link
+                    to={`/admin/applications/${payment.student_application_id}`}
+                    className="text-xs text-primary hover:underline truncate max-w-[180px] inline-block"
+                  >
+                    Application
+                  </Link>
+                </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <Badge variant={payment.payment_source === "stripe" ? "default" : "secondary"}>
                     {payment.payment_source === "stripe" ? "Stripe" : "Manual"}
@@ -767,7 +813,7 @@ const PaymentList = ({ payments, selectedPayments, togglePaymentSelection, handl
                 </div>
                 <div className="text-sm text-muted-foreground">
                   <span>{payment.contract_name}</span>
-                  {payment.installment_number && (
+                  {payment.installment_number != null && (
                     <span className="ml-2">• Installment #{payment.installment_number}</span>
                   )}
                 </div>

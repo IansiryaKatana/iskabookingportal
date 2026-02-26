@@ -20,6 +20,7 @@ interface ImportRequest {
     | "cashback_campaigns"
     | "discount_campaigns"
     | "applications"
+    | "applications_custom_contracts"
     | "payment_records"
     | "ota_bookings";
   csv_data: string; // CSV content as string
@@ -305,6 +306,7 @@ function getFunctionName(importType: string): string {
     partners: "bulk_import_partners",
     cashback_campaigns: "bulk_import_cashback_campaigns",
     applications: "bulk_import_student_applications",
+    applications_custom_contracts: "bulk_import_applications_custom_contracts",
     payment_records: "bulk_import_payment_records",
   };
   return functionMap[importType] || "";
@@ -402,6 +404,7 @@ serve(async (req) => {
       "cashback_campaigns",
       "discount_campaigns",
       "applications",
+      "applications_custom_contracts",
       "payment_records",
       "ota_bookings",
     ];
@@ -444,8 +447,8 @@ serve(async (req) => {
       let preImportFailedRows: Array<{ row: any; reason: string; email?: string }> = [];
       let userCreationErrors: Array<{ email: string; error: string }> = [];
 
-      // Special handling for applications: create users first
-      if (import_type === "applications") {
+      // Special handling for applications and applications_custom_contracts: create users first
+      if (import_type === "applications" || import_type === "applications_custom_contracts") {
         const createUsers = options?.create_users !== false; // Default to true
         // For bulk imports, default to NOT sending emails (create placeholders)
         // Admin can send invitations later via bulk invitation system
@@ -768,7 +771,7 @@ serve(async (req) => {
         p_data: jsonbData,
         p_imported_by: user.id,
       };
-      if (import_type === "applications") {
+      if (import_type === "applications" || import_type === "applications_custom_contracts") {
         rpcParams.p_skip_existing = options?.skip_duplicates === true;
       }
       let results: unknown = null;
@@ -798,6 +801,8 @@ serve(async (req) => {
         const errMsg = `Database function failed: ${functionError.message || "Unknown error"}`;
         const hint = import_type === "applications"
           ? "Ensure migration 20260239_bulk_import_skip_duplicates_and_find_user is applied (skip-duplicates and rebooker linking)."
+          : import_type === "applications_custom_contracts"
+          ? "Ensure migration 20260243_bulk_import_applications_custom_contracts is applied."
           : undefined;
         return new Response(
           JSON.stringify({
