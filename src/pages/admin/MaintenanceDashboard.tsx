@@ -11,8 +11,22 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isAfter, parseISO } from "date-fns";
 import {
-  Wrench, Clock, CheckCircle2, XCircle, AlertCircle, Loader2, ExternalLink, Filter, 
-  Plus, Minus, AlertTriangle, UserCheck, UserX, FileCheck, Calendar, MapPin
+  Wrench,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  Loader2,
+  ExternalLink,
+  Filter,
+  Plus,
+  Minus,
+  AlertTriangle,
+  UserCheck,
+  UserX,
+  FileCheck,
+  Calendar,
+  MapPin,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -63,6 +77,7 @@ import {
 import { MaintenanceImagePreview } from "@/components/MaintenanceImagePreview";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { getPriorityInfoFromUrgency } from "@/utils/maintenancePriority";
 
 // Category filter options
 const CATEGORIES = [
@@ -182,19 +197,32 @@ const getStatusBadge = (status: string) => {
   );
 };
 
-// Urgency Badge Helper
+// Urgency / Priority Badge Helper
 const getUrgencyBadge = (urgency: string) => {
-  const configs: Record<string, { className: string; label: string }> = {
-    low: { className: "bg-gray-500 hover:bg-gray-600 text-white", label: "Low" },
-    medium: { className: "bg-blue-500 hover:bg-blue-600 text-white", label: "Medium" },
-    high: { className: "bg-orange-500 hover:bg-orange-600 text-white", label: "High" },
-    emergency: { className: "bg-red-500 hover:bg-red-600 text-white", label: "Emergency" },
+  if (!urgency) return null;
+
+  const info = getPriorityInfoFromUrgency(
+    (urgency || "medium") as "low" | "medium" | "high" | "emergency"
+  );
+
+  const colorByBand: Record<string, { className: string }> = {
+    P1: { className: "bg-red-500 hover:bg-red-600 text-white" },
+    P2: { className: "bg-orange-500 hover:bg-orange-600 text-white" },
+    P3: { className: "bg-blue-500 hover:bg-blue-600 text-white" },
   };
 
-  const config = configs[urgency] || configs.medium;
+  const compactLabelByBand: Record<string, string> = {
+    P1: "P1 • 24 hrs",
+    P2: "P2 • 5 days",
+    P3: "P3 • 28 days",
+  };
+
+  const config = colorByBand[info.band] || colorByBand.P3;
+  const label = compactLabelByBand[info.band] || compactLabelByBand.P3;
+
   return (
-    <Badge className={`uppercase ${config.className} rounded-full px-2.5 py-0.5 text-xs font-medium`}>
-      {config.label}
+    <Badge className={`uppercase ${config.className} rounded-full px-2.5 py-0.5 text-xs font-medium flex items-center`}>
+      {label}
     </Badge>
   );
 };
@@ -587,7 +615,9 @@ const MaintenanceDashboard = () => {
                         <TableHead className="text-xs md:text-sm">Request ID</TableHead>
                         <TableHead className="text-xs md:text-sm">Location</TableHead>
                         <TableHead className="text-xs md:text-sm">Category</TableHead>
-                        <TableHead className="text-xs md:text-sm">Urgency</TableHead>
+                        <TableHead className="text-xs md:text-sm">
+                          Urgency / Priority
+                        </TableHead>
                         <TableHead className="text-xs md:text-sm">Status</TableHead>
                         <TableHead className="text-xs md:text-sm">Assigned To</TableHead>
                         <TableHead className="text-xs md:text-sm">Submitted</TableHead>
@@ -831,8 +861,8 @@ const RequestDetailsContent = ({
     request.resolved_at ? format(parseISO(request.resolved_at), "yyyy-MM-dd'T'HH:mm") : ""
   );
   const [expectedResolveDate, setExpectedResolveDate] = useState<string>(
-    (request as any).expected_resolve_at
-      ? format(parseISO((request as any).expected_resolve_at as string), "yyyy-MM-dd'T'HH:mm")
+    request.sla_due_at
+      ? format(parseISO(request.sla_due_at), "yyyy-MM-dd'T'HH:mm")
       : ""
   );
   const [expectedDialogOpen, setExpectedDialogOpen] = useState(false);
@@ -966,8 +996,8 @@ const RequestDetailsContent = ({
           <div>
             <Label className="text-xs text-muted-foreground">Expected Resolve Date</Label>
             <div className="mt-1 text-sm">
-              {expectedResolveDate
-                ? format(parseISO(expectedResolveDate), "MMM d, yyyy 'at' HH:mm")
+              {request.sla_due_at
+                ? format(parseISO(request.sla_due_at), "MMM d, yyyy 'at' h:mm a")
                 : <span className="text-muted-foreground">Not set</span>}
             </div>
           </div>
@@ -1185,7 +1215,7 @@ const RequestDetailsContent = ({
                   await updateRequest.mutateAsync({
                     id: request.id,
                     updates: {
-                      expected_resolve_at: expectedResolveDate
+                      sla_due_at: expectedResolveDate
                         ? new Date(expectedResolveDate).toISOString()
                         : null,
                     } as any,

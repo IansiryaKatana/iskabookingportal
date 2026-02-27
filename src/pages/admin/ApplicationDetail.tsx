@@ -46,6 +46,11 @@ import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import {
+  downloadCSV,
+  exportSingleApplicationCustomCSV,
+  exportSingleApplicationDefaultCSV,
+} from "@/utils/csvTemplateGenerator";
 
 const getStatusBadge = (status: string) => {
   const statusConfig: Record<string, { className: string; label: string }> = {
@@ -480,6 +485,51 @@ const ApplicationDetail = () => {
         title: "Error",
         description: "Failed to update application status.",
         variant: "destructive",
+      });
+    }
+  };
+
+  const handleDownloadApplicationCsv = async () => {
+    if (!applicationId || !application) return;
+
+    try {
+      const isCustomContract = Boolean(
+        (application.contract as any)?.student_application_id,
+      );
+
+      const now = new Date();
+      const pad = (n: number) => n.toString().padStart(2, "0");
+      const timestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(
+        now.getDate(),
+      )}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+
+      const academicYearName =
+        (application.contract as any)?.academic_years?.name ?? "";
+      const yearLabel =
+        academicYearName !== ""
+          ? academicYearName.replace(/\//g, "-")
+          : "academic-year";
+
+      if (isCustomContract) {
+        const csv = await exportSingleApplicationCustomCSV(applicationId);
+        const filename = `application_custom_contract_${yearLabel}_${applicationId}_${timestamp}.csv`;
+        downloadCSV(csv, filename);
+      } else {
+        const csv = await exportSingleApplicationDefaultCSV(applicationId);
+        const filename = `application_default_contract_${yearLabel}_${applicationId}_${timestamp}.csv`;
+        downloadCSV(csv, filename);
+      }
+
+      toast({
+        title: "Download started",
+        description: "Application CSV has been generated in bulk import format.",
+      });
+    } catch (error: any) {
+      console.error("Error exporting single application CSV:", error);
+      toast({
+        variant: "destructive",
+        title: "Export failed",
+        description: error?.message || "Could not export this application. Please try again.",
       });
     }
   };
@@ -1628,6 +1678,14 @@ const ApplicationDetail = () => {
                 <Send className="h-4 w-4" />
                 <span className="hidden sm:inline">Send confirmation</span>
                 <span className="sm:hidden">Confirmation</span>
+              </Button>
+              <Button
+                variant="outline"
+                className="rounded-full tracking-wide gap-2 text-xs sm:text-sm w-full sm:w-auto bg-primary hover:bg-primary/80 text-white font-semibold border-0"
+                onClick={handleDownloadApplicationCsv}
+              >
+                <Download className="h-4 w-4" />
+                <span>Download CSV</span>
               </Button>
             </div>
           </CardContent>

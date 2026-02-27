@@ -569,11 +569,6 @@ export async function generateApplicationsTemplate(
       studios!assigned_studio_id (
         studio_number
       ),
-      profiles!student_id (
-        id,
-        first_name,
-        last_name
-      ),
       student_application_steps (
         step_number,
         payload
@@ -685,8 +680,8 @@ export async function generateApplicationsTemplate(
 
     return {
       email: step2.email || "", // Email should be in step2 payload or filled manually
-      first_name: step1.first_name || app.profiles?.first_name || "",
-      last_name: step1.last_name || app.profiles?.last_name || "",
+      first_name: step1.first_name || "",
+      last_name: step1.last_name || "",
       date_of_birth: step1.date_of_birth || "",
       ethnicity: step1.ethnicity || "",
       gender: step1.gender || "",
@@ -739,6 +734,197 @@ export async function generateApplicationsTemplate(
   });
 
   return arrayToCSV(applicationsData, headers, options);
+}
+
+/**
+ * Export a single application with a default/template contract as a CSV row
+ * matching the standard applications bulk import template.
+ */
+export async function exportSingleApplicationDefaultCSV(
+  applicationId: string
+): Promise<string> {
+  const headers = [
+    "email",
+    "first_name",
+    "last_name",
+    "date_of_birth",
+    "ethnicity",
+    "gender",
+    "ucas_id",
+    "country",
+    "mobile",
+    "address_line_1",
+    "address_line_2",
+    "postcode",
+    "town",
+    "year_of_study",
+    "field_of_study",
+    "disabled",
+    "smoker",
+    "medical_requirements",
+    "entry_into_uk",
+    "uk_citizen",
+    "academic_year_name",
+    "contract_slug",
+    "studio_number",
+    "payment_plan_name",
+    "guarantor_name",
+    "guarantor_email",
+    "guarantor_phone",
+    "guarantor_relationship",
+    "guarantor_dob",
+    "witness_name",
+    "witness_email",
+    "witness_phone",
+    "status",
+    "submitted_at",
+    "passport_path",
+    "visa_path",
+    "passport_photo_path",
+    "student_proof_path",
+    "utility_bill_path",
+    "id_document_path",
+    "bank_statement_path",
+    "contract_pdf_path",
+    "referral_code",
+    "booking_source",
+    "deposit_amount",
+    "deposit_paid_date",
+  ];
+
+  const { data: app, error } = await supabase
+    .from("student_applications")
+    .select(
+      `
+        id,
+        selected_payment_plan_id,
+        status,
+        submitted_at,
+        booking_source,
+        contract:contracts!contract_id (
+          slug,
+          academic_years!inner(name)
+        ),
+        studios:assigned_studio_id (
+          studio_number
+        ),
+        student_application_steps (
+          step_number,
+          payload
+        ),
+        student_documents (
+          document_type,
+          storage_path
+        ),
+        partner_referrals (
+          referral_code
+        )
+      `,
+    )
+    .eq("id", applicationId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error loading application for single default CSV export:", error);
+    throw error;
+  }
+
+  if (!app) {
+    return arrayToCSV([], headers, { includeHeaders: true, includeExampleData: false });
+  }
+
+  const steps = app.student_application_steps || [];
+  const step1 = steps.find((s: any) => s.step_number === 1)?.payload || {};
+  const step2 = steps.find((s: any) => s.step_number === 2)?.payload || {};
+  const step3 = steps.find((s: any) => s.step_number === 3)?.payload || {};
+  const step4 = steps.find((s: any) => s.step_number === 4)?.payload || {};
+  const step5 = steps.find((s: any) => s.step_number === 5)?.payload || {};
+  const step6 = steps.find((s: any) => s.step_number === 6)?.payload || {};
+
+  const documents = (app.student_documents || []).reduce(
+    (acc: Record<string, string>, doc: any) => {
+      acc[doc.document_type] = doc.storage_path || "";
+      return acc;
+    },
+    {} as Record<string, string>,
+  );
+
+  const referralCode =
+    app.partner_referrals?.[0]?.referral_code || step1.referral_code || "";
+
+  // Resolve payment plan name from selected_payment_plan_id, if any
+  let paymentPlanName = "";
+  if (app.selected_payment_plan_id) {
+    const { data: plan, error: planError } = await supabase
+      .from("payment_plans")
+      .select("name")
+      .eq("id", app.selected_payment_plan_id)
+      .maybeSingle();
+
+    if (planError) {
+      console.warn("Failed to load payment plan for single export:", planError);
+    }
+    paymentPlanName = plan?.name ?? "";
+  }
+
+  const row = {
+    email: step2.email || "",
+    first_name: step1.first_name || "",
+    last_name: step1.last_name || "",
+    date_of_birth: step1.date_of_birth || "",
+    ethnicity: step1.ethnicity || "",
+    gender: step1.gender || "",
+    ucas_id: step1.ucas_id || "",
+    country: step1.country || "",
+    mobile: step2.mobile || "",
+    address_line_1: step2.address_line_1 || "",
+    address_line_2: step2.address_line_2 || "",
+    postcode: step2.postcode || "",
+    town: step2.town || "",
+    year_of_study: step3.year_of_study || "",
+    field_of_study: step3.field_of_study || "",
+    disabled: step3.disabled || "",
+    smoker: step3.smoker || "",
+    medical_requirements: step3.medical_requirements || "",
+    entry_into_uk: step3.entry_into_uk || "",
+    uk_citizen: step4.uk_citizen || "yes",
+    academic_year_name: app.contract?.academic_years?.name || "",
+    contract_slug: app.contract?.slug || "",
+    studio_number: app.studios?.studio_number || "",
+    payment_plan_name: paymentPlanName,
+    guarantor_name: step5.guarantor_name || "",
+    guarantor_email: step5.guarantor_email || "",
+    guarantor_phone: step5.guarantor_phone || "",
+    guarantor_relationship: step5.guarantor_relationship || "",
+    guarantor_dob: step5.guarantor_dob || "",
+    witness_name: step5.witness_name || "",
+    witness_email: step5.witness_email || "",
+    witness_phone: step5.witness_phone || "",
+    status: app.status || "confirmed",
+    submitted_at: app.submitted_at
+      ? new Date(app.submitted_at).toISOString()
+      : "",
+    passport_path: documents.passport || step4.passport_document || "",
+    visa_path: documents.visa || step4.visa_document || "",
+    passport_photo_path:
+      documents.passport_photo || step4.passport_photo || "",
+    student_proof_path:
+      documents.student_proof || step4.student_proof || "",
+    utility_bill_path: documents.utility_bill || step5.utility_bill || "",
+    id_document_path: documents.id_document || step5.id_document || "",
+    bank_statement_path:
+      documents.bank_statement || step5.bank_statement || "",
+    contract_pdf_path: step6.contract_pdf_path || "",
+    referral_code: referralCode,
+    booking_source: app.booking_source || "",
+    deposit_amount: "",
+    deposit_paid_date: "",
+  };
+
+  return arrayToCSV([row], headers, {
+    includeHeaders: true,
+    includeExampleData: true,
+  });
 }
 
 const APPLICATIONS_CUSTOM_CONTRACTS_HEADERS = [
@@ -899,6 +1085,212 @@ export async function generateApplicationsWithCustomContractsTemplate(
 }
 
 /**
+ * Export a single application with a custom contract as a CSV row matching
+ * the applications_custom_contracts bulk import template.
+ */
+export async function exportSingleApplicationCustomCSV(
+  applicationId: string
+): Promise<string> {
+  const headers = APPLICATIONS_CUSTOM_CONTRACTS_HEADERS;
+
+  const { data: app, error } = await supabase
+    .from("student_applications")
+    .select(
+      `
+        id,
+        status,
+        submitted_at,
+        booking_source,
+        contract:contracts!contract_id (
+          id,
+          slug,
+          academic_years!inner(name),
+          contract_start,
+          contract_end,
+          weeks,
+          extra_days,
+          weekly_price_override,
+          payment_plan_id
+        ),
+        studios:assigned_studio_id (
+          studio_number
+        ),
+        student_application_steps (
+          step_number,
+          payload
+        ),
+        student_documents (
+          document_type,
+          storage_path
+        ),
+        partner_referrals (
+          referral_code
+        )
+      `,
+    )
+    .eq("id", applicationId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error loading application for single custom CSV export:", error);
+    throw error;
+  }
+
+  if (!app) {
+    return arrayToCSV([], headers, { includeHeaders: true, includeExampleData: false });
+  }
+
+  const steps = app.student_application_steps || [];
+  const step1 = steps.find((s: any) => s.step_number === 1)?.payload || {};
+  const step2 = steps.find((s: any) => s.step_number === 2)?.payload || {};
+  const step3 = steps.find((s: any) => s.step_number === 3)?.payload || {};
+  const step4 = steps.find((s: any) => s.step_number === 4)?.payload || {};
+  const step5 = steps.find((s: any) => s.step_number === 5)?.payload || {};
+
+  const documents = (app.student_documents || []).reduce(
+    (acc: Record<string, string>, doc: any) => {
+      acc[doc.document_type] = doc.storage_path || "";
+      return acc;
+    },
+    {} as Record<string, string>,
+  );
+
+  const referralCode =
+    app.partner_referrals?.[0]?.referral_code || step1.referral_code || "";
+
+  const contract = app.contract as any;
+  const academicYearName = contract?.academic_years?.name ?? "";
+  const planId = contract?.payment_plan_id as string | null;
+
+  let paymentPlanName = "";
+  let instalmentDueDates: string[] = [];
+  let instalmentAmounts: string[] = [];
+
+  if (planId) {
+    const { data: plan } = await supabase
+      .from("payment_plans")
+      .select("id, name")
+      .eq("id", planId)
+      .maybeSingle();
+    paymentPlanName = plan?.name ?? "";
+
+    const { data: installments } = await supabase
+      .from("payment_plan_installments")
+      .select("sequence, due_date, amount_value")
+      .eq("payment_plan_id", planId)
+      .order("sequence", { ascending: true });
+
+    (installments || []).forEach((inst: any) => {
+      instalmentDueDates.push(inst.due_date ? String(inst.due_date) : "");
+      instalmentAmounts.push(
+        inst.amount_value !== null && inst.amount_value !== undefined
+          ? String(inst.amount_value)
+          : "",
+      );
+    });
+  }
+
+  const weeks = contract?.weeks ?? 0;
+  const extraDays = contract?.extra_days ?? 0;
+  const duration =
+    weeks > 0 ? `${weeks}w ${extraDays ?? 0}d` : "";
+
+  const monthNames = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ];
+
+  const formatDateRange = (start: string | null, end: string | null): string => {
+    if (!start || !end) return "";
+    const s = new Date(start);
+    const e = new Date(end);
+    const fmt = (d: Date) =>
+      `${d.getDate()} ${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+    return `${fmt(s)} to ${fmt(e)}`;
+  };
+
+  const row = {
+    academic_year_name: academicYearName,
+    contract_slug: contract?.slug || "",
+    "Weekly Rate":
+      contract?.weekly_price_override !== null &&
+      contract?.weekly_price_override !== undefined
+        ? String(contract.weekly_price_override)
+        : "",
+    "Nearest Exceeding Duration": duration,
+    "Custom contract start date": formatDateRange(
+      contract?.contract_start ?? null,
+      contract?.contract_end ?? null,
+    ),
+    payment_plan_name: paymentPlanName,
+    studio_number: app.studios?.studio_number || "",
+    "Given Total": "",
+    "Chargeable Total": "",
+    "Discount Needed": "",
+    email: step2.email || "",
+    first_name: step1.first_name || "",
+    last_name: step1.last_name || "",
+    date_of_birth: step1.date_of_birth || "",
+    ethnicity: step1.ethnicity || "",
+    gender: step1.gender || "",
+    ucas_id: step1.ucas_id || "",
+    country: step1.country || "",
+    mobile: step2.mobile || "",
+    address_line_1: step2.address_line_1 || "",
+    address_line_2: step2.address_line_2 || "",
+    postcode: step2.postcode || "",
+    town: step2.town || "",
+    year_of_study: step3.year_of_study || "",
+    field_of_study: step3.field_of_study || "",
+    disabled: step3.disabled || "",
+    smoker: step3.smoker || "",
+    medical_requirements: step3.medical_requirements || "",
+    entry_into_uk: step3.entry_into_uk || "",
+    uk_citizen: step4.uk_citizen || "yes",
+    guarantor_name: step5.guarantor_name || "",
+    guarantor_email: step5.guarantor_email || "",
+    guarantor_phone: step5.guarantor_phone || "",
+    guarantor_relationship: step5.guarantor_relationship || "",
+    guarantor_dob: step5.guarantor_dob || "",
+    witness_name: step5.witness_name || "",
+    witness_email: step5.witness_email || "",
+    witness_phone: step5.witness_phone || "",
+    status: app.status || "confirmed",
+    submitted_at: app.submitted_at
+      ? new Date(app.submitted_at).toISOString()
+      : "",
+    booking_source: app.booking_source || "",
+    deposit_amount: "",
+    deposit_paid_date: "",
+    referral_code: referralCode,
+    passport_path: documents.passport || step4.passport_document || "",
+    visa_path: documents.visa || step4.visa_document || "",
+    utility_bill_path: documents.utility_bill || step5.utility_bill || "",
+    id_document_path: documents.id_document || step5.id_document || "",
+    bank_statement_path:
+      documents.bank_statement || step5.bank_statement || "",
+    contract_pdf_path: "",
+    instalment_due_dates: instalmentDueDates.join(","),
+    instalment_amounts: instalmentAmounts.join(","),
+  };
+
+  return arrayToCSV([row], headers, {
+    includeHeaders: true,
+    includeExampleData: true,
+  });
+}
+
+/**
  * Generate Payment Records CSV template (installment payments for existing applications).
  * Use application_id OR (student_email + academic_year_name) to identify the application.
  */
@@ -946,6 +1338,541 @@ export async function generatePaymentRecordsTemplate(
     ];
   }
   return arrayToCSV(exampleRows, headers, options);
+}
+
+/**
+ * Export applications for a given academic year where contracts are template-based
+ * (default contracts – student_application_id IS NULL on contracts).
+ * Output columns match the standard applications bulk import template.
+ */
+export async function exportApplicationsDefaultContractsCSV(
+  academicYearId: string
+): Promise<string> {
+  const headers = [
+    "email",
+    "first_name",
+    "last_name",
+    "date_of_birth",
+    "ethnicity",
+    "gender",
+    "ucas_id",
+    "country",
+    "mobile",
+    "address_line_1",
+    "address_line_2",
+    "postcode",
+    "town",
+    "year_of_study",
+    "field_of_study",
+    "disabled",
+    "smoker",
+    "medical_requirements",
+    "entry_into_uk",
+    "uk_citizen",
+    "academic_year_name",
+    "contract_slug",
+    "studio_number",
+    "payment_plan_name",
+    "guarantor_name",
+    "guarantor_email",
+    "guarantor_phone",
+    "guarantor_relationship",
+    "guarantor_dob",
+    "witness_name",
+    "witness_email",
+    "witness_phone",
+    "status",
+    "submitted_at",
+    "passport_path",
+    "visa_path",
+    "passport_photo_path",
+    "student_proof_path",
+    "utility_bill_path",
+    "id_document_path",
+    "bank_statement_path",
+    "contract_pdf_path",
+    "referral_code",
+    "booking_source",
+    "deposit_amount",
+    "deposit_paid_date",
+  ];
+
+  // Step 1: find all template contracts for the academic year
+  const { data: contracts, error: contractsError } = await supabase
+    .from("contracts")
+    .select(
+      `
+        id,
+        slug,
+        academic_year_id,
+        academic_years!inner(name)
+      `,
+    )
+    .eq("academic_year_id", academicYearId)
+    .is("student_application_id", null);
+
+  if (contractsError) {
+    console.error("Error loading contracts for export:", contractsError);
+    throw contractsError;
+  }
+
+  if (!contracts || contracts.length === 0) {
+    return arrayToCSV([], headers, { includeHeaders: true, includeExampleData: false });
+  }
+
+  const contractIds = contracts.map((c: any) => c.id as string);
+  const contractById = new Map(
+    contracts.map((c: any) => [
+      c.id,
+      {
+        slug: c.slug as string,
+        academic_year_name: (c.academic_years as any)?.name as string,
+      },
+    ]),
+  );
+
+  // Step 2: load all applications for those contracts (paged)
+  const pageSize = 1000;
+  let from = 0;
+  const allApplications: any[] = [];
+
+  /* Paginate to avoid row limits */
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const { data, error } = await supabase
+      .from("student_applications")
+      .select(
+        `
+          id,
+          status,
+          submitted_at,
+          booking_source,
+          contract_id,
+          studios:studios!assigned_studio_id (
+            studio_number
+          ),
+          student_application_steps (
+            step_number,
+            payload
+          ),
+          student_documents (
+            document_type,
+            storage_path
+          ),
+          partner_referrals (
+            referral_code
+          )
+        `,
+      )
+      .in("contract_id", contractIds)
+      .order("created_at", { ascending: false })
+      .range(from, from + pageSize - 1);
+
+    if (error) {
+      console.error("Error loading applications for export:", error);
+      throw error;
+    }
+
+    if (!data || data.length === 0) break;
+
+    allApplications.push(...data);
+
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+
+  if (allApplications.length === 0) {
+    return arrayToCSV([], headers, { includeHeaders: true, includeExampleData: false });
+  }
+
+  const rows = allApplications.map((app: any) => {
+    const contract = contractById.get(app.contract_id) || {
+      slug: "",
+      academic_year_name: "",
+    };
+
+    const steps = app.student_application_steps || [];
+    const step1 = steps.find((s: any) => s.step_number === 1)?.payload || {};
+    const step2 = steps.find((s: any) => s.step_number === 2)?.payload || {};
+    const step3 = steps.find((s: any) => s.step_number === 3)?.payload || {};
+    const step4 = steps.find((s: any) => s.step_number === 4)?.payload || {};
+    const step5 = steps.find((s: any) => s.step_number === 5)?.payload || {};
+    const step6 = steps.find((s: any) => s.step_number === 6)?.payload || {};
+
+    const documents = (app.student_documents || []).reduce(
+      (acc: Record<string, string>, doc: any) => {
+        acc[doc.document_type] = doc.storage_path || "";
+        return acc;
+      },
+      {} as Record<string, string>,
+    );
+
+    const referralCode =
+      app.partner_referrals?.[0]?.referral_code || step1.referral_code || "";
+
+    return {
+      email: step2.email || "",
+      first_name: step1.first_name || "",
+      last_name: step1.last_name || "",
+      date_of_birth: step1.date_of_birth || "",
+      ethnicity: step1.ethnicity || "",
+      gender: step1.gender || "",
+      ucas_id: step1.ucas_id || "",
+      country: step1.country || "",
+      mobile: step2.mobile || "",
+      address_line_1: step2.address_line_1 || "",
+      address_line_2: step2.address_line_2 || "",
+      postcode: step2.postcode || "",
+      town: step2.town || "",
+      year_of_study: step3.year_of_study || "",
+      field_of_study: step3.field_of_study || "",
+      disabled: step3.disabled || "",
+      smoker: step3.smoker || "",
+      medical_requirements: step3.medical_requirements || "",
+      entry_into_uk: step3.entry_into_uk || "",
+      uk_citizen: step4.uk_citizen || "yes",
+      academic_year_name: contract.academic_year_name || "",
+      contract_slug: contract.slug || "",
+      studio_number: app.studios?.studio_number || "",
+      payment_plan_name: "",
+      guarantor_name: step5.guarantor_name || "",
+      guarantor_email: step5.guarantor_email || "",
+      guarantor_phone: step5.guarantor_phone || "",
+      guarantor_relationship: step5.guarantor_relationship || "",
+      guarantor_dob: step5.guarantor_dob || "",
+      witness_name: step5.witness_name || "",
+      witness_email: step5.witness_email || "",
+      witness_phone: step5.witness_phone || "",
+      status: app.status || "confirmed",
+      submitted_at: app.submitted_at
+        ? new Date(app.submitted_at).toISOString()
+        : "",
+      passport_path: documents.passport || step4.passport_document || "",
+      visa_path: documents.visa || step4.visa_document || "",
+      passport_photo_path:
+        documents.passport_photo || step4.passport_photo || "",
+      student_proof_path:
+        documents.student_proof || step4.student_proof || "",
+      utility_bill_path: documents.utility_bill || step5.utility_bill || "",
+      id_document_path: documents.id_document || step5.id_document || "",
+      bank_statement_path:
+        documents.bank_statement || step5.bank_statement || "",
+      contract_pdf_path: step6.contract_pdf_path || "",
+      referral_code: referralCode,
+      booking_source: app.booking_source || "",
+      // For exports we leave deposit fields empty; admin can fill if needed before re-import
+      deposit_amount: "",
+      deposit_paid_date: "",
+    };
+  });
+
+  return arrayToCSV(rows, headers, {
+    includeHeaders: true,
+    includeExampleData: true,
+  });
+}
+
+/**
+ * Export applications for a given academic year where contracts are per-application
+ * custom contracts (contracts.student_application_id IS NOT NULL).
+ * Output columns match the applications_custom_contracts bulk import template.
+ */
+export async function exportApplicationsCustomContractsCSV(
+  academicYearId: string
+): Promise<string> {
+  const headers = APPLICATIONS_CUSTOM_CONTRACTS_HEADERS;
+
+  // Step 1: find custom contracts for the academic year
+  const { data: contracts, error: contractsError } = await supabase
+    .from("contracts")
+    .select(
+      `
+        id,
+        slug,
+        academic_year_id,
+        academic_years!inner(name),
+        contract_start,
+        contract_end,
+        weeks,
+        extra_days,
+        weekly_price_override,
+        payment_plan_id
+      `,
+    )
+    .eq("academic_year_id", academicYearId)
+    .not("student_application_id", "is", null);
+
+  if (contractsError) {
+    console.error("Error loading custom contracts for export:", contractsError);
+    throw contractsError;
+  }
+
+  if (!contracts || contracts.length === 0) {
+    return arrayToCSV([], headers, { includeHeaders: true, includeExampleData: false });
+  }
+
+  const contractIds = contracts.map((c: any) => c.id as string);
+  const contractById = new Map(
+    contracts.map((c: any) => [
+      c.id,
+      {
+        slug: c.slug as string,
+        academic_year_name: (c.academic_years as any)?.name as string,
+        contract_start: c.contract_start as string | null,
+        contract_end: c.contract_end as string | null,
+        weeks: c.weeks as number | null,
+        extra_days: c.extra_days as number | null,
+        weekly_price_override: c.weekly_price_override as number | null,
+        payment_plan_id: c.payment_plan_id as string | null,
+      },
+    ]),
+  );
+
+  const paymentPlanIds = Array.from(
+    new Set(
+      contracts
+        .map((c: any) => c.payment_plan_id as string | null)
+        .filter((id): id is string => !!id),
+    ),
+  );
+
+  // Step 2: load payment plan names and instalment schedules for those plans
+  const planNameById = new Map<string, string>();
+  const scheduleByPlanId = new Map<
+    string,
+    { dueDates: string[]; amounts: string[] }
+  >();
+
+  if (paymentPlanIds.length > 0) {
+    const { data: plans, error: plansError } = await supabase
+      .from("payment_plans")
+      .select("id, name")
+      .in("id", paymentPlanIds);
+
+    if (plansError) {
+      console.error("Error loading payment plans for export:", plansError);
+      throw plansError;
+    }
+
+    (plans || []).forEach((p: any) => {
+      planNameById.set(p.id as string, (p.name as string) ?? "");
+    });
+
+    const { data: installments, error: installmentsError } = await supabase
+      .from("payment_plan_installments")
+      .select("payment_plan_id, sequence, due_date, amount_type, amount_value")
+      .in("payment_plan_id", paymentPlanIds)
+      .order("payment_plan_id", { ascending: true })
+      .order("sequence", { ascending: true });
+
+    if (installmentsError) {
+      console.error("Error loading payment plan installments for export:", installmentsError);
+      throw installmentsError;
+    }
+
+    (installments || []).forEach((inst: any) => {
+      const planId = inst.payment_plan_id as string;
+      const dueDate = inst.due_date ? String(inst.due_date) : "";
+      const amountRaw = inst.amount_value as number | null;
+      const amount =
+        amountRaw !== null && amountRaw !== undefined ? String(amountRaw) : "";
+
+      if (!scheduleByPlanId.has(planId)) {
+        scheduleByPlanId.set(planId, { dueDates: [], amounts: [] });
+      }
+      const schedule = scheduleByPlanId.get(planId)!;
+      schedule.dueDates.push(dueDate);
+      schedule.amounts.push(amount);
+    });
+  }
+
+  // Step 3: load all applications for those contracts (paged)
+  const pageSize = 1000;
+  let from = 0;
+  const allApplications: any[] = [];
+
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const { data, error } = await supabase
+      .from("student_applications")
+      .select(
+        `
+          id,
+          status,
+          submitted_at,
+          booking_source,
+          contract_id,
+          studios:studios!assigned_studio_id (
+            studio_number
+          ),
+          student_application_steps (
+            step_number,
+            payload
+          ),
+          student_documents (
+            document_type,
+            storage_path
+          ),
+          partner_referrals (
+            referral_code
+          )
+        `,
+      )
+      .in("contract_id", contractIds)
+      .order("created_at", { ascending: false })
+      .range(from, from + pageSize - 1);
+
+    if (error) {
+      console.error("Error loading applications for custom contracts export:", error);
+      throw error;
+    }
+
+    if (!data || data.length === 0) break;
+
+    allApplications.push(...data);
+
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+
+  if (allApplications.length === 0) {
+    return arrayToCSV([], headers, { includeHeaders: true, includeExampleData: false });
+  }
+
+  const monthNames = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ];
+
+  const formatDateRange = (start: string | null, end: string | null): string => {
+    if (!start || !end) return "";
+    const s = new Date(start);
+    const e = new Date(end);
+    const fmt = (d: Date) =>
+      `${d.getDate()} ${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+    return `${fmt(s)} to ${fmt(e)}`;
+  };
+
+  const rows = allApplications.map((app: any, idx: number) => {
+    const contract = contractById.get(app.contract_id) || {
+      slug: "",
+      academic_year_name: "",
+      contract_start: null,
+      contract_end: null,
+      weeks: null,
+      extra_days: null,
+      weekly_price_override: null,
+      payment_plan_id: null,
+    };
+
+    const steps = app.student_application_steps || [];
+    const step1 = steps.find((s: any) => s.step_number === 1)?.payload || {};
+    const step2 = steps.find((s: any) => s.step_number === 2)?.payload || {};
+    const step3 = steps.find((s: any) => s.step_number === 3)?.payload || {};
+    const step4 = steps.find((s: any) => s.step_number === 4)?.payload || {};
+    const step5 = steps.find((s: any) => s.step_number === 5)?.payload || {};
+
+    const documents = (app.student_documents || []).reduce(
+      (acc: Record<string, string>, doc: any) => {
+        acc[doc.document_type] = doc.storage_path || "";
+        return acc;
+      },
+      {} as Record<string, string>,
+    );
+
+    const referralCode =
+      app.partner_referrals?.[0]?.referral_code || step1.referral_code || "";
+
+    const planId = contract.payment_plan_id as string | null;
+    const schedule = planId ? scheduleByPlanId.get(planId) : undefined;
+    const dueDates = schedule?.dueDates?.filter(Boolean) ?? [];
+    const amounts = schedule?.amounts?.filter(Boolean) ?? [];
+
+    const weeks = contract.weeks ?? 0;
+    const extraDays = contract.extra_days ?? 0;
+    const duration =
+      weeks > 0 ? `${weeks}w ${extraDays ?? 0}d` : "";
+
+    return {
+      academic_year_name: contract.academic_year_name || "",
+      contract_slug: contract.slug || "",
+      "Weekly Rate":
+        contract.weekly_price_override !== null &&
+        contract.weekly_price_override !== undefined
+          ? String(contract.weekly_price_override)
+          : "",
+      "Nearest Exceeding Duration": duration,
+      "Custom contract start date": formatDateRange(
+        contract.contract_start,
+        contract.contract_end,
+      ),
+      payment_plan_name: planId ? planNameById.get(planId) || "" : "",
+      studio_number: app.studios?.studio_number || "",
+      "Given Total": "",
+      "Chargeable Total": "",
+      "Discount Needed": "",
+      email: step2.email || "",
+      first_name: step1.first_name || "",
+      last_name: step1.last_name || "",
+      date_of_birth: step1.date_of_birth || "",
+      ethnicity: step1.ethnicity || "",
+      gender: step1.gender || "",
+      ucas_id: step1.ucas_id || "",
+      country: step1.country || "",
+      mobile: step2.mobile || "",
+      address_line_1: step2.address_line_1 || "",
+      address_line_2: step2.address_line_2 || "",
+      postcode: step2.postcode || "",
+      town: step2.town || "",
+      year_of_study: step3.year_of_study || "",
+      field_of_study: step3.field_of_study || "",
+      disabled: step3.disabled || "",
+      smoker: step3.smoker || "",
+      medical_requirements: step3.medical_requirements || "",
+      entry_into_uk: step3.entry_into_uk || "",
+      uk_citizen: step4.uk_citizen || "yes",
+      guarantor_name: step5.guarantor_name || "",
+      guarantor_email: step5.guarantor_email || "",
+      guarantor_phone: step5.guarantor_phone || "",
+      guarantor_relationship: step5.guarantor_relationship || "",
+      guarantor_dob: step5.guarantor_dob || "",
+      witness_name: step5.witness_name || "",
+      witness_email: step5.witness_email || "",
+      witness_phone: step5.witness_phone || "",
+      status: app.status || "confirmed",
+      submitted_at: app.submitted_at
+        ? new Date(app.submitted_at).toISOString()
+        : "",
+      booking_source: app.booking_source || "",
+      deposit_amount: "",
+      deposit_paid_date: "",
+      referral_code: referralCode,
+      passport_path: documents.passport || step4.passport_document || "",
+      visa_path: documents.visa || step4.visa_document || "",
+      utility_bill_path: documents.utility_bill || step5.utility_bill || "",
+      id_document_path: documents.id_document || step5.id_document || "",
+      bank_statement_path:
+        documents.bank_statement || step5.bank_statement || "",
+      contract_pdf_path: "",
+      instalment_due_dates: dueDates.join(","),
+      instalment_amounts: amounts.join(","),
+    };
+  });
+
+  return arrayToCSV(rows, headers, {
+    includeHeaders: true,
+    includeExampleData: true,
+  });
 }
 
 /**

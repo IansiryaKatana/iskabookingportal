@@ -17,8 +17,19 @@ import {
 } from "@/components/ui/select";
 import { format, parseISO, isPast, isBefore } from "date-fns";
 import {
-  Wrench, Filter, UserCheck, Clock, AlertCircle, CheckCircle2, XCircle,
-  Loader2, Building2, Calendar, TrendingUp, TrendingDown, Users
+  Wrench,
+  Filter,
+  UserCheck,
+  Clock,
+  AlertCircle,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+  Building2,
+  Calendar,
+  TrendingUp,
+  TrendingDown,
+  Users,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -58,6 +69,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { getPriorityInfoFromUrgency } from "@/utils/maintenancePriority";
 
 // Status Badge Helper
 const getStatusBadge = (status: string) => {
@@ -83,22 +95,32 @@ const getStatusBadge = (status: string) => {
   );
 };
 
-// Urgency Badge Helper
+// Urgency / Priority Badge Helper
 const getUrgencyBadge = (urgency: string | null) => {
   if (!urgency) return null;
-  
-  const configs: Record<string, { className: string; label: string }> = {
-    low: { className: "bg-gray-500 hover:bg-gray-600 text-white", label: "Low" },
-    medium: { className: "bg-yellow-500 hover:bg-yellow-600 text-white", label: "Medium" },
-    high: { className: "bg-orange-500 hover:bg-orange-600 text-white", label: "High" },
-    emergency: { className: "bg-red-500 hover:bg-red-600 text-white", label: "Emergency" },
+
+  const info = getPriorityInfoFromUrgency(
+    (urgency || "medium") as "low" | "medium" | "high" | "emergency"
+  );
+
+  const colorByBand: Record<string, { className: string }> = {
+    P1: { className: "bg-red-500 hover:bg-red-600 text-white" },
+    P2: { className: "bg-orange-500 hover:bg-orange-600 text-white" },
+    P3: { className: "bg-blue-500 hover:bg-blue-600 text-white" },
   };
 
-  const config = configs[urgency] || configs.medium;
+  const compactLabelByBand: Record<string, string> = {
+    P1: "P1 • 24 hrs",
+    P2: "P2 • 5 days",
+    P3: "P3 • 28 days",
+  };
+
+  const config = colorByBand[info.band] || colorByBand.P3;
+  const label = compactLabelByBand[info.band] || compactLabelByBand.P3;
 
   return (
-    <Badge className={`${config.className} rounded-full px-2 py-0.5 text-xs font-medium`}>
-      {config.label}
+    <Badge className={`${config.className} rounded-full px-2 py-0.5 text-xs font-medium flex items-center`}>
+      {label}
     </Badge>
   );
 };
@@ -785,8 +807,8 @@ const MaintenanceRequestDetails = ({
     request.resolved_at ? format(parseISO(request.resolved_at), "yyyy-MM-dd'T'HH:mm") : ""
   );
   const [expectedResolveDate, setExpectedResolveDate] = useState<string>(
-    (request as any).expected_resolve_at
-      ? format(parseISO((request as any).expected_resolve_at as string), "yyyy-MM-dd'T'HH:mm")
+    request.sla_due_at
+      ? format(parseISO(request.sla_due_at), "yyyy-MM-dd'T'HH:mm")
       : ""
   );
   const [expectedDialogOpen, setExpectedDialogOpen] = useState(false);
@@ -909,8 +931,8 @@ const MaintenanceRequestDetails = ({
           <div>
             <Label className="text-xs text-muted-foreground">Expected Resolve Date</Label>
             <div className="mt-1 text-sm">
-              {expectedResolveDate
-                ? format(parseISO(expectedResolveDate), "MMM d, yyyy 'at' HH:mm")
+              {request.sla_due_at
+                ? format(parseISO(request.sla_due_at), "MMM d, yyyy 'at' h:mm a")
                 : <span className="text-muted-foreground">Not set</span>}
             </div>
           </div>
@@ -1088,7 +1110,7 @@ const MaintenanceRequestDetails = ({
                   await updateRequest.mutateAsync({
                     id: request.id,
                     updates: {
-                      expected_resolve_at: expectedResolveDate
+                      sla_due_at: expectedResolveDate
                         ? new Date(expectedResolveDate).toISOString()
                         : null,
                     } as any,

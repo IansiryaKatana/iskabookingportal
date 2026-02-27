@@ -74,6 +74,9 @@ DECLARE
   v_slug_normalized TEXT;
   v_ay_name_normalized TEXT;
   v_grade_slug TEXT;
+  v_first_slug TEXT;
+  v_last_slug TEXT;
+  v_studio_segment TEXT;
 BEGIN
   PERFORM set_config('row_security', 'off', true);
 
@@ -181,7 +184,18 @@ BEGIN
       END IF;
       v_discount_needed := COALESCE(v_discount_needed, 0);
 
-      v_unique_slug := 'custom-import-' || v_row_num::TEXT || '-' || substring(v_student_id::TEXT from 1 for 8);
+      -- Build human-readable unique slug:
+      -- custom-{studio_or_grade}-{first_name}-{last_name}-{short_id}
+      v_first_slug := LOWER(regexp_replace(COALESCE(TRIM(v_row->>'first_name'), ''), '[^a-zA-Z0-9]+', '-', 'g'));
+      v_last_slug := LOWER(regexp_replace(COALESCE(TRIM(v_row->>'last_name'), ''), '[^a-zA-Z0-9]+', '-', 'g'));
+      v_studio_segment := NULLIF(TRIM(v_row->>'studio_number'), '');
+      IF v_studio_segment IS NULL OR v_studio_segment = '' THEN
+        v_studio_segment := COALESCE(NULLIF(v_grade_slug, ''), 'na');
+      END IF;
+      v_studio_segment := LOWER(regexp_replace(v_studio_segment, '[^a-zA-Z0-9]+', '-', 'g'));
+      v_unique_slug := 'custom-' || v_studio_segment || '-' || COALESCE(NULLIF(v_first_slug, ''), 'student')
+        || '-' || COALESCE(NULLIF(v_last_slug, ''), 'name')
+        || '-' || substring(v_student_id::TEXT from 1 for 8);
       IF EXISTS (SELECT 1 FROM public.contracts WHERE slug = v_unique_slug) THEN
         v_unique_slug := v_unique_slug || '-' || (extract(epoch from now())::BIGINT::TEXT);
       END IF;

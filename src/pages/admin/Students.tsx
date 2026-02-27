@@ -96,6 +96,13 @@ const Students = () => {
     }).format(amount);
   };
 
+  const formatDateSafe = (value: string | Date | null | undefined) => {
+    if (!value) return "—";
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return "—";
+    return format(date, "d MMM yyyy");
+  };
+
   const StudentsSkeleton = () => (
     <>
       {/* Mobile Card Skeletons */}
@@ -236,9 +243,7 @@ const Students = () => {
                   : student.profile?.first_name || student.profile?.last_name || "—";
                 const contractName = student.contract?.studio_grade?.name || "—";
                 const durationLabel = formatContractDuration(student.contract);
-                const startDate = student.contract?.contract_start
-                  ? format(new Date(student.contract.contract_start), "d MMM yyyy")
-                  : "—";
+                const startDate = formatDateSafe(student.contract?.contract_start);
                 const totalValue = formatCurrency(student.total_contract_value);
 
                 return (
@@ -333,9 +338,7 @@ const Students = () => {
                           {student.contract?.studio_grade?.name || "—"}
                         </TableCell>
                         <TableCell>
-                          {student.contract?.contract_start
-                            ? format(new Date(student.contract.contract_start), "d MMM yyyy")
-                            : "—"}
+                          {formatDateSafe(student.contract?.contract_start)}
                         </TableCell>
                         <TableCell className="font-medium">
                           {formatCurrency(student.total_contract_value)}

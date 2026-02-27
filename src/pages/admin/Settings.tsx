@@ -356,28 +356,62 @@ const Settings = () => {
   const { data: appStats, refetch: refetchStats } = useQuery({
     queryKey: ["application-stats"],
     queryFn: async () => {
+      // 1) Fetch all applications with their contract_id
       const { data: allApps, error: allError } = await supabase
         .from("student_applications")
-        .select(`
-          id,
-          contract_id,
-          contracts!inner(
-            academic_year_id
-          )
-        `);
+        .select("id, contract_id");
 
       if (allError) throw allError;
 
+      const apps = allApps || [];
+      const total = apps.length;
+
+      // If there are no applications, short-circuit
+      if (apps.length === 0) {
+        return {
+          total: 0,
+          byYear: {} as Record<string, number>,
+        };
+      }
+
+      // 2) Load the contracts for these applications so we can map to academic years
+      const contractIds = Array.from(
+        new Set(
+          apps
+            .map((app: any) => app.contract_id)
+            .filter((id: string | null) => !!id)
+        )
+      );
+
+      if (contractIds.length === 0) {
+        return {
+          total,
+          byYear: {} as Record<string, number>,
+        };
+      }
+
+      const { data: contracts, error: contractsError } = await supabase
+        .from("contracts")
+        .select("id, academic_year_id")
+        .in("id", contractIds);
+
+      if (contractsError) throw contractsError;
+
+      const yearByContract = new Map<string, string | null>();
+      (contracts || []).forEach((c: any) => {
+        yearByContract.set(c.id, c.academic_year_id);
+      });
+
       const statsByYear: Record<string, number> = {};
-      (allApps || []).forEach((app: any) => {
-        const yearId = app.contracts?.academic_year_id;
+      apps.forEach((app: any) => {
+        const yearId = yearByContract.get(app.contract_id);
         if (yearId) {
           statsByYear[yearId] = (statsByYear[yearId] || 0) + 1;
         }
       });
 
       return {
-        total: allApps?.length || 0,
+        total,
         byYear: statsByYear,
       };
     },
@@ -1161,8 +1195,8 @@ const Settings = () => {
               </div>
             </div>
 
-            {/* Delete Actions */}
-            <div className="space-y-6">
+              {/* Delete Actions */}
+              <div className="space-y-6">
               {/* Delete by Search - Full Width */}
               <div className="rounded-lg border border-border/60 bg-muted/30 p-4 space-y-4">
                 <div>
@@ -1171,8 +1205,8 @@ const Settings = () => {
                     Search for applications by student name or studio number, then delete selected or all matches.
                   </p>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <div className="flex-1 flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex-1 flex flex-col sm:flex-row gap-2">
                     <Input
                       placeholder={searchType === "student_name" ? "Enter student name..." : "Enter studio number..."}
                       value={searchTerm}
@@ -1190,7 +1224,7 @@ const Settings = () => {
                       onValueChange={(value: "student_name" | "studio_number") => setSearchType(value)}
                       disabled={isSearching || deleteBySearch.isPending}
                     >
-                      <SelectTrigger className="w-[160px] rounded-full">
+                      <SelectTrigger className="w-full sm:w-[160px] rounded-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1199,34 +1233,36 @@ const Settings = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Button
-                    onClick={() => searchApplications.mutate()}
-                    disabled={!searchTerm.trim() || isSearching || deleteBySearch.isPending}
-                    className="rounded-full"
-                    variant="outline"
-                  >
-                    {isSearching ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Searching...
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Search
-                      </>
-                    )}
-                  </Button>
+                  <div className="flex sm:block">
+                    <Button
+                      onClick={() => searchApplications.mutate()}
+                      disabled={!searchTerm.trim() || isSearching || deleteBySearch.isPending}
+                      className="w-full sm:w-auto rounded-full"
+                      variant="outline"
+                    >
+                      {isSearching ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Searching...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Search
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Search Results */}
                 {searchResults.length > 0 && (
                   <div className="space-y-3 mt-4 pt-4 border-t">
-                    <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                       <p className="text-sm font-medium">
                         Found {searchResults.length} application{searchResults.length !== 1 ? "s" : ""}
                       </p>
-                      <div className="flex gap-2">
+                      <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                         <Button
                           variant="outline"
                           size="sm"
@@ -1237,7 +1273,7 @@ const Settings = () => {
                               setSelectedApplications(new Set(searchResults.map((r) => r.application_id)));
                             }
                           }}
-                          className="rounded-full text-xs"
+                          className="rounded-full text-xs w-full sm:w-auto"
                         >
                           {selectedApplications.size === searchResults.length ? "Deselect All" : "Select All"}
                         </Button>
@@ -1246,7 +1282,7 @@ const Settings = () => {
                             <Button
                               variant="destructive"
                               size="sm"
-                              className="rounded-full text-xs"
+                              className="rounded-full text-xs w-full sm:w-auto"
                               disabled={selectedApplications.size === 0 || deleteBySearch.isPending}
                             >
                               {deleteBySearch.isPending ? (
@@ -1328,7 +1364,7 @@ const Settings = () => {
                         <Button
                           variant="destructive"
                           size="sm"
-                          className="rounded-full text-xs"
+                          className="rounded-full text-xs w-full sm:w-auto"
                           onClick={() => {
                             if (window.confirm(`Delete all ${searchResults.length} matching applications? This cannot be undone.`)) {
                               deleteBySearch.mutate(searchResults.map((r) => r.application_id));
@@ -1510,8 +1546,7 @@ const Settings = () => {
                         className="w-full rounded-full uppercase tracking-wide"
                         disabled={
                           !selectedAcademicYear ||
-                          deleteByAcademicYear.isPending ||
-                          (appStats?.byYear[selectedAcademicYear] || 0) === 0
+                          deleteByAcademicYear.isPending
                         }
                       >
                         {deleteByAcademicYear.isPending ? (

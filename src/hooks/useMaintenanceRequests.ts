@@ -1,6 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import {
+  computeSlaDueAtFromUrgency,
+  type MaintenanceUrgency,
+} from "@/utils/maintenancePriority";
 
 type MaintenanceRequest = Database["public"]["Tables"]["maintenance_requests"]["Row"];
 
@@ -147,7 +151,7 @@ export const useCreateMaintenanceRequest = () => {
        * urgency is the new field used for SLA calculations and admin views.
        * We keep priority in the table for backward compatibility only.
        */
-      urgency: "low" | "medium" | "high" | "emergency";
+      urgency: MaintenanceUrgency;
       images?: string[];
       academic_year_id?: string;
       // Staff-created task fields
@@ -158,9 +162,13 @@ export const useCreateMaintenanceRequest = () => {
       // Get current user for created_by if not provided
       const { data: { user } } = await supabase.auth.getUser();
       
+      const now = new Date();
+
       const insertData: any = {
         ...request,
-        images: request.images || [], // Ensure images is always an array
+        images: request.images || [],
+        created_at: now.toISOString(),
+        sla_due_at: computeSlaDueAtFromUrgency(now, request.urgency),
       };
 
       // For staff-created tasks, set flags and ensure assignment

@@ -1,15 +1,7 @@
 import { useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -186,15 +178,11 @@ export const CreateMaintenanceTaskDialog = ({
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create Maintenance Task</DialogTitle>
-          <DialogDescription>
-            Create a new maintenance task for a studio or communal area. The task will be assigned to the selected maintenance officer.
-          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Task Type Selector */}
           <div className="space-y-2">
-            <Label htmlFor="task-type">Task Type *</Label>
             <Select value={taskType} onValueChange={(value) => {
               setTaskType(value as TaskType);
               // Reset selections when type changes
@@ -214,7 +202,6 @@ export const CreateMaintenanceTaskDialog = ({
           {/* Studio Selection */}
           {taskType === "studio" && (
             <div className="space-y-2">
-              <Label htmlFor="studio">Studio *</Label>
               <Select value={studioId} onValueChange={setStudioId}>
                 <SelectTrigger id="studio">
                   <SelectValue placeholder="Select a studio" />
@@ -234,7 +221,6 @@ export const CreateMaintenanceTaskDialog = ({
           {/* Communal Area Selection */}
           {taskType === "communal" && (
             <div className="space-y-2">
-              <Label htmlFor="communal-area">Communal Area *</Label>
               <Select value={communalAreaId} onValueChange={setCommunalAreaId}>
                 <SelectTrigger id="communal-area">
                   <SelectValue placeholder="Select a communal area" />
@@ -253,7 +239,6 @@ export const CreateMaintenanceTaskDialog = ({
 
           {/* Assignment (Required) */}
           <div className="space-y-2">
-            <Label htmlFor="assigned-to">Assign To *</Label>
             <Select value={assignedToUserId} onValueChange={setAssignedToUserId}>
               <SelectTrigger id="assigned-to">
                 <SelectValue placeholder="Select a maintenance officer" />
@@ -266,17 +251,13 @@ export const CreateMaintenanceTaskDialog = ({
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
-              Assignment is required. The task will start as "Assigned" status.
-            </p>
           </div>
 
           {/* Category */}
           <div className="space-y-2">
-            <Label htmlFor="category">Category *</Label>
             <Select value={category} onValueChange={setCategory}>
               <SelectTrigger id="category">
-                <SelectValue />
+                <SelectValue placeholder="Category *" />
               </SelectTrigger>
               <SelectContent>
                 {CATEGORIES.map((cat) => (
@@ -290,24 +271,29 @@ export const CreateMaintenanceTaskDialog = ({
 
           {/* Urgency */}
           <div className="space-y-2">
-            <Label htmlFor="urgency">Urgency *</Label>
             <Select value={urgency} onValueChange={setUrgency}>
               <SelectTrigger id="urgency">
-                <SelectValue />
+                <SelectValue placeholder="Urgency / Priority *" />
               </SelectTrigger>
               <SelectContent>
-                {URGENCY_LEVELS.map((level) => (
-                  <SelectItem key={level.value} value={level.value}>
-                    {level.label}
-                  </SelectItem>
-                ))}
+                <SelectItem value="low">
+                  Low – Priority 3 (Non‑urgent, 28 days)
+                </SelectItem>
+                <SelectItem value="medium">
+                  Medium – Priority 3 (Non‑urgent, 28 days)
+                </SelectItem>
+                <SelectItem value="high">
+                  High – Priority 2 (Urgent, 5 working days)
+                </SelectItem>
+                <SelectItem value="emergency">
+                  Emergency – Priority 1 (24 hours)
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           {/* Title */}
           <div className="space-y-2">
-            <Label htmlFor="title">Title *</Label>
             <Input
               id="title"
               value={title}
@@ -319,7 +305,6 @@ export const CreateMaintenanceTaskDialog = ({
 
           {/* Description */}
           <div className="space-y-2">
-            <Label htmlFor="description">Description *</Label>
             <Textarea
               id="description"
               value={description}
@@ -331,14 +316,6 @@ export const CreateMaintenanceTaskDialog = ({
           </div>
 
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleClose}
-              disabled={createRequest.isPending}
-            >
-              Cancel
-            </Button>
             <Button type="submit" disabled={createRequest.isPending}>
               {createRequest.isPending && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

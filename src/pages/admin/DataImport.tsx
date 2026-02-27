@@ -35,10 +35,21 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   getTemplateGenerator,
   downloadCSV,
+  exportApplicationsDefaultContractsCSV,
+  exportApplicationsCustomContractsCSV,
   generateApplicationsReferenceFile,
   type CSVTemplateOptions,
 } from "@/utils/csvTemplateGenerator";
 import ImportResultsDialog from "@/components/admin/ImportResultsDialog";
+import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const IMPORT_TYPES = [
   {
@@ -153,6 +164,12 @@ const DataImport = () => {
   const [loadingTemplate, setLoadingTemplate] = useState(false);
   const [importing, setImporting] = useState(false);
   const [skipDuplicates, setSkipDuplicates] = useState(true);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exportAcademicYearId, setExportAcademicYearId] = useState<string | undefined>(undefined);
+  const [exportAcademicYearName, setExportAcademicYearName] = useState<string | undefined>(undefined);
+  const [includeDefaultContracts, setIncludeDefaultContracts] = useState(true);
+  const [includeCustomContracts, setIncludeCustomContracts] = useState(true);
+  const [exporting, setExporting] = useState(false);
 
   const { toast } = useToast();
 
@@ -346,26 +363,121 @@ const DataImport = () => {
 
   const rowCount = csvContent ? csvContent.split("\n").filter((line) => line.trim()).length - 1 : 0;
 
+  const bulkExportButton = (
+    <Button
+      type="button"
+      variant="secondary"
+      size="sm"
+      onClick={() => setExportDialogOpen(true)}
+      className="rounded-full gap-2 font-medium"
+    >
+      <Download className="h-4 w-4" />
+      <span className="hidden sm:inline">Bulk export applications</span>
+      <span className="sm:hidden">Export</span>
+    </Button>
+  );
+
+  const handleAcademicYearChange = async (academicYearId: string | undefined) => {
+    setExportAcademicYearId(academicYearId);
+    setExportAcademicYearName(undefined);
+
+    if (!academicYearId) return;
+
+    const { data, error } = await supabase
+      .from("academic_years")
+      .select("name")
+      .eq("id", academicYearId)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Failed to load academic year name:", error);
+      return;
+    }
+
+    setExportAcademicYearName(data?.name ?? undefined);
+  };
+
+  const handleExportApplications = async () => {
+    if (!exportAcademicYearId) {
+      toast({
+        variant: "destructive",
+        title: "Select academic year",
+        description: "Choose an academic year before exporting.",
+      });
+      return;
+    }
+
+    if (!includeDefaultContracts && !includeCustomContracts) {
+      toast({
+        variant: "destructive",
+        title: "Select export type",
+        description: "Choose at least one applications type to export.",
+      });
+      return;
+    }
+
+    setExporting(true);
+    try {
+      const now = new Date();
+      const pad = (n: number) => n.toString().padStart(2, "0");
+      const timestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(
+        now.getDate(),
+      )}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+
+      const academicYearLabel =
+        exportAcademicYearName?.replace(/\//g, "-") ?? "academic-year";
+
+      if (includeDefaultContracts) {
+        const csv = await exportApplicationsDefaultContractsCSV(exportAcademicYearId);
+        const filename = `applications_default_contracts_${academicYearLabel}_${timestamp}.csv`;
+        downloadCSV(csv, filename);
+      }
+
+      if (includeCustomContracts) {
+        const csvCustom = await exportApplicationsCustomContractsCSV(exportAcademicYearId);
+        const customFilename = `applications_custom_contracts_${academicYearLabel}_${timestamp}.csv`;
+        downloadCSV(csvCustom, customFilename);
+      }
+
+      toast({
+        title: "Export started",
+        description: "Your applications CSV download has been triggered.",
+      });
+      setExportDialogOpen(false);
+    } catch (error: any) {
+      console.error("Error exporting applications:", error);
+      toast({
+        variant: "destructive",
+        title: "Export failed",
+        description: error?.message || "Could not export applications. Please try again.",
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
-    <AdminLayout pageTitle="Bulk Data Import">
-      <div className="space-y-6 max-w-6xl mx-auto">
+    <AdminLayout pageTitle="Bulk Data Import" mobileActionButton={bulkExportButton}>
+      <div className="space-y-6">
         {/* Header Card */}
-        <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-background">
+        <Card className="border-primary/20 bg-primary text-primary-foreground shadow-sm">
           <CardHeader>
             <div className="flex items-start justify-between gap-4">
-              <div className="space-y-1.5">
-                <CardTitle className="text-2xl flex items-center gap-2">
-                  <Database className="h-6 w-6 text-primary" />
+              <div className="space-y-1.5 p-0">
+                <CardTitle className="text-2xl md:text-3xl font-display font-black uppercase tracking-wide flex items-center gap-2">
+                  <Database className="h-6 w-6" />
                   Bulk Data Import
                 </CardTitle>
-                <CardDescription className="text-base">
+                <CardDescription className="text-sm md:text-base text-primary-foreground/90">
                   Import large datasets from CSV files. Templates include all current system data as examples.
                 </CardDescription>
               </div>
-              <Badge variant="outline" className="hidden sm:flex">
-                <Sparkles className="h-3 w-3 mr-1" />
-                Production Ready
-              </Badge>
+              <div className="flex flex-col items-end gap-2">
+                <Badge variant="outline" className="hidden sm:inline-flex border-primary-foreground/40 text-primary-foreground">
+                  Production Ready
+                </Badge>
+                <div className="hidden lg:block">{bulkExportButton}</div>
+              </div>
             </div>
           </CardHeader>
         </Card>
@@ -373,8 +485,10 @@ const DataImport = () => {
         {/* Main Import Card */}
         <Card>
           <CardHeader>
-            <CardTitle>Import Configuration</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">
+              Import Configuration
+            </CardTitle>
+            <CardDescription className="text-xs md:text-sm">
               Select the data type you want to import and upload your CSV file
             </CardDescription>
           </CardHeader>
@@ -738,11 +852,11 @@ const DataImport = () => {
         {/* Import Order Guide */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 text-base md:text-lg font-display font-bold uppercase tracking-wide">
               <Info className="h-5 w-5 text-primary" />
               Recommended Import Order
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-xs md:text-sm">
               Follow this order to ensure all dependencies are met before importing related data
             </CardDescription>
           </CardHeader>
@@ -818,6 +932,86 @@ const DataImport = () => {
         results={importResults}
         importType={importType}
       />
+
+      {/* Bulk Export Dialog */}
+      <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Bulk export applications</DialogTitle>
+            <DialogDescription>
+              Download applications for a specific academic year, grouped by contract type.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Academic Year</Label>
+              <AcademicYearSelector
+                value={exportAcademicYearId}
+                onValueChange={handleAcademicYearChange}
+                className="w-full"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Applications to include</Label>
+              <div className="flex flex-col gap-2">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeDefaultContracts}
+                    onChange={(e) => setIncludeDefaultContracts(e.target.checked)}
+                    className="h-4 w-4 rounded border-primary"
+                  />
+                  <span className="text-sm">
+                    Applications with default contracts
+                  </span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeCustomContracts}
+                    onChange={(e) => setIncludeCustomContracts(e.target.checked)}
+                    className="h-4 w-4 rounded border-primary"
+                  />
+                  <span className="text-sm">
+                    Applications with custom contracts
+                  </span>
+                </label>
+                <p className="text-xs text-muted-foreground pl-7">
+                  If both options are selected, two separate CSV files will be downloaded.
+                </p>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setExportDialogOpen(false)}
+              disabled={exporting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleExportApplications}
+              disabled={exporting}
+              className="min-w-[140px]"
+            >
+              {exporting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Preparing...
+                </>
+              ) : (
+                <>
+                  <Download className="mr-2 h-4 w-4" />
+                  Download CSV
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 };

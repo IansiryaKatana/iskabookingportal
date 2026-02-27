@@ -63,6 +63,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { getPriorityInfoFromUrgency } from "@/utils/maintenancePriority";
 
 // Component to display maintenance images with signed URLs (clickable thumbnails)
 const MaintenanceImage = ({ 
@@ -252,20 +253,23 @@ const Maintenance = () => {
     );
   };
 
-  const getPriorityBadge = (priority: string) => {
-    const configs: Record<string, { className: string; label: string }> = {
-      // Map new urgency values to badges so students see the same wording as staff
-      low: { className: "bg-gray-500 hover:bg-gray-600 text-white", label: "Low" },
-      medium: { className: "bg-blue-500 hover:bg-blue-600 text-white", label: "Medium" },
-      high: { className: "bg-orange-500 hover:bg-orange-600 text-white", label: "High" },
-      emergency: { className: "bg-red-500 hover:bg-red-600 text-white", label: "Emergency" },
+  const getPriorityBadge = (urgency: "low" | "medium" | "high" | "emergency") => {
+    const info = getPriorityInfoFromUrgency(urgency);
+
+    const colorByBand: Record<string, { className: string }> = {
+      P1: { className: "bg-red-500 hover:bg-red-600 text-white" },
+      P2: { className: "bg-orange-500 hover:bg-orange-600 text-white" },
+      P3: { className: "bg-blue-500 hover:bg-blue-600 text-white" },
     };
 
-    const config = configs[priority] || configs.medium;
+    const config = colorByBand[info.band] || colorByBand.P3;
 
     return (
-      <Badge className={`uppercase ${config.className} rounded-full px-2.5 py-0.5 text-xs font-medium`}>
-        {config.label}
+      <Badge className={`uppercase ${config.className} rounded-full px-2.5 py-0.5 text-xs font-medium flex flex-col items-start`}>
+        <span>{info.label}</span>
+        <span className="normal-case text-[10px] opacity-90">
+          {info.targetWindowLabel}
+        </span>
       </Badge>
     );
   };
@@ -566,7 +570,13 @@ const Maintenance = () => {
                           {getStatusBadge(request.status)}
                         </TableCell>
                         <TableCell className="align-middle text-center">
-                          {getPriorityBadge(request.urgency || "medium")}
+                          {getPriorityBadge(
+                            (request.urgency || "medium") as
+                              | "low"
+                              | "medium"
+                              | "high"
+                              | "emergency"
+                          )}
                         </TableCell>
                         <TableCell className="align-middle text-center">
                           <Badge variant="outline" className="rounded-full text-xs">
@@ -605,7 +615,13 @@ const Maintenance = () => {
                           {getStatusBadge(request.status)}
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
-                          {getPriorityBadge(request.urgency || "medium")}
+                          {getPriorityBadge(
+                            (request.urgency || "medium") as
+                              | "low"
+                              | "medium"
+                              | "high"
+                              | "emergency"
+                          )}
                           <Badge variant="outline" className="rounded-full text-xs">
                             {getTypeLabel(request.request_type)}
                           </Badge>
@@ -715,7 +731,7 @@ const Maintenance = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="urgency">Urgency</Label>
+                <Label htmlFor="urgency">Urgency / Priority</Label>
                 <Select
                   value={formData.urgency}
                   onValueChange={(value: "low" | "medium" | "high" | "emergency") =>
@@ -726,12 +742,25 @@ const Maintenance = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="emergency">Emergency</SelectItem>
+                    <SelectItem value="low">
+                      Low – Priority 3 (Non‑urgent, 28 days)
+                    </SelectItem>
+                    <SelectItem value="medium">
+                      Medium – Priority 3 (Non‑urgent, 28 days)
+                    </SelectItem>
+                    <SelectItem value="high">
+                      High – Priority 2 (Urgent, 5 working days)
+                    </SelectItem>
+                    <SelectItem value="emergency">
+                      Emergency – Priority 1 (24 hours)
+                    </SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  We categorise requests into Priority 1 (emergency, 24 hours),
+                  Priority 2 (urgent, 5 working days) and Priority 3
+                  (non‑urgent, 28 days) based on the urgency you select.
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -857,9 +886,17 @@ const Maintenance = () => {
                           <div className="mt-1">{getStatusBadge(selectedRequest.status)}</div>
                         </div>
                         <div>
-                          <Label className="text-xs text-muted-foreground">Urgency</Label>
+                          <Label className="text-xs text-muted-foreground">
+                            Priority
+                          </Label>
                           <div className="mt-1">
-                            {getPriorityBadge(selectedRequest.urgency || "medium")}
+                            {getPriorityBadge(
+                              (selectedRequest.urgency || "medium") as
+                                | "low"
+                                | "medium"
+                                | "high"
+                                | "emergency"
+                            )}
                           </div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
@@ -985,9 +1022,17 @@ const Maintenance = () => {
                           <div className="mt-1">{getStatusBadge(selectedRequest.status)}</div>
                         </div>
                         <div>
-                          <Label className="text-xs text-muted-foreground">Urgency</Label>
+                          <Label className="text-xs text-muted-foreground">
+                            Priority
+                          </Label>
                           <div className="mt-1">
-                            {getPriorityBadge(selectedRequest.urgency || "medium")}
+                            {getPriorityBadge(
+                              (selectedRequest.urgency || "medium") as
+                                | "low"
+                                | "medium"
+                                | "high"
+                                | "emergency"
+                            )}
                           </div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">

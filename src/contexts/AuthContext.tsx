@@ -205,7 +205,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             const isOnPortal = currentPath.startsWith("/portal");
             const isOnAdmin = currentPath.startsWith("/admin");
             const isOnPartner = currentPath.startsWith("/partner");
-            
+            const isOnPortalApplicationJourney =
+              currentPath.startsWith("/portal/applications");
+
             // Get profile to check role
             supabase
               .from("profiles")
@@ -214,19 +216,25 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
               .maybeSingle()
               .then(({ data: profileData }) => {
                 if (!profileData) return;
-                
+
                 const userRole = profileData.role;
                 const userSubrole = profileData.staff_subrole;
-                const isStaff = userRole === "staff" || userRole === "superadmin" || userRole === "admin" || 
-                               userRole === "operations_manager" || userRole === "reservationist" || 
-                               userRole === "accountant" || userRole === "front_desk" ||
-                               userSubrole === "maintenance_officer" || userSubrole === "housekeeper";
+                const isStaff =
+                  userRole === "staff" ||
+                  userRole === "superadmin" ||
+                  userRole === "admin" ||
+                  userRole === "operations_manager" ||
+                  userRole === "reservationist" ||
+                  userRole === "accountant" ||
+                  userRole === "front_desk" ||
+                  userSubrole === "maintenance_officer" ||
+                  userSubrole === "housekeeper";
                 const isPartner = userRole === "partner";
                 const isStudent = userRole === "student";
-                
+
                 // Only redirect if user is on the WRONG portal, not if already on correct portal
-                // Staff users: only redirect if on portal, not if already on admin routes
-                if (isStaff && isOnPortal) {
+                // Staff users: only redirect if on general portal pages, but allow portal application journey routes
+                if (isStaff && isOnPortal && !isOnPortalApplicationJourney) {
                   window.location.href = "/admin";
                 }
                 // Students: only redirect if on admin/partner portals, not if already on portal
