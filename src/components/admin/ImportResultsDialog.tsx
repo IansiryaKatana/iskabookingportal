@@ -280,13 +280,6 @@ const ImportResultsDialog = ({
         </div>
 
         <DialogFooter className="gap-2">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            className="rounded-full uppercase tracking-wide"
-          >
-            Close
-          </Button>
           {failed > 0 && (
             <Button
               onClick={handleDownloadFailed}

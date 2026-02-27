@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, CreditCard, Plus, UserPlus, Users, ChevronsUpDown, Check } from "lucide-react";
+import { ExternalLink, CreditCard, Plus, UserPlus, Users, ChevronsUpDown, Check, CalendarRange } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import ManualPaymentDialog from "@/components/admin/ManualPaymentDialog";
@@ -64,6 +64,9 @@ import {
 } from "@/components/ui/pagination";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Calendar } from "@/components/ui/calendar";
+import { format, startOfMonth, endOfMonth, subDays } from "date-fns";
+import type { DateRange } from "react-day-picker";
 
 const statusLabels: Record<string, string> = {
   draft: "Draft",
@@ -178,6 +181,9 @@ const Applications = () => {
   const [newStudentFirstName, setNewStudentFirstName] = useState<string>("");
   const [newStudentLastName, setNewStudentLastName] = useState<string>("");
   const [isCreatingStudent, setIsCreatingStudent] = useState(false);
+  const [createdFrom, setCreatedFrom] = useState<string>("");
+  const [createdTo, setCreatedTo] = useState<string>("");
+  const [createdRange, setCreatedRange] = useState<DateRange | undefined>(undefined);
 
   const { data: studentProfiles } = useQuery({
     queryKey: ["student-profiles"],
@@ -413,6 +419,30 @@ const Applications = () => {
     createApplicationMutation.mutate();
   };
 
+  const handleDateRangeChange = (range: DateRange | undefined) => {
+    setCreatedRange(range);
+
+    if (!range || !range.from) {
+      setCreatedFrom("");
+      setCreatedTo("");
+      return;
+    }
+
+    setCreatedFrom(format(range.from, "yyyy-MM-dd"));
+
+    if (range.to) {
+      setCreatedTo(format(range.to, "yyyy-MM-dd"));
+    } else {
+      setCreatedTo("");
+    }
+  };
+
+  const clearDateRange = () => {
+    setCreatedRange(undefined);
+    setCreatedFrom("");
+    setCreatedTo("");
+  };
+
   const filtered = useMemo(() => {
     let result = data ?? [];
     
@@ -451,9 +481,27 @@ const Applications = () => {
         );
       });
     }
+
+    // Apply created_at date range filter
+    if (createdFrom) {
+      const fromDate = new Date(createdFrom);
+      result = result.filter((application) => {
+        const created = new Date(application.created_at);
+        return created >= fromDate;
+      });
+    }
+
+    if (createdTo) {
+      const toDate = new Date(createdTo);
+      toDate.setHours(23, 59, 59, 999);
+      result = result.filter((application) => {
+        const created = new Date(application.created_at);
+        return created <= toDate;
+      });
+    }
     
     return result;
-  }, [data, statusFilter, bookingSourceFilter, searchQuery]);
+  }, [data, statusFilter, bookingSourceFilter, searchQuery, createdFrom, createdTo]);
 
   // Pagination logic
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
@@ -466,7 +514,7 @@ const Applications = () => {
   // Reset to page 1 when filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, bookingSourceFilter, selectedAcademicYearId, searchQuery]);
+  }, [statusFilter, bookingSourceFilter, selectedAcademicYearId, searchQuery, createdFrom, createdTo]);
 
   const handleStatusChange = async (
     id: string,
@@ -524,6 +572,96 @@ const Applications = () => {
             onValueChange={setSelectedAcademicYearId}
             className="w-full md:w-64"
           />
+          <div className="w-full md:w-64">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full justify-between rounded-full px-3 py-2 h-auto text-left"
+                >
+                  <span className="text-xs sm:text-sm text-foreground truncate">
+                    {createdFrom || createdTo
+                      ? `Created · ${
+                          createdFrom ? format(new Date(createdFrom), "dd/MM/yyyy") : "…"
+                        } — ${
+                          createdTo ? format(new Date(createdTo), "dd/MM/yyyy") : "…"
+                        }`
+                      : "Created · Any time"}
+                  </span>
+                  <CalendarRange className="h-4 w-4 text-muted-foreground ml-2 flex-shrink-0" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-3" align="end">
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="space-y-2 sm:w-40">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      Quick range
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      <Button
+                        type="button"
+                        size="xs"
+                        variant="outline"
+                        className="rounded-full text-[11px] px-2 py-1"
+                        onClick={() => {
+                          const today = new Date();
+                          const from = subDays(today, 6);
+                          handleDateRangeChange({ from, to: today });
+                        }}
+                      >
+                        Last 7 days
+                      </Button>
+                      <Button
+                        type="button"
+                        size="xs"
+                        variant="outline"
+                        className="rounded-full text-[11px] px-2 py-1"
+                        onClick={() => {
+                          const today = new Date();
+                          const from = subDays(today, 29);
+                          handleDateRangeChange({ from, to: today });
+                        }}
+                      >
+                        Last 30 days
+                      </Button>
+                      <Button
+                        type="button"
+                        size="xs"
+                        variant="outline"
+                        className="rounded-full text-[11px] px-2 py-1"
+                        onClick={() => {
+                          const today = new Date();
+                          const from = startOfMonth(today);
+                          const to = endOfMonth(today);
+                          handleDateRangeChange({ from, to });
+                        }}
+                      >
+                        This month
+                      </Button>
+                      {(createdFrom || createdTo) && (
+                        <Button
+                          type="button"
+                          size="xs"
+                          variant="ghost"
+                          className="rounded-full text-[11px] px-2 py-1 text-muted-foreground"
+                          onClick={clearDateRange}
+                        >
+                          Clear
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  <Calendar
+                    mode="range"
+                    selected={createdRange}
+                    onSelect={handleDateRangeChange}
+                    numberOfMonths={2}
+                    defaultMonth={createdRange?.from ?? new Date()}
+                  />
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
           <Button
             className="rounded-full uppercase tracking-wide gap-2"
             onClick={() => setCreateDialogOpen(true)}
@@ -562,6 +700,10 @@ const Applications = () => {
             Track student progress, confirm documents, and promote students to
             confirmed residents once tenancy agreements are complete.
           </CardDescription>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {filtered.length} application{filtered.length === 1 ? "" : "s"} matching
+            current filters
+          </p>
         </CardHeader>
         <CardContent>
           {isLoading ? (
