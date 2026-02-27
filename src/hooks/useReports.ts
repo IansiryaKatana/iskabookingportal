@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { differenceInCalendarDays } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -1059,6 +1060,452 @@ export const useMoveOutsReport = (window: MoveOutWindow, academicYearId?: string
   return useQuery({
     queryKey: ["move-outs-report", window, academicYearId],
     queryFn: () => fetchMoveOutsReport(window, academicYearId),
+  });
+};
+
+// =============================================================================
+// Room No Income Summary (OTA-assigned studios)
+// =============================================================================
+
+export type RoomNoIncomeSummaryRow = {
+  studio_id: string;
+  room_no: string;
+  studio_grade_name: string;
+  total_res: number;
+  total_nights: number;
+  accom: number;
+  discount: number;
+  other: number;
+  total: number;
+  avg_accom: number;
+  avg_discount: number;
+  avg_other: number;
+  avg_daily_tariff: number;
+  occupancy_pct: number;
+  revenue_per_day: number;
+  revenue_per_week: number;
+  revenue_per_month: number;
+  revenue_per_year: number;
+};
+
+export type RoomNoIncomeSummaryReport = {
+  rows: RoomNoIncomeSummaryRow[];
+  grandTotal: {
+    total_res: number;
+    total_nights: number;
+    accom: number;
+    discount: number;
+    other: number;
+    total: number;
+    avg_accom: number;
+    avg_daily_tariff: number;
+    occupancy_pct: number;
+  };
+  dateFrom: string;
+  dateTo: string;
+  daysInRange: number;
+};
+
+function nightsInRange(
+  contractStart: string,
+  contractEnd: string,
+  rangeStart: string,
+  rangeEnd: string,
+): number {
+  const start = new Date(Math.max(new Date(contractStart).getTime(), new Date(rangeStart).getTime()));
+  const end = new Date(Math.min(new Date(contractEnd).getTime(), new Date(rangeEnd).getTime()));
+  if (start > end) return 0;
+  return differenceInCalendarDays(end, start) + 1;
+}
+
+const fetchRoomNoIncomeSummaryReport = async (
+  dateFrom: string,
+  dateTo: string,
+): Promise<RoomNoIncomeSummaryReport | null> => {
+  if (!dateFrom || !dateTo) return null;
+
+  const rangeStart = new Date(dateFrom);
+  const rangeEnd = new Date(dateTo);
+  const daysInRange = differenceInCalendarDays(rangeEnd, rangeStart) + 1;
+  if (daysInRange <= 0) return null;
+
+  const { data: otaStudios, error: studiosError } = await supabase
+    .from("studios")
+    .select("id, studio_number, studio_grade_id, studio_grade:studio_grades!studio_grade_id(name)")
+    .eq("allocation", "OTA")
+    .eq("is_active", true)
+    .order("studio_number", { ascending: true });
+
+  if (studiosError) {
+    console.error("Failed to fetch OTA studios:", studiosError);
+    throw studiosError;
+  }
+
+  if (!otaStudios || otaStudios.length === 0) {
+    return {
+      rows: [],
+      grandTotal: {
+        total_res: 0,
+        total_nights: 0,
+        accom: 0,
+        discount: 0,
+        other: 0,
+        total: 0,
+        avg_accom: 0,
+        avg_daily_tariff: 0,
+        occupancy_pct: 0,
+      },
+      dateFrom,
+      dateTo,
+      daysInRange,
+    };
+  }
+
+  const studioIds = otaStudios.map((s) => s.id);
+
+  const { data: applications, error: appsError } = await supabase
+    .from("student_applications")
+    .select(
+      `
+      id,
+      assigned_studio_id,
+      total_contract_value,
+      discount_amount,
+      contract:contracts!contract_id(contract_start, contract_end)
+    `,
+    )
+    .eq("status", "confirmed")
+    .in("assigned_studio_id", studioIds)
+    .not("assigned_studio_id", "is", null);
+
+  if (appsError) {
+    console.error("Failed to fetch applications for room income summary:", appsError);
+    throw appsError;
+  }
+
+  const apps = (applications || []).filter((app: any) => {
+    const start = app.contract?.contract_start;
+    const end = app.contract?.contract_end;
+    if (!start || !end) return false;
+    const overlapStart = new Date(Math.max(new Date(start).getTime(), rangeStart.getTime()));
+    const overlapEnd = new Date(Math.min(new Date(end).getTime(), rangeEnd.getTime()));
+    return overlapStart <= overlapEnd;
+  });
+
+  const studioMap = new Map(
+    otaStudios.map((s: any) => [
+      s.id,
+      {
+        studio_number: s.studio_number,
+        studio_grade_name: s.studio_grade?.name ?? "—",
+      },
+    ]),
+  );
+
+  const byStudio = new Map<
+    string,
+    {
+      total_res: number;
+      total_nights: number;
+      accom: number;
+      discount: number;
+      other: number;
+    }
+  >();
+
+  apps.forEach((app: any) => {
+    const sid = app.assigned_studio_id;
+    if (!sid) return;
+    const contractStart = app.contract?.contract_start ?? "";
+    const contractEnd = app.contract?.contract_end ?? "";
+    const nights = nightsInRange(contractStart, contractEnd, dateFrom, dateTo);
+    const accom = Number(app.total_contract_value) || 0;
+    const discount = Number(app.discount_amount) || 0;
+    const other = 0;
+
+    if (!byStudio.has(sid)) {
+      byStudio.set(sid, { total_res: 0, total_nights: 0, accom: 0, discount: 0, other: 0 });
+    }
+    const agg = byStudio.get(sid)!;
+    agg.total_res += 1;
+    agg.total_nights += nights;
+    agg.accom += accom;
+    agg.discount += discount;
+    agg.other += other;
+  });
+
+  const rows: RoomNoIncomeSummaryRow[] = [];
+  let grandRes = 0;
+  let grandNights = 0;
+  let grandAccom = 0;
+  let grandDiscount = 0;
+  let grandOther = 0;
+
+  for (const studio of otaStudios as any[]) {
+    const sid = studio.id;
+    const agg = byStudio.get(sid) ?? {
+      total_res: 0,
+      total_nights: 0,
+      accom: 0,
+      discount: 0,
+      other: 0,
+    };
+    const total = agg.accom - agg.discount + agg.other;
+    const totalRes = agg.total_res;
+    const totalNights = agg.total_nights;
+    const avg_accom = totalRes > 0 ? total / totalRes : 0;
+    const avg_discount = totalRes > 0 ? agg.discount / totalRes : 0;
+    const avg_other = totalRes > 0 ? agg.other / totalRes : 0;
+    const avg_daily_tariff = totalNights > 0 ? total / totalNights : 0;
+    const occupancy_pct = daysInRange > 0 ? (totalNights / daysInRange) * 100 : 0;
+    const revenue_per_day = daysInRange > 0 ? total / daysInRange : 0;
+    const revenue_per_week = daysInRange > 0 ? (total / daysInRange) * 7 : 0;
+    const revenue_per_month = daysInRange > 0 ? (total / daysInRange) * (365 / 12) : 0;
+    const revenue_per_year = daysInRange > 0 ? (total / daysInRange) * 365 : 0;
+
+    rows.push({
+      studio_id: sid,
+      room_no: studio.studio_number,
+      studio_grade_name: studio.studio_grade?.name ?? "—",
+      total_res: totalRes,
+      total_nights: totalNights,
+      accom: agg.accom,
+      discount: agg.discount,
+      other: agg.other,
+      total,
+      avg_accom,
+      avg_discount,
+      avg_other,
+      avg_daily_tariff,
+      occupancy_pct,
+      revenue_per_day,
+      revenue_per_week,
+      revenue_per_month,
+      revenue_per_year,
+    });
+
+    grandRes += totalRes;
+    grandNights += totalNights;
+    grandAccom += agg.accom;
+    grandDiscount += agg.discount;
+    grandOther += agg.other;
+  }
+
+  const grandTotalSum = grandAccom - grandDiscount + grandOther;
+  const grandAvgAccom = grandRes > 0 ? grandTotalSum / grandRes : 0;
+  const grandAvgDailyTariff = grandNights > 0 ? grandTotalSum / grandNights : 0;
+  const grandOccupancyPct = daysInRange > 0 ? (grandNights / daysInRange) * 100 : 0;
+
+  return {
+    rows,
+    grandTotal: {
+      total_res: grandRes,
+      total_nights: grandNights,
+      accom: grandAccom,
+      discount: grandDiscount,
+      other: grandOther,
+      total: grandTotalSum,
+      avg_accom: grandAvgAccom,
+      avg_daily_tariff: grandAvgDailyTariff,
+      occupancy_pct: grandOccupancyPct,
+    },
+    dateFrom,
+    dateTo,
+    daysInRange,
+  };
+};
+
+export const useRoomNoIncomeSummaryReport = (dateFrom: string, dateTo: string) => {
+  return useQuery({
+    queryKey: ["room-no-income-summary", dateFrom, dateTo],
+    queryFn: () => fetchRoomNoIncomeSummaryReport(dateFrom, dateTo),
+    enabled: Boolean(dateFrom && dateTo),
+  });
+};
+
+// =============================================================================
+// OTA Studio Income Summary (from ota_bookings table - staff-added OTA bookings)
+// =============================================================================
+
+const fetchOTAStudioIncomeSummaryReport = async (
+  dateFrom: string,
+  dateTo: string,
+): Promise<RoomNoIncomeSummaryReport | null> => {
+  if (!dateFrom || !dateTo) return null;
+
+  const rangeStart = new Date(dateFrom);
+  const rangeEnd = new Date(dateTo);
+  const daysInRange = differenceInCalendarDays(rangeEnd, rangeStart) + 1;
+  if (daysInRange <= 0) return null;
+
+  const { data: otaStudios, error: studiosError } = await supabase
+    .from("studios")
+    .select("id, studio_number, studio_grade_id, studio_grade:studio_grades!studio_grade_id(name)")
+    .eq("allocation", "OTA")
+    .eq("is_active", true)
+    .order("studio_number", { ascending: true });
+
+  if (studiosError) {
+    console.error("Failed to fetch OTA studios:", studiosError);
+    throw studiosError;
+  }
+
+  if (!otaStudios || otaStudios.length === 0) {
+    return {
+      rows: [],
+      grandTotal: {
+        total_res: 0,
+        total_nights: 0,
+        accom: 0,
+        discount: 0,
+        other: 0,
+        total: 0,
+        avg_accom: 0,
+        avg_daily_tariff: 0,
+        occupancy_pct: 0,
+      },
+      dateFrom,
+      dateTo,
+      daysInRange,
+    };
+  }
+
+  const studioIds = otaStudios.map((s) => s.id);
+
+  const { data: bookings, error: bookingsError } = await supabase
+    .from("ota_bookings")
+    .select("id, studio_id, check_in, check_out, price_per_night, commission_amount, total_revenue, number_of_nights, status")
+    .in("studio_id", studioIds)
+    .not("studio_id", "is", null);
+
+  if (bookingsError) {
+    console.error("Failed to fetch OTA bookings for income summary:", bookingsError);
+    throw bookingsError;
+  }
+
+  const excludedStatuses = ["cancelled", "no_show"];
+  const bookingsList = (bookings || []).filter((b: any) => {
+    if (excludedStatuses.includes(b.status)) return false;
+    const overlapStart = new Date(Math.max(new Date(b.check_in).getTime(), rangeStart.getTime()));
+    const overlapEnd = new Date(Math.min(new Date(b.check_out).getTime(), rangeEnd.getTime()));
+    return overlapStart <= overlapEnd;
+  });
+
+  const byStudio = new Map<
+    string,
+    { total_res: number; total_nights: number; accom: number; discount: number; other: number }
+  >();
+
+  bookingsList.forEach((b: any) => {
+    const sid = b.studio_id;
+    if (!sid) return;
+    const nights = nightsInRange(b.check_in, b.check_out, dateFrom, dateTo);
+    const numNights = Number(b.number_of_nights) || 1;
+    const pricePerNight = Number(b.price_per_night) || 0;
+    const commission = Number(b.commission_amount) || 0;
+    const totalRev = Number(b.total_revenue) ?? pricePerNight * numNights - commission;
+    const ratio = numNights > 0 ? nights / numNights : 0;
+    const accom = pricePerNight * nights;
+    const discount = commission * ratio;
+    const total = totalRev * ratio;
+
+    if (!byStudio.has(sid)) {
+      byStudio.set(sid, { total_res: 0, total_nights: 0, accom: 0, discount: 0, other: 0 });
+    }
+    const agg = byStudio.get(sid)!;
+    agg.total_res += 1;
+    agg.total_nights += nights;
+    agg.accom += accom;
+    agg.discount += discount;
+    agg.other += 0;
+  });
+
+  const rows: RoomNoIncomeSummaryRow[] = [];
+  let grandRes = 0;
+  let grandNights = 0;
+  let grandAccom = 0;
+  let grandDiscount = 0;
+  let grandOther = 0;
+
+  for (const studio of otaStudios as any[]) {
+    const sid = studio.id;
+    const agg = byStudio.get(sid) ?? {
+      total_res: 0,
+      total_nights: 0,
+      accom: 0,
+      discount: 0,
+      other: 0,
+    };
+    const total = agg.accom - agg.discount + agg.other;
+    const totalRes = agg.total_res;
+    const totalNights = agg.total_nights;
+    const avg_accom = totalRes > 0 ? total / totalRes : 0;
+    const avg_discount = totalRes > 0 ? agg.discount / totalRes : 0;
+    const avg_other = 0;
+    const avg_daily_tariff = totalNights > 0 ? total / totalNights : 0;
+    const occupancy_pct = daysInRange > 0 ? (totalNights / daysInRange) * 100 : 0;
+    const revenue_per_day = daysInRange > 0 ? total / daysInRange : 0;
+    const revenue_per_week = daysInRange > 0 ? (total / daysInRange) * 7 : 0;
+    const revenue_per_month = daysInRange > 0 ? (total / daysInRange) * (365 / 12) : 0;
+    const revenue_per_year = daysInRange > 0 ? (total / daysInRange) * 365 : 0;
+
+    rows.push({
+      studio_id: sid,
+      room_no: studio.studio_number,
+      studio_grade_name: studio.studio_grade?.name ?? "—",
+      total_res: totalRes,
+      total_nights: totalNights,
+      accom: agg.accom,
+      discount: agg.discount,
+      other: agg.other,
+      total,
+      avg_accom,
+      avg_discount,
+      avg_other,
+      avg_daily_tariff,
+      occupancy_pct,
+      revenue_per_day,
+      revenue_per_week,
+      revenue_per_month,
+      revenue_per_year,
+    });
+
+    grandRes += totalRes;
+    grandNights += totalNights;
+    grandAccom += agg.accom;
+    grandDiscount += agg.discount;
+    grandOther += agg.other;
+  }
+
+  const grandTotalSum = grandAccom - grandDiscount + grandOther;
+  const grandAvgAccom = grandRes > 0 ? grandTotalSum / grandRes : 0;
+  const grandAvgDailyTariff = grandNights > 0 ? grandTotalSum / grandNights : 0;
+  const grandOccupancyPct = daysInRange > 0 ? (grandNights / daysInRange) * 100 : 0;
+
+  return {
+    rows,
+    grandTotal: {
+      total_res: grandRes,
+      total_nights: grandNights,
+      accom: grandAccom,
+      discount: grandDiscount,
+      other: grandOther,
+      total: grandTotalSum,
+      avg_accom: grandAvgAccom,
+      avg_daily_tariff: grandAvgDailyTariff,
+      occupancy_pct: grandOccupancyPct,
+    },
+    dateFrom,
+    dateTo,
+    daysInRange,
+  };
+};
+
+export const useOTAStudioIncomeSummaryReport = (dateFrom: string, dateTo: string) => {
+  return useQuery({
+    queryKey: ["ota-studio-income-summary", dateFrom, dateTo],
+    queryFn: () => fetchOTAStudioIncomeSummaryReport(dateFrom, dateTo),
+    enabled: Boolean(dateFrom && dateTo),
   });
 };
 

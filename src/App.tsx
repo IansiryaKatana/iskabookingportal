@@ -57,6 +57,7 @@ const OTABookingsDashboard = lazy(() => import("./pages/admin/OTABookingsDashboa
 const OTABookingChartPage = lazy(() => import("./pages/admin/OTABookingChartPage"));
 const OTAFinancePage = lazy(() => import("./pages/admin/OTAFinancePage"));
 const OTAStudioAllocationPage = lazy(() => import("./pages/admin/OTAStudioAllocationPage"));
+const OTAReports = lazy(() => import("./pages/admin/OTAReports"));
 const AdminExpenses = lazy(() => import("./pages/admin/Expenses"));
 const AdminAuditLogs = lazy(() => import("./pages/admin/AuditLogs"));
 const AdminPaymentHistory = lazy(() => import("./pages/admin/PaymentHistory"));
@@ -350,6 +351,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["staff", "superadmin", "operations_manager", "reservationist"]}>
                   <OTAFinancePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/ota-bookings/reports"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin", "operations_manager", "reservationist"]}>
+                  <OTAReports />
                 </ProtectedRoute>
               }
             />

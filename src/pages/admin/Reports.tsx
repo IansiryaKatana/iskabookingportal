@@ -171,6 +171,7 @@ const Reports = () => {
   const [selectedReport, setSelectedReport] = useState<ExtendedReportType>("awaiting_signatures");
   const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string | undefined>();
   const [moveOutWindow] = useState<MoveOutWindow>("30");
+
   const listReportType: ReportType =
     selectedReport === "awaiting_signatures" ||
     selectedReport === "awaiting_deposit" ||
@@ -464,7 +465,11 @@ const Reports = () => {
       subtitle="Generate and export reports for student bookings"
       mobileActionButton={
         ((selectedReport === "occupancy" && occupancyReport && occupancyReport.by_grade.length > 0) ||
-          (selectedReport !== "occupancy" && reportData && reportData.length > 0)) ? (
+          (selectedReport === "studio-allocation" && studioAllocationReport && studioAllocationReport.length > 0) ||
+          (selectedReport !== "occupancy" &&
+            selectedReport !== "studio-allocation" &&
+            reportData &&
+            reportData.length > 0)) ? (
           <Button
             size="sm"
             variant="outline"
