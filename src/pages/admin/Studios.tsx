@@ -106,8 +106,20 @@ const Studios = () => {
   const someSelected = selectedStudios.size > 0 && selectedStudios.size < filteredStudios.length;
 
   const handleStatusChange = async (studioId: string, status: string) => {
+    if (status === "maintenance" && !selectedAcademicYearId) {
+      toast({
+        variant: "destructive",
+        title: "Select an academic year",
+        description: "Choose an academic year above to set maintenance for that year only.",
+      });
+      return;
+    }
     try {
-      await updateStudio.mutateAsync({ id: studioId, status });
+      await updateStudio.mutateAsync({
+        id: studioId,
+        status,
+        academicYearId: selectedAcademicYearId ?? undefined,
+      });
       toast({ title: "Studio status updated" });
     } catch (error) {
       console.error(error);
@@ -162,6 +174,15 @@ const Studios = () => {
       return;
     }
 
+    if (bulkAction.type === "status" && bulkAction.value === "maintenance" && !selectedAcademicYearId) {
+      toast({
+        variant: "destructive",
+        title: "Select an academic year",
+        description: "Choose an academic year above to set maintenance for that year only.",
+      });
+      return;
+    }
+
     try {
       const updates: Record<string, unknown> = {};
       if (bulkAction.type === "allocation") {
@@ -175,6 +196,7 @@ const Studios = () => {
       await bulkUpdateStudios.mutateAsync({
         studioIds: Array.from(selectedStudios),
         updates,
+        academicYearId: selectedAcademicYearId ?? undefined,
       });
 
       toast({

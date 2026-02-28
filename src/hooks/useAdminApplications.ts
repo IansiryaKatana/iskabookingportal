@@ -228,10 +228,52 @@ export const useUpdateApplicationStatus = () => {
         }
       }
 
+      // When reverting confirmed → awaiting_deposit: remove deposit record created at bulk import so staff can record the real payment.
+      // Only runs when transition is confirmed → awaiting_deposit (not draft → awaiting_deposit or other paths). Only the import placeholder is removed (notes = 'Historical deposit payment (imported)').
+      if (status === "awaiting_deposit" && oldStatus === "confirmed") {
+        const { data: importDeposit } = await supabase
+          .from("manual_payments")
+          .select("id")
+          .eq("application_id", id)
+          .eq("payment_type", "deposit")
+          .eq("notes", "Historical deposit payment (imported)")
+          .limit(1)
+          .maybeSingle();
+
+        if (importDeposit) {
+          await supabase.from("manual_payments").delete().eq("id", importDeposit.id);
+          await supabase
+            .from("student_applications")
+            .update({ deposit_payment_intent_id: null })
+            .eq("id", id);
+
+          const { data: step5 } = await supabase
+            .from("student_application_steps")
+            .select("id, payload")
+            .eq("application_id", id)
+            .eq("step_number", 5)
+            .single();
+
+          if (step5?.payload && typeof step5.payload === "object") {
+            const updatedPayload = { ...(step5.payload as Record<string, unknown>), deposit_paid: false };
+            await supabase
+              .from("student_application_steps")
+              .update({ payload: updatedPayload })
+              .eq("id", step5.id);
+          }
+        }
+      }
+
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["admin-applications"] });
+      if (variables?.id) {
+        queryClient.invalidateQueries({ queryKey: ["student-application", variables.id] });
+        queryClient.invalidateQueries({ queryKey: ["application-has-deposit", variables.id] });
+        queryClient.invalidateQueries({ queryKey: ["payment-summary", variables.id] });
+        queryClient.invalidateQueries({ queryKey: ["deposit-installment-breakdown"] });
+      }
     },
   });
 };

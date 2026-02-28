@@ -57,7 +57,7 @@ const Dashboard = () => {
           value={selectedAcademicYearId}
           onValueChange={(value) => setSelectedAcademicYearId(value)}
           className="w-full md:w-64"
-          allowEmpty={true}
+          allowEmpty={false}
         />
       </div>
       {isLoading ? (

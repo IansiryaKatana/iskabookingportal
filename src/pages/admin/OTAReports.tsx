@@ -21,7 +21,7 @@ import {
   TableFooter,
 } from "@/components/ui/table";
 import jsPDF from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 
 const formatCurrencyReport = (amount: number) =>
   new Intl.NumberFormat("en-GB", {
@@ -152,7 +152,7 @@ const OTAReports = () => {
       `${r.occupancy_pct.toFixed(2)}%`,
     ]);
 
-    (doc as any).autoTable({
+    autoTable(doc, {
       startY: 40,
       head: [
         [

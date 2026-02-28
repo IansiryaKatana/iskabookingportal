@@ -4,7 +4,46 @@ import type { Database } from "@/integrations/supabase/types";
 
 type StudioRow = Database["public"]["Tables"]["studios"]["Row"];
 
-const fetchStudios = async (studioGradeId: string): Promise<StudioRow[]> => {
+/** When academicYearId is set, uses per-year effective status (e.g. maintenance for that year only). */
+const fetchStudios = async (
+  studioGradeId: string,
+  academicYearId?: string | null
+): Promise<StudioRow[]> => {
+  if (academicYearId) {
+    const { data, error } = await supabase
+      .from("studio_status_by_academic_year")
+      .select(
+        "studio_id, studio_number, studio_grade_id, floor, allocation, is_active, effective_status, reservation_expires_at"
+      )
+      .eq("studio_grade_id", studioGradeId)
+      .eq("academic_year_id", academicYearId)
+      .order("studio_number", { ascending: true });
+
+    if (error) throw error;
+
+    const filtered = (data ?? []).filter((row) => {
+      const allocation = row.allocation;
+      return (
+        allocation === null ||
+        allocation === "Student" ||
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(allocation ?? "")
+      );
+    });
+
+    return filtered.map((row) => ({
+      id: row.studio_id,
+      studio_number: row.studio_number,
+      studio_grade_id: row.studio_grade_id,
+      floor: row.floor,
+      allocation: row.allocation,
+      is_active: row.is_active ?? true,
+      status: (row.effective_status ?? "available") as StudioRow["status"],
+      reservation_expires_at: row.reservation_expires_at,
+      created_at: "",
+      updated_at: "",
+    })) as StudioRow[];
+  }
+
   const { data, error } = await supabase
     .from("studios")
     .select("*")
@@ -13,28 +52,29 @@ const fetchStudios = async (studioGradeId: string): Promise<StudioRow[]> => {
     .order("studio_number", { ascending: true });
 
   if (error) throw error;
-  
-  // Filter out studios allocated to OTA or Keyworkers
-  // Students should only see: NULL (Unallocated), 'Student', or UUID (temporary reservation)
+
   const filtered = (data ?? []).filter((studio) => {
     const allocation = studio.allocation;
-    // Allow NULL, 'Student', or UUID format (temporary reservations)
     return (
       allocation === null ||
       allocation === "Student" ||
-      // UUID format check (temporary student reservation)
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(allocation)
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(allocation ?? "")
     );
   });
-  
+
   return filtered;
 };
 
-export const useStudios = (studioGradeId?: string) =>
+export const useStudios = (
+  studioGradeId?: string,
+  academicYearId?: string | null
+) =>
   useQuery({
-    queryKey: ["studios", studioGradeId],
+    queryKey: ["studios", studioGradeId, academicYearId ?? null],
     queryFn: () =>
-      studioGradeId ? fetchStudios(studioGradeId) : Promise.resolve([]),
+      studioGradeId
+        ? fetchStudios(studioGradeId, academicYearId)
+        : Promise.resolve([]),
     enabled: Boolean(studioGradeId),
     refetchInterval: 30_000,
   });

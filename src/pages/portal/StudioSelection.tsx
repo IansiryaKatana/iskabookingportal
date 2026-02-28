@@ -23,12 +23,13 @@ const StudioSelection = () => {
     useStudentApplication(applicationId);
 
   const studioGradeId = application?.studio_grade_id;
+  const academicYearId = application?.contract?.academic_year_id ?? undefined;
 
   const {
     data: studios,
     isLoading: studiosLoading,
     refetch: refetchStudios,
-  } = useStudios(studioGradeId ?? undefined);
+  } = useStudios(studioGradeId ?? undefined, academicYearId);
 
   // Safety check: Get studios with confirmed applications for this contract
   const { data: occupiedStudioIds } = useQuery({

@@ -139,18 +139,55 @@ export const useAdminStudios = (options?: {
     queryFn: () => fetchStudios(options),
   });
 
+/** When set with status 'maintenance', write to per-year override only (no global). When clearing maintenance, delete override and update global. */
+export type UpdateStudioPayload = Partial<StudioRow> & {
+  id: string;
+  academicYearId?: string | null;
+};
+
 export const useUpdateStudio = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: Partial<StudioRow> & { id: string }) => {
-      const { id, ...rest } = payload;
-      
-      // Get old studio data for logging
+    mutationFn: async (payload: UpdateStudioPayload) => {
+      const { id, academicYearId, ...rest } = payload;
+
       const { data: oldStudio } = await supabase
         .from("studios")
         .select("studio_number, status, allocation, is_active, studio_grade_id")
         .eq("id", id)
         .single();
+
+      const isMaintenance = rest.status === "maintenance";
+      const hasYear = Boolean(academicYearId);
+
+      if (rest.status !== undefined && hasYear) {
+        if (isMaintenance) {
+          await supabase.from("studio_maintenance_by_academic_year").upsert(
+            { studio_id: id, academic_year_id: academicYearId! },
+            { onConflict: "studio_id,academic_year_id" }
+          );
+          const { status: _s, ...restWithoutStatus } = rest;
+          if (Object.keys(restWithoutStatus).length === 0) {
+            await logActivity({
+              action: "update",
+              entityType: "studio",
+              entityId: id,
+              payload: {
+                studio_number: oldStudio?.studio_number,
+                changes: { status: { from: oldStudio?.status, to: "maintenance", scope: "academic_year", academic_year_id: academicYearId } },
+              },
+            });
+            return (await supabase.from("studios").select("*").eq("id", id).single()).data as StudioRow;
+          }
+          rest = restWithoutStatus as Partial<StudioRow>;
+        } else {
+          await supabase
+            .from("studio_maintenance_by_academic_year")
+            .delete()
+            .eq("studio_id", id)
+            .eq("academic_year_id", academicYearId!);
+        }
+      }
 
       const { data, error } = await supabase
         .from("studios")
@@ -161,7 +198,6 @@ export const useUpdateStudio = () => {
 
       if (error) throw error;
 
-      // Log studio update
       await logActivity({
         action: "update",
         entityType: "studio",
@@ -169,18 +205,10 @@ export const useUpdateStudio = () => {
         payload: {
           studio_number: oldStudio?.studio_number,
           changes: {
-            status: rest.status !== undefined
-              ? { from: oldStudio?.status, to: rest.status }
-              : undefined,
-            allocation: rest.allocation !== undefined
-              ? { from: oldStudio?.allocation, to: rest.allocation }
-              : undefined,
-            is_active: rest.is_active !== undefined
-              ? { from: oldStudio?.is_active, to: rest.is_active }
-              : undefined,
-            studio_grade_id: rest.studio_grade_id !== undefined
-              ? { from: oldStudio?.studio_grade_id, to: rest.studio_grade_id }
-              : undefined,
+            status: rest.status !== undefined ? { from: oldStudio?.status, to: rest.status } : undefined,
+            allocation: rest.allocation !== undefined ? { from: oldStudio?.allocation, to: rest.allocation } : undefined,
+            is_active: rest.is_active !== undefined ? { from: oldStudio?.is_active, to: rest.is_active } : undefined,
+            studio_grade_id: rest.studio_grade_id !== undefined ? { from: oldStudio?.studio_grade_id, to: rest.studio_grade_id } : undefined,
           },
         },
       });
@@ -193,56 +221,87 @@ export const useUpdateStudio = () => {
   });
 };
 
+export type BulkUpdateStudiosPayload = {
+  studioIds: string[];
+  updates: Partial<StudioRow>;
+  academicYearId?: string | null;
+};
+
 export const useBulkUpdateStudios = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: {
-      studioIds: string[];
-      updates: Partial<StudioRow>;
-    }) => {
-      const { studioIds, updates } = payload;
-      
-      // Get old studio data for logging
+    mutationFn: async (payload: BulkUpdateStudiosPayload) => {
+      const { studioIds, updates, academicYearId } = payload;
+
       const { data: oldStudios } = await supabase
         .from("studios")
         .select("id, studio_number, status, allocation, studio_grade_id")
         .in("id", studioIds);
 
+      const isMaintenance = updates.status === "maintenance";
+      const hasYear = Boolean(academicYearId);
+
+      let updatesToApply = { ...updates };
+      if (updates.status !== undefined && hasYear) {
+        if (isMaintenance) {
+          const rows = studioIds.map((studio_id) => ({
+            studio_id,
+            academic_year_id: academicYearId!,
+          }));
+          await supabase.from("studio_maintenance_by_academic_year").upsert(rows, {
+            onConflict: "studio_id,academic_year_id",
+          });
+          const { status: _s, ...rest } = updates;
+          if (Object.keys(rest).length === 0) {
+            await logActivity({
+              action: "update",
+              entityType: "studio",
+              entityId: null,
+              payload: {
+                bulk_update: true,
+                studios_count: studioIds.length,
+                studio_ids: studioIds,
+                changes: { status: { to: "maintenance", scope: "academic_year", academic_year_id: academicYearId } },
+              },
+            });
+            return (await supabase.from("studios").select("*").in("id", studioIds))?.data ?? [];
+          }
+          updatesToApply = rest;
+        } else {
+          await supabase
+            .from("studio_maintenance_by_academic_year")
+            .delete()
+            .in("studio_id", studioIds)
+            .eq("academic_year_id", academicYearId!);
+        }
+      }
+
       const { data, error } = await supabase
         .from("studios")
-        .update(updates)
+        .update(updatesToApply)
         .in("id", studioIds)
         .select("*");
 
       if (error) throw error;
 
-      // Log bulk studio update
       await logActivity({
         action: "update",
         entityType: "studio",
-        entityId: null, // Bulk operation
+        entityId: null,
         payload: {
           bulk_update: true,
           studios_count: studioIds.length,
           studio_ids: studioIds,
           changes: {
-            status: updates.status !== undefined
-              ? { from: oldStudios?.map(s => s.status), to: updates.status }
-              : undefined,
-            allocation: updates.allocation !== undefined
-              ? { from: oldStudios?.map(s => s.allocation), to: updates.allocation }
-              : undefined,
-            is_active: updates.is_active !== undefined
-              ? { from: oldStudios?.map(s => s.is_active), to: updates.is_active }
-              : undefined,
-            studio_grade_id: updates.studio_grade_id !== undefined
-              ? { from: oldStudios?.map(s => s.studio_grade_id), to: updates.studio_grade_id }
-              : undefined,
+            status: updates.status !== undefined ? { from: oldStudios?.map((s) => s.status), to: updates.status } : undefined,
+            allocation: updates.allocation !== undefined ? { from: oldStudios?.map((s) => s.allocation), to: updates.allocation } : undefined,
+            is_active: updates.is_active !== undefined ? { from: oldStudios?.map((s) => s.is_active), to: updates.is_active } : undefined,
+            studio_grade_id: updates.studio_grade_id !== undefined ? { from: oldStudios?.map((s) => s.studio_grade_id), to: updates.studio_grade_id } : undefined,
           },
         },
       });
 
-      return data;
+      return data ?? [];
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-studios"] });
