@@ -55,6 +55,8 @@ const AccountingReports = () => {
   const [arSearchQuery, setArSearchQuery] = useState("");
   const [arPage, setArPage] = useState(1);
   const [arAcademicYearId, setArAcademicYearId] = useState<string>("all");
+  const [outstandingAcademicYearId, setOutstandingAcademicYearId] = useState<string>("all");
+  const [breakdownAcademicYearId, setBreakdownAcademicYearId] = useState<string>("all");
   const AR_PER_PAGE = 10;
 
   // Fetch data based on selected report
@@ -81,6 +83,13 @@ const AccountingReports = () => {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(amount);
+  };
+
+  /** Format a date string for display; returns "—" for null, undefined, empty, or invalid dates to avoid RangeError. */
+  const formatDateSafe = (value: string | null | undefined, fmt: string) => {
+    if (value == null || String(value).trim() === "") return "—";
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? "—" : format(d, fmt);
   };
 
   const today = useMemo(() => format(new Date(), "yyyy-MM-dd"), []);
@@ -143,6 +152,26 @@ const AccountingReports = () => {
     }
     return list.sort((a, b) => (a.due_date < b.due_date ? -1 : 1));
   }, [upcomingData, upcomingAcademicYearId, upcomingDueWindow, upcomingStatusFilter, today]);
+
+  const filteredOutstandingData = useMemo(() => {
+    if (!outstandingData) return [];
+    if (!outstandingAcademicYearId || outstandingAcademicYearId === "all") return outstandingData;
+    const selectedYearName = academicYears?.find((ay) => ay.id === outstandingAcademicYearId)?.name;
+    if (!selectedYearName) return outstandingData;
+    return outstandingData.filter(
+      (item) => (item.academic_year_name ?? "").trim() === selectedYearName.trim()
+    );
+  }, [outstandingData, outstandingAcademicYearId, academicYears]);
+
+  const filteredBreakdownData = useMemo(() => {
+    if (!breakdownData) return [];
+    if (!breakdownAcademicYearId || breakdownAcademicYearId === "all") return breakdownData;
+    const selectedYearName = academicYears?.find((ay) => ay.id === breakdownAcademicYearId)?.name;
+    if (!selectedYearName) return breakdownData;
+    return breakdownData.filter(
+      (item) => (item.academic_year_name ?? "").trim() === selectedYearName.trim()
+    );
+  }, [breakdownData, breakdownAcademicYearId, academicYears]);
 
   const exportToCSV = () => {
     let headers: string[] = [];
@@ -239,10 +268,12 @@ const AccountingReports = () => {
         break;
 
       case "outstanding-balances":
-        if (!outstandingData || outstandingData.length === 0) {
+        if (!filteredOutstandingData.length) {
           toast({
             title: "No data to export",
-            description: "There is no outstanding balance data available.",
+            description: outstandingAcademicYearId !== "all"
+              ? "No outstanding balance records for the selected academic year."
+              : "There is no outstanding balance data available.",
             variant: "destructive",
           });
           return;
@@ -253,6 +284,7 @@ const AccountingReports = () => {
           "Status",
           "Contract",
           "Studio Grade",
+          "Academic Year",
           "Total Due",
           "Total Paid",
           "Outstanding Balance",
@@ -262,12 +294,13 @@ const AccountingReports = () => {
           "Contract Start",
           "Contract End",
         ];
-        rows = outstandingData.map((item) => [
+        rows = filteredOutstandingData.map((item) => [
           item.application_id,
           item.student_name,
           item.application_status,
           item.contract_name,
           item.studio_grade,
+          item.academic_year_name ?? "",
           item.total_due.toString(),
           item.total_paid.toString(),
           item.outstanding_balance.toString(),
@@ -281,10 +314,12 @@ const AccountingReports = () => {
         break;
 
       case "deposit-installment":
-        if (!breakdownData || breakdownData.length === 0) {
+        if (!filteredBreakdownData.length) {
           toast({
             title: "No data to export",
-            description: "There is no deposit/installment breakdown data available.",
+            description: breakdownAcademicYearId !== "all"
+              ? "No deposit/installment breakdown records for the selected academic year."
+              : "There is no deposit/installment breakdown data available.",
             variant: "destructive",
           });
           return;
@@ -294,6 +329,7 @@ const AccountingReports = () => {
           "Student Name",
           "Contract",
           "Studio Grade",
+          "Academic Year",
           "Total Contract Value",
           "Deposit Paid",
           "Expected Deposit",
@@ -304,11 +340,12 @@ const AccountingReports = () => {
           "Status",
           "Application Date",
         ];
-        rows = breakdownData.map((item) => [
+        rows = filteredBreakdownData.map((item) => [
           item.application_id,
           item.student_name,
           item.contract_name,
           item.studio_grade,
+          item.academic_year_name ?? "",
           item.total_contract_value?.toString() || "",
           item.deposit_paid.toString(),
           item.expected_deposit.toString(),
@@ -641,13 +678,13 @@ const AccountingReports = () => {
                     (outstandingLoading
                       ? "Loading..."
                       : outstandingData
-                        ? `${outstandingData.length} record${outstandingData.length !== 1 ? "s" : ""}`
+                        ? `${filteredOutstandingData.length} record${filteredOutstandingData.length !== 1 ? "s" : ""}${outstandingAcademicYearId !== "all" ? ` • ${academicYears?.find((ay) => ay.id === outstandingAcademicYearId)?.name ?? "Year"}` : " • All years"}`
                         : "No data available")}
                   {selectedReport === "deposit-installment" &&
                     (breakdownLoading
                       ? "Loading..."
                       : breakdownData
-                        ? `${breakdownData.length} record${breakdownData.length !== 1 ? "s" : ""}`
+                        ? `${filteredBreakdownData.length} record${filteredBreakdownData.length !== 1 ? "s" : ""}${breakdownAcademicYearId !== "all" ? ` • ${academicYears?.find((ay) => ay.id === breakdownAcademicYearId)?.name ?? "Year"}` : " • All years"}`
                         : "No data available")}
                   {selectedReport === "bank-reconciliation" &&
                     (bankLoading
@@ -877,13 +914,34 @@ const AccountingReports = () => {
                 <ReportSkeleton />
               ) : outstandingData && outstandingData.length > 0 ? (
                 <div className="space-y-4">
-                  {outstandingData.map((item) => (
-                    <Card key={item.application_id} className="rounded-2xl">
-                      <CardContent className="p-6">
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+                    <div className="w-full sm:w-56">
+                      <AcademicYearSelector
+                        value={outstandingAcademicYearId}
+                        onValueChange={(id) => setOutstandingAcademicYearId(id ?? "all")}
+                        allowEmpty
+                        label="Academic year"
+                        className="[&_button]:rounded-full"
+                      />
+                    </div>
+                    <div className="text-xs md:text-sm text-muted-foreground">
+                      {filteredOutstandingData.length} record{filteredOutstandingData.length !== 1 ? "s" : ""}
+                      {outstandingAcademicYearId !== "all" ? " (filtered)" : ""}
+                    </div>
+                  </div>
+                  {filteredOutstandingData.length > 0 ? (
+                    filteredOutstandingData.map((item) => (
+                      <Card key={item.application_id} className="rounded-2xl">
+                        <CardContent className="p-6">
+                          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                           <div className="flex-1 space-y-2">
                             <div className="flex items-center gap-3 flex-wrap">
                               <h3 className="text-sm md:text-lg font-bold">{item.student_name}</h3>
+                              {item.academic_year_name && (
+                                <Badge variant="secondary" className="text-xs font-normal">
+                                  {item.academic_year_name}
+                                </Badge>
+                              )}
                               <Badge
                                 variant="outline"
                                 className={`uppercase text-xs ${item.application_status === "confirmed" ? "bg-green-600 text-white border-green-600 hover:bg-green-600" : ""}`}
@@ -909,15 +967,23 @@ const AccountingReports = () => {
                               {item.oldest_unpaid_due_date && (
                                 <div>
                                   <span className="font-medium">Oldest Unpaid Due Date:</span>{" "}
-                                  {format(new Date(item.oldest_unpaid_due_date), "MMM d, yyyy")}
+                                  {formatDateSafe(item.oldest_unpaid_due_date, "MMM d, yyyy")}
                                 </div>
                               )}
                             </div>
                           </div>
                         </div>
                       </CardContent>
+                      </Card>
+                    ))
+                  ) : (
+                    <Card className="rounded-3xl border-dashed">
+                      <CardHeader>
+                        <CardTitle>No Records for Selected Year</CardTitle>
+                        <CardDescription>No outstanding balances for the selected academic year. Try "All years".</CardDescription>
+                      </CardHeader>
                     </Card>
-                  ))}
+                  )}
                 </div>
               ) : (
                 <Card className="rounded-3xl border-dashed">
@@ -934,13 +1000,34 @@ const AccountingReports = () => {
                 <ReportSkeleton />
               ) : breakdownData && breakdownData.length > 0 ? (
                 <div className="space-y-4">
-                  {breakdownData.map((item) => (
-                    <Card key={item.application_id} className="rounded-2xl">
-                      <CardContent className="p-6">
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+                    <div className="w-full sm:w-56">
+                      <AcademicYearSelector
+                        value={breakdownAcademicYearId}
+                        onValueChange={(id) => setBreakdownAcademicYearId(id ?? "all")}
+                        allowEmpty
+                        label="Academic year"
+                        className="[&_button]:rounded-full"
+                      />
+                    </div>
+                    <div className="text-xs md:text-sm text-muted-foreground">
+                      {filteredBreakdownData.length} record{filteredBreakdownData.length !== 1 ? "s" : ""}
+                      {breakdownAcademicYearId !== "all" ? " (filtered)" : ""}
+                    </div>
+                  </div>
+                  {filteredBreakdownData.length > 0 ? (
+                    filteredBreakdownData.map((item) => (
+                      <Card key={item.application_id} className="rounded-2xl">
+                        <CardContent className="p-6">
+                          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                           <div className="flex-1 space-y-2">
                             <div className="flex items-center gap-3 flex-wrap">
                               <h3 className="text-sm md:text-lg font-bold">{item.student_name}</h3>
+                              {item.academic_year_name && (
+                                <Badge variant="secondary" className="text-xs font-normal">
+                                  {item.academic_year_name}
+                                </Badge>
+                              )}
                               <Badge
                                 variant="outline"
                                 className={`uppercase text-xs ${item.status === "confirmed" ? "bg-green-600 text-white border-green-600 hover:bg-green-600" : ""}`}
@@ -974,7 +1061,15 @@ const AccountingReports = () => {
                         </div>
                       </CardContent>
                     </Card>
-                  ))}
+                  ))
+                  ) : (
+                    <Card className="rounded-3xl border-dashed">
+                      <CardHeader>
+                        <CardTitle>No Records for Selected Year</CardTitle>
+                        <CardDescription>No deposit/installment breakdown for the selected academic year. Try "All years".</CardDescription>
+                      </CardHeader>
+                    </Card>
+                  )}
                 </div>
               ) : (
                 <Card className="rounded-3xl border-dashed">
@@ -1007,7 +1102,7 @@ const AccountingReports = () => {
                         {bankData.map((item, index) => (
                           <tr key={item.payment_id} className={index % 2 === 0 ? "bg-muted/30" : ""}>
                             <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">
-                              {format(new Date(item.payment_date), "MMM d, yyyy")}
+                              {formatDateSafe(item.payment_date, "MMM d, yyyy")}
                             </td>
                             <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-medium">{item.student_name || "—"}</td>
                             <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm text-right font-semibold">{formatCurrency(item.amount_paid)}</td>
@@ -1060,7 +1155,7 @@ const AccountingReports = () => {
                             <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-medium">{item.student_name ?? "—"}</td>
                             <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">{item.studio_number ?? "—"} {item.studio_grade ? `(${item.studio_grade})` : ""}</td>
                             <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">{item.contract_name ?? "—"}</td>
-                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">{item.due_date ? format(new Date(item.due_date), "MMM d, yyyy") : "—"}</td>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">{formatDateSafe(item.due_date, "MMM d, yyyy")}</td>
                             <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm text-right font-semibold">{formatCurrency(item.amount)}</td>
                             <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm text-right">
                               {item.status === "paid"
@@ -1085,7 +1180,7 @@ const AccountingReports = () => {
                                 {item.status === "partially_paid" ? "Partially paid" : item.status}
                               </Badge>
                             </td>
-                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">{item.paid_date ? format(new Date(item.paid_date), "MMM d, yyyy") : "—"}</td>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">{formatDateSafe(item.paid_date, "MMM d, yyyy")}</td>
                           </tr>
                         ))}
                       </tbody>

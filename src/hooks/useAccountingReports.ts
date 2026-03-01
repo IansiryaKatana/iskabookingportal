@@ -49,6 +49,8 @@ export type OutstandingBalanceItem = {
   application_status: string;
   contract_name: string;
   studio_grade: string;
+  academic_year_id: string | null;
+  academic_year_name: string | null;
   total_due: number;
   total_paid: number;
   outstanding_balance: number;
@@ -65,6 +67,8 @@ export type DepositInstallmentBreakdownItem = {
   student_name: string;
   contract_name: string;
   studio_grade: string;
+  academic_year_id: string | null;
+  academic_year_name: string | null;
   total_contract_value: number | null;
   deposit_paid: number;
   expected_deposit: number;

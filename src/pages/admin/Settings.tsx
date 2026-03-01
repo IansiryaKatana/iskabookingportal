@@ -48,6 +48,9 @@ const Settings = () => {
   const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>("");
   const [deleteAllOpen, setDeleteAllOpen] = useState(false);
   const [deleteByYearOpen, setDeleteByYearOpen] = useState(false);
+  const [deleteApplicationsByYear, setDeleteApplicationsByYear] = useState(true);
+  const [deleteCustomContractsByYear, setDeleteCustomContractsByYear] = useState(false);
+  const [deleteOrphanedContractsByYear, setDeleteOrphanedContractsByYear] = useState(false);
   const [deleteOrphanedUsers, setDeleteOrphanedUsers] = useState(false);
   // Search-based deletion state
   const [searchTerm, setSearchTerm] = useState("");
@@ -598,16 +601,18 @@ const Settings = () => {
     mutationFn: async (academicYearId: string) => {
       const { data, error } = await supabase.rpc("delete_student_applications_by_academic_year", {
         p_academic_year_id: academicYearId,
-        p_delete_orphaned_users: deleteOrphanedUsers,
+        p_delete_applications: deleteApplicationsByYear,
+        p_delete_custom_contracts_and_plans: deleteCustomContractsByYear,
+        p_delete_orphaned_contracts_and_plans: deleteOrphanedContractsByYear,
       });
 
       if (error) throw error;
       return data;
     },
     onSuccess: async (data, academicYearId) => {
-      const deletedCount = data?.deleted_count || 0;
-      const usersDeleted = data?.users_deleted || 0;
-      const usersPreserved = data?.users_preserved || 0;
+      const deletedCount = data?.deleted_count ?? 0;
+      const customDeleted = data?.custom_contracts_deleted ?? 0;
+      const orphanedDeleted = data?.orphaned_contracts_deleted ?? 0;
       const yearName = academicYears?.find((y) => y.id === academicYearId)?.name || "Unknown";
       const message = data?.message;
       
@@ -618,32 +623,35 @@ const Settings = () => {
           type: "by_academic_year", 
           academic_year_id: academicYearId, 
           count: deletedCount,
-          delete_orphaned_users: deleteOrphanedUsers,
-          users_deleted: usersDeleted,
-          users_preserved: usersPreserved,
+          custom_contracts_deleted: customDeleted,
+          orphaned_contracts_deleted: orphanedDeleted,
         },
       });
       queryClient.invalidateQueries({ queryKey: ["application-stats"] });
       queryClient.invalidateQueries({ queryKey: ["student-applications"] });
+      queryClient.invalidateQueries({ queryKey: ["contracts"] });
       
-      if (deletedCount === 0) {
+      if (deletedCount === 0 && customDeleted === 0 && orphanedDeleted === 0) {
         toast({
-          title: "No applications found",
-          description: message || `No applications found for ${yearName} to delete.`,
+          title: "Nothing deleted",
+          description: message || `No applications or contracts found for ${yearName} to delete.`,
           variant: "default",
         });
       } else {
-        let description = `Successfully deleted ${deletedCount} application(s) for ${yearName} and all related records.`;
-        if (deleteOrphanedUsers) {
-          description += ` Users: ${usersDeleted} deleted, ${usersPreserved} preserved.`;
-        }
+        const parts: string[] = [];
+        if (deletedCount > 0) parts.push(`${deletedCount} application(s) and related records`);
+        if (customDeleted > 0) parts.push(`${customDeleted} custom contract(s) and plans`);
+        if (orphanedDeleted > 0) parts.push(`${orphanedDeleted} orphaned contract(s) and plans`);
         toast({
-          title: "Applications deleted",
-          description,
+          title: "Delete complete",
+          description: `Successfully deleted for ${yearName}: ${parts.join("; ")}.`,
         });
       }
       setDeleteByYearOpen(false);
       setSelectedAcademicYear("");
+      setDeleteApplicationsByYear(true);
+      setDeleteCustomContractsByYear(false);
+      setDeleteOrphanedContractsByYear(false);
       setDeleteOrphanedUsers(false);
     },
     onError: (error: Error) => {
@@ -1563,29 +1571,77 @@ const Settings = () => {
                       </Button>
                     </AlertDialogTrigger>
                   </div>
-                  <AlertDialogContent className="rounded-3xl">
+                    <AlertDialogContent className="rounded-3xl">
                     <AlertDialogHeader>
                       <AlertDialogTitle className="text-destructive">
-                        Delete Applications for {academicYears?.find((y) => y.id === selectedAcademicYear)?.name}?
+                        Delete by Academic Year: {academicYears?.find((y) => y.id === selectedAcademicYear)?.name}?
                       </AlertDialogTitle>
                       <AlertDialogDescription asChild>
                         <div className="text-sm space-y-2">
-                          <p>
-                            This will permanently delete{" "}
-                            <strong>
-                              {appStats?.byYear[selectedAcademicYear] || 0} application(s)
-                            </strong>{" "}
-                            for this academic year and all related records including:
-                          </p>
-                          <ul className="list-disc list-inside mt-2 space-y-1">
-                            <li>Application steps and data</li>
-                            <li>Documents and signatures</li>
-                            <li>Payment records</li>
-                            <li>Partner referrals</li>
-                            <li>Studio allocations</li>
-                          </ul>
-                          <p className="mt-3 font-semibold text-destructive">This action cannot be undone.</p>
+                          <p>Choose what to permanently delete for this academic year. This action cannot be undone.</p>
+                          {deleteApplicationsByYear && (
+                            <>
+                              <p>
+                                <strong>Applications:</strong> {appStats?.byYear[selectedAcademicYear] || 0} application(s) and all related records:
+                              </p>
+                              <ul className="list-disc list-inside mt-1 space-y-1">
+                                <li>Application steps and data</li>
+                                <li>Documents and signatures</li>
+                                <li>Payment records</li>
+                                <li>Partner referrals</li>
+                                <li>Studio allocations</li>
+                              </ul>
+                            </>
+                          )}
+                          {deleteCustomContractsByYear && (
+                            <p><strong>Custom contracts and payment plans</strong> (slug starts with &quot;custom&quot;) will be deleted.</p>
+                          )}
+                          {deleteOrphanedContractsByYear && (
+                            <p><strong>Orphaned contracts and plans</strong> (no application linked) will be deleted.</p>
+                          )}
+                          {!deleteApplicationsByYear && !deleteCustomContractsByYear && !deleteOrphanedContractsByYear && (
+                            <p className="font-medium text-muted-foreground">Select at least one option below.</p>
+                          )}
                           <div className="mt-4 pt-4 border-t space-y-3">
+                            <div className="flex items-start space-x-3">
+                              <Checkbox
+                                id="delete-apps-by-year"
+                                checked={deleteApplicationsByYear}
+                                onCheckedChange={(c) => setDeleteApplicationsByYear(c === true)}
+                                className="mt-1"
+                              />
+                              <div className="flex-1">
+                                <Label htmlFor="delete-apps-by-year" className="text-sm font-medium cursor-pointer">
+                                  Delete applications and all related records
+                                </Label>
+                              </div>
+                            </div>
+                            <div className="flex items-start space-x-3">
+                              <Checkbox
+                                id="delete-custom-contracts-year"
+                                checked={deleteCustomContractsByYear}
+                                onCheckedChange={(c) => setDeleteCustomContractsByYear(c === true)}
+                                className="mt-1"
+                              />
+                              <div className="flex-1">
+                                <Label htmlFor="delete-custom-contracts-year" className="text-sm font-medium cursor-pointer">
+                                  Also delete custom contracts and payment plans
+                                </Label>
+                              </div>
+                            </div>
+                            <div className="flex items-start space-x-3">
+                              <Checkbox
+                                id="delete-orphaned-contracts-year"
+                                checked={deleteOrphanedContractsByYear}
+                                onCheckedChange={(c) => setDeleteOrphanedContractsByYear(c === true)}
+                                className="mt-1"
+                              />
+                              <div className="flex-1">
+                                <Label htmlFor="delete-orphaned-contracts-year" className="text-sm font-medium cursor-pointer">
+                                  Also delete orphaned contracts and payment plans
+                                </Label>
+                              </div>
+                            </div>
                             <div className="flex items-start space-x-3">
                               <Checkbox
                                 id="delete-orphaned-users-year"
@@ -1601,8 +1657,7 @@ const Settings = () => {
                                   Also delete orphaned user accounts (Smart Deletion)
                                 </Label>
                                 <p className="text-xs text-muted-foreground">
-                                  Users will only be deleted if they have no important data (refunds, maintenance requests, etc.). 
-                                  Staff accounts are never deleted. This helps clean up orphaned accounts automatically.
+                                  Users with no important data may be removed. Staff accounts are never deleted. Not yet applied in this flow.
                                 </p>
                               </div>
                             </div>
@@ -1611,11 +1666,25 @@ const Settings = () => {
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel className="rounded-full" onClick={() => setDeleteOrphanedUsers(false)}>Cancel</AlertDialogCancel>
+                      <AlertDialogCancel
+                        className="rounded-full"
+                        onClick={() => {
+                          setDeleteApplicationsByYear(true);
+                          setDeleteCustomContractsByYear(false);
+                          setDeleteOrphanedContractsByYear(false);
+                          setDeleteOrphanedUsers(false);
+                        }}
+                      >
+                        Cancel
+                      </AlertDialogCancel>
                       <AlertDialogAction
                         onClick={() => selectedAcademicYear && deleteByAcademicYear.mutate(selectedAcademicYear)}
                         className="rounded-full bg-destructive hover:bg-destructive/90"
-                        disabled={deleteByAcademicYear.isPending || !selectedAcademicYear}
+                        disabled={
+                          deleteByAcademicYear.isPending ||
+                          !selectedAcademicYear ||
+                          (!deleteApplicationsByYear && !deleteCustomContractsByYear && !deleteOrphanedContractsByYear)
+                        }
                       >
                         {deleteByAcademicYear.isPending ? (
                           <>

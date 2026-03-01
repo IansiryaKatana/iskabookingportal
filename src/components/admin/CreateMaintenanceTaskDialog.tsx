@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,12 +10,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { useCreateMaintenanceRequest } from "@/hooks/useMaintenanceRequests";
 import { useMaintenanceOfficers } from "@/hooks/useStaffMembers";
 import { useAdminStudios } from "@/hooks/useAdminStudios";
 import { useCommunalAreas } from "@/hooks/useCommunalAreas";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, ChevronsUpDown } from "lucide-react";
 
 interface CreateMaintenanceTaskDialogProps {
   open: boolean;
@@ -55,12 +68,30 @@ export const CreateMaintenanceTaskDialog = ({
 
   const [taskType, setTaskType] = useState<TaskType | "">("");
   const [studioId, setStudioId] = useState<string>("");
+  const [studioComboboxOpen, setStudioComboboxOpen] = useState(false);
+  const [studioSearch, setStudioSearch] = useState("");
   const [communalAreaId, setCommunalAreaId] = useState<string>("");
   const [assignedToUserId, setAssignedToUserId] = useState<string>("");
   const [category, setCategory] = useState<string>("other");
   const [urgency, setUrgency] = useState<string>("medium");
   const [title, setTitle] = useState<string>("");
   const [description, setDescription] = useState<string>("");
+
+  const filteredStudios = useMemo(() => {
+    if (!studios) return [];
+    const q = studioSearch.trim().toLowerCase();
+    if (!q) return studios;
+    return studios.filter((s) => {
+      const num = (s.studio_number ?? "").toLowerCase();
+      const grade = (s.studio_grade?.name ?? "").toLowerCase();
+      return num.includes(q) || grade.includes(q);
+    });
+  }, [studios, studioSearch]);
+
+  const selectedStudio = useMemo(
+    () => studios?.find((s) => s.id === studioId),
+    [studios, studioId],
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,6 +173,7 @@ export const CreateMaintenanceTaskDialog = ({
       // Reset form
       setTaskType("");
       setStudioId("");
+      setStudioSearch("");
       setCommunalAreaId("");
       setAssignedToUserId("");
       setCategory("other");
@@ -163,6 +195,7 @@ export const CreateMaintenanceTaskDialog = ({
     if (!createRequest.isPending) {
       setTaskType("");
       setStudioId("");
+      setStudioSearch("");
       setCommunalAreaId("");
       setAssignedToUserId("");
       setCategory("other");
@@ -187,6 +220,7 @@ export const CreateMaintenanceTaskDialog = ({
               setTaskType(value as TaskType);
               // Reset selections when type changes
               setStudioId("");
+              setStudioSearch("");
               setCommunalAreaId("");
             }}>
               <SelectTrigger id="task-type">
@@ -199,22 +233,57 @@ export const CreateMaintenanceTaskDialog = ({
             </Select>
           </div>
 
-          {/* Studio Selection */}
+          {/* Studio Selection (searchable) */}
           {taskType === "studio" && (
             <div className="space-y-2">
-              <Select value={studioId} onValueChange={setStudioId}>
-                <SelectTrigger id="studio">
-                  <SelectValue placeholder="Select a studio" />
-                </SelectTrigger>
-                <SelectContent>
-                  {studios?.map((studio) => (
-                    <SelectItem key={studio.id} value={studio.id}>
-                      {studio.studio_number}
-                      {studio.studio_grade && ` - ${studio.studio_grade.name}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={studioComboboxOpen} onOpenChange={setStudioComboboxOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={studioComboboxOpen}
+                    className="w-full justify-between font-normal"
+                    id="studio"
+                  >
+                    {selectedStudio
+                      ? `${selectedStudio.studio_number}${selectedStudio.studio_grade ? ` - ${selectedStudio.studio_grade.name}` : ""}`
+                      : "Select a studio..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                  <Command shouldFilter={false}>
+                    <CommandInput
+                      placeholder="Search by studio number or grade..."
+                      value={studioSearch}
+                      onValueChange={setStudioSearch}
+                    />
+                    <CommandList>
+                      <CommandEmpty>No studio found.</CommandEmpty>
+                      <CommandGroup>
+                        {filteredStudios.map((studio) => (
+                          <CommandItem
+                            key={studio.id}
+                            value={studio.id}
+                            onSelect={() => {
+                              setStudioId(studio.id);
+                              setStudioComboboxOpen(false);
+                              setStudioSearch("");
+                            }}
+                          >
+                            {studio.studio_number}
+                            {studio.studio_grade && (
+                              <span className="text-muted-foreground ml-1">
+                                – {studio.studio_grade.name}
+                              </span>
+                            )}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
           )}
 

@@ -56,6 +56,13 @@ const schema = z.object({
   academic_year_id: z.string().min(1, "Academic year required"),
   studio_grade_id: z.string().min(1, "Studio grade required"),
   name: z.string().min(1, "Contract name required"),
+  slug: z
+    .string()
+    .optional()
+    .refine(
+      (v) => !v || /^[a-z0-9\/]+(?:[-/][a-z0-9\/]+)*$/.test(v),
+      "Slug: lowercase letters, numbers, hyphens and slashes (e.g. platinum-45-weeks-26/27)"
+    ),
   contract_start: z.string().min(1, "Start date required"),
   contract_end: z.string().min(1, "End date required"),
   weekly_price_override: z.coerce.number().min(1, "Weekly price required"),
@@ -110,6 +117,7 @@ const Contracts = () => {
       academic_year_id: "",
       studio_grade_id: "",
       name: "",
+      slug: "",
       contract_start: "",
       contract_end: "",
       weekly_price_override: 0,
@@ -252,6 +260,7 @@ const Contracts = () => {
       academic_year_id: firstYear?.id ?? "",
       studio_grade_id: "",
       name: "",
+      slug: "",
       contract_start: "",
       contract_end: "",
       weekly_price_override: 0,
@@ -272,6 +281,7 @@ const Contracts = () => {
       academic_year_id: contract.academic_year_id,
       studio_grade_id: contract.studio_grade_id,
       name: contract.name,
+      slug: contract.slug ?? "",
       contract_start: contract.contract_start
         ? contract.contract_start.slice(0, 10)
         : "",
@@ -335,6 +345,7 @@ const Contracts = () => {
         await updateContract.mutateAsync({
           id: editingId,
           name: values.name,
+          slug: values.slug?.trim() || null,
           contract_start: values.contract_start,
           contract_end: values.contract_end,
           weeks,
@@ -353,6 +364,7 @@ const Contracts = () => {
           academic_year_id: values.academic_year_id,
           studio_grade_id: values.studio_grade_id,
           name: values.name,
+          slug: values.slug?.trim() || undefined,
           contract_start: values.contract_start,
           contract_end: values.contract_end,
           weeks,
@@ -690,6 +702,24 @@ const Contracts = () => {
                     <FormLabel>Contract Name</FormLabel>
                     <FormControl>
                       <Input placeholder="e.g., 45 Week Contract" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="slug"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Slug</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="e.g. platinum-45-weeks-25-26"
+                        {...field}
+                        value={field.value ?? ""}
+                        onChange={(e) => field.onChange(e.target.value.toLowerCase().trim())}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
