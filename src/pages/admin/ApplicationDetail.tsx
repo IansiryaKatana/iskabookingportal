@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useStudentApplication } from "@/hooks/useStudentApplication";
 import { useUpdateApplicationStatus } from "@/hooks/useAdminApplications";
 import { useAdminStudios } from "@/hooks/useAdminStudios";
-import { ArrowLeft, User, Mail, Phone, MapPin, Calendar, Building2, CreditCard, FileText, CheckCircle2, XCircle, Download, Send, RotateCcw, Gift, Percent, Handshake, Upload, Pencil, Check, ChevronsUpDown } from "lucide-react";
+import { ArrowLeft, ArrowUpLeft, User, Mail, Phone, MapPin, Calendar, Building2, CreditCard, FileText, CheckCircle2, XCircle, Download, Send, RotateCcw, Gift, Percent, Handshake, Upload, Pencil, Check, ChevronsUpDown } from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -606,7 +606,8 @@ const ApplicationDetail = () => {
             <CardDescription>The requested application could not be found.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => navigate("/admin/applications")} className="rounded-full uppercase tracking-wide">
+            <Button onClick={() => navigate("/admin/applications")} className="rounded-full uppercase tracking-wide gap-2 bg-black text-white hover:bg-accent hover:text-accent-foreground">
+              <ArrowUpLeft className="h-4 w-4" />
               Back to Applications
             </Button>
           </CardContent>
@@ -622,10 +623,10 @@ const ApplicationDetail = () => {
       mobileActionButton={
         <Button
           onClick={() => navigate("/admin/applications")}
-          className="rounded-full h-9 w-9 p-0 bg-red-600 hover:bg-red-700 text-white flex-shrink-0"
+          className="rounded-full h-9 w-9 p-0 bg-black text-white hover:bg-accent hover:text-accent-foreground flex-shrink-0"
           size="sm"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowUpLeft className="h-4 w-4" />
         </Button>
       }
     >
@@ -633,11 +634,10 @@ const ApplicationDetail = () => {
         {/* Header - Hidden on mobile, shown on desktop */}
         <div className="hidden lg:flex items-center justify-between">
           <Button
-            variant="ghost"
             onClick={() => navigate("/admin/applications")}
-            className="rounded-full uppercase tracking-wide gap-2"
+            className="rounded-full uppercase tracking-wide gap-2 bg-black text-white hover:bg-accent hover:text-accent-foreground"
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowUpLeft className="h-4 w-4" />
             Back to Applications
           </Button>
           <div className="flex items-center gap-3">
@@ -1354,15 +1354,38 @@ const ApplicationDetail = () => {
                       </Button>
                     )}
                   </div>
-                  <ul className="text-xs sm:text-sm space-y-1">
-                    {paymentSchedule.map((row) => (
-                      <li key={row.id} className="flex justify-between gap-2">
-                        <span className="text-muted-foreground">{row.label ?? `Instalment ${row.sequence}`}</span>
-                        <span className="font-medium">{formatCurrency(Number(row.amount))}</span>
-                        <span className="text-muted-foreground">{row.due_date ? format(new Date(row.due_date), "d MMM yyyy") : "—"}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="rounded-xl border border-border/60 overflow-hidden">
+                    <table className="w-full text-xs sm:text-sm">
+                      <thead>
+                        <tr className="bg-muted/50 border-b border-border/60">
+                          <th className="text-left font-medium text-muted-foreground py-2 px-3">Instalment</th>
+                          <th className="text-right font-medium text-muted-foreground py-2 px-3">Amount</th>
+                          <th className="text-center font-medium text-muted-foreground py-2 px-3">Payment status</th>
+                          <th className="text-right font-medium text-muted-foreground py-2 px-3">Due date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paymentSchedule.map((row, index) => {
+                          const instalmentPaymentCount = Number(paymentSummary?.payment_count ?? 0);
+                          const isPaid = index < instalmentPaymentCount;
+                          return (
+                            <tr key={row.id} className="border-b border-border/40 last:border-0 hover:bg-muted/30">
+                              <td className="py-2 px-3 text-muted-foreground">{row.label ?? `Instalment ${row.sequence}`}</td>
+                              <td className="py-2 px-3 text-right font-medium">{formatCurrency(Number(row.amount))}</td>
+                              <td className="py-2 px-3 text-center">
+                                {isPaid ? (
+                                  <Badge className="bg-emerald-600 text-white text-xs font-semibold uppercase px-2 py-0.5 rounded-md">Paid</Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-muted-foreground text-xs uppercase">Not paid</Badge>
+                                )}
+                              </td>
+                              <td className="py-2 px-3 text-right text-muted-foreground">{row.due_date ? format(new Date(row.due_date), "d MMM yyyy") : "—"}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                   {hasInstalmentPayments && (
                     <p className="text-[10px] text-muted-foreground italic">
                       Schedule cannot be customised after installment payments have been recorded.
@@ -1516,14 +1539,14 @@ const ApplicationDetail = () => {
 
               <Button
                 variant="outline"
-                className="w-full rounded-full uppercase tracking-wide gap-2 mt-4"
+                className="w-full rounded-full uppercase tracking-wide gap-2 mt-4 bg-black hover:bg-yellow-500 hover:text-black text-white border-0 justify-between transition-colors"
                 onClick={() => {
                   setManualPaymentInitialType("deposit");
                   setManualPaymentOpen(true);
                 }}
               >
-                <CreditCard className="h-4 w-4" />
-                Record Manual Payment
+                <span>Record Manual Payment</span>
+                <CreditCard className="h-4 w-4 ml-2 shrink-0" />
               </Button>
             </CardContent>
           </Card>

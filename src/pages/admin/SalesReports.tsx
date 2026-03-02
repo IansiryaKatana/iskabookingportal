@@ -169,61 +169,67 @@ const SalesReports = () => {
           <CardContent>
             {/* Desktop: one row of 7 cards (xl). Mobile: 2 cols; sm 3; md 4 */}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7 gap-3 sm:gap-4 mb-6">
-              <div className="rounded-2xl bg-primary/5 p-3 sm:p-4 flex flex-col gap-1 min-w-0">
+              <div className="rounded-2xl bg-primary/5 p-3 sm:p-4 flex flex-col gap-1 min-w-0 min-h-[88px] sm:min-h-[100px]">
                 <p className="text-xs text-muted-foreground uppercase tracking-wide">Confirmed Contracts</p>
-                <p className="text-xl sm:text-2xl font-bold">{totalContracts}</p>
+                <p className="text-xl sm:text-2xl font-bold mt-auto">{totalContracts}</p>
               </div>
-              <div className="rounded-2xl bg-primary/5 p-3 sm:p-4 flex flex-col gap-1 min-w-0">
+              <div className="rounded-2xl bg-primary/5 p-3 sm:p-4 flex flex-col gap-1 min-w-0 min-h-[88px] sm:min-h-[100px]">
                 <p className="text-xs text-muted-foreground uppercase tracking-wide">Total Sales Value</p>
                 <p className="text-xs text-muted-foreground/80 hidden sm:block">Expected when all paid in full</p>
-                <p className="text-xl sm:text-2xl font-bold">
+                <p className="text-xl sm:text-2xl font-bold mt-auto">
                   £{Math.round(totalSalesValue).toLocaleString("en-GB")}
                 </p>
               </div>
-              <div className="rounded-2xl bg-primary/5 p-3 sm:p-4 flex flex-col gap-1 min-w-0">
+              <div className="rounded-2xl bg-primary/5 p-3 sm:p-4 flex flex-col gap-1 min-w-0 min-h-[88px] sm:min-h-[100px]">
                 <p className="text-xs text-muted-foreground uppercase tracking-wide">Total Received</p>
                 <p className="text-xs text-muted-foreground/80 hidden sm:block">Cash collected so far</p>
-                {loadingCash ? (
-                  <Skeleton className="h-8 w-20 sm:h-9 sm:w-24" />
-                ) : (
-                  <p className="text-xl sm:text-2xl font-bold text-green-700 dark:text-green-400">
-                    £{Math.round(cashSummary?.total_received ?? 0).toLocaleString("en-GB")}
-                  </p>
-                )}
+                <div className="mt-auto">
+                  {loadingCash ? (
+                    <Skeleton className="h-8 w-20 sm:h-9 sm:w-24" />
+                  ) : (
+                    <p className="text-xl sm:text-2xl font-bold text-green-700 dark:text-green-400">
+                      £{Math.round(cashSummary?.total_received ?? 0).toLocaleString("en-GB")}
+                    </p>
+                  )}
+                </div>
               </div>
-              <div className="rounded-2xl bg-primary/5 p-3 sm:p-4 flex flex-col gap-1 min-w-0">
+              <div className="rounded-2xl bg-primary/5 p-3 sm:p-4 flex flex-col gap-1 min-w-0 min-h-[88px] sm:min-h-[100px]">
                 <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
                   <PiggyBank className="h-3 w-3 flex-shrink-0" />
                   Deposits Collected
                 </p>
-                {loadingCash ? (
-                  <Skeleton className="h-8 w-20 sm:h-9 sm:w-24" />
-                ) : (
-                  <p className="text-xl sm:text-2xl font-bold">
-                    £{Math.round(cashSummary?.total_deposits_collected ?? 0).toLocaleString("en-GB")}
-                  </p>
-                )}
+                <div className="mt-auto">
+                  {loadingCash ? (
+                    <Skeleton className="h-8 w-20 sm:h-9 sm:w-24" />
+                  ) : (
+                    <p className="text-xl sm:text-2xl font-bold">
+                      £{Math.round(cashSummary?.total_deposits_collected ?? 0).toLocaleString("en-GB")}
+                    </p>
+                  )}
+                </div>
               </div>
-              <div className="rounded-2xl bg-primary/5 p-3 sm:p-4 flex flex-col gap-1 min-w-0">
+              <div className="rounded-2xl bg-primary/5 p-3 sm:p-4 flex flex-col gap-1 min-w-0 min-h-[88px] sm:min-h-[100px]">
                 <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
                   <Receipt className="h-3 w-3 flex-shrink-0" />
                   Installments Collected
                 </p>
-                {loadingCash ? (
-                  <Skeleton className="h-8 w-20 sm:h-9 sm:w-24" />
-                ) : (
-                  <p className="text-xl sm:text-2xl font-bold">
-                    £{Math.round(cashSummary?.total_installments_collected ?? 0).toLocaleString("en-GB")}
-                  </p>
-                )}
+                <div className="mt-auto">
+                  {loadingCash ? (
+                    <Skeleton className="h-8 w-20 sm:h-9 sm:w-24" />
+                  ) : (
+                    <p className="text-xl sm:text-2xl font-bold">
+                      £{Math.round(cashSummary?.total_installments_collected ?? 0).toLocaleString("en-GB")}
+                    </p>
+                  )}
+                </div>
               </div>
-              <div className="rounded-2xl bg-primary/5 p-3 sm:p-4 flex flex-col gap-1 min-w-0">
+              <div className="rounded-2xl bg-primary/5 p-3 sm:p-4 flex flex-col gap-1 min-w-0 min-h-[88px] sm:min-h-[100px]">
                 <p className="text-xs text-muted-foreground uppercase tracking-wide">Rebooker Share</p>
-                <p className="text-xl sm:text-2xl font-bold">{rebookerRate}%</p>
+                <p className="text-xl sm:text-2xl font-bold mt-auto">{rebookerRate}%</p>
               </div>
-              <div className="rounded-2xl bg-primary/5 p-3 sm:p-4 flex flex-col gap-1 min-w-0">
+              <div className="rounded-2xl bg-primary/5 p-3 sm:p-4 flex flex-col gap-1 min-w-0 min-h-[88px] sm:min-h-[100px]">
                 <p className="text-xs text-muted-foreground uppercase tracking-wide">Summer Sales</p>
-                <p className="text-xl sm:text-2xl font-bold">
+                <p className="text-xl sm:text-2xl font-bold mt-auto">
                   £{Math.round(totalSummerSales).toLocaleString("en-GB")}
                 </p>
               </div>

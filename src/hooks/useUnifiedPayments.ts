@@ -60,6 +60,7 @@ export const useUnifiedPayments = (applicationId: string) => {
       if (error) throw error;
       return (data || []) as UnifiedPayment[];
     },
+    enabled: !!applicationId,
     // Optimize for invisible polling - only update if data actually changed
     staleTime: 30000, // Consider data fresh for 30s (matches polling interval)
     cacheTime: 300000, // Keep in cache for 5 minutes
@@ -121,6 +122,44 @@ export const useStudentAllPayments = (studentId: string) => {
       if (error) throw error;
       return (data || []) as UnifiedPayment[];
     },
+  });
+};
+
+/**
+ * Get set of contract_payment_schedule IDs that have at least one payment for this application.
+ * Used to show "Paid" badges and to filter dropdown to unpaid-only (by id, not sequence).
+ */
+export const usePaidInstalmentIds = (applicationId: string) => {
+  return useQuery({
+    queryKey: ["paid-instalment-ids", applicationId],
+    queryFn: async () => {
+      const ids = new Set<string>();
+
+      const { data: manualRows } = await supabase
+        .from("manual_payments")
+        .select("instalment_id")
+        .eq("application_id", applicationId)
+        .eq("payment_type", "instalment")
+        .not("instalment_id", "is", null);
+      manualRows?.forEach((r) => {
+        if (r.instalment_id) ids.add(r.instalment_id);
+      });
+
+      const { data: stripeRows } = await supabase
+        .from("stripe_payments")
+        .select("metadata")
+        .eq("student_application_id", applicationId)
+        .eq("payment_type", "instalment")
+        .in("status", ["succeeded", "completed"]);
+      stripeRows?.forEach((r) => {
+        const id = (r.metadata as { instalment_id?: string } | null)?.instalment_id;
+        if (id) ids.add(id);
+      });
+
+      return ids;
+    },
+    enabled: !!applicationId,
+    staleTime: 30000,
   });
 };
 

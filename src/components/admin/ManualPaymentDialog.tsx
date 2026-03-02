@@ -15,7 +15,18 @@ import { useCreateManualPayment } from "@/hooks/useManualPayment";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { usePaidInstalmentIds, usePaymentSummary, useUnifiedPayments } from "@/hooks/useUnifiedPayments";
+import { getEffectiveWeeks } from "@/utils/contractDuration";
+
+type DialogInstalment = {
+  id: string;
+  due_date: string;
+  amount: number;
+  sequence: number;
+  instalment_number: number;
+};
 
 interface ManualPaymentDialogProps {
   open: boolean;
@@ -23,6 +34,9 @@ interface ManualPaymentDialogProps {
   applicationId: string;
   paymentType?: "deposit" | "instalment";
 }
+
+const roundCurrency = (value: number): number =>
+  Math.round((value + Number.EPSILON) * 100) / 100;
 
 const ManualPaymentDialog = ({
   open,
@@ -40,33 +54,151 @@ const ManualPaymentDialog = ({
   const [paymentDate, setPaymentDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState<string>("");
 
-  // Fetch instalments for this application
+  const { data: paymentSummary } = usePaymentSummary(applicationId);
+  const paymentCount = Number(paymentSummary?.payment_count ?? 0);
+
+  // When application has selected_payment_plan_id, build instalment list from the PLAN (same as page schedule)
+  // so amounts and count match (e.g. 10 × £816). Map each to contract_payment_schedule id for recording.
+  // When no plan, use contract_payment_schedule and filter by paid IDs/sequences.
   const { data: instalments } = useQuery({
-    queryKey: ["application-instalments", applicationId],
-    queryFn: async () => {
+    queryKey: ["application-instalments-dialog", applicationId],
+    queryFn: async (): Promise<DialogInstalment[]> => {
       if (!applicationId) return [];
 
-      // First get the application to find the contract_id
       const { data: app, error: appError } = await supabase
         .from("student_applications")
-        .select("contract_id")
+        .select("contract_id, selected_payment_plan_id")
         .eq("id", applicationId)
         .single();
 
       if (appError || !app?.contract_id) return [];
 
-      // Then get the payment schedule for that contract
+      if (app.selected_payment_plan_id) {
+        const { data: contract, error: contractError } = await supabase
+          .from("contracts")
+          .select("id, contract_start, weeks, extra_days, weekly_price_override, deposit_override, academic_year_id, studio_grade_id")
+          .eq("id", app.contract_id)
+          .maybeSingle();
+        if (contractError || !contract) return [];
+
+        const { data: priceData } = await supabase
+          .from("studio_grade_prices")
+          .select("weekly_price")
+          .eq("academic_year_id", contract.academic_year_id)
+          .eq("studio_grade_id", contract.studio_grade_id)
+          .eq("is_active", true)
+          .maybeSingle();
+        const weeklyPrice = contract.weekly_price_override ?? priceData?.weekly_price ?? 0;
+        const installmentBase = weeklyPrice * getEffectiveWeeks(contract);
+
+        let depositAmount = 0;
+        if (contract.deposit_override != null) depositAmount = Number(contract.deposit_override);
+        else {
+          const { data: plan } = await supabase
+            .from("payment_plans")
+            .select("deposit_amount")
+            .eq("id", app.selected_payment_plan_id)
+            .maybeSingle();
+          if (plan?.deposit_amount != null) depositAmount = Number(plan.deposit_amount);
+        }
+
+        const { data: allPlanRows, error: planErr } = await supabase
+          .from("payment_plan_installments")
+          .select("*")
+          .eq("payment_plan_id", app.selected_payment_plan_id)
+          .order("sequence", { ascending: true });
+        if (planErr || !allPlanRows?.length) return [];
+
+        const planInstalments = allPlanRows.filter(
+          (r) => !(r.label ?? "").toLowerCase().includes("deposit")
+        );
+        if (planInstalments.length === 0) return [];
+
+        const planSchedule = planInstalments.map((inst, index) => {
+          let amt = 0;
+          if (inst.amount_type === "percentage") amt = roundCurrency((installmentBase * Number(inst.amount_value)) / 100);
+          else if (inst.amount_type === "fixed") amt = Number(inst.amount_value);
+          let dueDate: string;
+          if (inst.due_date) dueDate = new Date(inst.due_date).toISOString().split("T")[0];
+          else if (inst.due_date_offset_days != null) {
+            const d = new Date(contract.contract_start);
+            d.setDate(d.getDate() + inst.due_date_offset_days);
+            dueDate = d.toISOString().split("T")[0];
+          } else dueDate = contract.contract_start;
+          return { amount: amt, due_date: dueDate, sequence: inst.sequence, label: inst.label ?? `Instalment ${inst.sequence}` };
+        });
+        if (planSchedule.length > 0) {
+          const lastIdx = planSchedule.length - 1;
+          const sumPrev = planSchedule.slice(0, lastIdx).reduce((s, i) => s + i.amount, 0);
+          planSchedule[lastIdx].amount = roundCurrency(installmentBase - sumPrev);
+        }
+
+        const { data: scheduleRows, error: schedErr } = await supabase
+          .from("contract_payment_schedule")
+          .select("id, sequence, label")
+          .eq("contract_id", app.contract_id)
+          .order("sequence", { ascending: true });
+        if (schedErr) return [];
+
+        const nonDepositRows = (scheduleRows ?? []).filter(
+          (row) => !String((row as { label?: string }).label ?? "").toLowerCase().includes("deposit")
+        );
+        const firstN = nonDepositRows.slice(0, planSchedule.length);
+
+        return firstN.map((row, i) => ({
+          id: row.id,
+          due_date: planSchedule[i].due_date,
+          amount: planSchedule[i].amount,
+          sequence: row.sequence,
+          instalment_number: i + 1,
+        }));
+      }
+
       const { data, error } = await supabase
         .from("contract_payment_schedule")
         .select("id, due_date, amount, sequence")
         .eq("contract_id", app.contract_id)
         .order("sequence", { ascending: true });
-
       if (error) throw error;
-      return (data || []).map((row) => ({ ...row, instalment_number: row.sequence }));
+      return (data || []).map((row) => ({
+        id: row.id,
+        due_date: row.due_date ?? "",
+        amount: Number(row.amount) || 0,
+        sequence: row.sequence ?? 0,
+        instalment_number: row.sequence ?? 0,
+      }));
     },
     enabled: open && selectedType === "instalment" && !!applicationId,
   });
+
+  const { data: paidInstalmentIds } = usePaidInstalmentIds(applicationId);
+  const { data: unifiedPayments } = useUnifiedPayments(applicationId);
+  const paidSequences = useMemo(
+    () =>
+      new Set(
+        (unifiedPayments ?? [])
+          .filter((p) => p.installment_number != null)
+          .map((p) => p.installment_number as number)
+      ),
+    [unifiedPayments]
+  );
+
+  const usedPlanBasedSchedule = useMemo(() => {
+    const list = instalments ?? [];
+    if (list.length === 0) return false;
+    return list.every((r, i) => r.instalment_number === i + 1);
+  }, [instalments]);
+
+  const unpaidInstalments = useMemo(() => {
+    const list = instalments ?? [];
+    if (list.length === 0) return [];
+    if (usedPlanBasedSchedule) {
+      return list.filter((_, index) => index >= paymentCount);
+    }
+    return list.filter(
+      (inst) => !(paidInstalmentIds?.has(inst.id) ?? false) && !paidSequences.has(inst.sequence)
+    );
+  }, [instalments, paidInstalmentIds, paidSequences, paymentCount, usedPlanBasedSchedule]);
 
   // Check if application already has a deposit (prevent duplicate)
   const { data: hasDeposit } = useQuery({
@@ -161,6 +293,14 @@ const ManualPaymentDialog = ({
     }
   }, [selectedType, depositAmount, selectedInstalmentId, instalments]);
 
+  // Clear selected instalment if it's no longer in unpaid list (e.g. just got paid)
+  useEffect(() => {
+    if (selectedType === "instalment" && selectedInstalmentId && unpaidInstalments.length > 0) {
+      const stillUnpaid = unpaidInstalments.some((i) => i.id === selectedInstalmentId);
+      if (!stillUnpaid) setSelectedInstalmentId("");
+    }
+  }, [selectedType, selectedInstalmentId, unpaidInstalments]);
+
   const handleSubmit = async () => {
     if (!amount || parseFloat(amount) <= 0) {
       toast({
@@ -245,19 +385,24 @@ const ManualPaymentDialog = ({
           )}
 
           {selectedType === "instalment" && (
-            <Select value={selectedInstalmentId} onValueChange={setSelectedInstalmentId}>
-              <SelectTrigger id="instalment" aria-label="Instalment">
-                <SelectValue placeholder="Select instalment (number, amount, due date)" />
-              </SelectTrigger>
-              <SelectContent>
-                {instalments?.map((instalment) => (
-                  <SelectItem key={instalment.id} value={instalment.id}>
-                    Instalment {instalment.instalment_number} - £{instalment.amount} (Due:{" "}
-                    {new Date(instalment.due_date).toLocaleDateString("en-GB")})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <>
+              <Select value={selectedInstalmentId} onValueChange={setSelectedInstalmentId}>
+                <SelectTrigger id="instalment" aria-label="Instalment">
+                  <SelectValue placeholder="Select instalment (number, amount, due date)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {unpaidInstalments.map((instalment) => (
+                    <SelectItem key={instalment.id} value={instalment.id}>
+                      Instalment {instalment.instalment_number} - £{instalment.amount} (Due:{" "}
+                      {new Date(instalment.due_date).toLocaleDateString("en-GB")})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {unpaidInstalments.length === 0 && (instalments?.length ?? 0) > 0 && (
+                <p className="text-xs text-muted-foreground">All installments are already paid.</p>
+              )}
+            </>
           )}
 
           <Input

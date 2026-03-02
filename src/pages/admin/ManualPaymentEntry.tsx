@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import {
   Card,
@@ -17,9 +17,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
-import { useCreateManualPayment } from "@/hooks/useManualPayment";
+import { useCreateManualPayment, useLinkManualPaymentById } from "@/hooks/useManualPayment";
 import { useToast } from "@/hooks/use-toast";
+import { usePaymentSummary, useUnifiedPayments } from "@/hooks/useUnifiedPayments";
+import { getEffectiveWeeks } from "@/utils/contractDuration";
 import { Loader2, Plus, Search, CheckCircle2, XCircle, Pencil } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -89,6 +106,9 @@ const ManualPaymentEntry = () => {
   const [receiptNumber, setReceiptNumber] = useState<string>("");
   const [paymentDate, setPaymentDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState<string>("");
+  // Optional link to application + instalment (when recording for a specific application)
+  const [linkApplicationId, setLinkApplicationId] = useState<string>("");
+  const [linkInstalmentId, setLinkInstalmentId] = useState<string>("");
 
   // Edit state for unlinked (orphaned) payments
   const [editingPayment, setEditingPayment] = useState<any | null>(null);
@@ -97,6 +117,13 @@ const ManualPaymentEntry = () => {
   const [editReceiptNumber, setEditReceiptNumber] = useState<string>("");
   const [editPaymentDate, setEditPaymentDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [editNotes, setEditNotes] = useState<string>("");
+
+  // Link-to-application dialog state (for existing unlinked payments)
+  const [linkingPayment, setLinkingPayment] = useState<any | null>(null);
+  const [linkDialogApplicationId, setLinkDialogApplicationId] = useState<string>("");
+  const [linkDialogInstalmentId, setLinkDialogInstalmentId] = useState<string>("");
+  const [linkDialogAppSearch, setLinkDialogAppSearch] = useState("");
+  const [linkDialogAppOpen, setLinkDialogAppOpen] = useState(false);
 
   // Pending student manual payment requests (approve → create manual_payment)
   const { data: pendingRequests, isLoading: pendingLoading, refetch: refetchPending } = useQuery({
@@ -208,6 +235,254 @@ const ManualPaymentEntry = () => {
     },
   });
 
+  // Applications list for "link to application" (record form and link-dialog) – with student name/email for search
+  const { data: applicationsForLink } = useQuery({
+    queryKey: ["applications-for-manual-payment-link"],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_applications_for_payment_link");
+      if (error) throw error;
+      return (data ?? []) as { id: string; student_name: string | null; student_email: string | null; contract_slug: string | null }[];
+    },
+    enabled: showForm || !!linkingPayment,
+  });
+
+  // Instalments for selected application (when linking and type is instalment). Use plan-based list when app has selected_plan_id so amounts/count match Application Detail and Record Manual Payment dialog.
+  type LinkInstalment = { id: string; due_date: string; amount: number; sequence: number; instalment_number: number };
+  const { data: linkInstalments } = useQuery({
+    queryKey: ["application-instalments", linkApplicationId],
+    queryFn: async (): Promise<LinkInstalment[]> => {
+      if (!linkApplicationId) return [];
+      const { data: app, error: appError } = await supabase
+        .from("student_applications")
+        .select("contract_id, selected_payment_plan_id")
+        .eq("id", linkApplicationId)
+        .single();
+      if (appError || !app?.contract_id) return [];
+
+      const roundCurrency = (v: number) => Math.round((v + Number.EPSILON) * 100) / 100;
+
+      if (app.selected_payment_plan_id) {
+        const { data: contract, error: contractError } = await supabase
+          .from("contracts")
+          .select("id, contract_start, weeks, extra_days, weekly_price_override, deposit_override, academic_year_id, studio_grade_id")
+          .eq("id", app.contract_id)
+          .maybeSingle();
+        if (contractError || !contract) return [];
+        const { data: priceData } = await supabase
+          .from("studio_grade_prices")
+          .select("weekly_price")
+          .eq("academic_year_id", contract.academic_year_id)
+          .eq("studio_grade_id", contract.studio_grade_id)
+          .eq("is_active", true)
+          .maybeSingle();
+        const weeklyPrice = contract.weekly_price_override ?? priceData?.weekly_price ?? 0;
+        const installmentBase = weeklyPrice * getEffectiveWeeks(contract);
+        const { data: allPlanRows, error: planErr } = await supabase
+          .from("payment_plan_installments")
+          .select("*")
+          .eq("payment_plan_id", app.selected_payment_plan_id)
+          .order("sequence", { ascending: true });
+        if (planErr || !allPlanRows?.length) return [];
+        const planInstalments = allPlanRows.filter((r) => !(r.label ?? "").toLowerCase().includes("deposit"));
+        if (planInstalments.length === 0) return [];
+        const planSchedule = planInstalments.map((inst) => {
+          let amt = 0;
+          if (inst.amount_type === "percentage") amt = roundCurrency((installmentBase * Number(inst.amount_value)) / 100);
+          else if (inst.amount_type === "fixed") amt = Number(inst.amount_value);
+          let dueDate: string;
+          if (inst.due_date) dueDate = new Date(inst.due_date).toISOString().split("T")[0];
+          else if (inst.due_date_offset_days != null) {
+            const d = new Date(contract.contract_start);
+            d.setDate(d.getDate() + inst.due_date_offset_days);
+            dueDate = d.toISOString().split("T")[0];
+          } else dueDate = contract.contract_start;
+          return { amount: amt, due_date: dueDate, sequence: inst.sequence };
+        });
+        if (planSchedule.length > 0) {
+          const lastIdx = planSchedule.length - 1;
+          const sumPrev = planSchedule.slice(0, lastIdx).reduce((s, i) => s + i.amount, 0);
+          planSchedule[lastIdx].amount = roundCurrency(installmentBase - sumPrev);
+        }
+        const { data: scheduleRows, error: schedErr } = await supabase
+          .from("contract_payment_schedule")
+          .select("id, sequence, label")
+          .eq("contract_id", app.contract_id)
+          .order("sequence", { ascending: true });
+        if (schedErr) return [];
+        const nonDepositRows = (scheduleRows ?? []).filter(
+          (row) => !String((row as { label?: string }).label ?? "").toLowerCase().includes("deposit")
+        );
+        const firstN = nonDepositRows.slice(0, planSchedule.length);
+        return firstN.map((row, i) => ({
+          id: row.id,
+          due_date: planSchedule[i].due_date,
+          amount: planSchedule[i].amount,
+          sequence: row.sequence,
+          instalment_number: i + 1,
+        }));
+      }
+
+      const { data, error } = await supabase
+        .from("contract_payment_schedule")
+        .select("id, due_date, amount, sequence")
+        .eq("contract_id", app.contract_id)
+        .order("sequence", { ascending: true });
+      if (error) throw error;
+      return (data || []).map((row) => ({
+        id: row.id,
+        due_date: row.due_date ?? "",
+        amount: Number(row.amount) || 0,
+        sequence: row.sequence ?? 0,
+        instalment_number: row.sequence ?? 0,
+      }));
+    },
+    enabled: showForm && !!linkApplicationId && paymentType === "instalment",
+  });
+  const { data: linkPaymentSummary } = usePaymentSummary(linkApplicationId || null);
+  const linkPaymentCount = Number(linkPaymentSummary?.payment_count ?? 0);
+  const { data: linkAppPayments } = useUnifiedPayments(linkApplicationId || "");
+  const paidSequencesForLink = useMemo(
+    () =>
+      new Set(
+        (linkAppPayments ?? [])
+          .filter((p) => p.installment_number != null)
+          .map((p) => p.installment_number as number)
+      ),
+    [linkAppPayments]
+  );
+  const usedPlanBasedForLink = useMemo(
+    () =>
+      (linkInstalments ?? []).length > 0 &&
+      (linkInstalments ?? []).every((r, i) => r.instalment_number === i + 1),
+    [linkInstalments]
+  );
+  const unpaidInstalmentsForLink = useMemo(() => {
+    const list = linkInstalments ?? [];
+    if (usedPlanBasedForLink) return list.filter((_, index) => index >= linkPaymentCount);
+    return list.filter((inst) => !paidSequencesForLink.has(inst.sequence));
+  }, [linkInstalments, paidSequencesForLink, linkPaymentCount, usedPlanBasedForLink]);
+
+  // Instalments for link-dialog (when linking an existing unlinked payment to an application)
+  const { data: linkDialogInstalments } = useQuery({
+    queryKey: ["application-instalments-link-dialog", linkDialogApplicationId],
+    queryFn: async (): Promise<LinkInstalment[]> => {
+      const appId = linkDialogApplicationId;
+      if (!appId) return [];
+      const { data: app, error: appError } = await supabase
+        .from("student_applications")
+        .select("contract_id, selected_payment_plan_id")
+        .eq("id", appId)
+        .single();
+      if (appError || !app?.contract_id) return [];
+      const roundCurrency = (v: number) => Math.round((v + Number.EPSILON) * 100) / 100;
+      if (app.selected_payment_plan_id) {
+        const { data: contract, error: contractError } = await supabase
+          .from("contracts")
+          .select("id, contract_start, weeks, extra_days, weekly_price_override, deposit_override, academic_year_id, studio_grade_id")
+          .eq("id", app.contract_id)
+          .maybeSingle();
+        if (contractError || !contract) return [];
+        const { data: priceData } = await supabase
+          .from("studio_grade_prices")
+          .select("weekly_price")
+          .eq("academic_year_id", contract.academic_year_id)
+          .eq("studio_grade_id", contract.studio_grade_id)
+          .eq("is_active", true)
+          .maybeSingle();
+        const weeklyPrice = contract.weekly_price_override ?? priceData?.weekly_price ?? 0;
+        const installmentBase = weeklyPrice * getEffectiveWeeks(contract);
+        const { data: allPlanRows, error: planErr } = await supabase
+          .from("payment_plan_installments")
+          .select("*")
+          .eq("payment_plan_id", app.selected_payment_plan_id)
+          .order("sequence", { ascending: true });
+        if (planErr || !allPlanRows?.length) return [];
+        const planInstalments = allPlanRows.filter((r) => !(r.label ?? "").toLowerCase().includes("deposit"));
+        if (planInstalments.length === 0) return [];
+        const planSchedule = planInstalments.map((inst) => {
+          let amt = 0;
+          if (inst.amount_type === "percentage") amt = roundCurrency((installmentBase * Number(inst.amount_value)) / 100);
+          else if (inst.amount_type === "fixed") amt = Number(inst.amount_value);
+          let dueDate: string;
+          if (inst.due_date) dueDate = new Date(inst.due_date).toISOString().split("T")[0];
+          else if (inst.due_date_offset_days != null) {
+            const d = new Date(contract.contract_start);
+            d.setDate(d.getDate() + inst.due_date_offset_days);
+            dueDate = d.toISOString().split("T")[0];
+          } else dueDate = contract.contract_start;
+          return { amount: amt, due_date: dueDate, sequence: inst.sequence };
+        });
+        if (planSchedule.length > 0) {
+          const lastIdx = planSchedule.length - 1;
+          const sumPrev = planSchedule.slice(0, lastIdx).reduce((s, i) => s + i.amount, 0);
+          planSchedule[lastIdx].amount = roundCurrency(installmentBase - sumPrev);
+        }
+        const { data: scheduleRows, error: schedErr } = await supabase
+          .from("contract_payment_schedule")
+          .select("id, sequence, label")
+          .eq("contract_id", app.contract_id)
+          .order("sequence", { ascending: true });
+        if (schedErr) return [];
+        const nonDepositRows = (scheduleRows ?? []).filter(
+          (row) => !String((row as { label?: string }).label ?? "").toLowerCase().includes("deposit")
+        );
+        const firstN = nonDepositRows.slice(0, planSchedule.length);
+        return firstN.map((row, i) => ({
+          id: row.id,
+          due_date: planSchedule[i].due_date,
+          amount: planSchedule[i].amount,
+          sequence: row.sequence,
+          instalment_number: i + 1,
+        }));
+      }
+      const { data, error } = await supabase
+        .from("contract_payment_schedule")
+        .select("id, due_date, amount, sequence")
+        .eq("contract_id", app.contract_id)
+        .order("sequence", { ascending: true });
+      if (error) throw error;
+      return (data || []).map((row) => ({
+        id: row.id,
+        due_date: row.due_date ?? "",
+        amount: Number(row.amount) || 0,
+        sequence: row.sequence ?? 0,
+        instalment_number: row.sequence ?? 0,
+      }));
+    },
+    enabled: !!linkingPayment && !!linkDialogApplicationId && linkingPayment?.payment_type === "instalment",
+  });
+  const { data: linkDialogPaymentSummary } = usePaymentSummary(linkDialogApplicationId || null);
+  const linkDialogPaymentCount = Number(linkDialogPaymentSummary?.payment_count ?? 0);
+  const { data: linkDialogPayments } = useUnifiedPayments(linkDialogApplicationId || "");
+  const linkDialogPaidSequences = useMemo(
+    () =>
+      new Set(
+        (linkDialogPayments ?? [])
+          .filter((p) => p.installment_number != null)
+          .map((p) => p.installment_number as number)
+      ),
+    [linkDialogPayments]
+  );
+  const linkDialogUsedPlanBased = useMemo(
+    () =>
+      (linkDialogInstalments ?? []).length > 0 &&
+      (linkDialogInstalments ?? []).every((r, i) => r.instalment_number === i + 1),
+    [linkDialogInstalments]
+  );
+  const unpaidInstalmentsForLinkDialog = useMemo(() => {
+    const list = linkDialogInstalments ?? [];
+    if (linkDialogUsedPlanBased) return list.filter((_, index) => index >= linkDialogPaymentCount);
+    return list.filter((inst) => !linkDialogPaidSequences.has(inst.sequence));
+  }, [linkDialogInstalments, linkDialogPaidSequences, linkDialogPaymentCount, linkDialogUsedPlanBased]);
+
+  // Auto-fill amount when linking to an instalment
+  useEffect(() => {
+    if (paymentType === "instalment" && linkInstalmentId && unpaidInstalmentsForLink.length > 0) {
+      const inst = unpaidInstalmentsForLink.find((i) => i.id === linkInstalmentId);
+      if (inst) setAmount(String(inst.amount));
+    }
+  }, [paymentType, linkInstalmentId, unpaidInstalmentsForLink]);
+
   // Fetch orphaned payments (no application_id)
   const { data: orphanedPayments, isLoading, refetch } = useQuery({
     queryKey: ["orphaned-payments", searchTerm],
@@ -239,10 +514,20 @@ const ManualPaymentEntry = () => {
       return;
     }
 
-    if (!receiptNumber.trim()) {
+    const linkingToApplication = !!linkApplicationId.trim();
+    if (!linkingToApplication && !receiptNumber.trim()) {
       toast({
         title: "Receipt number required",
-        description: "Receipt number is required for pre-application payments.",
+        description: "Receipt number is required when not linking to an application.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (linkingToApplication && paymentType === "instalment" && !linkInstalmentId) {
+      toast({
+        title: "Instalment required",
+        description: "Select an instalment when linking an instalment payment to an application.",
         variant: "destructive",
       });
       return;
@@ -250,10 +535,12 @@ const ManualPaymentEntry = () => {
 
     try {
       await createPayment.mutateAsync({
+        applicationId: linkingToApplication ? linkApplicationId : undefined,
         paymentType,
+        instalmentId: paymentType === "instalment" && linkInstalmentId ? linkInstalmentId : undefined,
         amount: parseFloat(amount),
         paymentMethod,
-        receiptNumber: receiptNumber.trim(),
+        receiptNumber: receiptNumber.trim() || undefined,
         paymentDate,
         notes: notes.trim() || undefined,
       });
@@ -267,6 +554,8 @@ const ManualPaymentEntry = () => {
       setAmount("");
       setReceiptNumber("");
       setNotes("");
+      setLinkApplicationId("");
+      setLinkInstalmentId("");
       setShowForm(false);
       await refetch();
     } catch (error: any) {
@@ -370,6 +659,8 @@ const ManualPaymentEntry = () => {
       });
     },
   });
+
+  const linkPaymentById = useLinkManualPaymentById();
 
   const deleteOrphanedPayment = useMutation({
     mutationFn: async (paymentId: string) => {
@@ -664,7 +955,10 @@ const ManualPaymentEntry = () => {
                   <Label htmlFor="payment-type">Payment Type</Label>
                   <Select
                     value={paymentType}
-                    onValueChange={(value) => setPaymentType(value as "deposit" | "instalment")}
+                    onValueChange={(value) => {
+                      setPaymentType(value as "deposit" | "instalment");
+                      setLinkInstalmentId("");
+                    }}
                   >
                     <SelectTrigger id="payment-type" className="mt-2">
                       <SelectValue />
@@ -675,6 +969,54 @@ const ManualPaymentEntry = () => {
                     </SelectContent>
                   </Select>
                 </div>
+
+                <div>
+                  <Label htmlFor="link-application">Link to application (optional)</Label>
+                  <Select
+                    value={linkApplicationId || "__none__"}
+                    onValueChange={(value) => {
+                      setLinkApplicationId(value === "__none__" ? "" : value);
+                      setLinkInstalmentId("");
+                    }}
+                  >
+                    <SelectTrigger id="link-application" className="mt-2">
+                      <SelectValue placeholder="None – record as unlinked payment" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">None – record as unlinked payment</SelectItem>
+                      {applicationsForLink?.map((app) => (
+                        <SelectItem key={app.id} value={app.id}>
+                          {(app as { student_name?: string | null; student_email?: string | null }).student_name ?? "—"} – {(app as { student_email?: string | null }).student_email ?? ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Link this payment to an application and (for instalments) a specific instalment. Leave empty for unlinked payments (student verifies by receipt).
+                  </p>
+                </div>
+
+                {linkApplicationId && paymentType === "instalment" && (
+                  <div>
+                    <Label htmlFor="link-instalment">Instalment (required when linking) *</Label>
+                    <Select value={linkInstalmentId} onValueChange={setLinkInstalmentId}>
+                      <SelectTrigger id="link-instalment" className="mt-2">
+                        <SelectValue placeholder="Select instalment left to pay" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {unpaidInstalmentsForLink.map((inst) => (
+                          <SelectItem key={inst.id} value={inst.id}>
+                            Instalment {inst.instalment_number} – £{Number(inst.amount).toFixed(2)} (Due:{" "}
+                            {new Date(inst.due_date).toLocaleDateString("en-GB")})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {unpaidInstalmentsForLink.length === 0 && (linkInstalments?.length ?? 0) > 0 && (
+                      <p className="mt-1 text-xs text-muted-foreground">All installments for this application are already paid.</p>
+                    )}
+                  </div>
+                )}
 
                 <div>
                   <Label htmlFor="amount">Amount (£) *</Label>
@@ -711,7 +1053,9 @@ const ManualPaymentEntry = () => {
                 </div>
 
                 <div>
-                  <Label htmlFor="receipt-number">Receipt/Cheque Number *</Label>
+                  <Label htmlFor="receipt-number">
+                    Receipt/Cheque Number {!linkApplicationId ? "*" : "(optional when linked)"}
+                  </Label>
                   <Input
                     id="receipt-number"
                     value={receiptNumber}
@@ -720,7 +1064,9 @@ const ManualPaymentEntry = () => {
                     className="mt-2"
                   />
                   <p className="mt-1 text-xs text-muted-foreground">
-                    This number must be unique. Students will use this to verify their payment.
+                    {linkApplicationId
+                      ? "Optional when linked to an application. Must be unique if provided."
+                      : "Required for unlinked payments. Students use this to verify their payment."}
                   </p>
                 </div>
 
@@ -755,6 +1101,8 @@ const ManualPaymentEntry = () => {
                       setAmount("");
                       setReceiptNumber("");
                       setNotes("");
+                      setLinkApplicationId("");
+                      setLinkInstalmentId("");
                     }}
                     className="rounded-full uppercase tracking-wide"
                   >
@@ -855,6 +1203,22 @@ const ManualPaymentEntry = () => {
                       <Button
                         variant="outline"
                         size="icon"
+                        className="rounded-full bg-primary/10 hover:bg-primary/20 text-primary"
+                        onClick={() => {
+                          setLinkingPayment(payment);
+                          setLinkDialogApplicationId("");
+                          setLinkDialogInstalmentId("");
+                          setLinkDialogAppSearch("");
+                        }}
+                        disabled={linkPaymentById.isPending}
+                        aria-label="Link to application"
+                        title="Link to application"
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
                         className="rounded-full bg-muted/80 hover:bg-muted text-foreground"
                         onClick={() => setEditingPayment(payment)}
                         disabled={
@@ -900,6 +1264,175 @@ const ManualPaymentEntry = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Link payment to application dialog */}
+        <Dialog
+          open={!!linkingPayment}
+          onOpenChange={(open) => {
+            if (!open) {
+              setLinkingPayment(null);
+              setLinkDialogApplicationId("");
+              setLinkDialogInstalmentId("");
+              setLinkDialogAppSearch("");
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-md rounded-2xl">
+            <DialogHeader>
+              <DialogTitle>Link payment to application</DialogTitle>
+              <DialogDescription>
+                Assign this unlinked payment to an application. For instalments, choose which instalment it pays.
+              </DialogDescription>
+            </DialogHeader>
+            {linkingPayment && (
+              <div className="space-y-4 py-2">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Badge
+                    className={`uppercase rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                      linkingPayment.payment_type === "deposit"
+                        ? "bg-blue-500 hover:bg-blue-600 text-white"
+                        : "bg-purple-500 hover:bg-purple-600 text-white"
+                    }`}
+                  >
+                    {linkingPayment.payment_type}
+                  </Badge>
+                  <span className="font-semibold">{formatCurrency(Number(linkingPayment.amount))}</span>
+                </div>
+                <div>
+                  <Label htmlFor="link-dialog-application">Application *</Label>
+                  <p className="text-xs text-muted-foreground mt-1 mb-2">Search by student name or email.</p>
+                  {(() => {
+                    const search = linkDialogAppSearch.trim().toLowerCase();
+                    const filtered =
+                      !search
+                        ? applicationsForLink ?? []
+                        : (applicationsForLink ?? []).filter(
+                            (app) =>
+                              (app.student_name ?? "").toLowerCase().includes(search) ||
+                              (app.student_email ?? "").toLowerCase().includes(search)
+                          );
+                    const selectedApp = applicationsForLink?.find((a) => a.id === linkDialogApplicationId);
+                    return (
+                      <Popover open={linkDialogAppOpen} onOpenChange={setLinkDialogAppOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={linkDialogAppOpen}
+                            className={cn(
+                              "w-full justify-between rounded-xl font-normal mt-0",
+                              !linkDialogApplicationId && "text-muted-foreground"
+                            )}
+                          >
+                            <span className="truncate">
+                              {selectedApp
+                                ? `${selectedApp.student_name ?? "Unknown"} – ${selectedApp.student_email ?? ""}`
+                                : "Select application"}
+                            </span>
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                          <Command>
+                            <CommandInput
+                              placeholder="Search by name or email..."
+                              value={linkDialogAppSearch}
+                              onValueChange={setLinkDialogAppSearch}
+                            />
+                            <CommandList>
+                              <CommandEmpty>No application found.</CommandEmpty>
+                              <CommandGroup>
+                                {filtered.map((app) => (
+                                  <CommandItem
+                                    key={app.id}
+                                    value={`${app.student_name ?? ""} ${app.student_email ?? ""} ${app.id}`}
+                                    onSelect={() => {
+                                      setLinkDialogApplicationId(app.id);
+                                      setLinkDialogInstalmentId("");
+                                      setLinkDialogAppOpen(false);
+                                      setLinkDialogAppSearch("");
+                                    }}
+                                    className="cursor-pointer"
+                                  >
+                                    <Check className={cn("mr-2 h-4 w-4", linkDialogApplicationId === app.id ? "opacity-100" : "opacity-0")} />
+                                    <span className="truncate">
+                                      {app.student_name ?? "Unknown"} – {app.student_email || "—"}
+                                      {app.contract_slug ? ` (${app.contract_slug})` : ""}
+                                    </span>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    );
+                  })()}
+                </div>
+                {linkingPayment.payment_type === "instalment" && linkDialogApplicationId && (
+                  <div>
+                    <Label htmlFor="link-dialog-instalment">Instalment (required) *</Label>
+                    <Select value={linkDialogInstalmentId || "__none__"} onValueChange={(v) => setLinkDialogInstalmentId(v === "__none__" ? "" : v)}>
+                      <SelectTrigger id="link-dialog-instalment" className="mt-2">
+                        <SelectValue placeholder="Select instalment" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Select instalment</SelectItem>
+                        {unpaidInstalmentsForLinkDialog.map((inst) => (
+                          <SelectItem key={inst.id} value={inst.id}>
+                            Instalment {inst.instalment_number} – £{Number(inst.amount).toFixed(2)} (Due: {new Date(inst.due_date).toLocaleDateString("en-GB")})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {unpaidInstalmentsForLinkDialog.length === 0 && (linkDialogInstalments?.length ?? 0) > 0 && (
+                      <p className="mt-1 text-xs text-muted-foreground">All installments for this application are already paid.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+              <Button variant="outline" className="rounded-full" onClick={() => { setLinkingPayment(null); setLinkDialogApplicationId(""); setLinkDialogInstalmentId(""); setLinkDialogAppSearch(""); }}>
+                Cancel
+              </Button>
+              <Button
+                className="rounded-full"
+                disabled={
+                  !linkingPayment ||
+                  !linkDialogApplicationId ||
+                  (linkingPayment?.payment_type === "instalment" && !linkDialogInstalmentId) ||
+                  (linkingPayment?.payment_type === "instalment" && (unpaidInstalmentsForLinkDialog?.length ?? 0) === 0) ||
+                  linkPaymentById.isPending
+                }
+                onClick={async () => {
+                  if (!linkingPayment || !linkDialogApplicationId) return;
+                  if (linkingPayment.payment_type === "instalment" && !linkDialogInstalmentId) {
+                    toast({ title: "Instalment required", description: "Select an instalment when linking an instalment payment.", variant: "destructive" });
+                    return;
+                  }
+                  try {
+                    await linkPaymentById.mutateAsync({
+                      paymentId: linkingPayment.id,
+                      applicationId: linkDialogApplicationId,
+                      instalmentId: linkingPayment.payment_type === "instalment" ? linkDialogInstalmentId || undefined : undefined,
+                    });
+                    toast({ title: "Payment linked", description: "Payment has been linked to the application." });
+                    setLinkingPayment(null);
+                    setLinkDialogApplicationId("");
+                    setLinkDialogInstalmentId("");
+                    setLinkDialogAppSearch("");
+                  } catch (e: unknown) {
+                    const msg = e instanceof Error ? e.message : "Failed to link payment.";
+                    toast({ title: "Error", description: msg, variant: "destructive" });
+                  }
+                }}
+              >
+                {linkPaymentById.isPending ? "Linking…" : "Link payment"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Edit unlinked payment dialog */}
         <Dialog

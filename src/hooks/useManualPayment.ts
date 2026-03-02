@@ -138,6 +138,10 @@ export const useCreateManualPayment = () => {
       if (variables.applicationId) {
         queryClient.invalidateQueries({ queryKey: ["application-has-deposit", variables.applicationId] });
         queryClient.invalidateQueries({ queryKey: ["payment-summary", variables.applicationId] });
+        queryClient.invalidateQueries({ queryKey: ["paid-instalment-ids", variables.applicationId] });
+        queryClient.invalidateQueries({ queryKey: ["unified-payments", variables.applicationId] });
+        queryClient.invalidateQueries({ queryKey: ["application-instalments", variables.applicationId] });
+        queryClient.invalidateQueries({ queryKey: ["application-instalments-dialog", variables.applicationId] });
       }
       queryClient.invalidateQueries({ queryKey: ["orphaned-payments"] });
       queryClient.invalidateQueries({ queryKey: ["verify-payment"] });
@@ -249,6 +253,45 @@ export const useLinkPaymentToApplication = () => {
       queryClient.invalidateQueries({ queryKey: ["student-application"] });
       queryClient.invalidateQueries({ queryKey: ["orphaned-payments"] });
       queryClient.invalidateQueries({ queryKey: ["verify-payment"] });
+    },
+  });
+};
+
+/**
+ * Link an existing unlinked (orphaned) manual payment to an application by payment id.
+ * Used on Manual Payment Entry when staff clicks "Link to application" on an unlinked payment.
+ */
+export const useLinkManualPaymentById = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      paymentId,
+      applicationId,
+      instalmentId,
+    }: {
+      paymentId: string;
+      applicationId: string;
+      instalmentId?: string | null;
+    }) => {
+      const { data, error } = await supabase.rpc("link_manual_payment_to_application_by_id", {
+        p_payment_id: paymentId,
+        p_application_id: applicationId,
+        p_instalment_id: instalmentId || null,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["orphaned-payments"] });
+      queryClient.invalidateQueries({ queryKey: ["payment-summary", variables.applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["paid-instalment-ids", variables.applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["unified-payments", variables.applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["application-instalments", variables.applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["application-instalments-dialog", variables.applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["application-instalments-link-dialog", variables.applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["students"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-applications"] });
+      queryClient.invalidateQueries({ queryKey: ["student-application"] });
     },
   });
 };
