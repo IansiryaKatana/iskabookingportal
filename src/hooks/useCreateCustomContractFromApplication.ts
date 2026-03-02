@@ -202,6 +202,7 @@ async function createCustomContractFromApplication(
       extra_days: contract.extra_days ?? null,
       source_contract_id: contractId,
       student_application_id: applicationId,
+      visible_on_portal: false,
     })
     .select("id")
     .single();

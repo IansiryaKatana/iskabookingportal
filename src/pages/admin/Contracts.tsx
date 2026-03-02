@@ -543,6 +543,15 @@ const Contracts = () => {
                               Custom
                             </Badge>
                           )}
+                          {(contract as { visible_on_portal?: boolean }).visible_on_portal === true ? (
+                            <Badge variant="outline" className="rounded-full text-[10px] uppercase border-green-500/60 text-green-700 dark:text-green-400 bg-green-500/10">
+                              On portal
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="rounded-full text-[10px] uppercase text-muted-foreground">
+                              Staff only
+                            </Badge>
+                          )}
                         </div>
                         <h4 className="text-lg font-display font-semibold uppercase tracking-wide">
                           {contract.name}
@@ -583,19 +592,15 @@ const Contracts = () => {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        {(contract as { student_application_id?: string | null }).student_application_id ? (
-                          <span className="text-xs text-muted-foreground italic">Edit from application review</span>
-                        ) : (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="rounded-full uppercase tracking-wide gap-2"
-                            onClick={() => handleEdit(contract.id)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                            Edit
-                          </Button>
-                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="rounded-full uppercase tracking-wide gap-2"
+                          onClick={() => handleEdit(contract.id)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                          Edit
+                        </Button>
                         {isSuperadmin && !(contract as { student_application_id?: string | null }).student_application_id && (
                           <Button
                             variant="ghost"
