@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, CreditCard, Plus, UserPlus, Users, ChevronsUpDown, Check, CalendarRange } from "lucide-react";
+import { ExternalLink, CreditCard, Plus, UserPlus, Users, ChevronsUpDown, Check, CalendarRange, CalendarPlus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import ManualPaymentDialog from "@/components/admin/ManualPaymentDialog";
@@ -761,7 +761,13 @@ const Applications = () => {
                           )}
                         </div>
                       </div>
-                      <div className="flex-shrink-0">
+                      <div className="flex-shrink-0 flex items-center gap-1.5 flex-wrap">
+                        {(application as { extension_of_application_id?: string | null }).extension_of_application_id && (
+                          <Badge variant="secondary" className="text-[10px] uppercase tracking-wide gap-1 rounded-full">
+                            <CalendarPlus className="h-3 w-3" />
+                            Extension
+                          </Badge>
+                        )}
                         {getBookingSourceBadge(application.booking_source)}
                       </div>
                     </div>

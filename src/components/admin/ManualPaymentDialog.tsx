@@ -17,7 +17,7 @@ import { Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { usePaidInstalmentIds, usePaymentSummary, useUnifiedPayments } from "@/hooks/useUnifiedPayments";
+import { useInstallmentBreakdown, usePaidInstalmentIds, usePaymentSummary, useUnifiedPayments } from "@/hooks/useUnifiedPayments";
 import { getEffectiveWeeks } from "@/utils/contractDuration";
 
 type DialogInstalment = {
@@ -173,6 +173,7 @@ const ManualPaymentDialog = ({
 
   const { data: paidInstalmentIds } = usePaidInstalmentIds(applicationId);
   const { data: unifiedPayments } = useUnifiedPayments(applicationId);
+  const { data: installmentBreakdown } = useInstallmentBreakdown(applicationId);
   const paidSequences = useMemo(
     () =>
       new Set(
@@ -192,13 +193,22 @@ const ManualPaymentDialog = ({
   const unpaidInstalments = useMemo(() => {
     const list = instalments ?? [];
     if (list.length === 0) return [];
+    // Prefer precise per-instalment breakdown when available: exclude only fully paid instalments.
+    if (installmentBreakdown && installmentBreakdown.length > 0) {
+      const byId = new Map(installmentBreakdown.map((b) => [b.installment_id, b]));
+      return list.filter((inst) => {
+        const b = byId.get(inst.id);
+        return !b || b.payment_status !== "paid";
+      });
+    }
+    // Fallback to existing logic if breakdown is not available.
     if (usedPlanBasedSchedule) {
       return list.filter((_, index) => index >= paymentCount);
     }
     return list.filter(
       (inst) => !(paidInstalmentIds?.has(inst.id) ?? false) && !paidSequences.has(inst.sequence)
     );
-  }, [instalments, paidInstalmentIds, paidSequences, paymentCount, usedPlanBasedSchedule]);
+  }, [instalments, paidInstalmentIds, paidSequences, paymentCount, usedPlanBasedSchedule, installmentBreakdown]);
 
   // Check if application already has a deposit (prevent duplicate)
   const { data: hasDeposit } = useQuery({
@@ -284,14 +294,21 @@ const ManualPaymentDialog = ({
     if (selectedType === "deposit" && depositAmount) {
       setAmount(depositAmount.toString());
     } else if (selectedType === "instalment" && selectedInstalmentId) {
-      const instalment = instalments?.find((i) => i.id === selectedInstalmentId);
-      if (instalment) {
-        setAmount(instalment.amount.toString());
+      const breakdown = installmentBreakdown?.find(
+        (b) => b.installment_id === selectedInstalmentId
+      );
+      if (breakdown && breakdown.remaining_amount > 0) {
+        setAmount(breakdown.remaining_amount.toString());
+      } else {
+        const instalment = instalments?.find((i) => i.id === selectedInstalmentId);
+        if (instalment) {
+          setAmount(instalment.amount.toString());
+        }
       }
     } else {
       setAmount("");
     }
-  }, [selectedType, depositAmount, selectedInstalmentId, instalments]);
+  }, [selectedType, depositAmount, selectedInstalmentId, instalments, installmentBreakdown]);
 
   // Clear selected instalment if it's no longer in unpaid list (e.g. just got paid)
   useEffect(() => {
@@ -320,17 +337,112 @@ const ManualPaymentDialog = ({
       return;
     }
 
+    const parsedAmount = parseFloat(amount);
+
     try {
-      await createPayment.mutateAsync({
-        applicationId,
-        paymentType: selectedType,
-        instalmentId: selectedType === "instalment" ? selectedInstalmentId : undefined,
-        amount: parseFloat(amount),
-        paymentMethod,
-        receiptNumber: receiptNumber.trim() || undefined,
-        paymentDate,
-        notes: notes.trim() || undefined,
-      });
+      // Instalment waterfall behaviour: allow a single payment to top up the
+      // selected instalment and then spill into later instalments (by sequence)
+      // until the amount is exhausted.
+      if (
+        selectedType === "instalment" &&
+        selectedInstalmentId &&
+        installmentBreakdown &&
+        installmentBreakdown.length > 0
+      ) {
+        const ordered = [...installmentBreakdown].sort(
+          (a, b) => a.sequence - b.sequence,
+        );
+        const startIdx = ordered.findIndex(
+          (b) => b.installment_id === selectedInstalmentId,
+        );
+
+        if (startIdx !== -1) {
+          const targetSlice = ordered
+            .slice(startIdx)
+            .filter(
+              (b) => b.payment_status !== "paid" && b.remaining_amount > 0,
+            );
+
+          const totalRemainingFromStart = targetSlice.reduce(
+            (sum, row) => sum + Number(row.remaining_amount ?? 0),
+            0,
+          );
+
+          if (parsedAmount > totalRemainingFromStart + 0.01) {
+            toast({
+              title: "Amount too high",
+              description: `Total remaining from this instalment onwards is £${totalRemainingFromStart.toFixed(
+                2,
+              )}. Please enter an amount up to that total.`,
+              variant: "destructive",
+            });
+            return;
+          }
+
+          // If paying only up to the selected instalment's remaining balance,
+          // record a single payment as before.
+          const first = targetSlice[0];
+          if (parsedAmount <= Number(first.remaining_amount) + 0.01) {
+            await createPayment.mutateAsync({
+              applicationId,
+              paymentType: "instalment",
+              instalmentId: first.installment_id,
+              amount: parsedAmount,
+              paymentMethod,
+              receiptNumber: receiptNumber.trim() || undefined,
+              paymentDate,
+              notes: notes.trim() || undefined,
+            });
+          } else {
+            // Waterfall: split across multiple instalments.
+            let remainingToAllocate = parsedAmount;
+
+            for (const row of targetSlice) {
+              if (remainingToAllocate <= 0.01) break;
+              const remainingForRow = Number(row.remaining_amount ?? 0);
+              if (remainingForRow <= 0.01) continue;
+
+              const allocate = Math.min(remainingForRow, remainingToAllocate);
+              await createPayment.mutateAsync({
+                applicationId,
+                paymentType: "instalment",
+                instalmentId: row.installment_id,
+                amount: allocate,
+                paymentMethod,
+                receiptNumber: receiptNumber.trim() || undefined,
+                paymentDate,
+                notes: notes.trim() || undefined,
+              });
+              remainingToAllocate -= allocate;
+            }
+          }
+        } else {
+          // Fallback: selected instalment not found in breakdown; record a single payment.
+          await createPayment.mutateAsync({
+            applicationId,
+            paymentType: "instalment",
+            instalmentId: selectedInstalmentId,
+            amount: parsedAmount,
+            paymentMethod,
+            receiptNumber: receiptNumber.trim() || undefined,
+            paymentDate,
+            notes: notes.trim() || undefined,
+          });
+        }
+      } else {
+        // Deposit or no breakdown available: single payment.
+        await createPayment.mutateAsync({
+          applicationId,
+          paymentType: selectedType,
+          instalmentId:
+            selectedType === "instalment" ? selectedInstalmentId : undefined,
+          amount: parsedAmount,
+          paymentMethod,
+          receiptNumber: receiptNumber.trim() || undefined,
+          paymentDate,
+          notes: notes.trim() || undefined,
+        });
+      }
 
       toast({
         title: "Payment recorded",

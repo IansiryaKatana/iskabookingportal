@@ -36,7 +36,8 @@ export type ReportType =
   | "overdue_payments"
   | "debtors"
   | "occupancy"
-  | "studio-allocation";
+  | "studio-allocation"
+  | "no_instalment_payments";
 
 export type OccupancyReportItem = {
   studio_grade_id: string;
@@ -87,7 +88,10 @@ export type OccupancyReport = {
   by_grade: OccupancyReportItem[];
 };
 
-const fetchReport = async (reportType: ReportType): Promise<ReportItem[]> => {
+const fetchReport = async (
+  reportType: ReportType,
+  academicYearId?: string,
+): Promise<ReportItem[]> => {
   let statusFilter: string[] = [];
   let additionalFilters = "";
 
@@ -97,6 +101,9 @@ const fetchReport = async (reportType: ReportType): Promise<ReportItem[]> => {
       break;
     case "awaiting_deposit":
       statusFilter = ["awaiting_deposit"];
+      break;
+    case "no_instalment_payments":
+      statusFilter = ["confirmed", "awaiting_signature", "awaiting_deposit"];
       break;
     case "overdue_payments":
       statusFilter = ["confirmed"];
@@ -129,6 +136,7 @@ const fetchReport = async (reportType: ReportType): Promise<ReportItem[]> => {
         name,
         contract_start,
         contract_end,
+        academic_year_id,
         studio_grade:studio_grades(name)
       ),
       assigned_studio:studios(studio_number)
@@ -148,8 +156,23 @@ const fetchReport = async (reportType: ReportType): Promise<ReportItem[]> => {
     return [];
   }
 
+  const applications = data as any[];
+
+  const filteredApplications =
+    academicYearId && reportType !== "occupancy" && reportType !== "studio-allocation"
+      ? applications.filter((app) => (app.contract as any)?.academic_year_id === academicYearId)
+      : applications;
+
+  if (filteredApplications.length === 0) {
+    return [];
+  }
+
   // Fetch student profiles
-  const studentIds = [...new Set(data.map((app) => app.student_id).filter((id): id is string => Boolean(id)))];
+  const studentIds = [
+    ...new Set(
+      filteredApplications.map((app) => app.student_id).filter((id): id is string => Boolean(id)),
+    ),
+  ];
 
   let profiles: any[] = [];
   if (studentIds.length > 0) {
@@ -197,9 +220,19 @@ const fetchReport = async (reportType: ReportType): Promise<ReportItem[]> => {
     paid: boolean;
   }> = [];
 
-  if (reportType === "overdue_payments" || reportType === "debtors") {
+  if (
+    reportType === "overdue_payments" ||
+    reportType === "debtors" ||
+    reportType === "no_instalment_payments"
+  ) {
     // Get contract_ids from applications
-    const contractIds = [...new Set(data.map((app) => app.contract_id).filter((id): id is string => Boolean(id)))];
+    const contractIds = [
+      ...new Set(
+        filteredApplications
+          .map((app) => app.contract_id)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
     
     let schedules: any[] = [];
     if (contractIds.length > 0) {
@@ -213,7 +246,9 @@ const fetchReport = async (reportType: ReportType): Promise<ReportItem[]> => {
     }
     
     // Map schedules to applications by contract_id
-    const applicationContractMap = new Map(data.map((app) => [app.contract_id, app.id]));
+    const applicationContractMap = new Map(
+      filteredApplications.map((app) => [app.contract_id, app.id]),
+    );
     const schedulesWithAppId = schedules.map((schedule) => ({
       ...schedule,
       application_id: applicationContractMap.get(schedule.contract_id) || null,
@@ -265,7 +300,7 @@ const fetchReport = async (reportType: ReportType): Promise<ReportItem[]> => {
   });
 
   // Fetch cashback and partner referral data
-  const applicationIds = data.map((app) => app.id);
+  const applicationIds = filteredApplications.map((app) => app.id);
   const { data: cashbacksData } = await supabase
     .from("application_cashbacks")
     .select("application_id, cashback_amount")
@@ -295,50 +330,18 @@ const fetchReport = async (reportType: ReportType): Promise<ReportItem[]> => {
   );
 
   // Build report items
-  const reportItems: ReportItem[] = data
+  const reportItems: ReportItem[] = filteredApplications
     .map((app) => {
       const profile = profilesMap.get(app.student_id);
       // Fix: Handle cases where profile doesn't exist or has no name
-      if (!profile || (!profile.name && !profile.email)) {
+      let effectiveProfile = profile;
+      if (!effectiveProfile || (!effectiveProfile.name && !effectiveProfile.email)) {
         // Try to get email from the emailsMap as fallback
         const email = emailsMap.get(app.student_id) || "";
-        if (!email) return null; // Skip if we can't identify the student at all
-        // Create a minimal profile with just email
-        const minimalProfile = {
-          name: email.split("@")[0] || "Student", // Use email username as fallback
-          email: email,
+        effectiveProfile = {
+          name: email ? email.split("@")[0] || "Student" : "Student",
+          email,
           phone: null,
-        };
-        const cashbackAmount = cashbacksMap.get(app.id) || app.cashback_amount || null;
-        const discountAmount = app.discount_amount ?? null;
-        const adjustedTotal = app.total_contract_value
-          ? (app.total_contract_value - (cashbackAmount || 0) - (discountAmount || 0))
-          : null;
-        const partnerRef = partnerReferralsMap.get(app.id);
-        
-        return {
-          id: app.id,
-          application_id: app.id,
-          student_name: minimalProfile.name,
-          student_email: minimalProfile.email,
-          student_phone: minimalProfile.phone,
-          contract_name: (app.contract as any)?.name || "—",
-          studio_grade: (app.contract as any)?.studio_grade?.name || "—",
-          status: app.status,
-          deposit_paid: !!app.deposit_payment_intent_id,
-          deposit_payment_intent_id: app.deposit_payment_intent_id,
-          total_contract_value: app.total_contract_value,
-          cashback_amount: cashbackAmount,
-          discount_amount: discountAmount,
-          adjusted_total: adjustedTotal,
-          partner_name: partnerRef?.partner_name || null,
-          commission_amount: partnerRef?.commission_amount || null,
-          created_at: app.created_at,
-          contract_start: (app.contract as any)?.contract_start || null,
-          contract_end: (app.contract as any)?.contract_end || null,
-          assigned_studio: (app.assigned_studio as any)?.studio_number || null,
-          overdue_amount: null,
-          overdue_days: null,
         };
       }
 
@@ -363,6 +366,13 @@ const fetchReport = async (reportType: ReportType): Promise<ReportItem[]> => {
           overdueDays = Math.floor(
             (today.getTime() - oldestDueDate.getTime()) / (1000 * 60 * 60 * 24),
           );
+        }
+      }
+
+      if (reportType === "no_instalment_payments") {
+        const hasPaidInstalment = schedules.some((s) => s.paid);
+        if (schedules.length > 0 && hasPaidInstalment) {
+          return null; // At least one instalment payment recorded
         }
       }
 
@@ -400,9 +410,9 @@ const fetchReport = async (reportType: ReportType): Promise<ReportItem[]> => {
       return {
         id: app.id,
         application_id: app.id,
-        student_name: profile.name,
-        student_email: profile.email,
-        student_phone: profile.phone,
+        student_name: effectiveProfile.name,
+        student_email: effectiveProfile.email,
+        student_phone: effectiveProfile.phone,
         contract_name: (app.contract as any)?.name || "—",
         studio_grade: (app.contract as any)?.studio_grade?.name || "—",
         status: app.status,
@@ -427,10 +437,10 @@ const fetchReport = async (reportType: ReportType): Promise<ReportItem[]> => {
   return reportItems;
 };
 
-export const useReport = (reportType: ReportType) => {
+export const useReport = (reportType: ReportType, academicYearId?: string) => {
   return useQuery({
-    queryKey: ["report", reportType],
-    queryFn: () => fetchReport(reportType),
+    queryKey: ["report", reportType, academicYearId ?? "all"],
+    queryFn: () => fetchReport(reportType, academicYearId),
   });
 };
 

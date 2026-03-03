@@ -44,6 +44,17 @@ export type PaymentSummary = {
   payment_status: "fully_paid" | "partially_paid" | "unpaid";
 };
 
+export type InstallmentBreakdown = {
+  installment_id: string;
+  sequence: number;
+  label: string;
+  due_date: string;
+  amount_due: number;
+  amount_paid: number;
+  remaining_amount: number;
+  payment_status: "unpaid" | "partial" | "paid";
+};
+
 /**
  * Get unified payment history for a student application
  */
@@ -103,6 +114,43 @@ export const usePaymentSummary = (applicationId: string | null | undefined) => {
     refetchOnWindowFocus: false, // Don't refetch on window focus
     refetchOnReconnect: false, // Don't refetch on reconnect
     // React Query automatically compares data - no re-render if unchanged
+  });
+};
+
+/**
+ * Per-instalment breakdown (amount due, amount paid, remaining, status) for an application.
+ * Non-breaking: if RPC fails or no data, returns an empty array so callers can fall back.
+ */
+export const useInstallmentBreakdown = (applicationId: string | null | undefined) => {
+  return useQuery({
+    queryKey: ["installment-breakdown", applicationId],
+    queryFn: async () => {
+      if (!applicationId) return [] as InstallmentBreakdown[];
+
+      const { data, error } = await supabase.rpc("get_installment_breakdown", {
+        p_application_id: applicationId,
+      });
+
+      if (error) {
+        // Log full error so we can see Postgres message (400 usually means function threw).
+        console.error("get_installment_breakdown failed for application", applicationId, {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+        });
+        return [] as InstallmentBreakdown[];
+      }
+
+      return (data || []) as InstallmentBreakdown[];
+    },
+    enabled: !!applicationId,
+    retry: false,
+    staleTime: 30000,
+    cacheTime: 300000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 };
 

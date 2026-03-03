@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useStudentApplication } from "@/hooks/useStudentApplication";
 import { useUpdateApplicationStatus } from "@/hooks/useAdminApplications";
 import { useAdminStudios } from "@/hooks/useAdminStudios";
-import { ArrowLeft, ArrowUpLeft, User, Mail, Phone, MapPin, Calendar, Building2, CreditCard, FileText, CheckCircle2, XCircle, Download, Send, RotateCcw, Gift, Percent, Handshake, Upload, Pencil, Check, ChevronsUpDown } from "lucide-react";
+import { ArrowLeft, ArrowUpLeft, User, Mail, Phone, MapPin, Calendar, Building2, CreditCard, FileText, CheckCircle2, XCircle, Download, Send, RotateCcw, Gift, Percent, Handshake, Upload, Pencil, Check, ChevronsUpDown, CalendarPlus } from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -25,7 +25,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import ManualPaymentDialog from "@/components/admin/ManualPaymentDialog";
-import { usePaymentSummary } from "@/hooks/useUnifiedPayments";
+import { useInstallmentBreakdown, usePaymentSummary } from "@/hooks/useUnifiedPayments";
 import { useStudentPayments } from "@/hooks/useStudentPayments";
 import {
   useCreateCustomContractFromApplication,
@@ -51,6 +51,8 @@ import {
   exportSingleApplicationCustomCSV,
   exportSingleApplicationDefaultCSV,
 } from "@/utils/csvTemplateGenerator";
+import { useCreateExtensionApplication } from "@/hooks/useCreateExtensionApplication";
+import { addDays } from "date-fns";
 
 const getStatusBadge = (status: string) => {
   const statusConfig: Record<string, { className: string; label: string }> = {
@@ -121,7 +123,40 @@ const ApplicationDetail = () => {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [customScheduleOpen, setCustomScheduleOpen] = useState(false);
   const [customInstallments, setCustomInstallments] = useState<CustomInstallmentInput[]>([]);
+  const [createExtensionOpen, setCreateExtensionOpen] = useState(false);
+  const [extensionForm, setExtensionForm] = useState({
+    extensionWeeks: 12,
+    numInstallments: 4,
+    extensionStartDate: "",
+    weeklyPrice: 0,
+    depositAmount: 0,
+  });
   const uploadDocument = useDocumentUpload();
+  const createExtension = useCreateExtensionApplication();
+
+  // Extensions of this application (when this is the original booking)
+  const { data: extensionApplications } = useQuery({
+    queryKey: ["student-application-extensions", applicationId],
+    queryFn: async () => {
+      if (!applicationId) return [];
+      const { data, error } = await supabase
+        .from("student_applications")
+        .select(`
+          id,
+          status,
+          created_at,
+          total_contract_value,
+          contract:contracts!contract_id ( id, name, contract_start, contract_end, weeks )
+        `)
+        .eq("extension_of_application_id", applicationId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!applicationId,
+  });
+  const isExtension = !!(application as { extension_of_application_id?: string | null })?.extension_of_application_id;
+  const isOriginalBooking = !!applicationId && !isExtension;
 
   const { data: paymentSchedule } = useStudentPayments(applicationId);
   const { data: hasInstalmentPayments } = useQuery({
@@ -147,6 +182,7 @@ const ApplicationDetail = () => {
   const { data: partners } = usePartners(true);
   const createPartnerReferral = useCreatePartnerReferral();
   const { data: paymentSummary } = usePaymentSummary(applicationId);
+  const { data: installmentBreakdown } = useInstallmentBreakdown(applicationId);
 
   // Fetch available studios for reassignment (same room grade + academic year as application; uses same "available" logic as Studio Roster)
   const { data: studios } = useAdminStudios({
@@ -648,6 +684,12 @@ const ApplicationDetail = () => {
                 Rebooking
               </Badge>
             )}
+            {isExtension && (
+              <Badge className="bg-primary/10 text-primary border-primary/20 rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide flex items-center gap-1.5">
+                <CalendarPlus className="h-3 w-3" />
+                Extension
+              </Badge>
+            )}
             <Select
               value={application.status}
               onValueChange={handleStatusChange}
@@ -694,6 +736,12 @@ const ApplicationDetail = () => {
               <Badge className="bg-primary/10 text-primary border-primary/20 rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide flex items-center gap-1.5">
                 <RotateCcw className="h-3 w-3" />
                 Rebooking
+              </Badge>
+            )}
+            {isExtension && (
+              <Badge className="bg-primary/10 text-primary border-primary/20 rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide flex items-center gap-1.5">
+                <CalendarPlus className="h-3 w-3" />
+                Extension
               </Badge>
             )}
           </div>
@@ -763,6 +811,87 @@ const ApplicationDetail = () => {
                 </div>
               )}
             </CardContent>
+          </Card>
+        )}
+
+        {/* Extension of (when this application is an extension) */}
+        {(application as { extension_of_application_id?: string | null }).extension_of_application_id && (
+          <Card className="rounded-3xl border-primary/20 bg-primary/5">
+            <CardHeader>
+              <CardTitle className="text-base sm:text-lg font-display uppercase tracking-wide flex items-center gap-2">
+                <CalendarPlus className="h-4 w-4 sm:h-5 sm:w-5" />
+                Contract Extension
+              </CardTitle>
+              <CardDescription className="text-sm">This application is an extension of an original booking.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div>
+                <p className="text-muted-foreground text-xs sm:text-sm mb-1">Original Application</p>
+                <Button
+                  variant="link"
+                  className="p-0 h-auto text-primary font-medium"
+                  onClick={() => navigate(`/admin/applications/${(application as { extension_of_application_id?: string }).extension_of_application_id}`)}
+                >
+                  View Original Application →
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Extensions (when this is the original: list extensions + Create extension) */}
+        {!(application as { extension_of_application_id?: string | null })?.extension_of_application_id && (
+          <Card className="rounded-3xl border-primary/20 bg-primary/5">
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base sm:text-lg font-display uppercase tracking-wide flex items-center gap-2">
+                    <CalendarPlus className="h-4 w-4 sm:h-5 sm:w-5" />
+                    Contract Extensions
+                  </CardTitle>
+                  <CardDescription className="text-sm mt-1">Add an extension period (e.g. extra weeks with a new instalment schedule) for this booking.</CardDescription>
+                </div>
+                <Button
+                  className="rounded-full uppercase tracking-wide gap-2"
+                  onClick={() => {
+                    const contract = application?.contract as { contract_end?: string; weekly_price_override?: number } | null;
+                    const endDate = contract?.contract_end ? addDays(new Date(contract.contract_end), 1).toISOString().slice(0, 10) : "";
+                    setExtensionForm((prev) => ({
+                      ...prev,
+                      extensionStartDate: endDate,
+                      weeklyPrice: contract?.weekly_price_override ?? prev.weeklyPrice,
+                      depositAmount: prev.depositAmount,
+                    }));
+                    setCreateExtensionOpen(true);
+                  }}
+                >
+                  <CalendarPlus className="h-4 w-4" />
+                  Create extension
+                </Button>
+              </div>
+            </CardHeader>
+            {(extensionApplications?.length ?? 0) > 0 && (
+              <CardContent className="pt-0 space-y-2">
+                <p className="text-muted-foreground text-xs sm:text-sm">Extensions linked to this booking:</p>
+                <ul className="space-y-2">
+                  {extensionApplications?.map((ext: { id: string; status: string; created_at: string; total_contract_value: number | null; contract: { name?: string; contract_start?: string; contract_end?: string; weeks?: number } | null }) => (
+                    <li key={ext.id} className="flex flex-wrap items-center justify-between gap-2 py-2 border-b border-border/50 last:border-0">
+                      <span className="text-sm font-medium">{ext.contract?.name ?? "Extension"}</span>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className="rounded-full text-xs">{ext.status}</Badge>
+                        <Button
+                          variant="link"
+                          className="p-0 h-auto text-primary text-sm"
+                          onClick={() => navigate(`/admin/applications/${ext.id}`)}
+                        >
+                          View →
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            )}
           </Card>
         )}
 
@@ -1365,18 +1494,51 @@ const ApplicationDetail = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {paymentSchedule.map((row, index) => {
-                          const instalmentPaymentCount = Number(paymentSummary?.payment_count ?? 0);
-                          const isPaid = index < instalmentPaymentCount;
+                        {paymentSchedule.map((row) => {
+                          const breakdown = installmentBreakdown?.find(
+                            (b) => b.sequence === row.sequence
+                          );
+
                           return (
                             <tr key={row.id} className="border-b border-border/40 last:border-0 hover:bg-muted/30">
                               <td className="py-2 px-3 text-muted-foreground">{row.label ?? `Instalment ${row.sequence}`}</td>
                               <td className="py-2 px-3 text-right font-medium">{formatCurrency(Number(row.amount))}</td>
                               <td className="py-2 px-3 text-center">
-                                {isPaid ? (
-                                  <Badge className="bg-emerald-600 text-white text-xs font-semibold uppercase px-2 py-0.5 rounded-md">Paid</Badge>
+                                {breakdown ? (
+                                  <div className="flex flex-col items-center gap-0.5">
+                                    {breakdown.payment_status === "paid" && (
+                                      <Badge className="bg-emerald-600 text-white text-xs font-semibold uppercase px-2 py-0.5 rounded-md">
+                                        Paid
+                                      </Badge>
+                                    )}
+                                    {breakdown.payment_status === "partial" && (
+                                      <Badge className="bg-amber-500 text-white text-xs font-semibold uppercase px-2 py-0.5 rounded-md">
+                                        Partially paid
+                                      </Badge>
+                                    )}
+                                    {breakdown.payment_status === "unpaid" && (
+                                      <Badge
+                                        variant="outline"
+                                        className="text-muted-foreground text-xs uppercase"
+                                      >
+                                        Not paid
+                                      </Badge>
+                                    )}
+                                    {(breakdown.amount_paid > 0 ||
+                                      breakdown.remaining_amount > 0) && (
+                                      <span className="text-[10px] text-muted-foreground">
+                                        £{Number(breakdown.amount_paid).toFixed(2)} of £
+                                        {Number(breakdown.amount_due).toFixed(2)} paid
+                                      </span>
+                                    )}
+                                  </div>
                                 ) : (
-                                  <Badge variant="outline" className="text-muted-foreground text-xs uppercase">Not paid</Badge>
+                                  <Badge
+                                    variant="outline"
+                                    className="text-muted-foreground text-xs uppercase"
+                                  >
+                                    Not paid
+                                  </Badge>
                                 )}
                               </td>
                               <td className="py-2 px-3 text-right text-muted-foreground">{row.due_date ? format(new Date(row.due_date), "d MMM yyyy") : "—"}</td>
@@ -2047,6 +2209,133 @@ const ApplicationDetail = () => {
                 </>
               ) : (
                 "Save custom schedule"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Extension Dialog */}
+      <Dialog open={createExtensionOpen} onOpenChange={setCreateExtensionOpen}>
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create contract extension</DialogTitle>
+            <DialogDescription>
+              Create a new application for an extension period (e.g. 12 weeks, 4 installments). The student and studio will be copied from the original booking.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label htmlFor="ext-weeks">Extension weeks</Label>
+                <Input
+                  id="ext-weeks"
+                  type="number"
+                  min={1}
+                  max={52}
+                  value={extensionForm.extensionWeeks}
+                  onChange={(e) => setExtensionForm((p) => ({ ...p, extensionWeeks: Math.max(1, parseInt(e.target.value, 10) || 1) }))}
+                  className="rounded-lg"
+                />
+              </div>
+              <div>
+                <Label htmlFor="ext-instalments">Number of installments</Label>
+                <Input
+                  id="ext-instalments"
+                  type="number"
+                  min={1}
+                  max={12}
+                  value={extensionForm.numInstallments}
+                  onChange={(e) => setExtensionForm((p) => ({ ...p, numInstallments: Math.max(1, parseInt(e.target.value, 10) || 1) }))}
+                  className="rounded-lg"
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="ext-start">Extension start date</Label>
+              <Input
+                id="ext-start"
+                type="date"
+                value={extensionForm.extensionStartDate}
+                onChange={(e) => setExtensionForm((p) => ({ ...p, extensionStartDate: e.target.value }))}
+                className="rounded-lg"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label htmlFor="ext-weekly">Weekly price (£)</Label>
+                <Input
+                  id="ext-weekly"
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={extensionForm.weeklyPrice || ""}
+                  onChange={(e) => setExtensionForm((p) => ({ ...p, weeklyPrice: parseFloat(e.target.value) || 0 }))}
+                  className="rounded-lg"
+                />
+              </div>
+              <div>
+                <Label htmlFor="ext-deposit">Deposit (£)</Label>
+                <Input
+                  id="ext-deposit"
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={extensionForm.depositAmount || ""}
+                  onChange={(e) => setExtensionForm((p) => ({ ...p, depositAmount: parseFloat(e.target.value) || 0 }))}
+                  className="rounded-lg"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setCreateExtensionOpen(false)} className="rounded-full uppercase tracking-wide">
+              Cancel
+            </Button>
+            <Button
+              className="rounded-full uppercase tracking-wide"
+              disabled={
+                createExtension.isPending ||
+                !extensionForm.extensionStartDate ||
+                extensionForm.weeklyPrice <= 0
+              }
+              onClick={async () => {
+                const studentName =
+                  step1Data?.first_name && step1Data?.last_name
+                    ? `${step1Data.first_name} ${step1Data.last_name}`.trim()
+                    : "Student";
+                try {
+                  const result = await createExtension.mutateAsync({
+                    originalApplicationId: applicationId!,
+                    extensionWeeks: extensionForm.extensionWeeks,
+                    numInstallments: extensionForm.numInstallments,
+                    extensionStartDate: extensionForm.extensionStartDate,
+                    weeklyPrice: extensionForm.weeklyPrice,
+                    depositAmount: extensionForm.depositAmount,
+                    studentDisplayName: studentName,
+                  });
+                  toast({
+                    title: "Extension created",
+                    description: "A new application has been created for the extension period. You can complete the booking journey from there.",
+                  });
+                  setCreateExtensionOpen(false);
+                  navigate(`/admin/applications/${result.applicationId}`);
+                } catch (err: unknown) {
+                  toast({
+                    title: "Error",
+                    description: err instanceof Error ? err.message : "Failed to create extension.",
+                    variant: "destructive",
+                  });
+                }
+              }}
+            >
+              {createExtension.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Creating…
+                </>
+              ) : (
+                "Create extension"
               )}
             </Button>
           </DialogFooter>

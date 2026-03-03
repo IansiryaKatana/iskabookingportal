@@ -58,6 +58,12 @@ const reportTypes: Array<{ value: ExtendedReportType; label: string; icon: typeo
     description: "Students with outstanding balances",
   },
   {
+    value: "no_instalment_payments",
+    label: "No Instalment Payments",
+    icon: CreditCard,
+    description: "Applications with no instalment payments recorded (deposit may or may not be paid)",
+  },
+  {
     value: "applications-pipeline",
     label: "Applications Pipeline (Summary)",
     icon: Users,
@@ -176,11 +182,21 @@ const Reports = () => {
     selectedReport === "awaiting_signatures" ||
     selectedReport === "awaiting_deposit" ||
     selectedReport === "overdue_payments" ||
-    selectedReport === "debtors"
+    selectedReport === "debtors" ||
+    selectedReport === "no_instalment_payments"
       ? selectedReport
       : "awaiting_signatures";
 
-  const { data: reportData, isLoading } = useReport(listReportType);
+  const { data: reportData, isLoading } = useReport(
+    listReportType,
+    selectedReport === "awaiting_signatures" ||
+      selectedReport === "awaiting_deposit" ||
+      selectedReport === "overdue_payments" ||
+      selectedReport === "debtors" ||
+      selectedReport === "no_instalment_payments"
+      ? selectedAcademicYearId
+      : undefined,
+  );
   const { data: occupancyReport, isLoading: isLoadingOccupancy } = useOccupancyReport(
     selectedReport === "occupancy" ? selectedAcademicYearId : undefined
   );
@@ -524,7 +540,12 @@ const Reports = () => {
               )}
               {(selectedReport === "occupancy" ||
                 selectedReport === "applications-pipeline" ||
-                selectedReport === "move-outs") && (
+                selectedReport === "move-outs" ||
+                selectedReport === "awaiting_signatures" ||
+                selectedReport === "awaiting_deposit" ||
+                selectedReport === "overdue_payments" ||
+                selectedReport === "debtors" ||
+                selectedReport === "no_instalment_payments") && (
                 <div className="mt-4">
                   <Label htmlFor="academic-year">Academic Year (Optional)</Label>
                   <div className="mt-2">

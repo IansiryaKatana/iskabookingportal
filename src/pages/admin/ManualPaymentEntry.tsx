@@ -35,7 +35,7 @@ import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateManualPayment, useLinkManualPaymentById } from "@/hooks/useManualPayment";
 import { useToast } from "@/hooks/use-toast";
-import { usePaymentSummary, useUnifiedPayments } from "@/hooks/useUnifiedPayments";
+import { useInstallmentBreakdown, usePaymentSummary, useUnifiedPayments } from "@/hooks/useUnifiedPayments";
 import { getEffectiveWeeks } from "@/utils/contractDuration";
 import { Loader2, Plus, Search, CheckCircle2, XCircle, Pencil } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -356,11 +356,22 @@ const ManualPaymentEntry = () => {
       (linkInstalments ?? []).every((r, i) => r.instalment_number === i + 1),
     [linkInstalments]
   );
+  const { data: linkInstallmentBreakdown } = useInstallmentBreakdown(linkApplicationId || null);
   const unpaidInstalmentsForLink = useMemo(() => {
     const list = linkInstalments ?? [];
+    if (!list.length) return [];
+    // Prefer precise per-instalment breakdown when available: exclude only fully paid instalments.
+    if (linkInstallmentBreakdown && linkInstallmentBreakdown.length > 0) {
+      const byId = new Map(linkInstallmentBreakdown.map((b) => [b.installment_id, b]));
+      return list.filter((inst) => {
+        const b = byId.get(inst.id);
+        return !b || b.payment_status !== "paid";
+      });
+    }
+    // Fallback to existing behaviour when breakdown is not available.
     if (usedPlanBasedForLink) return list.filter((_, index) => index >= linkPaymentCount);
     return list.filter((inst) => !paidSequencesForLink.has(inst.sequence));
-  }, [linkInstalments, paidSequencesForLink, linkPaymentCount, usedPlanBasedForLink]);
+  }, [linkInstalments, paidSequencesForLink, linkPaymentCount, usedPlanBasedForLink, linkInstallmentBreakdown]);
 
   // Instalments for link-dialog (when linking an existing unlinked payment to an application)
   const { data: linkDialogInstalments } = useQuery({
@@ -469,19 +480,37 @@ const ManualPaymentEntry = () => {
       (linkDialogInstalments ?? []).every((r, i) => r.instalment_number === i + 1),
     [linkDialogInstalments]
   );
+  const { data: linkDialogInstallmentBreakdown } = useInstallmentBreakdown(linkDialogApplicationId || null);
   const unpaidInstalmentsForLinkDialog = useMemo(() => {
     const list = linkDialogInstalments ?? [];
+    if (!list.length) return [];
+    // Prefer precise per-instalment breakdown when available.
+    if (linkDialogInstallmentBreakdown && linkDialogInstallmentBreakdown.length > 0) {
+      const byId = new Map(linkDialogInstallmentBreakdown.map((b) => [b.installment_id, b]));
+      return list.filter((inst) => {
+        const b = byId.get(inst.id);
+        return !b || b.payment_status !== "paid";
+      });
+    }
+    // Fallback to previous logic when breakdown is missing.
     if (linkDialogUsedPlanBased) return list.filter((_, index) => index >= linkDialogPaymentCount);
     return list.filter((inst) => !linkDialogPaidSequences.has(inst.sequence));
-  }, [linkDialogInstalments, linkDialogPaidSequences, linkDialogPaymentCount, linkDialogUsedPlanBased]);
+  }, [linkDialogInstalments, linkDialogPaidSequences, linkDialogPaymentCount, linkDialogUsedPlanBased, linkDialogInstallmentBreakdown]);
 
   // Auto-fill amount when linking to an instalment
   useEffect(() => {
     if (paymentType === "instalment" && linkInstalmentId && unpaidInstalmentsForLink.length > 0) {
+      const breakdown = linkInstallmentBreakdown?.find(
+        (b) => b.installment_id === linkInstalmentId
+      );
+      if (breakdown && breakdown.remaining_amount > 0) {
+        setAmount(String(breakdown.remaining_amount));
+        return;
+      }
       const inst = unpaidInstalmentsForLink.find((i) => i.id === linkInstalmentId);
       if (inst) setAmount(String(inst.amount));
     }
-  }, [paymentType, linkInstalmentId, unpaidInstalmentsForLink]);
+  }, [paymentType, linkInstalmentId, unpaidInstalmentsForLink, linkInstallmentBreakdown]);
 
   // Fetch orphaned payments (no application_id)
   const { data: orphanedPayments, isLoading, refetch } = useQuery({
@@ -531,6 +560,23 @@ const ManualPaymentEntry = () => {
         variant: "destructive",
       });
       return;
+    }
+
+    // Optional guard: prevent overpayment when we know remaining amount.
+    if (linkingToApplication && paymentType === "instalment" && linkInstalmentId && linkInstallmentBreakdown) {
+      const breakdown = linkInstallmentBreakdown.find(
+        (b) => b.installment_id === linkInstalmentId
+      );
+      if (breakdown && parseFloat(amount) > breakdown.remaining_amount + 0.01) {
+        toast({
+          title: "Amount too high",
+          description: `This instalment has only £${breakdown.remaining_amount.toFixed(
+            2
+          )} remaining. Please enter an amount up to the remaining balance.`,
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     try {
