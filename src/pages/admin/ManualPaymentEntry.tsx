@@ -124,6 +124,7 @@ const ManualPaymentEntry = () => {
   const [linkDialogInstalmentId, setLinkDialogInstalmentId] = useState<string>("");
   const [linkDialogAppSearch, setLinkDialogAppSearch] = useState("");
   const [linkDialogAppOpen, setLinkDialogAppOpen] = useState(false);
+  const [linkAppDropdownOpen, setLinkAppDropdownOpen] = useState(false);
 
   // Pending student manual payment requests (approve → create manual_payment)
   const { data: pendingRequests, isLoading: pendingLoading, refetch: refetchPending } = useQuery({
@@ -562,38 +563,124 @@ const ManualPaymentEntry = () => {
       return;
     }
 
-    // Optional guard: prevent overpayment when we know remaining amount.
-    if (linkingToApplication && paymentType === "instalment" && linkInstalmentId && linkInstallmentBreakdown) {
-      const breakdown = linkInstallmentBreakdown.find(
-        (b) => b.installment_id === linkInstalmentId
-      );
-      if (breakdown && parseFloat(amount) > breakdown.remaining_amount + 0.01) {
-        toast({
-          title: "Amount too high",
-          description: `This instalment has only £${breakdown.remaining_amount.toFixed(
-            2
-          )} remaining. Please enter an amount up to the remaining balance.`,
-          variant: "destructive",
-        });
-        return;
-      }
-    }
+    const parsedAmount = parseFloat(amount);
 
     try {
-      await createPayment.mutateAsync({
-        applicationId: linkingToApplication ? linkApplicationId : undefined,
-        paymentType,
-        instalmentId: paymentType === "instalment" && linkInstalmentId ? linkInstalmentId : undefined,
-        amount: parseFloat(amount),
-        paymentMethod,
-        receiptNumber: receiptNumber.trim() || undefined,
-        paymentDate,
-        notes: notes.trim() || undefined,
-      });
+      // When linking to an application instalment and we have a breakdown, mirror the
+      // Application Detail dialog behaviour: allow one payment to top up the selected
+      // instalment and then spill into later instalments (by sequence).
+      if (
+        linkingToApplication &&
+        paymentType === "instalment" &&
+        linkInstalmentId &&
+        linkInstallmentBreakdown &&
+        linkInstallmentBreakdown.length > 0
+      ) {
+        const ordered = [...linkInstallmentBreakdown].sort(
+          (a, b) => a.sequence - b.sequence,
+        );
+        const startIdx = ordered.findIndex(
+          (b) => b.installment_id === linkInstalmentId,
+        );
+
+        if (startIdx !== -1) {
+          const targetSlice = ordered
+            .slice(startIdx)
+            .filter(
+              (b) => b.payment_status !== "paid" && b.remaining_amount > 0,
+            );
+
+          const totalRemainingFromStart = targetSlice.reduce(
+            (sum, row) => sum + Number(row.remaining_amount ?? 0),
+            0,
+          );
+
+          if (parsedAmount > totalRemainingFromStart + 0.01) {
+            toast({
+              title: "Amount too high",
+              description: `Total remaining from this instalment onwards is £${totalRemainingFromStart.toFixed(
+                2,
+              )}. Please enter an amount up to that total.`,
+              variant: "destructive",
+            });
+            return;
+          }
+
+          const first = targetSlice[0];
+          if (parsedAmount <= Number(first.remaining_amount) + 0.01) {
+            // Single-instalment payment (partial or full)
+            await createPayment.mutateAsync({
+              applicationId: linkApplicationId,
+              paymentType: "instalment",
+              instalmentId: first.installment_id,
+              amount: parsedAmount,
+              paymentMethod,
+              receiptNumber: receiptNumber.trim() || undefined,
+              paymentDate,
+              notes: notes.trim() || undefined,
+            });
+          } else {
+            // Waterfall across multiple instalments. Only the first allocation carries
+            // the receipt number to respect the unique constraint; subsequent allocations
+            // omit it while still updating balances correctly.
+            let remainingToAllocate = parsedAmount;
+            let isFirstAllocation = true;
+
+            for (const row of targetSlice) {
+              if (remainingToAllocate <= 0.01) break;
+              const remainingForRow = Number(row.remaining_amount ?? 0);
+              if (remainingForRow <= 0.01) continue;
+
+              const allocate = Math.min(remainingForRow, remainingToAllocate);
+              await createPayment.mutateAsync({
+                applicationId: linkApplicationId,
+                paymentType: "instalment",
+                instalmentId: row.installment_id,
+                amount: allocate,
+                paymentMethod,
+                receiptNumber: isFirstAllocation ? receiptNumber.trim() || undefined : undefined,
+                paymentDate,
+                notes: notes.trim() || undefined,
+              });
+              remainingToAllocate -= allocate;
+              isFirstAllocation = false;
+            }
+          }
+        } else {
+          // Fallback: selected instalment not in breakdown; record a single payment.
+          await createPayment.mutateAsync({
+            applicationId: linkApplicationId,
+            paymentType: "instalment",
+            instalmentId: linkInstalmentId,
+            amount: parsedAmount,
+            paymentMethod,
+            receiptNumber: receiptNumber.trim() || undefined,
+            paymentDate,
+            notes: notes.trim() || undefined,
+          });
+        }
+      } else {
+        // Deposit, unlinked payments, or no breakdown available: single payment.
+        await createPayment.mutateAsync({
+          applicationId: linkingToApplication ? linkApplicationId : undefined,
+          paymentType,
+          instalmentId:
+            paymentType === "instalment" && linkInstalmentId
+              ? linkInstalmentId
+              : undefined,
+          amount: parsedAmount,
+          paymentMethod,
+          receiptNumber: receiptNumber.trim() || undefined,
+          paymentDate,
+          notes: notes.trim() || undefined,
+        });
+      }
 
       toast({
         title: "Payment recorded",
-        description: `Successfully recorded ${paymentType} payment of £${amount} with receipt number ${receiptNumber.trim()}.`,
+        description: `Successfully recorded ${paymentType} payment of £${amount}${
+          receiptNumber.trim() ? ` with receipt number ${receiptNumber.trim()}` : ""
+        }.`,
       });
 
       // Reset form
@@ -1018,27 +1105,101 @@ const ManualPaymentEntry = () => {
 
                 <div>
                   <Label htmlFor="link-application">Link to application (optional)</Label>
-                  <Select
-                    value={linkApplicationId || "__none__"}
-                    onValueChange={(value) => {
-                      setLinkApplicationId(value === "__none__" ? "" : value);
-                      setLinkInstalmentId("");
-                    }}
-                  >
-                    <SelectTrigger id="link-application" className="mt-2">
-                      <SelectValue placeholder="None – record as unlinked payment" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">None – record as unlinked payment</SelectItem>
-                      {applicationsForLink?.map((app) => (
-                        <SelectItem key={app.id} value={app.id}>
-                          {(app as { student_name?: string | null; student_email?: string | null }).student_name ?? "—"} – {(app as { student_email?: string | null }).student_email ?? ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Popover open={linkAppDropdownOpen} onOpenChange={setLinkAppDropdownOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        id="link-application"
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={linkAppDropdownOpen}
+                        className={cn(
+                          "mt-2 w-full justify-between rounded-full font-normal",
+                          !linkApplicationId && "text-muted-foreground"
+                        )}
+                      >
+                        <span className="truncate">
+                          {(() => {
+                            if (!linkApplicationId) {
+                              return "None – record as unlinked payment";
+                            }
+                            const app = applicationsForLink?.find((a) => a.id === linkApplicationId);
+                            if (!app) return "Select application";
+                            const name =
+                              (app as { student_name?: string | null }).student_name ?? "—";
+                            const email =
+                              (app as { student_email?: string | null }).student_email ?? "";
+                            return `${name}${email ? ` – ${email}` : ""}`;
+                          })()}
+                        </span>
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      className="w-[var(--radix-popover-trigger-width)] p-0 max-h-72"
+                      align="start"
+                    >
+                      <Command>
+                        <CommandInput
+                          placeholder="Search student or email..."
+                          className="h-9"
+                        />
+                        <CommandList>
+                          <CommandEmpty>No applications found.</CommandEmpty>
+                          <CommandGroup>
+                            <CommandItem
+                              value="__none__"
+                              onSelect={() => {
+                                setLinkApplicationId("");
+                                setLinkInstalmentId("");
+                                setLinkAppDropdownOpen(false);
+                              }}
+                              className="cursor-pointer"
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  !linkApplicationId ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              None – record as unlinked payment
+                            </CommandItem>
+                            {applicationsForLink?.map((app) => {
+                              const name =
+                                (app as { student_name?: string | null }).student_name ?? "—";
+                              const email =
+                                (app as { student_email?: string | null }).student_email ?? "";
+                              const label = `${name}${email ? ` – ${email}` : ""}`;
+                              return (
+                                <CommandItem
+                                  key={app.id}
+                                  value={label}
+                                  onSelect={() => {
+                                    setLinkApplicationId(app.id);
+                                    setLinkInstalmentId("");
+                                    setLinkAppDropdownOpen(false);
+                                  }}
+                                  className="cursor-pointer"
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      linkApplicationId === app.id
+                                        ? "opacity-100"
+                                        : "opacity-0"
+                                    )}
+                                  />
+                                  {label}
+                                </CommandItem>
+                              );
+                            })}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Link this payment to an application and (for instalments) a specific instalment. Leave empty for unlinked payments (student verifies by receipt).
+                    Link this payment to an application and (for instalments) a specific instalment.
+                    Leave empty for unlinked payments (student verifies by receipt).
                   </p>
                 </div>
 

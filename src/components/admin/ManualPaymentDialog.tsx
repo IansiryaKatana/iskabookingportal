@@ -395,7 +395,11 @@ const ManualPaymentDialog = ({
             });
           } else {
             // Waterfall: split across multiple instalments.
+            // To respect the unique receipt_number constraint, only the first
+            // allocation carries the receipt/cheque number; subsequent rows
+            // omit it (null), while still updating installment balances.
             let remainingToAllocate = parsedAmount;
+            let isFirstAllocation = true;
 
             for (const row of targetSlice) {
               if (remainingToAllocate <= 0.01) break;
@@ -409,11 +413,12 @@ const ManualPaymentDialog = ({
                 instalmentId: row.installment_id,
                 amount: allocate,
                 paymentMethod,
-                receiptNumber: receiptNumber.trim() || undefined,
+                receiptNumber: isFirstAllocation ? receiptNumber.trim() || undefined : undefined,
                 paymentDate,
                 notes: notes.trim() || undefined,
               });
               remainingToAllocate -= allocate;
+              isFirstAllocation = false;
             }
           }
         } else {

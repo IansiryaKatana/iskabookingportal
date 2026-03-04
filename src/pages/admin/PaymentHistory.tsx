@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAllPayments, type UnifiedPayment } from "@/hooks/useUnifiedPayments";
 import { useAdminContracts } from "@/hooks/useAdminContracts";
 import { useAdminAcademicYears } from "@/hooks/useAdminAcademicYears";
@@ -13,15 +14,44 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Download, Calendar, Filter, FileText, RefreshCw, CheckCircle2, AlertCircle, Search } from "lucide-react";
+import {
+  Download,
+  Calendar,
+  Filter,
+  FileText,
+  RefreshCw,
+  CheckCircle2,
+  AlertCircle,
+  Search,
+  Trash,
+  MoreVertical,
+} from "lucide-react";
 import { format } from "date-fns";
 import { Link } from "react-router-dom";
 import { generateInvoicePDF } from "@/utils/invoicePdfGenerator";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const PaymentHistory = () => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [selectedContract, setSelectedContract] = useState<string>("all");
   const [selectedYear, setSelectedYear] = useState<string>("all");
   const [startDate, setStartDate] = useState<string>("");
@@ -44,6 +74,101 @@ const PaymentHistory = () => {
   };
 
   const { data: payments, isLoading } = useAllPayments(filters);
+
+  const [editingPayment, setEditingPayment] = useState<UnifiedPayment | null>(null);
+  const [editAmount, setEditAmount] = useState<string>("");
+  const [editPaymentDate, setEditPaymentDate] = useState<string>("");
+  const [editReceiptNumber, setEditReceiptNumber] = useState<string>("");
+  const [editNotes, setEditNotes] = useState<string>("");
+  const [editPaymentMethod, setEditPaymentMethod] = useState<"cash" | "card" | "bank_transfer" | "cheque">("cash");
+
+  const deleteManualPayment = useMutation({
+    mutationFn: async (payment: UnifiedPayment) => {
+      if (payment.payment_source !== "manual" || !payment.manual_entry_id) {
+        throw new Error("Only manual payment records can be deleted here.");
+      }
+
+      const { error } = await supabase
+        .from("manual_payments")
+        .delete()
+        .eq("id", payment.manual_entry_id);
+
+      if (error) throw error;
+    },
+    onSuccess: (_data, payment) => {
+      queryClient.invalidateQueries({ queryKey: ["all-payments"] });
+      if (payment.student_application_id) {
+        queryClient.invalidateQueries({ queryKey: ["unified-payments", payment.student_application_id] });
+        queryClient.invalidateQueries({ queryKey: ["payment-summary", payment.student_application_id] });
+        queryClient.invalidateQueries({ queryKey: ["installment-breakdown", payment.student_application_id] });
+        queryClient.invalidateQueries({ queryKey: ["paid-instalment-ids", payment.student_application_id] });
+      }
+
+      toast({
+        title: "Payment deleted",
+        description: "The manual payment has been removed and balances have been updated.",
+      });
+    },
+    onError: (error: unknown) => {
+      const message =
+        error instanceof Error ? error.message : "Failed to delete payment. Please try again.";
+      toast({
+        title: "Error",
+        description: message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateManualPayment = useMutation({
+    mutationFn: async (variables: {
+      id: string;
+      amount: number;
+      paymentDate: string;
+      receiptNumber: string;
+      notes: string;
+      paymentMethod: "cash" | "card" | "bank_transfer" | "cheque";
+      applicationId?: string;
+    }) => {
+      const { error } = await supabase
+        .from("manual_payments")
+        .update({
+          amount: variables.amount,
+          payment_date: variables.paymentDate,
+          receipt_number: variables.receiptNumber || null,
+          notes: variables.notes || null,
+          payment_method: variables.paymentMethod,
+        })
+        .eq("id", variables.id);
+
+      if (error) throw error;
+      return variables;
+    },
+    onSuccess: (variables) => {
+      queryClient.invalidateQueries({ queryKey: ["all-payments"] });
+      if (variables.applicationId) {
+        queryClient.invalidateQueries({ queryKey: ["unified-payments", variables.applicationId] });
+        queryClient.invalidateQueries({ queryKey: ["payment-summary", variables.applicationId] });
+        queryClient.invalidateQueries({ queryKey: ["installment-breakdown", variables.applicationId] });
+        queryClient.invalidateQueries({ queryKey: ["paid-instalment-ids", variables.applicationId] });
+      }
+
+      toast({
+        title: "Payment updated",
+        description: "The manual payment has been updated and balances have been refreshed.",
+      });
+      setEditingPayment(null);
+    },
+    onError: (error: unknown) => {
+      const message =
+        error instanceof Error ? error.message : "Failed to update payment. Please try again.";
+      toast({
+        title: "Error",
+        description: message,
+        variant: "destructive",
+      });
+    },
+  });
 
   // Client-side filter by student name; then split into deposits/installments
   const { filteredPayments, deposits, installments, allPayments } = useMemo(() => {
@@ -391,6 +516,110 @@ const PaymentHistory = () => {
     }
   };
 
+  const handleEditManualPayment = async (payment: UnifiedPayment) => {
+    if (payment.payment_source !== "manual") {
+      toast({
+        title: "Cannot edit payment",
+        description: "Only manual payments can be edited here.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!payment.manual_entry_id) {
+      toast({
+        title: "Cannot edit payment",
+        description: "This payment is not linked to a manual payment record.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("manual_payments")
+      .select("id, amount, payment_date, receipt_number, notes, payment_method")
+      .eq("id", payment.manual_entry_id)
+      .single();
+
+    if (error || !data) {
+      toast({
+        title: "Error",
+        description: "Failed to load payment details for editing.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setEditingPayment(payment);
+    setEditAmount((Number(data.amount) || 0).toString());
+    setEditPaymentDate(
+      data.payment_date ? new Date(data.payment_date).toISOString().split("T")[0] : ""
+    );
+    setEditReceiptNumber(data.receipt_number ?? "");
+    setEditNotes(data.notes ?? "");
+    setEditPaymentMethod((data.payment_method as "cash" | "card" | "bank_transfer" | "cheque") || "cash");
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingPayment || !editingPayment.manual_entry_id) return;
+
+    const parsedAmount = parseFloat(editAmount);
+    if (!editAmount || isNaN(parsedAmount) || parsedAmount <= 0) {
+      toast({
+        title: "Invalid amount",
+        description: "Please enter a valid payment amount.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!editPaymentDate) {
+      toast({
+        title: "Payment date required",
+        description: "Please select a payment date.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    updateManualPayment.mutate({
+      id: editingPayment.manual_entry_id,
+      amount: parsedAmount,
+      paymentDate: editPaymentDate,
+      receiptNumber: editReceiptNumber.trim(),
+      notes: editNotes.trim(),
+      paymentMethod: editPaymentMethod,
+      applicationId: editingPayment.student_application_id,
+    });
+  };
+
+  const handleDeleteManualPayment = (payment: UnifiedPayment) => {
+    if (payment.payment_source !== "manual") {
+      toast({
+        title: "Cannot delete payment",
+        description: "Stripe payments cannot be deleted from this screen.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!payment.manual_entry_id) {
+      toast({
+        title: "Cannot delete payment",
+        description: "This payment is not linked to a manual payment record.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this manual payment? This will update the student's installment balances."
+    );
+    if (!confirmed) return;
+
+    deleteManualPayment.mutate(payment);
+  };
+
   return (
     <AdminLayout
       pageTitle="Payment History"
@@ -715,6 +944,8 @@ const PaymentHistory = () => {
                     selectedPayments={selectedPayments}
                     togglePaymentSelection={togglePaymentSelection}
                     handleDownloadReceipt={handleDownloadReceipt}
+                    handleDeleteManualPayment={handleDeleteManualPayment}
+                    handleEditManualPayment={handleEditManualPayment}
                   />
                 </TabsContent>
                 
@@ -729,6 +960,8 @@ const PaymentHistory = () => {
                       selectedPayments={selectedPayments}
                       togglePaymentSelection={togglePaymentSelection}
                       handleDownloadReceipt={handleDownloadReceipt}
+                      handleDeleteManualPayment={handleDeleteManualPayment}
+                      handleEditManualPayment={handleEditManualPayment}
                     />
                   )}
                 </TabsContent>
@@ -744,6 +977,8 @@ const PaymentHistory = () => {
                       selectedPayments={selectedPayments}
                       togglePaymentSelection={togglePaymentSelection}
                       handleDownloadReceipt={handleDownloadReceipt}
+                      handleDeleteManualPayment={handleDeleteManualPayment}
+                      handleEditManualPayment={handleEditManualPayment}
                     />
                   )}
                 </TabsContent>
@@ -752,6 +987,105 @@ const PaymentHistory = () => {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog
+        open={!!editingPayment}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingPayment(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[480px] rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-display uppercase tracking-wide">
+              Edit Manual Payment
+            </DialogTitle>
+            <DialogDescription>
+              Update the amount, date, method or notes for this manual payment. Changes will
+              recalculate the student&apos;s installment balances.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <div className="space-y-1">
+              <Label htmlFor="edit-amount">Amount (£)</Label>
+              <Input
+                id="edit-amount"
+                type="number"
+                step="0.01"
+                min="0"
+                value={editAmount}
+                onChange={(e) => setEditAmount(e.target.value)}
+                className="rounded-full"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="edit-date">Payment date</Label>
+              <Input
+                id="edit-date"
+                type="date"
+                value={editPaymentDate}
+                onChange={(e) => setEditPaymentDate(e.target.value)}
+                className="rounded-full"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="edit-method">Payment method</Label>
+              <Select
+                value={editPaymentMethod}
+                onValueChange={(value) =>
+                  setEditPaymentMethod(value as "cash" | "card" | "bank_transfer" | "cheque")
+                }
+              >
+                <SelectTrigger id="edit-method" className="rounded-full">
+                  <SelectValue placeholder="Select method" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="card">Card</SelectItem>
+                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                  <SelectItem value="cheque">Cheque</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="edit-receipt">Receipt number (optional)</Label>
+              <Input
+                id="edit-receipt"
+                value={editReceiptNumber}
+                onChange={(e) => setEditReceiptNumber(e.target.value)}
+                className="rounded-full"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="edit-notes">Notes (optional)</Label>
+              <Textarea
+                id="edit-notes"
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+                className="min-h-[60px] resize-none"
+                rows={2}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditingPayment(null)}
+              className="rounded-full uppercase tracking-wide"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveEdit}
+              disabled={updateManualPayment.isPending}
+              className="rounded-full uppercase tracking-wide"
+            >
+              {updateManualPayment.isPending ? "Saving..." : "Save changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 };
@@ -762,9 +1096,18 @@ type PaymentListProps = {
   selectedPayments: Set<string>;
   togglePaymentSelection: (key: string) => void;
   handleDownloadReceipt: (payment: UnifiedPayment) => Promise<void>;
+  handleDeleteManualPayment: (payment: UnifiedPayment) => void;
+  handleEditManualPayment: (payment: UnifiedPayment) => void;
 };
 
-const PaymentList = ({ payments, selectedPayments, togglePaymentSelection, handleDownloadReceipt }: PaymentListProps) => {
+const PaymentList = ({
+  payments,
+  selectedPayments,
+  togglePaymentSelection,
+  handleDownloadReceipt,
+  handleDeleteManualPayment,
+  handleEditManualPayment,
+}: PaymentListProps) => {
   return (
     <div className="space-y-4">
       {payments.map((payment) => {
@@ -837,15 +1180,40 @@ const PaymentList = ({ payments, selectedPayments, togglePaymentSelection, handl
               >
                 {payment.payment_status}
               </Badge>
-              <Button
-                onClick={() => handleDownloadReceipt(payment)}
-                variant="ghost"
-                size="sm"
-                className="rounded-full gap-2"
-              >
-                <FileText className="h-4 w-4" />
-                <span className="hidden sm:inline">Receipt</span>
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="rounded-full p-1"
+                    aria-label="Payment actions"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={() => handleDownloadReceipt(payment)}>
+                    <FileText className="mr-2 h-4 w-4" />
+                    Download receipt
+                  </DropdownMenuItem>
+                  {payment.payment_source === "manual" && (
+                    <>
+                      <DropdownMenuItem onClick={() => handleEditManualPayment(payment)}>
+                        Edit manual payment
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => handleDeleteManualPayment(payment)}
+                        className="text-red-600 focus:text-red-700"
+                      >
+                        <Trash className="mr-2 h-4 w-4" />
+                        Delete manual payment
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         );

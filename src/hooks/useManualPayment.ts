@@ -60,7 +60,21 @@ export const useCreateManualPayment = () => {
         .select("*")
         .single();
 
-      if (error) throw error;
+      if (error) {
+        const err = error as { code?: string; message?: string; details?: string | null };
+        // Friendly message for duplicate receipt numbers (unique index conflict)
+        if (
+          err.code === "23505" &&
+          (err.message?.includes("idx_manual_payments_receipt_number_unique") ||
+            err.message?.includes("idx_manual_payments_receipt_number_unique_verify") ||
+            err.message?.toLowerCase().includes("receipt_number"))
+        ) {
+          throw new Error(
+            "A payment with this receipt / cheque number already exists. Please use a unique number or leave the field blank if you don't need to track it."
+          );
+        }
+        throw error;
+      }
 
       // Log manual payment creation
       await logActivity({
