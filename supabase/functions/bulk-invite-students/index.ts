@@ -90,13 +90,15 @@ serve(async (req) => {
     const { application_ids, filters, email_template_id, resend = false } = requestBody;
 
     // Build query to find applications with placeholder users
+    // NOTE: Explicitly select the contracts relationship via the correct FK
+    // to avoid PostgREST PGRST201 ambiguity when multiple relationships exist.
     let query = supabaseAdmin
       .from("student_applications")
       .select(`
         id,
         student_id,
         status,
-        contract:contracts (
+        contract:contracts!student_applications_contract_id_fkey (
           id,
           name,
           academic_year_id,
@@ -165,18 +167,24 @@ serve(async (req) => {
 
     // Get user metadata to check account status
     const studentIds = [...new Set(applications.map((app: any) => app.student_id))];
-    const { data: { users }, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
+    const { data: usersData, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
 
-    if (usersError) {
+    // More defensive handling in case the auth admin API returns an error or undefined data
+    if (usersError || !usersData) {
       console.error("Error fetching users:", usersError);
       return new Response(
-        JSON.stringify({ error: "Failed to fetch users", details: usersError.message }),
+        JSON.stringify({
+          error: "Failed to fetch users",
+          details: usersError?.message || "Auth admin.listUsers returned no data",
+        }),
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
     }
+
+    const { users } = usersData;
 
     // Create map of user metadata
     const userMetadataMap = new Map(

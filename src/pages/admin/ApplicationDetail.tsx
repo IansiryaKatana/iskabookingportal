@@ -133,6 +133,9 @@ const ApplicationDetail = () => {
   });
   const uploadDocument = useDocumentUpload();
   const createExtension = useCreateExtensionApplication();
+  const [downloadingAgreementId, setDownloadingAgreementId] = useState<string | null>(null);
+  const [uploadingTenancy, setUploadingTenancy] = useState(false);
+  const [uploadingGuarantor, setUploadingGuarantor] = useState(false);
 
   // Extensions of this application (when this is the original booking)
   const { data: extensionApplications } = useQuery({
@@ -616,6 +619,132 @@ const ApplicationDetail = () => {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
+  };
+
+  const canDownloadEnvelope = (envelope: { envelope_id?: string | null; signed_document_path?: string | null; status?: string | null }) =>
+    (envelope?.status ?? "").toLowerCase() === "completed" &&
+    (Boolean(envelope.envelope_id) || Boolean(envelope.signed_document_path));
+
+  const formatEnvelopeStatus = (status?: string | null) => {
+    if (!status) return "Not sent";
+    const normalized = status.toLowerCase();
+    switch (normalized) {
+      case "completed":
+        return "Completed";
+      case "sent":
+      case "delivered":
+        return "Awaiting signature";
+      case "created":
+        return "Scheduled";
+      case "declined":
+        return "Declined";
+      default:
+        return normalized.replace(/_/g, " ");
+    }
+  };
+
+  const isEnvelopeCompleted = (status?: string | null) =>
+    (status ?? "").toLowerCase() === "completed";
+
+  const handleStaffUploadSignedDocument = async (envelopeType: "tenancy" | "guarantor", file: File) => {
+    if (!applicationId || !application?.id) return;
+
+    const setUploading = envelopeType === "tenancy" ? setUploadingTenancy : setUploadingGuarantor;
+    setUploading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) throw new Error("Not authenticated");
+
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("applicationId", application.id);
+      formData.append("envelopeType", envelopeType);
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? import.meta.env.SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/upload-signed-document`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok || data?.error) throw new Error(data?.error ?? "Upload failed");
+
+      toast({
+        title: `${envelopeType === "tenancy" ? "Tenancy" : "Guarantor"} agreement uploaded`,
+        description: "The signed document has been saved.",
+      });
+      await queryClient.invalidateQueries({ queryKey: ["student-application", applicationId] });
+    } catch (err) {
+      console.error("Upload signed document failed:", err);
+      toast({
+        variant: "destructive",
+        title: "Upload failed",
+        description: err instanceof Error ? err.message : "Please try again.",
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const downloadAgreement = async (envelopeIdOrKey: string, envelopeType: "tenancy" | "guarantor") => {
+    if (!applicationId) return;
+    const downloadKey = envelopeIdOrKey || `${applicationId}-${envelopeType}`;
+    setDownloadingAgreementId(downloadKey);
+    try {
+      const body = envelopeIdOrKey
+        ? { envelopeId: envelopeIdOrKey, applicationId }
+        : { applicationId, envelopeType };
+
+      const { data, error } = await supabase.functions.invoke("download-signed-document", {
+        body,
+      });
+
+      if (error) throw error;
+
+      if (data?.url) {
+        const newWindow = window.open(data.url, "_blank");
+        if (!newWindow) {
+          // Fallback if popup is blocked
+          window.location.href = data.url;
+        }
+        toast({
+          title: "Agreement opening",
+          description: "The signed agreement is opening in your browser.",
+        });
+      } else if (data?.pdf_base64) {
+        const dataUrl = `data:application/pdf;base64,${data.pdf_base64}`;
+        const newWindow = window.open(dataUrl, "_blank");
+        if (!newWindow) {
+          window.location.href = dataUrl;
+        }
+        toast({
+          title: "Agreement opening",
+          description: "The signed agreement is opening in your browser.",
+        });
+      } else {
+        toast({
+          title: "Agreement unavailable",
+          description:
+            (data as { message?: string })?.message ||
+            "Agreement download is not yet available. Please try again after signing is complete.",
+        });
+      }
+    } catch (err: unknown) {
+      console.error("Error downloading agreement:", err);
+      const msg =
+        (err as { context?: { body?: { error?: string } }; message?: string })?.context?.body?.error ??
+        (err as Error)?.message ??
+        "Unable to download the agreement. Please try again later.";
+      toast({
+        variant: "destructive",
+        title: "Download failed",
+        description: msg,
+      });
+    } finally {
+      setDownloadingAgreementId(null);
+    }
   };
 
   if (isLoading) {
@@ -1693,7 +1822,9 @@ const ApplicationDetail = () => {
                       Remaining: {formatCurrency(Number(paymentSummary.remaining_balance))}
                     </p>
                     <p className="text-[10px] sm:text-xs text-muted-foreground italic">
-                      Deposit recorded separately.
+                      {application.deposit_payment_intent_id
+                        ? "Deposit has been recorded separately from these instalments."
+                        : "Deposit will be recorded separately from these instalments when it is paid."}
                     </p>
                   </div>
                 </div>
@@ -1713,93 +1844,265 @@ const ApplicationDetail = () => {
             </CardContent>
           </Card>
 
-          {/* Studio Assignment */}
+          {/* Agreements & Studio Assignment (combined section) */}
           <Card className="rounded-3xl">
             <CardHeader>
               <CardTitle className="text-base sm:text-lg font-display uppercase tracking-wide flex items-center gap-2">
-                <Building2 className="h-4 w-4 sm:h-5 sm:w-5" />
-                <span className="text-sm sm:text-base">Studio Assignment</span>
+                <FileText className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span className="text-sm sm:text-base">Agreements & Studio</span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label>Assign/Reassign Studio</Label>
-                <p className="text-xs text-muted-foreground mt-1 mb-2">
-                  Available studios for this application&apos;s room grade. Search by studio number.
-                </p>
-                <Popover open={studioDropdownOpen} onOpenChange={setStudioDropdownOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={studioDropdownOpen}
-                      className={cn(
-                        "w-full justify-between rounded-full font-normal mt-0",
-                        !(selectedStudio || application.assigned_studio_id) && "text-muted-foreground"
-                      )}
-                    >
-                      <span className="truncate">
-                        {selectedStudio || application.assigned_studio_id
-                          ? studios?.find((s) => s.id === (selectedStudio || application.assigned_studio_id))?.studio_number ?? "Select a studio"
-                          : "Select a studio"}
-                      </span>
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-                    <Command>
-                      <CommandInput
-                        placeholder="Search studio by number..."
-                        value={studioSearchQuery}
-                        onValueChange={setStudioSearchQuery}
-                      />
-                      <CommandList>
-                        <CommandEmpty>No studio found.</CommandEmpty>
-                        <CommandGroup>
-                          {filteredStudiosForAssignment.map((studio) => (
-                            <CommandItem
-                              key={studio.id}
-                              value={studio.studio_number ?? studio.id}
-                              onSelect={() => {
-                                setSelectedStudio(studio.id);
-                                setStudioDropdownOpen(false);
-                                setStudioSearchQuery("");
-                              }}
-                              className="cursor-pointer"
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  (selectedStudio || application.assigned_studio_id) === studio.id ? "opacity-100" : "opacity-0"
+            <CardContent className="space-y-6">
+              {/* Agreements block */}
+              <div className="space-y-3">
+                <h3 className="text-xs sm:text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                  Agreements
+                </h3>
+                <div className="space-y-3">
+                  {["tenancy", "guarantor"].map((type) => {
+                    const envelope = (application.docusign_envelopes || []).find(
+                      (e) => e.envelope_type === type
+                    );
+                    const isTenancy = type === "tenancy";
+                    const downloadKey = envelope?.envelope_id ?? `${application.id}-${type}`;
+                    const hasEnvelope = !!envelope;
+
+                    return (
+                      <div
+                        key={type}
+                        className="rounded-2xl border border-border/60 p-4 space-y-3"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            {isTenancy ? (
+                              <FileText className="h-5 w-5 text-primary" />
+                            ) : (
+                              <User className="h-5 w-5 text-primary" />
+                            )}
+                            <div>
+                              <h4 className="font-semibold text-sm sm:text-base">
+                                {isTenancy ? "Tenancy Agreement" : "Guarantor Agreement"}
+                              </h4>
+                              <p className="text-xs sm:text-sm text-muted-foreground">
+                                {hasEnvelope
+                                  ? isTenancy
+                                    ? "Signed tenancy paperwork for this application."
+                                    : "Signed guarantor agreement linked to this application."
+                                  : isTenancy
+                                    ? "Tenancy agreement not uploaded or generated yet."
+                                    : "Guarantor agreement not uploaded or generated yet."}
+                              </p>
+                            </div>
+                          </div>
+                          <div>
+                            {hasEnvelope ? (
+                              isEnvelopeCompleted(envelope.status) ? (
+                                <span className="inline-flex items-center rounded-full bg-green-600 px-3 py-1 text-xs sm:text-sm font-semibold text-white uppercase tracking-wide">
+                                  {formatEnvelopeStatus(envelope.status)}
+                                </span>
+                              ) : (
+                                <Badge variant="secondary" className="text-xs sm:text-sm">
+                                  {formatEnvelopeStatus(envelope.status)}
+                                </Badge>
+                              )
+                            ) : (
+                              <Badge variant="outline" className="text-xs sm:text-sm text-muted-foreground">
+                                Not uploaded
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        {hasEnvelope && (
+                          <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-3 text-xs sm:text-sm text-muted-foreground">
+                            {envelope.updated_at && (
+                              <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4" />
+                                <span>
+                                  Last updated{" "}
+                                  {format(new Date(envelope.updated_at), "d MMM yyyy")}
+                                </span>
+                              </div>
+                            )}
+                            {canDownloadEnvelope(envelope) && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="rounded-full uppercase tracking-wide gap-2 text-xs sm:text-sm"
+                                onClick={() =>
+                                  downloadAgreement(
+                                    envelope.envelope_id ?? "",
+                                    type as "tenancy" | "guarantor"
+                                  )
+                                }
+                                disabled={downloadingAgreementId === downloadKey}
+                              >
+                                {downloadingAgreementId === downloadKey ? (
+                                  <>
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    Previewing...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Download className="h-4 w-4" />
+                                    Preview / Download
+                                  </>
                                 )}
-                              />
-                              {studio.studio_number} - {studio.status}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-                {studios?.length === 0 && application?.studio_grade_id && (
-                  <p className="text-xs text-muted-foreground mt-2">No available studios for this room grade.</p>
-                )}
-              </div>
-              {application.assigned_studio && (
-                <div>
-                  <p className="text-xs sm:text-sm text-muted-foreground mb-1">Currently Assigned</p>
-                  <p className="font-medium text-sm sm:text-base">{application.assigned_studio.studio_number}</p>
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                        {hasEnvelope && !canDownloadEnvelope(envelope) && (
+                          <p className="text-xs sm:text-sm text-muted-foreground">
+                            Agreement will be available once signing is completed.
+                          </p>
+                        )}
+
+                        {/* Staff upload control */}
+                        <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-border/40 mt-2">
+                          <label className="inline-flex items-center gap-2">
+                            <input
+                              type="file"
+                              accept="application/pdf"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  void handleStaffUploadSignedDocument(
+                                    type as "tenancy" | "guarantor",
+                                    file
+                                  );
+                                  // reset so same file can be chosen again if needed
+                                  e.target.value = "";
+                                }
+                              }}
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="rounded-full uppercase tracking-wide gap-2 text-xs sm:text-sm"
+                              onClick={(event) => {
+                                const input = (event.currentTarget.previousSibling as HTMLInputElement | null);
+                                input?.click();
+                              }}
+                              disabled={type === "tenancy" ? uploadingTenancy : uploadingGuarantor}
+                            >
+                              {(type === "tenancy" ? uploadingTenancy : uploadingGuarantor) ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  Uploading...
+                                </>
+                              ) : (
+                                <>
+                                  <Upload className="h-4 w-4" />
+                                  Upload signed PDF
+                                </>
+                              )}
+                            </Button>
+                          </label>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
-              {selectedStudio && selectedStudio !== application.assigned_studio_id && (
-                <Button
-                  onClick={() => reassignStudio.mutate(selectedStudio)}
-                  className="w-full rounded-full uppercase tracking-wide"
-                  disabled={reassignStudio.isPending}
-                >
-                  {reassignStudio.isPending ? "Reassigning..." : "Reassign Studio"}
-                </Button>
-              )}
+              </div>
+
+              {/* Divider between agreements and studio */}
+              <div className="border-t border-border/60 pt-4 space-y-3">
+                <h3 className="text-xs sm:text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+                  <Building2 className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <span>Studio Assignment</span>
+                </h3>
+
+                <div className="space-y-4">
+                  <div>
+                    <Label>Assign/Reassign Studio</Label>
+                    <p className="text-xs text-muted-foreground mt-1 mb-2">
+                      Available studios for this application&apos;s room grade. Search by studio number.
+                    </p>
+                    <Popover open={studioDropdownOpen} onOpenChange={setStudioDropdownOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={studioDropdownOpen}
+                          className={cn(
+                            "w-full justify-between rounded-full font-normal mt-0",
+                            !(selectedStudio || application.assigned_studio_id) && "text-muted-foreground"
+                          )}
+                        >
+                          <span className="truncate">
+                            {selectedStudio || application.assigned_studio_id
+                              ? studios?.find((s) => s.id === (selectedStudio || application.assigned_studio_id))?.studio_number ?? "Select a studio"
+                              : "Select a studio"}
+                          </span>
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                        <Command>
+                          <CommandInput
+                            placeholder="Search studio by number..."
+                            value={studioSearchQuery}
+                            onValueChange={setStudioSearchQuery}
+                          />
+                          <CommandList>
+                            <CommandEmpty>No studio found.</CommandEmpty>
+                            <CommandGroup>
+                              {filteredStudiosForAssignment.map((studio) => (
+                                <CommandItem
+                                  key={studio.id}
+                                  value={studio.studio_number ?? studio.id}
+                                  onSelect={() => {
+                                    setSelectedStudio(studio.id);
+                                    setStudioDropdownOpen(false);
+                                    setStudioSearchQuery("");
+                                  }}
+                                  className="cursor-pointer"
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      (selectedStudio || application.assigned_studio_id) === studio.id ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  {studio.studio_number} - {studio.status}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                    {studios?.length === 0 && application?.studio_grade_id && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        No available studios for this room grade.
+                      </p>
+                    )}
+                  </div>
+
+                  {application.assigned_studio && (
+                    <div>
+                      <p className="text-xs sm:text-sm text-muted-foreground mb-1">
+                        Currently Assigned
+                      </p>
+                      <p className="font-medium text-sm sm:text-base">
+                        {application.assigned_studio.studio_number}
+                      </p>
+                    </div>
+                  )}
+
+                  {selectedStudio && selectedStudio !== application.assigned_studio_id && (
+                    <Button
+                      onClick={() => reassignStudio.mutate(selectedStudio)}
+                      className="w-full rounded-full uppercase tracking-wide"
+                      disabled={reassignStudio.isPending}
+                    >
+                      {reassignStudio.isPending ? "Reassigning..." : "Reassign Studio"}
+                    </Button>
+                  )}
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>

@@ -132,6 +132,8 @@ const PaymentPlans = () => {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<PaymentPlanWithInstallments | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [planToDelete, setPlanToDelete] = useState<PaymentPlanWithInstallments | null>(null);
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [sourceYearId, setSourceYearId] = useState<string>("");
   const isMobile = useIsMobile();
@@ -227,19 +229,9 @@ const PaymentPlans = () => {
     setDialogOpen(true);
   };
 
-  const handleDelete = async (plan: PaymentPlanWithInstallments) => {
-    if (!window.confirm(`Delete payment plan "${plan.name}"?`)) return;
-    try {
-      await deletePlan.mutateAsync(plan.id);
-      toast({ title: "Payment plan deleted" });
-    } catch (error) {
-      console.error(error);
-      toast({
-        variant: "destructive",
-        title: "Unable to delete payment plan",
-        description: "Try again or contact support.",
-      });
-    }
+  const handleDelete = (plan: PaymentPlanWithInstallments) => {
+    setPlanToDelete(plan);
+    setDeleteDialogOpen(true);
   };
 
   const onSubmit = form.handleSubmit(async (values) => {
@@ -876,6 +868,64 @@ const PaymentPlans = () => {
                 </>
               ) : (
                 "Duplicate Plans"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Payment Plan Confirmation */}
+      <AlertDialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open);
+          if (!open) {
+            setPlanToDelete(null);
+          }
+        }}
+      >
+        <AlertDialogContent className="rounded-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-display uppercase tracking-wide">
+              Delete Payment Plan
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {planToDelete
+                ? `Are you sure you want to delete the payment plan "${planToDelete.name}"? This action cannot be undone and will remove this plan from use.`
+                : "Are you sure you want to delete this payment plan? This action cannot be undone."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-full uppercase tracking-wide">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!planToDelete) return;
+                try {
+                  await deletePlan.mutateAsync(planToDelete.id);
+                  toast({ title: "Payment plan deleted" });
+                  setDeleteDialogOpen(false);
+                  setPlanToDelete(null);
+                } catch (error) {
+                  console.error(error);
+                  toast({
+                    variant: "destructive",
+                    title: "Unable to delete payment plan",
+                    description: "Try again or contact support.",
+                  });
+                }
+              }}
+              disabled={deletePlan.isPending}
+              className="rounded-full uppercase tracking-wide bg-destructive hover:bg-destructive/90"
+            >
+              {deletePlan.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete plan"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

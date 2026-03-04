@@ -39,6 +39,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu,
@@ -61,6 +71,8 @@ const PaymentHistory = () => {
   const [isGeneratingReceipts, setIsGeneratingReceipts] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<{ synced: number; errors?: Array<{ paymentIntentId: string; error: string }> } | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [paymentToDelete, setPaymentToDelete] = useState<UnifiedPayment | null>(null);
 
   const { data: contracts } = useAdminContracts();
   const { data: academicYears } = useAdminAcademicYears();
@@ -94,6 +106,46 @@ const PaymentHistory = () => {
         .eq("id", payment.manual_entry_id);
 
       if (error) throw error;
+
+      // If this manual payment was a deposit linked to an application,
+      // clear the application's deposit flags so the UI reflects that
+      // the deposit is no longer recorded.
+      const isDeposit =
+        !payment.installment_number &&
+        (payment.payment_metadata?.type === "deposit" ||
+          !payment.payment_metadata?.type ||
+          payment.payment_metadata?.type !== "instalment");
+
+      if (isDeposit && payment.student_application_id) {
+        // Best-effort: do not block deletion if these follow-up updates fail.
+        try {
+          await supabase
+            .from("student_applications")
+            .update({ deposit_payment_intent_id: null })
+            .eq("id", payment.student_application_id);
+
+          const { data: step5 } = await supabase
+            .from("student_application_steps")
+            .select("id, payload")
+            .eq("application_id", payment.student_application_id)
+            .eq("step_number", 5)
+            .maybeSingle();
+
+          if (step5?.id && step5.payload && typeof step5.payload === "object") {
+            const updatedPayload = {
+              ...(step5.payload as Record<string, unknown>),
+              deposit_paid: false,
+            };
+
+            await supabase
+              .from("student_application_steps")
+              .update({ payload: updatedPayload })
+              .eq("id", step5.id);
+          }
+        } catch (followUpError) {
+          console.warn("Failed to clear deposit flags after deleting manual payment:", followUpError);
+        }
+      }
     },
     onSuccess: (_data, payment) => {
       queryClient.invalidateQueries({ queryKey: ["all-payments"] });
@@ -612,12 +664,8 @@ const PaymentHistory = () => {
       return;
     }
 
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this manual payment? This will update the student's installment balances."
-    );
-    if (!confirmed) return;
-
-    deleteManualPayment.mutate(payment);
+    setPaymentToDelete(payment);
+    setDeleteDialogOpen(true);
   };
 
   return (
@@ -1086,6 +1134,42 @@ const PaymentHistory = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open);
+          if (!open) {
+            setPaymentToDelete(null);
+          }
+        }}
+      >
+        <AlertDialogContent className="rounded-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">
+              Delete Manual Payment
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs md:text-sm">
+              Are you sure you want to delete this manual payment? This will update the student&apos;s installment balances and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="rounded-full text-xs md:text-sm">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!paymentToDelete) return;
+                deleteManualPayment.mutate(paymentToDelete);
+              }}
+              disabled={deleteManualPayment.isPending}
+              className="rounded-full bg-destructive hover:bg-destructive/90 text-xs md:text-sm"
+            >
+              {deleteManualPayment.isPending ? "Deleting..." : "Delete payment"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AdminLayout>
   );
 };

@@ -19,6 +19,17 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import WordPressImport from "@/components/admin/WordPressImport";
 import CsvBlogImport from "@/components/admin/CsvBlogImport";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 type BlogPostRow = {
   id: string;
@@ -211,19 +222,52 @@ export default function BlogAdmin() {
                 {bulkUnpublishMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Archive className="h-4 w-4 mr-2" />}
                 Unpublish selected
               </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => {
-                  if (window.confirm(`Delete ${selectedArray.length} post(s)? This cannot be undone.`)) {
-                    bulkDeleteMutation.mutate(selectedArray);
-                  }
-                }}
-                disabled={bulkDeleteMutation.isPending}
-              >
-                {bulkDeleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
-                Delete selected
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={bulkDeleteMutation.isPending}
+                  >
+                    {bulkDeleteMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Trash2 className="h-4 w-4 mr-2" />
+                    )}
+                    Delete selected
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent className="rounded-3xl">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="text-destructive">
+                      Delete {selectedArray.length} post{selectedArray.length !== 1 ? "s" : ""}?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete the selected blog post
+                      {selectedArray.length !== 1 ? "s" : ""}. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel className="rounded-full">
+                      Cancel
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => bulkDeleteMutation.mutate(selectedArray)}
+                      disabled={bulkDeleteMutation.isPending}
+                      className="rounded-full bg-destructive hover:bg-destructive/90"
+                    >
+                      {bulkDeleteMutation.isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Deleting...
+                        </>
+                      ) : (
+                        "Delete"
+                      )}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
               <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
                 Clear selection
               </Button>

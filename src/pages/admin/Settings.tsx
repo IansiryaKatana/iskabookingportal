@@ -72,6 +72,7 @@ const Settings = () => {
   const [isImportingDatabase, setIsImportingDatabase] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
+  const [deleteAllMatchesOpen, setDeleteAllMatchesOpen] = useState(false);
 
   const checkIntegrations = async () => {
     try {
@@ -1628,26 +1629,97 @@ const Settings = () => {
                             </AlertDialogFooter>
                           </AlertDialogContent>
                         </AlertDialog>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          className="rounded-full text-xs w-full sm:w-auto"
-                          onClick={() => {
-                            if (window.confirm(`Delete all ${searchResults.length} matching applications? This cannot be undone.`)) {
-                              deleteBySearch.mutate(searchResults.map((r) => r.application_id));
-                            }
-                          }}
-                          disabled={deleteBySearch.isPending}
-                        >
-                          {deleteBySearch.isPending ? (
-                            <>
-                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                              Deleting...
-                            </>
-                          ) : (
-                            "Delete All Matches"
-                          )}
-                        </Button>
+                        <AlertDialog open={deleteAllMatchesOpen} onOpenChange={setDeleteAllMatchesOpen}>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              className="rounded-full text-xs w-full sm:w-auto"
+                              disabled={deleteBySearch.isPending || searchResults.length === 0}
+                            >
+                              {deleteBySearch.isPending ? (
+                                <>
+                                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                  Deleting...
+                                </>
+                              ) : (
+                                "Delete All Matches"
+                              )}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent className="rounded-3xl">
+                            <AlertDialogHeader>
+                              <AlertDialogTitle className="text-destructive">
+                                Delete All {searchResults.length} Matching Application
+                                {searchResults.length !== 1 ? "s" : ""}?
+                              </AlertDialogTitle>
+                              <AlertDialogDescription asChild>
+                                <div className="text-sm space-y-2">
+                                  <p>
+                                    This will permanently delete <strong>all {searchResults.length} matching application(s)</strong> and all
+                                    related records including:
+                                  </p>
+                                  <ul className="list-disc list-inside mt-2 space-y-1">
+                                    <li>Application steps and data</li>
+                                    <li>Documents and signatures</li>
+                                    <li>Payment records</li>
+                                    <li>Partner referrals</li>
+                                    <li>Studio allocations</li>
+                                  </ul>
+                                  <p className="mt-3 font-semibold text-destructive">This action cannot be undone.</p>
+                                  <div className="mt-4 pt-4 border-t space-y-3">
+                                    <div className="flex items-start space-x-3">
+                                      <Checkbox
+                                        id="delete-orphaned-users-search-all"
+                                        checked={deleteOrphanedUsersSearch}
+                                        onCheckedChange={(checked) =>
+                                          setDeleteOrphanedUsersSearch(checked === true)
+                                        }
+                                        className="mt-1"
+                                      />
+                                      <div className="space-y-1 flex-1">
+                                        <Label
+                                          htmlFor="delete-orphaned-users-search-all"
+                                          className="text-sm font-medium cursor-pointer"
+                                        >
+                                          Also delete orphaned user accounts (Smart Deletion)
+                                        </Label>
+                                        <p className="text-xs text-muted-foreground">
+                                          Users will only be deleted if they have no important data (refunds, maintenance requests, etc.).
+                                          Staff accounts are never deleted. This helps clean up orphaned accounts automatically.
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel
+                                className="rounded-full"
+                                onClick={() => setDeleteOrphanedUsersSearch(false)}
+                              >
+                                Cancel
+                              </AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => {
+                                  deleteBySearch.mutate(searchResults.map((r) => r.application_id));
+                                }}
+                                disabled={deleteBySearch.isPending}
+                                className="rounded-full bg-destructive hover:bg-destructive/90"
+                              >
+                                {deleteBySearch.isPending ? (
+                                  <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    Deleting...
+                                  </>
+                                ) : (
+                                  "Delete All Matches"
+                                )}
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </div>
                     <div className="max-h-[300px] overflow-y-auto border rounded-lg">
