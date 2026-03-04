@@ -261,11 +261,17 @@ const Applications = () => {
       : undefined,
   );
 
+  // Only show studios that are for student allocation (exclude OTA and Keyworkers to avoid confusion)
   const filteredStudios = useMemo(() => {
     if (!studios) return [];
-    if (!studioSearch.trim()) return studios;
+    const forStudent = studios.filter((s) => {
+      const a = s.allocation ?? null;
+      if (a === "OTA" || a === "Keyworkers") return false;
+      return true;
+    });
+    if (!studioSearch.trim()) return forStudent;
     const q = studioSearch.trim().toLowerCase();
-    return studios.filter((s) => (s.studio_number ?? "").toLowerCase().includes(q));
+    return forStudent.filter((s) => (s.studio_number ?? "").toLowerCase().includes(q));
   }, [studios, studioSearch]);
 
   const selectedStudioDisplay = useMemo(() => {
@@ -465,6 +471,7 @@ const Applications = () => {
         const firstName = application.student?.first_name?.toLowerCase() || "";
         const lastName = application.student?.last_name?.toLowerCase() || "";
         const fullName = `${firstName} ${lastName}`.trim();
+        const email = application.student?.email?.toLowerCase() || "";
         const studioGrade = application.contract?.studio_grade?.name?.toLowerCase() || "";
         const contractName = application.contract?.name?.toLowerCase() || "";
         const studioNumber = application.assigned_studio?.studio_number?.toLowerCase() || "";
@@ -474,6 +481,7 @@ const Applications = () => {
           fullName.includes(query) ||
           firstName.includes(query) ||
           lastName.includes(query) ||
+          email.includes(query) ||
           studioGrade.includes(query) ||
           contractName.includes(query) ||
           studioNumber.includes(query) ||
@@ -542,7 +550,7 @@ const Applications = () => {
           <div className="relative flex-1 md:flex-initial md:w-64">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by name, studio, contract, status..."
+              placeholder="Search by name, email, studio, contract, status..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="rounded-full pl-9 text-sm md:text-base placeholder:text-xs md:placeholder:text-sm"

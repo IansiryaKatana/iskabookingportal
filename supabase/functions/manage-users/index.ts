@@ -191,6 +191,95 @@ serve(async (req) => {
         const existingUser = usersList?.users?.find(u => u.email?.toLowerCase() === normalizedEmail);
         
         if (existingUser) {
+          // If we're creating a student and the email already exists, try to reuse
+          // the existing account instead of failing, as long as it's safe.
+          if (role === "student") {
+            // Look up the existing profile to understand current role
+            const { data: existingProfile, error: existingProfileError } = await supabaseAdmin
+              .from("profiles")
+              .select("id, role, first_name, last_name, staff_subrole")
+              .eq("id", existingUser.id)
+              .maybeSingle();
+
+            if (existingProfileError) {
+              console.error("Failed to fetch existing profile for student reuse:", existingProfileError);
+              return new Response(
+                JSON.stringify({ error: "User with this email already exists and profile could not be verified. Please use 'Existing student' instead." }),
+                {
+                  status: 400,
+                  headers: { ...corsHeaders, "Content-Type": "application/json" },
+                },
+              );
+            }
+
+            // If the email belongs to a staff/admin/superadmin account, do NOT reuse it as a student
+            if (existingProfile && existingProfile.role && existingProfile.role !== "student") {
+              return new Response(
+                JSON.stringify({ error: "This email is already used by a staff or admin account. Please use a different email or link the existing account." }),
+                {
+                  status: 400,
+                  headers: { ...corsHeaders, "Content-Type": "application/json" },
+                },
+              );
+            }
+
+            // Build profile data for a (new or existing) student
+            const reusedProfileData: any = {
+              id: existingUser.id,
+              role: "student",
+              first_name: first_name?.trim() || existingProfile?.first_name || null,
+              last_name: last_name?.trim() || existingProfile?.last_name || null,
+              staff_subrole: null,
+            };
+
+            const { error: reuseProfileError } = await supabaseAdmin
+              .from("profiles")
+              .upsert(reusedProfileData, {
+                onConflict: "id",
+              });
+
+            if (reuseProfileError) {
+              console.error("Failed to upsert profile while reusing existing student account:", reuseProfileError);
+              return new Response(
+                JSON.stringify({ error: "User with this email already exists but the profile could not be updated. Please use 'Existing student' instead." }),
+                {
+                  status: 500,
+                  headers: { ...corsHeaders, "Content-Type": "application/json" },
+                },
+              );
+            }
+
+            // Log that we reused an existing student account instead of creating a duplicate
+            await supabaseAdmin
+              .from("staff_activity_logs")
+              .insert({
+                staff_id: user.id,
+                action: "update",
+                entity_type: "user",
+                entity_id: existingUser.id,
+                payload: {
+                  reason: "reused_existing_student_account",
+                  email: normalizedEmail,
+                  role: "student",
+                  first_name: reusedProfileData.first_name,
+                  last_name: reusedProfileData.last_name,
+                },
+              });
+
+            return new Response(
+              JSON.stringify({
+                success: true,
+                user: existingUser,
+                message: "Student already exists. Reusing existing account.",
+              }),
+              {
+                status: 200,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              },
+            );
+          }
+
+          // For non-student roles, keep the existing safety behaviour and block duplicates
           return new Response(
             JSON.stringify({ error: "User with this email already exists." }),
             {
@@ -349,9 +438,9 @@ serve(async (req) => {
         );
       }
 
-      if (!first_name && !last_name && !role && !password) {
+      if (!first_name && !last_name && !role && !password && !email) {
         return new Response(
-          JSON.stringify({ error: "At least one field (first_name, last_name, role, or password) is required for update." }),
+          JSON.stringify({ error: "At least one field (first_name, last_name, role, password, or email) is required for update." }),
           {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -401,6 +490,26 @@ serve(async (req) => {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
         );
+      }
+
+      // Update email if provided
+      if (email && email.trim()) {
+        const normalizedEmail = email.trim().toLowerCase();
+        const { error: emailUpdateError } = await supabaseAdmin.auth.admin.updateUserById(
+          userId,
+          { email: normalizedEmail },
+        );
+
+        if (emailUpdateError) {
+          console.error("Error updating user email:", emailUpdateError);
+          return new Response(
+            JSON.stringify({ error: emailUpdateError.message || "Failed to update user email" }),
+            {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            },
+          );
+        }
       }
 
       // Get current profile to preserve existing values
@@ -503,6 +612,7 @@ serve(async (req) => {
           entity_id: userId,
           payload: {
             updated_fields: updateData,
+            email_updated: !!email,
             previous_values: {
               first_name: currentProfile.first_name,
               last_name: currentProfile.last_name,

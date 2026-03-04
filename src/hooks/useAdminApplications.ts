@@ -82,14 +82,42 @@ const fetchApplications = async (academicYearId?: string): Promise<AdminApplicat
   }
 
   // Fetch student profiles separately since there's no direct FK relationship
-  const studentIds = [...new Set(data.map((app) => app.student_id))];
-  const { data: profiles, error: profilesError } = await supabase
-    .from("profiles")
-    .select("id, first_name, last_name")
-    .in("id", studentIds);
+  const studentIds = [
+    ...new Set(
+      data.map((app) => app.student_id).filter((id): id is string => Boolean(id)),
+    ),
+  ];
 
-  if (profilesError) {
-    console.warn("Failed to fetch student profiles:", profilesError);
+  let profiles: any[] = [];
+  if (studentIds.length > 0) {
+    const { data: profilesData, error: profilesError } = await supabase
+      .from("profiles")
+      .select("id, first_name, last_name")
+      .in("id", studentIds);
+
+    if (profilesError) {
+      console.warn("Failed to fetch student profiles:", profilesError);
+    }
+
+    profiles = profilesData || [];
+  }
+
+  // Fetch emails from auth.users via Edge Function (respects RLS)
+  const emailsMap = new Map<string, string>();
+  if (studentIds.length > 0) {
+    try {
+      const { data: emailData, error: emailsError } = await supabase.functions.invoke("get-user-emails", {
+        body: { userIds: studentIds },
+      });
+
+      if (!emailsError && emailData?.emails) {
+        Object.entries(emailData.emails).forEach(([userId, email]) => {
+          emailsMap.set(userId, email as string);
+        });
+      }
+    } catch (error) {
+      console.warn("Could not fetch user emails for admin applications:", error);
+    }
   }
 
   // Try to get student names from step 1 if profile doesn't have them
@@ -121,7 +149,15 @@ const fetchApplications = async (academicYearId?: string): Promise<AdminApplicat
   }
 
   const profilesMap = new Map(
-    (profiles ?? []).map((p) => [p.id, { id: p.id, first_name: p.first_name, last_name: p.last_name }]),
+    (profiles ?? []).map((p) => [
+      p.id,
+      {
+        id: p.id,
+        email: emailsMap.get(p.id) || "",
+        first_name: p.first_name,
+        last_name: p.last_name,
+      },
+    ]),
   );
 
   if (import.meta.env.DEV) {
@@ -132,6 +168,7 @@ const fetchApplications = async (academicYearId?: string): Promise<AdminApplicat
     ...row,
     student: profilesMap.get(row.student_id) ?? {
       id: row.student_id,
+      email: emailsMap.get(row.student_id) || "",
       first_name: undefined,
       last_name: undefined,
     },

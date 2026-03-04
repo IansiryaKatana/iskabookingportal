@@ -1550,7 +1550,7 @@ useEffect(() => {
     // Save to application steps (existing workflow)
     await handleStepSubmit(2, sanitized);
     
-    // Sync email to auth user if changed and user is the student
+    // Sync email to auth user if changed and user is the student (self-service journey)
     if (sanitized.email && user?.email && sanitized.email !== user.email && application?.student_id === user.id) {
       try {
         const { error: emailError } = await supabase.auth.updateUser({
@@ -1582,6 +1582,64 @@ useEffect(() => {
           variant: "destructive",
           title: "Email update warning",
           description: "Contact information saved, but email update failed. Please update your email in profile settings.",
+        });
+      }
+    }
+
+    // If staff are completing the journey on behalf of the student,
+    // keep the student's auth email in sync using the manage-users Edge Function.
+    if (
+      sanitized.email &&
+      isStaffOrSubRole &&
+      application?.student_id &&
+      sanitized.email !== applicationStudentEmail
+    ) {
+      try {
+        const { data, error } = await supabase.functions.invoke("manage-users", {
+          body: {
+            action: "update",
+            userId: application.student_id,
+            email: sanitized.email,
+          },
+        });
+
+        const functionError =
+          error || (data && (data as any).error ? new Error((data as any).error) : null);
+
+        if (functionError) {
+          console.error("Failed to sync student email via manage-users:", functionError);
+          // Extract a useful message for staff
+          const rawMessage =
+            (data && (data as any).error) ||
+            // @ts-expect-error best-effort parsing of FunctionsHttpError
+            (functionError.context?.error || functionError.message) ||
+            "The student's login email could not be updated.";
+
+          const description =
+            `Contact information saved, but the student's login email could not be updated: ${rawMessage}`;
+
+          // Don't fail step submission, just log the error - step still saves successfully
+          toast({
+            variant: "destructive",
+            title: "Email update warning",
+            description,
+          });
+        } else {
+          // Update local cached student email so future defaults & comparisons are correct
+          setApplicationStudentEmail(sanitized.email);
+          toast({
+            title: "Student email updated",
+            description:
+              "The student's contact information and login email have been updated successfully.",
+          });
+        }
+      } catch (err) {
+        console.error("Error calling manage-users to update student email:", err);
+        toast({
+          variant: "destructive",
+          title: "Email update warning",
+          description:
+            "Contact information saved, but the student's login email could not be updated. Please update it from the admin user management screen.",
         });
       }
     }
