@@ -112,6 +112,9 @@ const ApplicationDetail = () => {
   const [studioDropdownOpen, setStudioDropdownOpen] = useState(false);
   const [studioSearchQuery, setStudioSearchQuery] = useState("");
   const [documentNotes, setDocumentNotes] = useState<Record<string, string>>({});
+  const [applicationNotes, setApplicationNotes] = useState<string>(
+    ((application as any)?.internal_notes as string | null) ?? ""
+  );
   const [cashbackDialogOpen, setCashbackDialogOpen] = useState(false);
   const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
   const [partnerDialogOpen, setPartnerDialogOpen] = useState(false);
@@ -168,6 +171,12 @@ const ApplicationDetail = () => {
     enabled: !!applicationId,
   });
   const createCustomContract = useCreateCustomContractFromApplication();
+
+  useEffect(() => {
+    setApplicationNotes(
+      ((application as any)?.internal_notes as string | null) ?? ""
+    );
+  }, [application]);
 
   // Cashback, Discount and Partner hooks
   const { data: cashback } = useApplicationCashback(applicationId);
@@ -484,6 +493,36 @@ const ApplicationDetail = () => {
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message || "Failed to update booking source", variant: "destructive" });
+    },
+  });
+
+  const updateApplicationNotes = useMutation({
+    mutationFn: async (notes: string) => {
+      if (!applicationId) throw new Error("Missing application id");
+      const trimmed = notes.trim();
+      const { error } = await supabase
+        .from("student_applications")
+        .update({
+          internal_notes: trimmed.length > 0 ? trimmed : null,
+        })
+        .eq("id", applicationId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["student-application", applicationId] });
+      toast({
+        title: "Notes saved",
+        description: "Application notes have been updated.",
+      });
+    },
+    onError: (err: unknown) => {
+      console.error("Failed to update application notes:", err);
+      toast({
+        title: "Error",
+        description:
+          err instanceof Error ? err.message : "Failed to save notes. Please try again.",
+        variant: "destructive",
+      });
     },
   });
 
@@ -2011,7 +2050,7 @@ const ApplicationDetail = () => {
                   <span>Studio Assignment</span>
                 </h3>
 
-                <div className="space-y-4">
+                <div className="space-y-4 rounded-2xl bg-muted/40 p-4 sm:p-5">
                   <div>
                     <Label>Assign/Reassign Studio</Label>
                     <p className="text-xs text-muted-foreground mt-1 mb-2">
@@ -2098,6 +2137,40 @@ const ApplicationDetail = () => {
                       {reassignStudio.isPending ? "Reassigning..." : "Reassign Studio"}
                     </Button>
                   )}
+                </div>
+
+                {/* Application notes (staff-only) */}
+                <div className="space-y-2 pt-4 border-t border-border/60 rounded-2xl bg-muted/40 p-4 sm:p-5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs sm:text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                      Application notes
+                    </span>
+                    {((application as any)?.internal_notes as string | null) && (
+                      <Badge variant="outline" className="text-[10px] sm:text-xs">
+                        Saved
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-[11px] sm:text-xs text-muted-foreground">
+                    Staff-only notes for this application. Not visible to students.
+                  </p>
+                  <Textarea
+                    value={applicationNotes}
+                    onChange={(e) => setApplicationNotes(e.target.value)}
+                    placeholder="Add notes here"
+                    className="min-h-[80px] sm:min-h-[100px] rounded-2xl resize-none bg-background"
+                  />
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      className="rounded-full uppercase tracking-wide text-xs"
+                      variant="outline"
+                      disabled={updateApplicationNotes.isPending}
+                      onClick={() => updateApplicationNotes.mutate(applicationNotes)}
+                    >
+                      {updateApplicationNotes.isPending ? "Saving..." : "Save notes"}
+                    </Button>
+                  </div>
                 </div>
               </div>
             </CardContent>
