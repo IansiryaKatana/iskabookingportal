@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useStudentApplication } from "@/hooks/useStudentApplication";
 import { useUpdateApplicationStatus } from "@/hooks/useAdminApplications";
 import { useAdminStudios } from "@/hooks/useAdminStudios";
-import { ArrowLeft, ArrowUpLeft, User, Mail, Phone, MapPin, Calendar, Building2, CreditCard, FileText, CheckCircle2, XCircle, Download, Send, RotateCcw, Gift, Percent, Handshake, Upload, Pencil, Check, ChevronsUpDown, CalendarPlus } from "lucide-react";
+import { ArrowLeft, ArrowUpLeft, User, Mail, Phone, MapPin, Calendar, Building2, CreditCard, FileText, CheckCircle2, XCircle, Download, Send, RotateCcw, Gift, Percent, Handshake, Pencil, Check, ChevronsUpDown, CalendarPlus } from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -1447,7 +1447,6 @@ const ApplicationDetail = () => {
                               setUploadDialogOpen(true);
                             }}
                           >
-                            <Upload className="h-4 w-4" />
                             Upload New
                           </Button>
                         )}
@@ -1858,7 +1857,7 @@ const ApplicationDetail = () => {
                 <h3 className="text-xs sm:text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                   Agreements
                 </h3>
-                <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {["tenancy", "guarantor"].map((type) => {
                     const envelope = (application.docusign_envelopes || []).find(
                       (e) => e.envelope_type === type
@@ -1870,136 +1869,134 @@ const ApplicationDetail = () => {
                     return (
                       <div
                         key={type}
-                        className="rounded-2xl border border-border/60 p-4 space-y-3"
+                        className="rounded-2xl border border-border/60 p-4 space-y-3 h-full flex flex-col"
                       >
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            {isTenancy ? (
-                              <FileText className="h-5 w-5 text-primary" />
-                            ) : (
-                              <User className="h-5 w-5 text-primary" />
-                            )}
-                            <div>
-                              <h4 className="font-semibold text-sm sm:text-base">
-                                {isTenancy ? "Tenancy Agreement" : "Guarantor Agreement"}
-                              </h4>
-                              <p className="text-xs sm:text-sm text-muted-foreground">
-                                {hasEnvelope
-                                  ? isTenancy
-                                    ? "Signed tenancy paperwork for this application."
-                                    : "Signed guarantor agreement linked to this application."
-                                  : isTenancy
-                                    ? "Tenancy agreement not uploaded or generated yet."
-                                    : "Guarantor agreement not uploaded or generated yet."}
-                              </p>
-                            </div>
+                        {/* Title + description (single column) */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-primary" />
+                            <h4 className="font-semibold text-sm md:text-base leading-tight">
+                              {isTenancy ? "Tenancy Agreement" : "Guarantor Agreement"}
+                            </h4>
+                          </div>
+                          <p className="text-[11px] sm:text-xs text-muted-foreground leading-snug">
+                            {hasEnvelope
+                              ? isTenancy
+                                ? "Signed tenancy paperwork for this application."
+                                : "Signed guarantor agreement linked to this application."
+                              : isTenancy
+                                ? "Tenancy agreement not uploaded or generated yet."
+                                : "Guarantor agreement not uploaded or generated yet."}
+                          </p>
+                        </div>
+
+                        {/* Divider */}
+                        <div className="border-t border-border/50 my-2" />
+
+                        {/* Buttons block */}
+                        <div className="space-y-2">
+                          {canDownloadEnvelope(envelope || {}) && (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              className="w-full rounded-lg uppercase tracking-wide gap-2 text-[11px] md:text-xs lg:text-sm bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center"
+                              onClick={() =>
+                                downloadAgreement(
+                                  envelope?.envelope_id ?? "",
+                                  type as "tenancy" | "guarantor"
+                                )
+                              }
+                              disabled={!!envelope && downloadingAgreementId === downloadKey}
+                            >
+                              {envelope && downloadingAgreementId === downloadKey ? (
+                                <span>Previewing...</span>
+                              ) : (
+                                <span>Preview / Download</span>
+                              )}
+                            </Button>
+                          )}
+
+                          {/* Staff upload control */}
+                          {(() => {
+                            const inputId = `staff-upload-${type}-${application.id}`;
+                            const isUploading =
+                              type === "tenancy" ? uploadingTenancy : uploadingGuarantor;
+                            return (
+                              <>
+                                <input
+                                  id={inputId}
+                                  type="file"
+                                  accept="application/pdf"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      void handleStaffUploadSignedDocument(
+                                        type as "tenancy" | "guarantor",
+                                        file
+                                      );
+                                      e.target.value = "";
+                                    }
+                                  }}
+                                />
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-full rounded-lg uppercase tracking-wide gap-2 text-[11px] md:text-xs lg:text-sm flex items-center justify-center"
+                                  onClick={() => {
+                                    const input = document.getElementById(
+                                      inputId
+                                    ) as HTMLInputElement | null;
+                                    input?.click();
+                                  }}
+                                  disabled={isUploading}
+                                >
+                                  {isUploading ? (
+                                    <span>Uploading...</span>
+                                  ) : (
+                                    <span>Upload Signed PDF</span>
+                                  )}
+                                </Button>
+                              </>
+                            );
+                          })()}
+                        </div>
+
+                        {/* Second divider */}
+                        <div className="border-t border-border/50 my-2" />
+
+                        {/* Last updated + status at bottom */}
+                        <div className="mt-auto flex items-center justify-between gap-2 text-[11px] sm:text-xs text-muted-foreground">
+                          <div className="flex items-center gap-1.5">
+                            <Calendar className="h-3 w-3" />
+                            <span>
+                              {envelope?.updated_at
+                                ? `Last updated ${format(new Date(envelope.updated_at), "d MMM yyyy")}`
+                                : "Not updated yet"}
+                            </span>
                           </div>
                           <div>
                             {hasEnvelope ? (
-                              isEnvelopeCompleted(envelope.status) ? (
-                                <span className="inline-flex items-center rounded-full bg-green-600 px-3 py-1 text-xs sm:text-sm font-semibold text-white uppercase tracking-wide">
-                                  {formatEnvelopeStatus(envelope.status)}
+                              isEnvelopeCompleted(envelope?.status) ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-green-600 px-3 py-1 text-[11px] sm:text-xs font-semibold text-white uppercase tracking-wide">
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  Completed
                                 </span>
                               ) : (
-                                <Badge variant="secondary" className="text-xs sm:text-sm">
-                                  {formatEnvelopeStatus(envelope.status)}
+                                <Badge variant="secondary" className="text-[11px] sm:text-xs">
+                                  {formatEnvelopeStatus(envelope?.status)}
                                 </Badge>
                               )
                             ) : (
-                              <Badge variant="outline" className="text-xs sm:text-sm text-muted-foreground">
+                              <Badge
+                                variant="outline"
+                                className="text-[11px] sm:text-xs text-muted-foreground"
+                              >
                                 Not uploaded
                               </Badge>
                             )}
                           </div>
-                        </div>
-                        {hasEnvelope && (
-                          <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-3 text-xs sm:text-sm text-muted-foreground">
-                            {envelope.updated_at && (
-                              <div className="flex items-center gap-2">
-                                <Calendar className="h-4 w-4" />
-                                <span>
-                                  Last updated{" "}
-                                  {format(new Date(envelope.updated_at), "d MMM yyyy")}
-                                </span>
-                              </div>
-                            )}
-                            {canDownloadEnvelope(envelope) && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="rounded-full uppercase tracking-wide gap-2 text-xs sm:text-sm"
-                                onClick={() =>
-                                  downloadAgreement(
-                                    envelope.envelope_id ?? "",
-                                    type as "tenancy" | "guarantor"
-                                  )
-                                }
-                                disabled={downloadingAgreementId === downloadKey}
-                              >
-                                {downloadingAgreementId === downloadKey ? (
-                                  <>
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                    Previewing...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Download className="h-4 w-4" />
-                                    Preview / Download
-                                  </>
-                                )}
-                              </Button>
-                            )}
-                          </div>
-                        )}
-                        {hasEnvelope && !canDownloadEnvelope(envelope) && (
-                          <p className="text-xs sm:text-sm text-muted-foreground">
-                            Agreement will be available once signing is completed.
-                          </p>
-                        )}
-
-                        {/* Staff upload control */}
-                        <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-border/40 mt-2">
-                          <label className="inline-flex items-center gap-2">
-                            <input
-                              type="file"
-                              accept="application/pdf"
-                              className="hidden"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) {
-                                  void handleStaffUploadSignedDocument(
-                                    type as "tenancy" | "guarantor",
-                                    file
-                                  );
-                                  // reset so same file can be chosen again if needed
-                                  e.target.value = "";
-                                }
-                              }}
-                            />
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="rounded-full uppercase tracking-wide gap-2 text-xs sm:text-sm"
-                              onClick={(event) => {
-                                const input = (event.currentTarget.previousSibling as HTMLInputElement | null);
-                                input?.click();
-                              }}
-                              disabled={type === "tenancy" ? uploadingTenancy : uploadingGuarantor}
-                            >
-                              {(type === "tenancy" ? uploadingTenancy : uploadingGuarantor) ? (
-                                <>
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                  Uploading...
-                                </>
-                              ) : (
-                                <>
-                                  <Upload className="h-4 w-4" />
-                                  Upload signed PDF
-                                </>
-                              )}
-                            </Button>
-                          </label>
                         </div>
                       </div>
                     );
@@ -2768,17 +2765,7 @@ const ApplicationDetail = () => {
               }}
               disabled={!uploadFile || uploadDocument.isPending}
             >
-              {uploadDocument.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Uploading...
-                </>
-              ) : (
-                <>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Upload
-                </>
-              )}
+              {uploadDocument.isPending ? "Uploading..." : "Upload"}
             </Button>
           </DialogFooter>
         </DialogContent>
