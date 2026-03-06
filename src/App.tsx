@@ -10,6 +10,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import PageTitle from "./components/PageTitle";
 import FaviconUpdater from "./components/FaviconUpdater";
 import MetaTagsUpdater from "./components/MetaTagsUpdater";
+import { FindInPageWrapper } from "./components/FindInPageWrapper";
 import { Loader2 } from "lucide-react";
 
 // Lazy load all page components for code splitting
@@ -119,6 +120,7 @@ const App = () => (
               <PageTitle />
               <FaviconUpdater />
               <MetaTagsUpdater />
+              <FindInPageWrapper />
               <Suspense fallback={<PageLoader />}>
                 <Routes>
             <Route path="/" element={<Index />} />

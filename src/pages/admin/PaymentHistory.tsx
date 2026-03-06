@@ -73,6 +73,8 @@ const PaymentHistory = () => {
   const [syncResult, setSyncResult] = useState<{ synced: number; errors?: Array<{ paymentIntentId: string; error: string }> } | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [paymentToDelete, setPaymentToDelete] = useState<UnifiedPayment | null>(null);
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+  const [activePaymentTab, setActivePaymentTab] = useState<string>("all");
 
   const { data: contracts } = useAdminContracts();
   const { data: academicYears } = useAdminAcademicYears();
@@ -164,6 +166,78 @@ const PaymentHistory = () => {
     onError: (error: unknown) => {
       const message =
         error instanceof Error ? error.message : "Failed to delete payment. Please try again.";
+      toast({
+        title: "Error",
+        description: message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const bulkDeleteManualPayments = useMutation({
+    mutationFn: async (paymentsToDelete: UnifiedPayment[]) => {
+      const manualOnly = paymentsToDelete.filter(
+        (p) => p.payment_source === "manual" && p.manual_entry_id
+      );
+      for (const payment of manualOnly) {
+        const { error } = await supabase
+          .from("manual_payments")
+          .delete()
+          .eq("id", payment.manual_entry_id);
+
+        if (error) throw error;
+
+        const isDeposit =
+          !payment.installment_number &&
+          (payment.payment_metadata?.type === "deposit" ||
+            !payment.payment_metadata?.type ||
+            payment.payment_metadata?.type !== "instalment");
+
+        if (isDeposit && payment.student_application_id) {
+          try {
+            await supabase
+              .from("student_applications")
+              .update({ deposit_payment_intent_id: null })
+              .eq("id", payment.student_application_id);
+
+            const { data: step5 } = await supabase
+              .from("student_application_steps")
+              .select("id, payload")
+              .eq("application_id", payment.student_application_id)
+              .eq("step_number", 5)
+              .maybeSingle();
+
+            if (step5?.id && step5.payload && typeof step5.payload === "object") {
+              await supabase
+                .from("student_application_steps")
+                .update({
+                  payload: { ...(step5.payload as Record<string, unknown>), deposit_paid: false },
+                })
+                .eq("id", step5.id);
+            }
+          } catch (followUpError) {
+            console.warn("Failed to clear deposit flags after deleting manual payment:", followUpError);
+          }
+        }
+      }
+      return manualOnly.length;
+    },
+    onSuccess: (deletedCount) => {
+      queryClient.invalidateQueries({ queryKey: ["all-payments"] });
+      queryClient.invalidateQueries({ queryKey: ["unified-payments"] });
+      queryClient.invalidateQueries({ queryKey: ["payment-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["installment-breakdown"] });
+      queryClient.invalidateQueries({ queryKey: ["paid-instalment-ids"] });
+      setSelectedPayments(new Set());
+      setBulkDeleteDialogOpen(false);
+      toast({
+        title: "Payments deleted",
+        description: `${deletedCount} manual payment(s) have been removed.`,
+      });
+    },
+    onError: (error: unknown) => {
+      const message =
+        error instanceof Error ? error.message : "Failed to delete payments. Please try again.";
       toast({
         title: "Error",
         description: message,
@@ -310,11 +384,125 @@ const PaymentHistory = () => {
     document.body.removeChild(link);
   };
 
+  /** Export payments as CSV in exact bulk-upload format (student_email, academic_year_name, amount, payment_date, payment_method, notes, instalment_sequence) */
+  const exportToBulkUploadCSV = async (useSelected: boolean) => {
+    const toExport =
+      useSelected && selectedPayments.size > 0
+        ? (filteredPayments ?? []).filter((p) =>
+            selectedPayments.has(`${p.payment_source}-${p.payment_id}`)
+          )
+        : filteredPayments ?? [];
+    if (toExport.length === 0) {
+      toast({
+        title: useSelected ? "No payments selected" : "No payments to export",
+        description: useSelected
+          ? "Select at least one payment or use “Download all”."
+          : "No payment records match the current filters.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const uniqueStudentIds = [...new Set(toExport.map((p) => p.student_id).filter(Boolean))];
+    let emailByStudentId: Record<string, string> = {};
+    if (uniqueStudentIds.length > 0) {
+      const { data: emailsData } = await supabase.functions.invoke("get-user-emails", {
+        body: { userIds: uniqueStudentIds },
+      });
+      emailByStudentId = emailsData?.emails ?? {};
+    }
+
+    const manualIds = toExport
+      .filter((p) => p.payment_source === "manual" && p.manual_entry_id)
+      .map((p) => p.manual_entry_id as string);
+    let paymentMethodByManualId: Record<string, string> = {};
+    if (manualIds.length > 0) {
+      const { data: manualRows } = await supabase
+        .from("manual_payments")
+        .select("id, payment_method")
+        .in("id", manualIds);
+      manualRows?.forEach((r: { id: string; payment_method: string }) => {
+        paymentMethodByManualId[r.id] = r.payment_method ?? "bank_transfer";
+      });
+    }
+
+    const headers = [
+      "student_email",
+      "academic_year_name",
+      "amount",
+      "payment_date",
+      "payment_method",
+      "notes",
+      "instalment_sequence",
+    ];
+    const rows = toExport.map((p) => {
+      const paymentDate =
+        typeof p.payment_date === "string"
+          ? p.payment_date.split("T")[0]
+          : format(new Date(p.payment_date), "yyyy-MM-dd");
+      const paymentMethod =
+        p.payment_source === "manual" && p.manual_entry_id
+          ? paymentMethodByManualId[p.manual_entry_id] ?? "bank_transfer"
+          : "card";
+      return [
+        emailByStudentId[p.student_id] ?? "",
+        p.academic_year_name ?? "",
+        p.amount_paid.toFixed(2),
+        paymentDate,
+        paymentMethod,
+        p.manual_entry_notes ?? "",
+        p.installment_number != null ? String(p.installment_number) : "",
+      ];
+    });
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
+    ].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.setAttribute("href", URL.createObjectURL(blob));
+    link.setAttribute(
+      "download",
+      `payment-records-bulk-format-${format(new Date(), "yyyy-MM-dd")}.csv`
+    );
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast({
+      title: "CSV downloaded",
+      description: `Exported ${toExport.length} payment(s) in bulk-upload format.`,
+    });
+  };
+
   const totalAmount = filteredPayments?.reduce((sum, p) => sum + p.amount_paid, 0) || 0;
   const stripeCount = filteredPayments?.filter((p) => p.payment_source === "stripe").length || 0;
   const manualCount = filteredPayments?.filter((p) => p.payment_source === "manual").length || 0;
   const stripeAmount = filteredPayments?.filter((p) => p.payment_source === "stripe").reduce((sum, p) => sum + p.amount_paid, 0) ?? 0;
   const manualAmount = filteredPayments?.filter((p) => p.payment_source === "manual").reduce((sum, p) => sum + p.amount_paid, 0) ?? 0;
+
+  const selectedManualPayments = useMemo(() => {
+    if (!payments || selectedPayments.size === 0) return [];
+    return payments.filter(
+      (p) =>
+        selectedPayments.has(`${p.payment_source}-${p.payment_id}`) &&
+        p.payment_source === "manual" &&
+        p.manual_entry_id
+    );
+  }, [payments, selectedPayments]);
+  const selectedManualCount = selectedManualPayments.length;
+
+  const currentTabPayments = useMemo(() => {
+    if (activePaymentTab === "deposits") return deposits;
+    if (activePaymentTab === "installments") return installments;
+    return allPayments;
+  }, [activePaymentTab, deposits, installments, allPayments]);
+
+  const allInCurrentTabSelected =
+    currentTabPayments.length > 0 &&
+    currentTabPayments.every((p) =>
+      selectedPayments.has(`${p.payment_source}-${p.payment_id}`)
+    );
 
   // Fetch student info on demand
   const fetchStudentInfo = async (studentId: string, applicationId: string) => {
@@ -479,11 +667,17 @@ const PaymentHistory = () => {
   };
 
   const toggleSelectAll = () => {
-    if (selectedPayments.size === (filteredPayments?.length || 0)) {
-      setSelectedPayments(new Set());
+    const tabKeys = new Set(
+      currentTabPayments.map((p) => `${p.payment_source}-${p.payment_id}`)
+    );
+    if (allInCurrentTabSelected) {
+      const newSelection = new Set(selectedPayments);
+      tabKeys.forEach((k) => newSelection.delete(k));
+      setSelectedPayments(newSelection);
     } else {
-      const allKeys = new Set(filteredPayments?.map((p) => `${p.payment_source}-${p.payment_id}`) || []);
-      setSelectedPayments(allKeys);
+      const newSelection = new Set(selectedPayments);
+      tabKeys.forEach((k) => newSelection.add(k));
+      setSelectedPayments(newSelection);
     }
   };
 
@@ -714,14 +908,31 @@ const PaymentHistory = () => {
               ))}
             </SelectContent>
           </Select>
-          <Button
-            onClick={exportToCSV}
-            disabled={!filteredPayments || filteredPayments.length === 0}
-            className="rounded-full uppercase tracking-wide gap-2"
-          >
-            <Download className="h-4 w-4" />
-            Export CSV
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                disabled={!filteredPayments || filteredPayments.length === 0}
+                className="rounded-full uppercase tracking-wide gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Download CSV
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => exportToCSV()}>
+                Report format (all filtered)
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => exportToBulkUploadCSV(true)}
+                disabled={selectedPayments.size === 0}
+              >
+                Re-upload format (selected)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportToBulkUploadCSV(false)}>
+                Re-upload format (all filtered)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {/* Summary Cards */}
@@ -901,23 +1112,62 @@ const PaymentHistory = () => {
                 {filteredPayments && filteredPayments.length > 0 && (
                   <>
                     {selectedPayments.size > 0 && (
-                      <Button
-                        onClick={handleBulkDownloadReceipts}
-                        disabled={isGeneratingReceipts}
-                        variant="outline"
-                        className="rounded-full uppercase tracking-wide gap-2"
-                      >
-                        <Download className="h-4 w-4" />
-                        Download {selectedPayments.size} Receipt{selectedPayments.size !== 1 ? "s" : ""}
-                      </Button>
+                      <>
+                        <Button
+                          onClick={handleBulkDownloadReceipts}
+                          disabled={isGeneratingReceipts}
+                          variant="outline"
+                          className="rounded-full uppercase tracking-wide gap-2"
+                        >
+                          <Download className="h-4 w-4" />
+                          Download {selectedPayments.size} Receipt{selectedPayments.size !== 1 ? "s" : ""}
+                        </Button>
+                        {selectedManualCount > 0 && (
+                          <Button
+                            onClick={() => setBulkDeleteDialogOpen(true)}
+                            disabled={bulkDeleteManualPayments.isPending}
+                            variant="outline"
+                            className="rounded-full uppercase tracking-wide gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash className="h-4 w-4" />
+                            Bulk delete ({selectedManualCount})
+                          </Button>
+                        )}
+                      </>
                     )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="rounded-full uppercase tracking-wide gap-2"
+                          disabled={!filteredPayments || filteredPayments.length === 0}
+                        >
+                          <Download className="h-4 w-4" />
+                          Download CSV
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => exportToCSV()}>
+                          Report format (all filtered)
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => exportToBulkUploadCSV(true)}
+                          disabled={selectedPayments.size === 0}
+                        >
+                          Re-upload format (selected)
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => exportToBulkUploadCSV(false)}>
+                          Re-upload format (all filtered)
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                     <Button
                       onClick={toggleSelectAll}
                       variant="ghost"
                       size="sm"
                       className="rounded-full"
                     >
-                      {selectedPayments.size === filteredPayments.length ? "Deselect All" : "Select All"}
+                      {allInCurrentTabSelected ? "Deselect all in tab" : "Select all in tab"}
                     </Button>
                   </>
                 )}
@@ -940,7 +1190,11 @@ const PaymentHistory = () => {
                 No payments match &quot;{searchByName.trim()}&quot;. Try a different name or clear the search.
               </div>
             ) : (
-              <Tabs defaultValue="all" className="w-full">
+              <Tabs
+                value={activePaymentTab}
+                onValueChange={setActivePaymentTab}
+                className="w-full"
+              >
                 <TabsList className="grid w-full grid-cols-3 rounded-full bg-muted border border-border p-1 mb-4">
                   <TabsTrigger
                     value="all"
@@ -1166,6 +1420,36 @@ const PaymentHistory = () => {
               className="rounded-full bg-destructive hover:bg-destructive/90 text-xs md:text-sm"
             >
               {deleteManualPayment.isPending ? "Deleting..." : "Delete payment"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={bulkDeleteDialogOpen}
+        onOpenChange={(open) => {
+          setBulkDeleteDialogOpen(open);
+        }}
+      >
+        <AlertDialogContent className="rounded-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">
+              Bulk delete manual payments
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs md:text-sm">
+              Are you sure you want to delete {selectedManualCount} manual payment(s)? This will update students&apos; installment balances and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="rounded-full text-xs md:text-sm">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => bulkDeleteManualPayments.mutate(selectedManualPayments)}
+              disabled={bulkDeleteManualPayments.isPending}
+              className="rounded-full bg-destructive hover:bg-destructive/90 text-xs md:text-sm"
+            >
+              {bulkDeleteManualPayments.isPending ? "Deleting..." : `Delete ${selectedManualCount} payment(s)`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

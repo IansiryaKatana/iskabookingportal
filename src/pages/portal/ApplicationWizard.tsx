@@ -3089,7 +3089,7 @@ useEffect(() => {
                     Saving
                   </>
                 ) : (
-                  "Save & Continue"
+                  "Continue"
                 )}
               </Button>
             </div>
@@ -3218,7 +3218,7 @@ useEffect(() => {
                     Saving
                   </>
                 ) : (
-                  "Save & Continue"
+                  "Continue"
                 )}
               </Button>
             </div>
@@ -3401,7 +3401,7 @@ useEffect(() => {
                     Saving
                   </>
                 ) : (
-                  "Save & Continue"
+                  "Continue"
                 )}
               </Button>
             </div>
@@ -3516,7 +3516,7 @@ useEffect(() => {
                     Saving
                   </>
                 ) : (
-                  "Save & Continue"
+                  "Continue"
                 )}
               </Button>
             </div>
@@ -4756,7 +4756,20 @@ useEffect(() => {
                   : "Complete the journey"}
               </h2>
             </div>
-            <div className="flex flex-col items-start md:items-end gap-2 flex-shrink-0">
+            <div className="flex flex-col items-start md:items-end gap-1.5 md:gap-2 flex-shrink-0">
+              <div className="inline-flex items-center gap-2 rounded-full bg-primary-foreground/10 px-3 py-1 text-[10px] md:text-xs font-semibold uppercase tracking-wide text-primary-foreground/90">
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-3 w-3 md:h-3.5 md:w-3.5 animate-spin" />
+                    <span>Saving draft…</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-3 w-3 md:h-3.5 md:w-3.5" />
+                    <span>Draft saved</span>
+                  </>
+                )}
+              </div>
               <div className="w-full md:w-48">
                 <div className="relative h-2 w-full overflow-hidden rounded-full bg-white">
                   <div 
@@ -4768,6 +4781,9 @@ useEffect(() => {
               <span className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-black uppercase tracking-wide leading-none text-primary-foreground">
                 {Math.round(progress)}%
               </span>
+              <p className="mt-0.5 text-[10px] md:text-xs font-medium uppercase tracking-wide text-primary-foreground/80 text-left md:text-right">
+                Progress is saved automatically as a draft after each step.
+              </p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 md:gap-3 lg:gap-4 mt-4 md:mt-6">

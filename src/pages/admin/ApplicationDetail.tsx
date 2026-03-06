@@ -139,6 +139,7 @@ const ApplicationDetail = () => {
   const [downloadingAgreementId, setDownloadingAgreementId] = useState<string | null>(null);
   const [uploadingTenancy, setUploadingTenancy] = useState(false);
   const [uploadingGuarantor, setUploadingGuarantor] = useState(false);
+  const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
 
   // Extensions of this application (when this is the original booking)
   const { data: extensionApplications } = useQuery({
@@ -526,6 +527,51 @@ const ApplicationDetail = () => {
     },
   });
 
+  const discardDraftApplication = useMutation({
+    mutationFn: async () => {
+      if (!applicationId) throw new Error("Missing application id");
+      if (!application || application.status !== "draft") {
+        throw new Error("Only draft applications can be discarded");
+      }
+
+      const { error } = await supabase.rpc("delete_student_application", {
+        p_application_id: applicationId,
+      });
+
+      if (error) {
+        console.error("Failed to discard draft application:", error);
+        throw error;
+      }
+
+      await logActivity({
+        action: "delete",
+        entityType: "student_application",
+        entityId: applicationId,
+        payload: {
+          reason: "discard_draft",
+          status_before: application.status,
+        },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-applications"] });
+      toast({
+        title: "Draft discarded",
+        description: "The draft application and its related data have been removed.",
+      });
+      navigate("/admin/applications");
+    },
+    onError: (err: unknown) => {
+      console.error("Error discarding draft application:", err);
+      toast({
+        title: "Unable to discard draft",
+        description:
+          err instanceof Error ? err.message : "Please try again or contact an administrator.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleBookingSourceChange = (value: string) => {
     if (!applicationId) return;
     updateBookingSource.mutate(value);
@@ -679,6 +725,52 @@ const ApplicationDetail = () => {
         return "Declined";
       default:
         return normalized.replace(/_/g, " ");
+    }
+  };
+
+  const unpaidInstallments =
+    installmentBreakdown?.filter(
+      (inst) => inst.payment_status === "unpaid" || inst.payment_status === "partial",
+    ) ?? [];
+
+  const [installmentInvoiceDialogOpen, setInstallmentInvoiceDialogOpen] = useState(false);
+  const [selectedInvoiceInstallmentId, setSelectedInvoiceInstallmentId] = useState<string>("");
+  const [sendingInstallmentInvoice, setSendingInstallmentInvoice] = useState(false);
+
+  const handleSendInstallmentInvoice = async () => {
+    if (!applicationId || !selectedInvoiceInstallmentId) return;
+    setSendingInstallmentInvoice(true);
+    try {
+      const { error } = await supabase.functions.invoke("send-installment-invoice-email", {
+        body: {
+          applicationId,
+          installmentId: selectedInvoiceInstallmentId,
+        },
+      });
+
+      if (error) {
+        console.error("Error sending installment invoice:", error);
+        toast({
+          title: "Error",
+          description: "Failed to send installment invoice. Please try again.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Installment invoice sent",
+          description: "The student has been emailed an invoice for the selected installment.",
+        });
+        setInstallmentInvoiceDialogOpen(false);
+      }
+    } catch (error) {
+      console.error("Error invoking send-installment-invoice-email:", error);
+      toast({
+        title: "Error",
+        description: "Failed to send installment invoice. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingInstallmentInvoice(false);
     }
   };
 
@@ -844,55 +936,69 @@ const ApplicationDetail = () => {
             <ArrowUpLeft className="h-4 w-4" />
             Back to Applications
           </Button>
-          <div className="flex items-center gap-3">
-            {getStatusBadge(application.status)}
-            {application.is_rebooking && (
-              <Badge className="bg-primary/10 text-primary border-primary/20 rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide flex items-center gap-1.5">
-                <RotateCcw className="h-3 w-3" />
-                Rebooking
-              </Badge>
-            )}
-            {isExtension && (
-              <Badge className="bg-primary/10 text-primary border-primary/20 rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide flex items-center gap-1.5">
-                <CalendarPlus className="h-3 w-3" />
-                Extension
-              </Badge>
-            )}
-            <Select
-              value={application.status}
-              onValueChange={handleStatusChange}
-            >
-              <SelectTrigger className="w-48 rounded-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="draft">Draft</SelectItem>
-                <SelectItem value="awaiting_deposit">Awaiting Deposit</SelectItem>
-                <SelectItem value="awaiting_signature">Awaiting Signature</SelectItem>
-                <SelectItem value="awaiting_verification">Awaiting Verification</SelectItem>
-                <SelectItem value="confirmed">Confirmed</SelectItem>
-                <SelectItem value="cancelled">Cancelled</SelectItem>
-                <SelectItem value="expired">Expired</SelectItem>
-              </SelectContent>
-            </Select>
-            <div className="flex items-center gap-2">
-              <Label className="text-xs uppercase tracking-wide text-muted-foreground whitespace-nowrap">Booking source</Label>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
+              {getStatusBadge(application.status)}
+              {application.is_rebooking && (
+                <Badge className="bg-primary/10 text-primary border-primary/20 rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide flex items-center gap-1.5">
+                  <RotateCcw className="h-3 w-3" />
+                  Rebooking
+                </Badge>
+              )}
+              {isExtension && (
+                <Badge className="bg-primary/10 text-primary border-primary/20 rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide flex items-center gap-1.5">
+                  <CalendarPlus className="h-3 w-3" />
+                  Extension
+                </Badge>
+              )}
               <Select
-                value={application.booking_source || BOOKING_SOURCE_NONE}
-                onValueChange={handleBookingSourceChange}
-                disabled={updateBookingSource.isPending}
+                value={application.status}
+                onValueChange={handleStatusChange}
               >
-                <SelectTrigger className="w-40 rounded-full">
-                  <SelectValue placeholder="—" />
+                <SelectTrigger className="w-48 rounded-full">
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={BOOKING_SOURCE_NONE}>—</SelectItem>
-                  {BOOKING_SOURCE_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                  ))}
+                  <SelectItem value="draft">Draft</SelectItem>
+                  <SelectItem value="awaiting_deposit">Awaiting Deposit</SelectItem>
+                  <SelectItem value="awaiting_signature">Awaiting Signature</SelectItem>
+                  <SelectItem value="awaiting_verification">Awaiting Verification</SelectItem>
+                  <SelectItem value="confirmed">Confirmed</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                  <SelectItem value="expired">Expired</SelectItem>
                 </SelectContent>
               </Select>
+              <div className="flex items-center gap-2">
+                <Label className="text-xs uppercase tracking-wide text-muted-foreground whitespace-nowrap">Booking source</Label>
+                <Select
+                  value={application.booking_source || BOOKING_SOURCE_NONE}
+                  onValueChange={handleBookingSourceChange}
+                  disabled={updateBookingSource.isPending}
+                >
+                  <SelectTrigger className="w-40 rounded-full">
+                    <SelectValue placeholder="—" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={BOOKING_SOURCE_NONE}>—</SelectItem>
+                    {BOOKING_SOURCE_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+            {application.status === "draft" && (
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-full uppercase tracking-wide border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                onClick={() => setDiscardDialogOpen(true)}
+                disabled={discardDraftApplication.isPending}
+              >
+                <XCircle className="h-4 w-4 mr-1.5" />
+                Discard draft
+              </Button>
+            )}
           </div>
         </div>
 
@@ -947,6 +1053,18 @@ const ApplicationDetail = () => {
                 ))}
               </SelectContent>
             </Select>
+              {application.status === "draft" && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="mt-1 sm:mt-0 rounded-full uppercase tracking-wide border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground w-full sm:w-auto justify-center"
+                  onClick={() => setDiscardDialogOpen(true)}
+                  disabled={discardDraftApplication.isPending}
+                >
+                  <XCircle className="h-4 w-4 mr-1.5" />
+                  Discard draft
+                </Button>
+              )}
           </div>
         </div>
 
@@ -2221,6 +2339,21 @@ const ApplicationDetail = () => {
               </Button>
               <Button
                 variant="outline"
+                className="rounded-full tracking-wide gap-2 text-xs sm:text-sm w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600 text-white hover:text-white border-0"
+                disabled={unpaidInstallments.length === 0}
+                onClick={() => {
+                  if (unpaidInstallments.length > 0) {
+                    setSelectedInvoiceInstallmentId(unpaidInstallments[0].installment_id);
+                    setInstallmentInvoiceDialogOpen(true);
+                  }
+                }}
+              >
+                <Send className="h-4 w-4" />
+                <span className="hidden sm:inline">Send installment invoice</span>
+                <span className="sm:hidden">Installment invoice</span>
+              </Button>
+              <Button
+                variant="outline"
                 className="rounded-full tracking-wide gap-2 text-xs sm:text-sm w-full sm:w-auto bg-blue-500 hover:bg-blue-600 text-white hover:text-white border-0"
                 onClick={() => handleSendNotification("Signature Reminder", "Please complete signing your tenancy agreement.")}
               >
@@ -2261,6 +2394,68 @@ const ApplicationDetail = () => {
           paymentType={manualPaymentInitialType}
         />
       )}
+
+      {/* Installment Invoice Dialog */}
+      <Dialog open={installmentInvoiceDialogOpen} onOpenChange={setInstallmentInvoiceDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-display uppercase tracking-wide">
+              Send Installment Invoice
+            </DialogTitle>
+            <DialogDescription>
+              Choose which unpaid or partially paid installment to email an invoice for.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {unpaidInstallments.length > 0 ? (
+              <div className="space-y-2">
+                <Label htmlFor="installment-select">Select installment</Label>
+                <Select
+                  value={selectedInvoiceInstallmentId}
+                  onValueChange={setSelectedInvoiceInstallmentId}
+                >
+                  <SelectTrigger id="installment-select">
+                    <SelectValue placeholder="Choose installment" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {unpaidInstallments.map((inst) => (
+                      <SelectItem key={inst.installment_id} value={inst.installment_id}>
+                        Instalment {inst.sequence} – £
+                        {Number(inst.amount_due).toFixed(2)} (Due:{" "}
+                        {new Date(inst.due_date).toLocaleDateString("en-GB")})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                There are no unpaid or partially paid installments for this application.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setInstallmentInvoiceDialogOpen(false)}
+              className="rounded-full uppercase tracking-wide"
+            >
+              Cancel
+            </Button>
+            <Button
+              className="rounded-full uppercase tracking-wide"
+              onClick={handleSendInstallmentInvoice}
+              disabled={
+                sendingInstallmentInvoice ||
+                !selectedInvoiceInstallmentId ||
+                unpaidInstallments.length === 0
+              }
+            >
+              {sendingInstallmentInvoice ? "Sending..." : "Send Invoice"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Cashback Dialog */}
       <Dialog open={cashbackDialogOpen} onOpenChange={setCashbackDialogOpen}>
@@ -2760,7 +2955,7 @@ const ApplicationDetail = () => {
               </div>
             </div>
           )}
-          <DialogFooter>
+          <DialogFooter className="flex flex-col sm:flex-row sm:justify-between gap-2">
             <Button
               variant="outline"
               onClick={() => {
@@ -2769,6 +2964,7 @@ const ApplicationDetail = () => {
                 setSelectedRejectedDoc(null);
               }}
               disabled={uploadDocument.isPending}
+              className="w-full sm:w-auto rounded-full uppercase tracking-wide"
             >
               Cancel
             </Button>
@@ -2837,8 +3033,58 @@ const ApplicationDetail = () => {
                 }
               }}
               disabled={!uploadFile || uploadDocument.isPending}
+              className="w-full sm:w-auto rounded-full uppercase tracking-wide"
             >
               {uploadDocument.isPending ? "Uploading..." : "Upload"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Discard Draft Dialog */}
+      <Dialog open={discardDialogOpen} onOpenChange={setDiscardDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-display uppercase tracking-wide">
+              Discard draft application
+            </DialogTitle>
+            <DialogDescription>
+              This will permanently delete this draft application and all related data (steps, documents, and payments, if any). This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-3 text-sm text-muted-foreground">
+            <p>
+              Use this only for test or abandoned applications that should not appear in reporting or the student portal.
+            </p>
+          </div>
+          <DialogFooter className="flex flex-col sm:flex-row sm:justify-between gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full sm:w-auto rounded-full uppercase tracking-wide"
+              onClick={() => setDiscardDialogOpen(false)}
+              disabled={discardDraftApplication.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              className="w-full sm:w-auto rounded-full uppercase tracking-wide"
+              onClick={() => discardDraftApplication.mutate()}
+              disabled={discardDraftApplication.isPending}
+            >
+              {discardDraftApplication.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Discarding…
+                </>
+              ) : (
+                <>
+                  <XCircle className="mr-2 h-4 w-4" />
+                  Discard draft
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
