@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, FileText, Download, CheckCircle2, Clock, User } from "lucide-react";
 import PortalLayout from "@/components/portal/PortalLayout";
@@ -11,7 +11,6 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
-import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 
 const Contracts = () => {
@@ -19,6 +18,7 @@ const Contracts = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [signingApplicationId, setSigningApplicationId] = useState<string | null>(null);
 
   const {
     data: applications,
@@ -109,6 +109,175 @@ const Contracts = () => {
 
   const isEnvelopeCompleted = (status?: string | null) =>
     (status ?? "").toLowerCase() === "completed";
+
+  const startSigningTenancy = async (applicationId: string) => {
+    if (!applicationId) return;
+
+    let placeholderWindow: Window | null = null;
+
+    if (typeof window !== "undefined") {
+      try {
+        placeholderWindow = window.open("", "_blank", "noopener");
+        if (placeholderWindow && !placeholderWindow.closed) {
+          placeholderWindow.document.write(`<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Launching DocuSign</title>
+    <style>
+      body {
+        margin: 0;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(circle at top, #0f172a, #020617);
+        color: white;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      .loader {
+        text-align: center;
+      }
+      .spinner {
+        width: 40px;
+        height: 40px;
+        border-radius: 999px;
+        border: 3px solid rgba(148, 163, 184, 0.5);
+        border-top-color: #facc15;
+        margin: 0 auto 1rem;
+        animation: spin 0.7s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      p {
+        margin: 0.2rem 0;
+        font-size: 0.95rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+      small {
+        display: block;
+        margin-top: 0.75rem;
+        font-size: 0.75rem;
+        color: rgba(255, 255, 255, 0.6);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="loader">
+      <div class="spinner"></div>
+      <p>Launching DocuSign</p>
+      <small>Please keep this tab open</small>
+    </div>
+  </body>
+</html>`);
+          placeholderWindow.document.close();
+        }
+      } catch (error) {
+        console.warn("Unable to render signing placeholder", error);
+      }
+    }
+
+    let fallbackTimer: ReturnType<typeof window.setTimeout> | null = null;
+    setSigningApplicationId(applicationId);
+
+    try {
+      const { data, error } = await supabase.functions.invoke<{
+        url?: string;
+        error?: string;
+      }>("docusign-recipient-view", {
+        body: {
+          applicationId,
+          envelopeType: "tenancy",
+          returnUrl:
+            typeof window !== "undefined"
+              ? `${window.location.origin}/portal/contracts?event=signing_complete`
+              : undefined,
+        },
+      });
+
+      if (error || data?.error || !data?.url) {
+        throw new Error(
+          data?.error ??
+            error?.message ??
+            "Unable to start the signing session. Please try again.",
+        );
+      }
+
+      const signingUrl = data.url;
+
+      const openSigningTarget = () => {
+        if (placeholderWindow && !placeholderWindow.closed) {
+          try {
+            placeholderWindow.location.replace(signingUrl);
+            placeholderWindow.focus();
+            return;
+          } catch (placeholderError) {
+            console.warn(
+              "Unable to reuse signing placeholder window",
+              placeholderError,
+            );
+            placeholderWindow.close();
+          }
+        }
+        const newTab = window.open(signingUrl, "_blank", "noopener");
+        if (newTab) {
+          newTab.focus();
+        } else {
+          window.location.href = signingUrl;
+        }
+      };
+
+      openSigningTarget();
+
+      if (typeof window !== "undefined") {
+        fallbackTimer = window.setTimeout(() => {
+          if (!signingUrl || !placeholderWindow || placeholderWindow.closed) {
+            return;
+          }
+          try {
+            const currentHref = placeholderWindow.location.href;
+            if (
+              currentHref === "about:blank" ||
+              currentHref === "about:blank/"
+            ) {
+              placeholderWindow.close();
+              const reopened = window.open(signingUrl, "_blank", "noopener");
+              if (!reopened) {
+                window.location.href = signingUrl;
+              }
+            }
+          } catch {
+            // accessing location threw → the window navigated to DocuSign, so do nothing
+          }
+        }, 2000);
+      }
+
+      toast({
+        title: "Signing launched",
+        description: "DocuSign opened in a new tab. Complete it to finish signing.",
+      });
+    } catch (err) {
+      console.error(err);
+      if (placeholderWindow && !placeholderWindow.closed) {
+        placeholderWindow.close();
+      }
+      toast({
+        variant: "destructive",
+        title: "Unable to open signing session",
+        description:
+          err instanceof Error ? err.message : "Please try again in a moment.",
+      });
+    } finally {
+      if (fallbackTimer && typeof window !== "undefined") {
+        window.clearTimeout(fallbackTimer);
+      }
+      setSigningApplicationId(null);
+    }
+  };
 
   const ContractsSkeleton = () => (
     <div className="space-y-8">
@@ -213,6 +382,8 @@ const Contracts = () => {
               canDownloadEnvelope={canDownloadEnvelope}
               formatEnvelopeStatus={formatEnvelopeStatus}
               isEnvelopeCompleted={isEnvelopeCompleted}
+              onSignTenancy={() => startSigningTenancy(app.id)}
+              isSigningTenancy={signingApplicationId === app.id}
             />
           );
         })}
@@ -232,6 +403,8 @@ type ContractCardProps = {
   canDownloadEnvelope: (envelope: { envelope_id?: string | null; signed_document_path?: string | null; status?: string | null }) => boolean;
   formatEnvelopeStatus: (status?: string | null) => string;
   isEnvelopeCompleted: (status?: string | null) => boolean;
+  onSignTenancy: () => void;
+  isSigningTenancy: boolean;
 };
 
 const ContractCard = ({
@@ -245,6 +418,8 @@ const ContractCard = ({
   canDownloadEnvelope,
   formatEnvelopeStatus,
   isEnvelopeCompleted,
+  onSignTenancy,
+  isSigningTenancy,
 }: ContractCardProps) => {
   const { data: application, isLoading } = useStudentApplication(applicationId);
 
@@ -326,27 +501,50 @@ const ContractCard = ({
                 <Clock className="h-4 w-4" />
                 Last updated {format(new Date(tenancyEnvelope.updated_at), "d MMM yyyy")}
               </div>
-              {canDownloadEnvelope(tenancyEnvelope) && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="rounded-full uppercase tracking-wide gap-2"
-                  onClick={() => onDownload(tenancyEnvelope.envelope_id ?? "", "tenancy")}
-                  disabled={downloadingId === (tenancyEnvelope.envelope_id ?? `${applicationId}-tenancy`)}
-                >
-                  {downloadingId === (tenancyEnvelope.envelope_id ?? `${applicationId}-tenancy`) ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Downloading...
-                    </>
-                  ) : (
-                    <>
-                      <Download className="h-4 w-4" />
-                      Download
-                    </>
-                  )}
-                </Button>
-              )}
+              <div className="flex flex-wrap items-center gap-2">
+                {!isEnvelopeCompleted(tenancyEnvelope.status) && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="rounded-full uppercase tracking-wide gap-2"
+                    onClick={onSignTenancy}
+                    disabled={isSigningTenancy}
+                  >
+                    {isSigningTenancy ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Opening DocuSign...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="h-4 w-4" />
+                        Sign online
+                      </>
+                    )}
+                  </Button>
+                )}
+                {canDownloadEnvelope(tenancyEnvelope) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-full uppercase tracking-wide gap-2"
+                    onClick={() => onDownload(tenancyEnvelope.envelope_id ?? "", "tenancy")}
+                    disabled={downloadingId === (tenancyEnvelope.envelope_id ?? `${applicationId}-tenancy`)}
+                  >
+                    {downloadingId === (tenancyEnvelope.envelope_id ?? `${applicationId}-tenancy`) ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Downloading...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="h-4 w-4" />
+                        Download
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
             </div>
           )}
         </div>

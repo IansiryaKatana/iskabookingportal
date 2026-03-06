@@ -6,7 +6,7 @@ import { useStudentApplicationsList } from "@/hooks/useStudentApplications";
 import { useStudentPayments } from "@/hooks/useStudentPayments";
 import { useApplicationCashback } from "@/hooks/useCashback";
 import { useApplicationDiscount } from "@/hooks/useDiscount";
-import { usePaymentSummary, useUnifiedPayments } from "@/hooks/useUnifiedPayments";
+import { usePaymentSummary, useUnifiedPayments, useInstallmentBreakdown } from "@/hooks/useUnifiedPayments";
 import { useManualPaymentRequests, useManualPaymentRequestHistory } from "@/hooks/useManualPaymentRequests";
 import ManualPaymentRequestDialog from "@/components/portal/ManualPaymentRequestDialog";
 import { useAuth } from "@/contexts/AuthContext";
@@ -125,8 +125,10 @@ const Payments = () => {
       confirmedApplications.forEach((app) => {
         queryClient.invalidateQueries({ queryKey: ["payment-summary", app.id] });
         queryClient.invalidateQueries({ queryKey: ["unified-payments", app.id] });
+        queryClient.invalidateQueries({ queryKey: ["installment-breakdown", app.id] });
         void queryClient.refetchQueries({ queryKey: ["payment-summary", app.id] });
         void queryClient.refetchQueries({ queryKey: ["unified-payments", app.id] });
+        void queryClient.refetchQueries({ queryKey: ["installment-breakdown", app.id] });
       });
 
       // Only update state if data actually changed (invisible polling)
@@ -286,10 +288,11 @@ const Payments = () => {
     
     // Immediately invalidate and refetch React Query caches
     if (currentInstalment) {
-      // Invalidate payment history and summary queries
+      // Invalidate payment history, summary, and per-instalment breakdown queries
       queryClient.invalidateQueries({ queryKey: ["unified-payments", currentInstalment.applicationId] });
       queryClient.invalidateQueries({ queryKey: ["payment-summary", currentInstalment.applicationId] });
       queryClient.invalidateQueries({ queryKey: ["student-payments", currentInstalment.applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["installment-breakdown", currentInstalment.applicationId] });
       
       // Also invalidate all payments queries (for admin view)
       queryClient.invalidateQueries({ queryKey: ["all-payments"] });
@@ -298,6 +301,7 @@ const Payments = () => {
       const refetchResults = await Promise.all([
         queryClient.refetchQueries({ queryKey: ["unified-payments", currentInstalment.applicationId] }),
         queryClient.refetchQueries({ queryKey: ["payment-summary", currentInstalment.applicationId] }),
+        queryClient.refetchQueries({ queryKey: ["installment-breakdown", currentInstalment.applicationId] }),
       ]);
       
       if (import.meta.env.DEV) console.log("Refetch results:", refetchResults);
@@ -321,7 +325,9 @@ const Payments = () => {
               // Refetch again after successful sync
               queryClient.invalidateQueries({ queryKey: ["unified-payments", currentInstalment.applicationId] });
               queryClient.invalidateQueries({ queryKey: ["payment-summary", currentInstalment.applicationId] });
+              queryClient.invalidateQueries({ queryKey: ["installment-breakdown", currentInstalment.applicationId] });
               await queryClient.refetchQueries({ queryKey: ["unified-payments", currentInstalment.applicationId] });
+              await queryClient.refetchQueries({ queryKey: ["installment-breakdown", currentInstalment.applicationId] });
             }
           } catch (err) {
             console.error("Retry sync error:", err);
@@ -335,6 +341,7 @@ const Payments = () => {
         queryClient.invalidateQueries({ queryKey: ["unified-payments", currentInstalment.applicationId] });
         queryClient.invalidateQueries({ queryKey: ["payment-summary", currentInstalment.applicationId] });
         queryClient.invalidateQueries({ queryKey: ["student-payments", currentInstalment.applicationId] });
+        queryClient.invalidateQueries({ queryKey: ["installment-breakdown", currentInstalment.applicationId] });
         queryClient.invalidateQueries({ queryKey: ["all-payments"] });
       }, 5000); // 5 second final check
     }
@@ -571,6 +578,7 @@ const PaymentCard = ({
     application.status === "confirmed" ? application.id : null
   );
   const { data: unifiedPayments } = useUnifiedPayments(application.id);
+  const { data: installmentBreakdown } = useInstallmentBreakdown(application.id);
   const contract = application.contract;
   const gradeName = contract?.studio_grade?.name ?? "Studio Grade";
 
@@ -637,6 +645,25 @@ const PaymentCard = ({
       return inst;
     });
   }, [instalments, totalReduction]);
+
+  const breakdownByInstalmentId = useMemo(() => {
+    if (!installmentBreakdown || installmentBreakdown.length === 0) {
+      return new Map<string, { payment_status: string; amount_due: number; amount_paid: number; remaining_amount: number }>();
+    }
+    return new Map(
+      installmentBreakdown.map((b) => [
+        // get_installment_breakdown uses installment_id (contract_payment_schedule.id)
+        // which matches instalment.id from useStudentPayments
+        (b as any).installment_id as string,
+        {
+          payment_status: (b as any).payment_status as string,
+          amount_due: Number((b as any).amount_due ?? 0),
+          amount_paid: Number((b as any).amount_paid ?? 0),
+          remaining_amount: Number((b as any).remaining_amount ?? 0),
+        },
+      ]),
+    );
+  }, [installmentBreakdown]);
 
   // Refetch when payment succeeds - but delay to prevent state reset
   useEffect(() => {
@@ -838,7 +865,23 @@ const PaymentCard = ({
               : cashback?.cashback_amount
                 ? "Cashback"
                 : "Discount";
-          const status = getInstalmentStatus(instalment, application);
+
+          const breakdown = breakdownByInstalmentId.get(instalment.id);
+          const baseStatus = getInstalmentStatus(instalment, application);
+
+          let status = baseStatus;
+          if (breakdown) {
+            if (breakdown.payment_status === "paid") {
+              status = { status: "paid", label: "Paid", color: "default" as const };
+            } else if (breakdown.payment_status === "partial") {
+              status = {
+                status: "partial",
+                label: "Partially paid",
+                color: baseStatus.color === "destructive" ? "destructive" as const : "default" as const,
+              };
+            }
+          }
+
           const isSelected =
             selectedInstalment?.instalmentId === instalment.id;
           const isPaying = isSelected && paymentClientSecret;
@@ -867,27 +910,34 @@ const PaymentCard = ({
                       <Calendar className="h-4 w-4" />
                       Due {format(new Date(instalment.due_date), "d MMM yyyy")}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <CreditCard className="h-4 w-4" />
-                      {hasReduction ? (
-                        <span className="flex items-center gap-2">
-                          <span className="line-through text-muted-foreground/60">
-                            £{originalAmount.toFixed(2)}
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <CreditCard className="h-4 w-4" />
+                        {hasReduction ? (
+                          <span className="flex items-center gap-2">
+                            <span className="line-through text-muted-foreground/60">
+                              £{originalAmount.toFixed(2)}
+                            </span>
+                            <span className="font-semibold text-primary">
+                              £{Number(instalment.amount).toFixed(2)}
+                            </span>
+                            <Badge variant="outline" className="text-xs">
+                              {discount?.discount_amount && !cashback?.cashback_amount ? (
+                                <Percent className="h-3 w-3 mr-1" />
+                              ) : (
+                                <Gift className="h-3 w-3 mr-1" />
+                              )}
+                              {reductionLabel}
+                            </Badge>
                           </span>
-                          <span className="font-semibold text-primary">
-                            £{Number(instalment.amount).toFixed(2)}
-                          </span>
-                          <Badge variant="outline" className="text-xs">
-                            {discount?.discount_amount && !cashback?.cashback_amount ? (
-                              <Percent className="h-3 w-3 mr-1" />
-                            ) : (
-                              <Gift className="h-3 w-3 mr-1" />
-                            )}
-                            {reductionLabel}
-                          </Badge>
-                        </span>
-                      ) : (
-                        <span>£{Number(instalment.amount).toFixed(2)}</span>
+                        ) : (
+                          <span>£{Number(instalment.amount).toFixed(2)}</span>
+                        )}
+                      </div>
+                      {breakdown && (breakdown.amount_paid > 0 || breakdown.remaining_amount > 0) && (
+                        <div className="text-xs text-muted-foreground">
+                          £{breakdown.amount_paid.toFixed(2)} paid • £{breakdown.remaining_amount.toFixed(2)} remaining
+                        </div>
                       )}
                     </div>
                   </div>

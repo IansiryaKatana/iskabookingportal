@@ -403,6 +403,7 @@ const StudentApplicationWizard = () => {
     guarantor: null,
   });
   const [checkingStatus, setCheckingStatus] = useState(false);
+  const [staffSigningMode, setStaffSigningMode] = useState<"docusign" | "manual_upload">("docusign");
   const [uploadingTenancy, setUploadingTenancy] = useState(false);
   const [uploadingGuarantor, setUploadingGuarantor] = useState(false);
   const [countryOpen, setCountryOpen] = useState(false);
@@ -2023,14 +2024,14 @@ useEffect(() => {
       return;
     }
 
-    // Staff complete applications by uploading signed documents in Step 6 (no DocuSign)
+    // Staff complete applications in Step 6 (DocuSign or manual upload)
     if (isStaff) {
       setCurrentStep(MAX_STEP_NUMBER);
       writeStoredStep(application.id, MAX_STEP_NUMBER);
       await refetchApplication();
       toast({
         title: "Step 5 saved",
-        description: "Upload the signed tenancy and guarantor agreements in Step 6.",
+        description: "Review and manage the tenancy and guarantor agreements in Step 6.",
       });
       return;
     }
@@ -2596,6 +2597,33 @@ useEffect(() => {
     return Boolean(depositFlag);
   }, [application, paymentValues.deposit_paid, paymentValues.already_paid_deposit, paymentVerification]);
 
+  // Initialise staff signing mode from application or inferred behaviour
+  useEffect(() => {
+    if (!isStaff || !application) return;
+
+    const existingMode =
+      (application as unknown as { signature_mode?: "docusign" | "manual_upload" | null })
+        .signature_mode ?? null;
+
+    if (existingMode === "docusign" || existingMode === "manual_upload") {
+      setStaffSigningMode(existingMode);
+      return;
+    }
+
+    const hasStaffUploadedEnvelope =
+      (application.docusign_envelopes ?? []).some((env) => {
+        if (!env.metadata) return false;
+        try {
+          const meta = env.metadata as unknown as { uploaded_by_staff?: boolean };
+          return meta.uploaded_by_staff === true;
+        } catch {
+          return false;
+        }
+      });
+
+    setStaffSigningMode(hasStaffUploadedEnvelope ? "manual_upload" : "docusign");
+  }, [isStaff, application]);
+
   const checkEnvelopeStatus = async () => {
     if (!application?.id || checkingStatus) return;
     
@@ -2631,6 +2659,37 @@ useEffect(() => {
       console.error("Error checking envelope status:", error);
     } finally {
       setCheckingStatus(false);
+    }
+  };
+
+  const handleStaffSigningModeChange = async (
+    mode: "docusign" | "manual_upload",
+  ) => {
+    if (!isStaff || !application?.id || mode === staffSigningMode) return;
+
+    const previousMode = staffSigningMode;
+    setStaffSigningMode(mode);
+
+    try {
+      const { error } = await supabase
+        .from("student_applications")
+        .update({ signature_mode: mode })
+        .eq("id", application.id);
+
+      if (error) {
+        throw error;
+      }
+    } catch (error) {
+      console.error("Failed to update signing method:", error);
+      setStaffSigningMode(previousMode);
+      toast({
+        variant: "destructive",
+        title: "Unable to update signing method",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Please try again in a moment.",
+      });
     }
   };
 
@@ -4161,70 +4220,176 @@ useEffect(() => {
             <div className="space-y-6">
               <Card className="rounded-3xl border border-border/60 shadow-lg">
                 <CardHeader>
-                  <CardTitle className="text-lg font-display uppercase tracking-wide">
-                    Upload Signed Agreements (Staff)
-                  </CardTitle>
-                  <CardDescription>
-                    Upload the signed tenancy and guarantor agreements on behalf of the student.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Tenancy Agreement (PDF)</Label>
-                    <div className="flex items-center gap-4">
-                      <Input
-                        type="file"
-                        accept="application/pdf"
-                        className="max-w-xs"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) handleStaffUploadSignedDocument("tenancy", f);
-                          e.target.value = "";
-                        }}
-                        disabled={uploadingTenancy || tenancyDone}
-                      />
-                      {tenancyDone ? (
-                        <span className="inline-flex items-center gap-2 rounded-full bg-green-600 px-3 py-1 text-sm font-semibold text-white uppercase">
-                          <CheckCircle2 className="h-4 w-4" /> Completed
-                        </span>
-                      ) : uploadingTenancy ? (
-                        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                      ) : null}
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <CardTitle className="text-lg font-display uppercase tracking-wide">
+                        Agreements & Signing (Staff)
+                      </CardTitle>
+                      <CardDescription>
+                        Choose how this application&apos;s tenancy and guarantor agreements are managed.
+                      </CardDescription>
                     </div>
-                  </div>
-                  {requiresGuarantor && (
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium">Guarantor Agreement (PDF)</Label>
-                      <div className="flex items-center gap-4">
-                        <Input
-                          type="file"
-                          accept="application/pdf"
-                          className="max-w-xs"
-                          onChange={(e) => {
-                            const f = e.target.files?.[0];
-                            if (f) handleStaffUploadSignedDocument("guarantor", f);
-                            e.target.value = "";
-                          }}
-                          disabled={uploadingGuarantor || guarantorDone}
-                        />
-                        {guarantorDone ? (
-                          <span className="inline-flex items-center gap-2 rounded-full bg-green-600 px-3 py-1 text-sm font-semibold text-white uppercase">
-                            <CheckCircle2 className="h-4 w-4" /> Completed
-                          </span>
-                        ) : uploadingGuarantor ? (
-                          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                        ) : null}
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                        Signing method
+                      </span>
+                      <div className="inline-flex rounded-full border border-border/60 bg-muted/40 p-1">
+                        <Button
+                          type="button"
+                          variant={staffSigningMode === "docusign" ? "default" : "ghost"}
+                          size="sm"
+                          className="h-7 rounded-full px-3 text-xs uppercase tracking-wide"
+                          onClick={() => handleStaffSigningModeChange("docusign")}
+                        >
+                          DocuSign
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={staffSigningMode === "manual_upload" ? "default" : "ghost"}
+                          size="sm"
+                          className="h-7 rounded-full px-3 text-xs uppercase tracking-wide"
+                          onClick={() => handleStaffSigningModeChange("manual_upload")}
+                        >
+                          Manual upload
+                        </Button>
                       </div>
                     </div>
-                  )}
-                  {tenancyDone && guarantorDone && (
-                    <Alert className="border-green-500/40 bg-green-500/10">
-                      <CheckCircle2 className="h-4 w-4" />
-                      <AlertTitle className="font-semibold">All agreements uploaded</AlertTitle>
-                      <AlertDescription className="text-sm mt-1">
-                        The application has been moved to awaiting verification. Staff can confirm it in the admin dashboard.
-                      </AlertDescription>
-                    </Alert>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {staffSigningMode === "manual_upload" ? (
+                    <>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Tenancy Agreement (PDF)</Label>
+                        <div className="flex items-center gap-4">
+                          <Input
+                            type="file"
+                            accept="application/pdf"
+                            className="max-w-xs"
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              if (f) handleStaffUploadSignedDocument("tenancy", f);
+                              e.target.value = "";
+                            }}
+                            disabled={uploadingTenancy || tenancyDone}
+                          />
+                          {tenancyDone ? (
+                            <span className="inline-flex items-center gap-2 rounded-full bg-green-600 px-3 py-1 text-sm font-semibold text-white uppercase">
+                              <CheckCircle2 className="h-4 w-4" /> Completed
+                            </span>
+                          ) : uploadingTenancy ? (
+                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                          ) : null}
+                        </div>
+                      </div>
+                      {requiresGuarantor && (
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Guarantor Agreement (PDF)</Label>
+                          <div className="flex items-center gap-4">
+                            <Input
+                              type="file"
+                              accept="application/pdf"
+                              className="max-w-xs"
+                              onChange={(e) => {
+                                const f = e.target.files?.[0];
+                                if (f) handleStaffUploadSignedDocument("guarantor", f);
+                                e.target.value = "";
+                              }}
+                              disabled={uploadingGuarantor || guarantorDone}
+                            />
+                            {guarantorDone ? (
+                              <span className="inline-flex items-center gap-2 rounded-full bg-green-600 px-3 py-1 text-sm font-semibold text-white uppercase">
+                                <CheckCircle2 className="h-4 w-4" /> Completed
+                              </span>
+                            ) : uploadingGuarantor ? (
+                              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                            ) : null}
+                          </div>
+                        </div>
+                      )}
+                      {tenancyDone && guarantorDone && (
+                        <Alert className="border-green-500/40 bg-green-500/10">
+                          <CheckCircle2 className="h-4 w-4" />
+                          <AlertTitle className="font-semibold">All agreements uploaded</AlertTitle>
+                          <AlertDescription className="text-sm mt-1">
+                            The application has been moved to awaiting verification. Staff can confirm it in the admin dashboard.
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div className="space-y-4">
+                        <div className="flex flex-wrap items-center gap-4">
+                          <div>
+                            <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                              Tenancy status
+                            </p>
+                            <p className="text-sm font-semibold">
+                              {formatEnvelopeStatus(effectiveTenancyEnvelope?.status)}
+                            </p>
+                          </div>
+                          {requiresGuarantor && (
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                                Guarantor status
+                              </p>
+                              <p className="text-sm font-semibold">
+                                {formatEnvelopeStatus(effectiveGuarantorEnvelope?.status)}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3">
+                          {!effectiveTenancyEnvelope && depositPaid && (
+                            <Button
+                              type="button"
+                              className="rounded-full uppercase tracking-wide"
+                              onClick={() => sendAgreements().catch(() => undefined)}
+                              disabled={sendingAgreements}
+                            >
+                              {sendingAgreements ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Sending agreements
+                                </>
+                              ) : (
+                                "Send agreements via DocuSign"
+                              )}
+                            </Button>
+                          )}
+                          {effectiveTenancyEnvelope && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="rounded-full uppercase tracking-wide"
+                              onClick={checkEnvelopeStatus}
+                              disabled={checkingStatus}
+                            >
+                              {checkingStatus ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Checking status
+                                </>
+                              ) : (
+                                "Check status now"
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                        {!effectiveTenancyEnvelope && !depositPaid && (
+                          <p className="text-xs text-muted-foreground">
+                            Once the student has paid their deposit and completed Step 5, you can send DocuSign agreements from here.
+                          </p>
+                        )}
+                        {effectiveTenancyEnvelope && (
+                          <p className="text-xs text-muted-foreground">
+                            Agreements are managed via DocuSign. Students can sign from their email or from the Contracts page in their portal.
+                          </p>
+                        )}
+                      </div>
+                    </>
                   )}
                 </CardContent>
               </Card>
