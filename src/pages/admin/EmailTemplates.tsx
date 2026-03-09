@@ -13,14 +13,7 @@ import { Plus, Edit, Trash2, Mail, Info, Sparkles } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import {
   Dialog,
   DialogContent,
@@ -32,6 +25,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import ReactQuill from "react-quill";
+import "react-quill/dist/quill.snow.css";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -136,6 +131,32 @@ const BRAND_FONTS = {
   body: "'Inter Tight', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
   display: "'Big Shoulders Display', 'Inter Tight', sans-serif",
 };
+
+const quillModules = {
+  toolbar: [
+    [{ header: [1, 2, 3, false] }],
+    ["bold", "italic", "underline", "strike"],
+    [{ list: "ordered" }, { list: "bullet" }],
+    [{ indent: "-1" }, { indent: "+1" }],
+    [{ align: [] }],
+    ["link", "image"],
+    ["clean"],
+  ],
+};
+
+const quillFormats = [
+  "header",
+  "bold",
+  "italic",
+  "underline",
+  "strike",
+  "list",
+  "bullet",
+  "indent",
+  "align",
+  "link",
+  "image",
+];
 
 const getDefaultTemplate = (templateType: string): { subject: string; html: string; text: string } => {
   // Logo URL - will be replaced with actual logo URL when sending emails
@@ -913,13 +934,21 @@ const EmailTemplates = () => {
 
   const handleSubmit = async (data: EmailTemplateFormData) => {
     try {
+      const cleanedBodyText =
+        data.body_text && data.body_text.trim().length > 0
+          ? data.body_text
+          : data.body_html
+              .replace(/<[^>]*>/g, " ")
+              .replace(/\s+/g, " ")
+              .trim();
+
       if (editingTemplate) {
         await updateTemplate.mutateAsync({
           id: editingTemplate,
           name: data.name,
           subject: data.subject,
           body_html: data.body_html,
-          body_text: data.body_text,
+          body_text: cleanedBodyText,
           template_type: data.template_type,
           is_active: data.is_active,
         });
@@ -932,7 +961,7 @@ const EmailTemplates = () => {
           name: data.name,
           subject: data.subject,
           body_html: data.body_html,
-          body_text: data.body_text,
+          body_text: cleanedBodyText,
           template_type: data.template_type,
           is_active: data.is_active ?? true,
         });
@@ -1116,11 +1145,11 @@ const EmailTemplates = () => {
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Template Name *</FormLabel>
+                    <FormLabel className="sr-only">Template Name *</FormLabel>
                     <FormControl>
                       <Input
                         {...field}
-                        placeholder="e.g., Welcome Email"
+                        placeholder="Template name, e.g. Welcome email"
                       />
                     </FormControl>
                     <FormMessage />
@@ -1132,53 +1161,56 @@ const EmailTemplates = () => {
                 name="template_type"
                 render={({ field }) => (
                   <FormItem>
-                    <div className="flex items-center gap-2 mb-2">
-                      <FormLabel>Template Type *</FormLabel>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0 rounded-full"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Info className="h-4 w-4 text-muted-foreground" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-80 rounded-2xl" align="start">
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <Sparkles className="h-4 w-4 text-primary" />
-                        <h4 className="font-semibold text-sm">Available Variables</h4>
-                      </div>
-                      <p className="text-xs text-muted-foreground mb-3">
-                        {templateVariables[field.value]?.description || "Custom template variables"}
+                    <FormLabel className="sr-only">Template Type *</FormLabel>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <p className="text-xs text-muted-foreground">
+                        Choose what this email will be used for
                       </p>
-                      <div className="space-y-2">
-                        {(templateVariables[field.value]?.variables || []).map((variable) => (
-                          <div key={variable} className="flex items-center gap-2">
-                            <code className="text-xs bg-muted px-2 py-1 rounded font-mono">
-                              {`{${variable}}`}
-                            </code>
-                            <span className="text-xs text-muted-foreground">
-                              {variable.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
-                            </span>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 rounded-full"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Info className="h-4 w-4 text-muted-foreground" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-80 rounded-2xl" align="start">
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-2">
+                              <Sparkles className="h-4 w-4 text-primary" />
+                              <h4 className="font-semibold text-sm">Available Variables</h4>
+                            </div>
+                            <p className="text-xs text-muted-foreground mb-3">
+                              {templateVariables[field.value]?.description || "Custom template variables"}
+                            </p>
+                            <div className="space-y-2">
+                              {(templateVariables[field.value]?.variables || []).map((variable) => (
+                                <div key={variable} className="flex items-center gap-2">
+                                  <code className="text-xs bg-muted px-2 py-1 rounded font-mono">
+                                    {`{${variable}}`}
+                                  </code>
+                                  <span className="text-xs text-muted-foreground">
+                                    {variable.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-3 pt-3 border-t">
+                              Use these variables in your template. They will be replaced with actual values when the email is sent.
+                            </p>
                           </div>
-                        ))}
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-3 pt-3 border-t">
-                        Use these variables in your template. They will be replaced with actual values when the email is sent.
-                      </p>
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                        </PopoverContent>
+                      </Popover>
                     </div>
                     <div className="flex gap-2">
                       <Select value={field.value} onValueChange={field.onChange}>
                         <FormControl>
                           <SelectTrigger className="flex-1">
-                            <SelectValue />
+                            <SelectValue placeholder="Select template type" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -1210,11 +1242,11 @@ const EmailTemplates = () => {
                 name="subject"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email Subject *</FormLabel>
+                    <FormLabel className="sr-only">Email Subject *</FormLabel>
                     <FormControl>
                       <Input
                         {...field}
-                        placeholder="e.g., Welcome to {company_name}!"
+                        placeholder="Subject line, e.g. Welcome to {company_name}!"
                       />
                     </FormControl>
                     <FormMessage />
@@ -1226,15 +1258,23 @@ const EmailTemplates = () => {
                 name="body_html"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email Body (HTML) *</FormLabel>
+                    <FormLabel className="sr-only">Email Body *</FormLabel>
                     <FormControl>
-                      <Textarea
-                        {...field}
-                        className="font-mono text-sm"
-                        rows={10}
-                        placeholder="<html>...</html>"
-                      />
+                      <div className="rounded-2xl border bg-background">
+                        <ReactQuill
+                          theme="snow"
+                          value={field.value}
+                          onChange={field.onChange}
+                          onBlur={field.onBlur}
+                          placeholder="Write the email content here. Use the toolbar to format text, add links, and insert images."
+                          modules={quillModules}
+                          formats={quillFormats}
+                        />
+                      </div>
                     </FormControl>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Rich formatting and images are supported. Variables like {"{student_name}"} and {"{portal_url}"} will be replaced automatically.
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -1244,12 +1284,12 @@ const EmailTemplates = () => {
                 name="body_text"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email Body (Plain Text)</FormLabel>
+                    <FormLabel className="sr-only">Email Body (Plain Text)</FormLabel>
                     <FormControl>
                       <Textarea
                         {...field}
                         rows={5}
-                        placeholder="Plain text version of the email"
+                        placeholder="Optional plain text version. If left blank, we’ll generate one from the rich content."
                       />
                     </FormControl>
                     <FormMessage />
