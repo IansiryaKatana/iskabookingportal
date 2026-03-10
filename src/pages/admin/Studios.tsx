@@ -1,4 +1,7 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useAdminStudios, useUpdateStudio, useBulkUpdateStudios } from "@/hooks/useAdminStudios";
 import { useAdminStudioGrades } from "@/hooks/useAdminStudioGrades";
@@ -26,7 +29,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Loader2, ArrowRightCircle, CheckSquare, Square, MoreVertical, Search } from "lucide-react";
+import { Loader2, ArrowRightCircle, CheckSquare, Square, MoreVertical, Search, KeyRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
@@ -40,6 +43,7 @@ const statusLabels: Record<string, string> = {
 };
 
 const Studios = () => {
+  const navigate = useNavigate();
   const [gradeFilter, setGradeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [allocationFilter, setAllocationFilter] = useState<string>("all");
@@ -101,6 +105,45 @@ const Studios = () => {
       );
     });
   }, [studios, searchQuery]);
+
+  const occupiedStudioIds = useMemo(
+    () => filteredStudios.filter((s) => s.status === "occupied").map((s) => s.id),
+    [filteredStudios],
+  );
+
+  const { data: occupiedApplications } = useQuery({
+    queryKey: ["studio-occupied-applications", occupiedStudioIds],
+    queryFn: async () => {
+      if (occupiedStudioIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("student_applications")
+        .select("id, assigned_studio_id, contract:contracts!contract_id(contract_end)")
+        .in("assigned_studio_id", occupiedStudioIds)
+        .eq("status", "confirmed");
+      if (error) throw error;
+      return (data ?? []) as { id: string; assigned_studio_id: string | null; contract: { contract_end: string | null } | null }[];
+    },
+    enabled: occupiedStudioIds.length > 0,
+  });
+
+  const studioCanReleaseMap = useMemo(() => {
+    const map = new Map<string, boolean>();
+    if (!occupiedApplications?.length) return map;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    for (const studioId of occupiedStudioIds) {
+      const apps = occupiedApplications.filter((a) => a.assigned_studio_id === studioId);
+      if (apps.length === 0) continue;
+      const maxEnd = apps.reduce<Date | null>((acc, app) => {
+        const end = app.contract?.contract_end;
+        if (!end) return acc;
+        const d = new Date(end);
+        return acc ? (d > acc ? d : acc) : d;
+      }, null);
+      map.set(studioId, !!maxEnd && maxEnd < today);
+    }
+    return map;
+  }, [occupiedStudioIds, occupiedApplications]);
 
   const selectAll = selectedStudios.size === filteredStudios.length && filteredStudios.length > 0;
   const someSelected = selectedStudios.size > 0 && selectedStudios.size < filteredStudios.length;
@@ -412,9 +455,15 @@ const Studios = () => {
                         </SelectContent>
                       </Select>
                     </div>
-                    <h3 className="text-xl font-display font-bold uppercase tracking-wide">
-                      {studio.studio_number}
-                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/admin/studios/${studio.id}`)}
+                      className="text-left"
+                    >
+                      <h3 className="text-xl font-display font-bold uppercase tracking-wide hover:underline">
+                        {studio.studio_number}
+                      </h3>
+                    </button>
                     {studio.allocation && (
                       <p className="text-xs text-muted-foreground">
                         Allocation: {studio.allocation}
@@ -423,6 +472,12 @@ const Studios = () => {
                     {studio.reservation_expires_at && (
                       <p className="text-xs text-amber-600">
                         Reservation expires {studio.reservation_expires_at}
+                      </p>
+                    )}
+                    {studio.status === "occupied" && studioCanReleaseMap.get(studio.id) && (
+                      <p className="text-xs text-slate-600 flex items-center gap-1">
+                        <KeyRound className="h-3 w-3" />
+                        Can release
                       </p>
                     )}
                     </div>

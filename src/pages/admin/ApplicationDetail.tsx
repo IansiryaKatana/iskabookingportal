@@ -52,7 +52,7 @@ import {
   exportSingleApplicationDefaultCSV,
 } from "@/utils/csvTemplateGenerator";
 import { useCreateExtensionApplication } from "@/hooks/useCreateExtensionApplication";
-import { addDays } from "date-fns";
+import { addDays, isAfter, parseISO } from "date-fns";
 
 const getStatusBadge = (status: string) => {
   const statusConfig: Record<string, { className: string; label: string }> = {
@@ -83,6 +83,10 @@ const getStatusBadge = (status: string) => {
     expired: {
       className: "bg-orange-500 hover:bg-orange-600 text-white",
       label: "Expired",
+    },
+    checked_out: {
+      className: "bg-slate-700 hover:bg-slate-800 text-white",
+      label: "Checked Out",
     },
   };
 
@@ -164,6 +168,49 @@ const ApplicationDetail = () => {
   });
   const isExtension = !!(application as { extension_of_application_id?: string | null })?.extension_of_application_id;
   const isOriginalBooking = !!applicationId && !isExtension;
+
+  // Derive a display status that shows "Checked Out" when a confirmed booking
+  // has passed its final contract end date (original + any extensions).
+  const displayStatus = useMemo(() => {
+    if (!application) return "";
+
+    const rawStatus = application.status;
+    if (rawStatus !== "confirmed") return rawStatus;
+
+    const endDates: string[] = [];
+    const baseEnd = (application.contract as { contract_end?: string | null } | null)?.contract_end;
+    if (baseEnd) endDates.push(baseEnd);
+
+    (extensionApplications ?? []).forEach(
+      (ext: { contract?: { contract_end?: string | null } | null }) => {
+        const extEnd = ext.contract?.contract_end;
+        if (extEnd) endDates.push(extEnd);
+      },
+    );
+
+    if (!endDates.length) return rawStatus;
+
+    const latestEnd = endDates
+      .map((d) => {
+        try {
+          return parseISO(d);
+        } catch {
+          return null;
+        }
+      })
+      .filter((d): d is Date => !!d && !Number.isNaN(d.getTime()))
+      .sort((a, b) => a.getTime() - b.getTime())
+      .at(-1);
+
+    if (!latestEnd) return rawStatus;
+
+    const now = new Date();
+    if (isAfter(now, latestEnd)) {
+      return "checked_out";
+    }
+
+    return rawStatus;
+  }, [application, extensionApplications]);
 
   const { data: paymentSchedule } = useStudentPayments(applicationId);
   const { data: hasInstalmentPayments } = useQuery({
@@ -938,7 +985,7 @@ const ApplicationDetail = () => {
           </Button>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-3">
-              {getStatusBadge(application.status)}
+              {getStatusBadge(displayStatus)}
               {application.is_rebooking && (
                 <Badge className="bg-primary/10 text-primary border-primary/20 rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide flex items-center gap-1.5">
                   <RotateCcw className="h-3 w-3" />
@@ -1005,7 +1052,7 @@ const ApplicationDetail = () => {
         {/* Status and Select - Mobile only, shown below header */}
         <div className="lg:hidden flex flex-col sm:flex-row items-start sm:items-center gap-3">
           <div className="flex items-center gap-2">
-            {getStatusBadge(application.status)}
+            {getStatusBadge(displayStatus)}
             {application.is_rebooking && (
               <Badge className="bg-primary/10 text-primary border-primary/20 rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide flex items-center gap-1.5">
                 <RotateCcw className="h-3 w-3" />

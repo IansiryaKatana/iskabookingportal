@@ -16,6 +16,8 @@ export type AdminApplication = ApplicationRow & {
     id: string;
     name: string;
     weeks: number;
+    contract_start?: string | null;
+    contract_end?: string | null;
     studio_grade: {
       id: string;
       name: string;
@@ -56,6 +58,8 @@ const fetchApplications = async (academicYearId?: string): Promise<AdminApplicat
           name,
           weeks,
           academic_year_id,
+          contract_start,
+          contract_end,
           studio_grade:studio_grades ( id, name )
         ),
         assigned_studio:studios (*)

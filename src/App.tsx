@@ -32,6 +32,7 @@ const AdminAcademicYears = lazy(() => import("./pages/admin/AcademicYears"));
 const AdminDocuSignTemplates = lazy(() => import("./pages/admin/DocuSignTemplates"));
 const AdminStudioGrades = lazy(() => import("./pages/admin/StudioGrades"));
 const AdminStudios = lazy(() => import("./pages/admin/Studios"));
+const AdminStudioDetail = lazy(() => import("./pages/admin/StudioDetail"));
 const AdminApplications = lazy(() => import("./pages/admin/Applications"));
 const AdminPaymentPlans = lazy(() => import("./pages/admin/PaymentPlans"));
 const AdminFinancialForecast = lazy(() => import("./pages/admin/FinancialForecast"));
@@ -246,6 +247,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
                   <AdminStudios />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/studios/:studioId"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                  <AdminStudioDetail />
                 </ProtectedRoute>
               }
             />

@@ -76,6 +76,7 @@ const statusLabels: Record<string, string> = {
   confirmed: "Confirmed",
   cancelled: "Cancelled",
   expired: "Expired",
+  checked_out: "Checked Out",
 };
 
 const getStatusBadge = (status: string) => {
@@ -107,6 +108,10 @@ const getStatusBadge = (status: string) => {
     expired: {
       className: "bg-orange-500 hover:bg-orange-600 text-white",
       label: "Expired",
+    },
+    checked_out: {
+      className: "bg-slate-700 hover:bg-slate-800 text-white",
+      label: "Checked Out",
     },
   };
 
@@ -452,9 +457,22 @@ const Applications = () => {
   const filtered = useMemo(() => {
     let result = data ?? [];
     
-    // Apply status filter
+    // Apply status filter (checked_out is derived: confirmed + past contract end)
     if (statusFilter !== "all") {
-      result = result.filter((application) => application.status === statusFilter);
+      if (statusFilter === "checked_out") {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        result = result.filter((application) => {
+          if (application.status !== "confirmed") return false;
+          const end = application.contract?.contract_end;
+          if (!end) return false;
+          const endDate = new Date(end);
+          endDate.setHours(0, 0, 0, 0);
+          return endDate < today;
+        });
+      } else {
+        result = result.filter((application) => application.status === statusFilter);
+      }
     }
 
     // Apply booking source filter
@@ -760,7 +778,13 @@ const Applications = () => {
                           {application.student?.first_name} {application.student?.last_name}
                         </h3>
                         <div className="flex-shrink-0 flex items-center gap-1.5 flex-wrap">
-                          {getStatusBadge(application.status)}
+                          {getStatusBadge(
+                            application.status === "confirmed" &&
+                              application.contract?.contract_end &&
+                              new Date(application.contract.contract_end) < new Date()
+                              ? "checked_out"
+                              : application.status
+                          )}
                           {!application.deposit_payment_intent_id &&
                             (application.status === "confirmed" || application.status === "awaiting_deposit") && (
                             <Badge variant="outline" className="text-amber-600 border-amber-400 text-[10px] uppercase">
