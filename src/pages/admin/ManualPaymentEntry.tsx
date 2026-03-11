@@ -242,7 +242,13 @@ const ManualPaymentEntry = () => {
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_applications_for_payment_link");
       if (error) throw error;
-      return (data ?? []) as { id: string; student_name: string | null; student_email: string | null; contract_slug: string | null }[];
+      return (data ?? []) as {
+        id: string;
+        student_name: string | null;
+        student_email: string | null;
+        contract_slug: string | null;
+        academic_year_name: string | null;
+      };
     },
     enabled: showForm || !!linkingPayment,
   });
@@ -1128,7 +1134,11 @@ const ManualPaymentEntry = () => {
                               (app as { student_name?: string | null }).student_name ?? "—";
                             const email =
                               (app as { student_email?: string | null }).student_email ?? "";
-                            return `${name}${email ? ` – ${email}` : ""}`;
+                            const academicYear =
+                              (app as { academic_year_name?: string | null }).academic_year_name ??
+                              "";
+                            const base = `${name}${email ? ` – ${email}` : ""}`;
+                            return academicYear ? `${base} – ${academicYear}` : base;
                           })()}
                         </span>
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -1168,11 +1178,14 @@ const ManualPaymentEntry = () => {
                                 (app as { student_name?: string | null }).student_name ?? "—";
                               const email =
                                 (app as { student_email?: string | null }).student_email ?? "";
+                              const academicYear =
+                                (app as { academic_year_name?: string | null }).academic_year_name ??
+                                "";
                               const label = `${name}${email ? ` – ${email}` : ""}`;
                               return (
                                 <CommandItem
                                   key={app.id}
-                                  value={label}
+                                  value={academicYear ? `${label} ${academicYear}` : label}
                                   onSelect={() => {
                                     setLinkApplicationId(app.id);
                                     setLinkInstalmentId("");
@@ -1188,7 +1201,26 @@ const ManualPaymentEntry = () => {
                                         : "opacity-0"
                                     )}
                                   />
-                                  {label}
+                                  <div className="flex w-full items-center justify-between gap-2">
+                                    <span className="truncate">{label}</span>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      {app.contract_slug && (
+                                        <Badge
+                                          variant="outline"
+                                          className="px-2 py-0 text-[10px] rounded-full"
+                                        >
+                                          {(app as { contract_slug?: string | null }).contract_slug}
+                                        </Badge>
+                                      )}
+                                      {academicYear && (
+                                        <Badge
+                                          className="px-2 py-0 text-[10px] rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-100"
+                                        >
+                                          {academicYear}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </div>
                                 </CommandItem>
                               );
                             })}
@@ -1513,11 +1545,16 @@ const ManualPaymentEntry = () => {
                     const filtered =
                       !search
                         ? applicationsForLink ?? []
-                        : (applicationsForLink ?? []).filter(
-                            (app) =>
+                        : (applicationsForLink ?? []).filter((app) => {
+                            const year =
+                              (app as { academic_year_name?: string | null }).academic_year_name ??
+                              "";
+                            return (
                               (app.student_name ?? "").toLowerCase().includes(search) ||
-                              (app.student_email ?? "").toLowerCase().includes(search)
-                          );
+                              (app.student_email ?? "").toLowerCase().includes(search) ||
+                              year.toLowerCase().includes(search)
+                            );
+                          });
                     const selectedApp = applicationsForLink?.find((a) => a.id === linkDialogApplicationId);
                     return (
                       <Popover open={linkDialogAppOpen} onOpenChange={setLinkDialogAppOpen}>
@@ -1533,7 +1570,16 @@ const ManualPaymentEntry = () => {
                           >
                             <span className="truncate">
                               {selectedApp
-                                ? `${selectedApp.student_name ?? "Unknown"} – ${selectedApp.student_email ?? ""}`
+                                ? (() => {
+                                    const year =
+                                      (selectedApp as {
+                                        academic_year_name?: string | null;
+                                      }).academic_year_name ?? "";
+                                    const base = `${selectedApp.student_name ?? "Unknown"} – ${
+                                      selectedApp.student_email ?? ""
+                                    }`;
+                                    return year ? `${base} – ${year}` : base;
+                                  })()
                                 : "Select application"}
                             </span>
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -1549,25 +1595,59 @@ const ManualPaymentEntry = () => {
                             <CommandList>
                               <CommandEmpty>No application found.</CommandEmpty>
                               <CommandGroup>
-                                {filtered.map((app) => (
-                                  <CommandItem
-                                    key={app.id}
-                                    value={`${app.student_name ?? ""} ${app.student_email ?? ""} ${app.id}`}
-                                    onSelect={() => {
-                                      setLinkDialogApplicationId(app.id);
-                                      setLinkDialogInstalmentId("");
-                                      setLinkDialogAppOpen(false);
-                                      setLinkDialogAppSearch("");
-                                    }}
-                                    className="cursor-pointer"
-                                  >
-                                    <Check className={cn("mr-2 h-4 w-4", linkDialogApplicationId === app.id ? "opacity-100" : "opacity-0")} />
-                                    <span className="truncate">
-                                      {app.student_name ?? "Unknown"} – {app.student_email || "—"}
-                                      {app.contract_slug ? ` (${app.contract_slug})` : ""}
-                                    </span>
-                                  </CommandItem>
-                                ))}
+                                {filtered.map((app) => {
+                                  const academicYear =
+                                    (app as { academic_year_name?: string | null }).academic_year_name ??
+                                    "";
+                                  const baseValue = `${app.student_name ?? ""} ${
+                                    app.student_email ?? ""
+                                  } ${academicYear} ${app.id}`;
+                                  return (
+                                    <CommandItem
+                                      key={app.id}
+                                      value={baseValue}
+                                      onSelect={() => {
+                                        setLinkDialogApplicationId(app.id);
+                                        setLinkDialogInstalmentId("");
+                                        setLinkDialogAppOpen(false);
+                                        setLinkDialogAppSearch("");
+                                      }}
+                                      className="cursor-pointer"
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          linkDialogApplicationId === app.id
+                                            ? "opacity-100"
+                                            : "opacity-0"
+                                        )}
+                                      />
+                                      <div className="flex w-full items-center justify-between gap-2">
+                                        <span className="truncate">
+                                          {app.student_name ?? "Unknown"} –{" "}
+                                          {app.student_email || "—"}
+                                        </span>
+                                        <div className="flex items-center gap-1 shrink-0">
+                                          {app.contract_slug && (
+                                            <Badge
+                                              variant="outline"
+                                              className="px-2 py-0 text-[10px] rounded-full"
+                                            >
+                                              {app.contract_slug}
+                                            </Badge>
+                                          )}
+                                          {academicYear && (
+                                            <Badge
+                                              className="px-2 py-0 text-[10px] rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-100"
+                                            >
+                                              {academicYear}
+                                            </Badge>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </CommandItem>
+                                  );
+                                })}
                               </CommandGroup>
                             </CommandList>
                           </Command>

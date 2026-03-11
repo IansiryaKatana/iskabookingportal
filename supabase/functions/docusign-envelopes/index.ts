@@ -330,7 +330,7 @@ serve(async (req) => {
     corsHeaders = staticCorsHeaders;
   }
 
-  let body: { applicationId?: string } = {};
+  let body: { applicationId?: string; allowResend?: boolean } = {};
 
   // Wrap everything in try-catch to ensure CORS headers are always returned
   try {
@@ -610,6 +610,11 @@ serve(async (req) => {
     );
 
     const studentPhone = (contactPayload.mobile as string) ?? "";
+
+    // Optional flag to force creation of fresh DocuSign envelopes even when one
+    // already exists for this application + type. This is primarily intended
+    // for staff-controlled "Resend agreements" actions in the UI.
+    const allowResend = Boolean((body as { allowResend?: boolean }).allowResend);
     
     // Check if the selected payment plan is "Pay in Full" (1 installment with 100% percentage)
     // Pay in Full plans don't require a guarantor
@@ -1095,27 +1100,50 @@ serve(async (req) => {
       .eq("envelope_type", "tenancy")
       .maybeSingle();
 
-    if (!existingTenancy) {
-      console.info("Creating tenancy envelope with tabs", {
-        tabLabels: tenancyRecipients[0]?.tabs?.textTabs?.map((t: any) => t.tabLabel),
-      });
+    if (!existingTenancy || allowResend) {
+      const isResend = Boolean(existingTenancy);
+      console.info(
+        isResend ? "Resending tenancy envelope with fresh DocuSign envelope" : "Creating tenancy envelope with tabs",
+        {
+          applicationId: application.id,
+          existingEnvelopeId: existingTenancy?.envelope_id ?? null,
+          allowResend,
+          tabLabels: tenancyRecipients[0]?.tabs?.textTabs?.map((t: any) => t.tabLabel),
+        },
+      );
+
       const tenancyEnvelope = await sendEnvelope(tenancyBody);
       envelopesCreated.push({
         type: "tenancy",
         envelopeId: tenancyEnvelope.envelopeId,
       });
-      await supabaseAdmin.from("docusign_envelopes").insert({
-        application_id: application.id,
-        envelope_type: "tenancy",
-        envelope_id: tenancyEnvelope.envelopeId,
-        status: tenancyEnvelope.status ?? "sent",
-        recipients: tenancyRecipients,
-        metadata: tenancyEnvelope,
-      });
+
+      if (existingTenancy) {
+        existingTenancyEnvelopeId = tenancyEnvelope.envelopeId;
+        await supabaseAdmin
+          .from("docusign_envelopes")
+          .update({
+            envelope_id: tenancyEnvelope.envelopeId,
+            status: tenancyEnvelope.status ?? "sent",
+            recipients: tenancyRecipients,
+            metadata: tenancyEnvelope,
+          })
+          .eq("id", existingTenancy.id);
+      } else {
+        await supabaseAdmin.from("docusign_envelopes").insert({
+          application_id: application.id,
+          envelope_type: "tenancy",
+          envelope_id: tenancyEnvelope.envelopeId,
+          status: tenancyEnvelope.status ?? "sent",
+          recipients: tenancyRecipients,
+          metadata: tenancyEnvelope,
+        });
+      }
     } else {
       existingTenancyEnvelopeId = existingTenancy.envelope_id ?? null;
       console.info("Tenancy envelope already exists", {
         envelopeId: existingTenancyEnvelopeId,
+        allowResend,
       });
     }
 
@@ -1142,7 +1170,9 @@ serve(async (req) => {
 
       let existingGuarantorEnvelopeId: string | null = null;
 
-      if (!existingGuarantor) {
+      if (!existingGuarantor || allowResend) {
+        const isResend = Boolean(existingGuarantor);
+
         // Build textTabs for guarantor agreement
         // Student/Contract fields
         const guarantorTextTabs = [
@@ -1175,21 +1205,49 @@ serve(async (req) => {
           emailSubject: `${companyName} guarantor agreement – ${studentName || "Student"}`,
           templateRoles: guarantorRecipients,
         };
+
+        console.info(
+          isResend ? "Resending guarantor envelope with fresh DocuSign envelope" : "Creating guarantor envelope",
+          {
+            applicationId: application.id,
+            existingEnvelopeId: existingGuarantor?.envelope_id ?? null,
+            allowResend,
+          },
+        );
+
         const guarantorEnvelope = await sendEnvelope(guarantorBody);
         envelopesCreated.push({
           type: "guarantor",
           envelopeId: guarantorEnvelope.envelopeId,
         });
-        await supabaseAdmin.from("docusign_envelopes").insert({
-          application_id: application.id,
-          envelope_type: "guarantor",
-          envelope_id: guarantorEnvelope.envelopeId,
-          status: guarantorEnvelope.status ?? "sent",
-          recipients: guarantorRecipients,
-          metadata: guarantorEnvelope,
-        });
+
+        if (existingGuarantor) {
+          existingGuarantorEnvelopeId = guarantorEnvelope.envelopeId;
+          await supabaseAdmin
+            .from("docusign_envelopes")
+            .update({
+              envelope_id: guarantorEnvelope.envelopeId,
+              status: guarantorEnvelope.status ?? "sent",
+              recipients: guarantorRecipients,
+              metadata: guarantorEnvelope,
+            })
+            .eq("id", existingGuarantor.id);
+        } else {
+          await supabaseAdmin.from("docusign_envelopes").insert({
+            application_id: application.id,
+            envelope_type: "guarantor",
+            envelope_id: guarantorEnvelope.envelopeId,
+            status: guarantorEnvelope.status ?? "sent",
+            recipients: guarantorRecipients,
+            metadata: guarantorEnvelope,
+          });
+        }
       } else {
         existingGuarantorEnvelopeId = existingGuarantor.envelope_id ?? null;
+        console.info("Guarantor envelope already exists", {
+          envelopeId: existingGuarantorEnvelopeId,
+          allowResend,
+        });
       }
     }
 

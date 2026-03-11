@@ -2044,7 +2044,7 @@ useEffect(() => {
   };
 
   /** Send tenancy + guarantor agreements via DocuSign. Sets agreementSendError on failure so Retry can be shown. */
-  const sendAgreements = async () => {
+  const sendAgreements = async (options?: { allowResend?: boolean }) => {
     if (!application?.id) return;
     setAgreementSendError(null);
     setSendingAgreements(true);
@@ -2057,16 +2057,35 @@ useEffect(() => {
         error_code?: string;
         hint?: string;
       }>("docusign-envelopes", {
-        body: { applicationId: application.id },
+        body: {
+          applicationId: application.id,
+          // Only staff can trigger a forced resend; students always send once.
+          allowResend: options?.allowResend && isStaffOrSubRole ? true : false,
+        },
       });
 
       if (error || data?.error) {
+        const errorBody =
+          (error as any)?.context?.body as
+            | { error?: string; hint?: string; error_code?: string }
+            | undefined;
+        const mergedMessage =
+          data?.error ??
+          errorBody?.error ??
+          (error as any)?.message ??
+          "Unknown error";
+
         console.error("DocuSign invoke failed", {
           applicationId: application.id,
           functionError: error,
           functionData: data,
+          functionBody: errorBody,
         });
-        throw new Error(data?.error ?? error?.message ?? "Unknown error");
+
+        const hintMessage = errorBody?.hint;
+        throw new Error(
+          hintMessage ? `${mergedMessage} (${hintMessage})` : mergedMessage,
+        );
       }
 
       toast({
@@ -4359,23 +4378,42 @@ useEffect(() => {
                             </Button>
                           )}
                           {effectiveTenancyEnvelope && (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="rounded-full uppercase tracking-wide"
-                              onClick={checkEnvelopeStatus}
-                              disabled={checkingStatus}
-                            >
-                              {checkingStatus ? (
-                                <>
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                  Checking status
-                                </>
-                              ) : (
-                                "Check status now"
-                              )}
-                            </Button>
+                            <>
+                              <Button
+                                type="button"
+                                className="rounded-full uppercase tracking-wide"
+                                onClick={() =>
+                                  sendAgreements({ allowResend: true }).catch(() => undefined)
+                                }
+                                disabled={sendingAgreements}
+                              >
+                                {sendingAgreements ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Resending agreements
+                                  </>
+                                ) : (
+                                  "Resend agreements via DocuSign"
+                                )}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="rounded-full uppercase tracking-wide"
+                                onClick={checkEnvelopeStatus}
+                                disabled={checkingStatus}
+                              >
+                                {checkingStatus ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Checking status
+                                  </>
+                                ) : (
+                                  "Check status now"
+                                )}
+                              </Button>
+                            </>
                           )}
                         </div>
                         {!effectiveTenancyEnvelope && !depositPaid && (
