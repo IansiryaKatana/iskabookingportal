@@ -1041,6 +1041,8 @@ serve(async (req) => {
     }
 
     // If guarantor is required, add them as a signer (routing order 2 or 3 depending on witness)
+    let existingGuarantorEnvelopeId: string | null = null;
+
     if (requiresGuarantor) {
       if (!guarantor.name.trim() || !guarantor.email.trim()) {
         return new Response(
@@ -1167,8 +1169,6 @@ serve(async (req) => {
         .eq("application_id", application.id)
         .eq("envelope_type", "guarantor")
         .maybeSingle();
-
-      let existingGuarantorEnvelopeId: string | null = null;
 
       if (!existingGuarantor || allowResend) {
         const isResend = Boolean(existingGuarantor);

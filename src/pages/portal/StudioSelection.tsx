@@ -112,10 +112,14 @@ const StudioSelection = () => {
       });
     } catch (error) {
       console.error(error);
+      const message =
+        error instanceof Error
+          ? error.message
+          : "That studio may have just been reserved. Try another one.";
       toast({
         variant: "destructive",
         title: "Reservation failed",
-        description: "That studio may have just been reserved. Try another one.",
+        description: message,
       });
     } finally {
       setSaving(false);
