@@ -7,6 +7,7 @@ import {
   useDeleteContract,
   useContractPaymentPlans,
   useDuplicateContracts,
+  useDuplicateContractById,
 } from "@/hooks/useAdminContracts";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminAcademicYears } from "@/hooks/useAdminAcademicYears";
@@ -111,6 +112,7 @@ const Contracts = () => {
   const { data: allAcademicYears } = useAllAcademicYears();
   const duplicateContracts = useDuplicateContracts();
   const isSuperadmin = role === "superadmin";
+  const duplicateSingleContract = useDuplicateContractById();
 
   const form = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
@@ -228,26 +230,32 @@ const Contracts = () => {
       
       setSelectedPlans(initial);
     } else {
-      // For create, set first academic year (prefer active, but show all)
-      const firstYear = academicYears?.find(y => y.is_active) || academicYears?.[0];
-      if (firstYear) {
-        setSelectedAcademicYearId(firstYear.id);
-        form.setValue("academic_year_id", firstYear.id);
+      // For create, only auto-select the default academic year the first time
+      const currentAcademicYearId = form.getValues("academic_year_id");
+      if (!selectedAcademicYearId && !currentAcademicYearId) {
+        const firstYear = academicYears?.find((y) => y.is_active) || academicYears?.[0];
+        if (firstYear) {
+          setSelectedAcademicYearId(firstYear.id);
+          form.setValue("academic_year_id", firstYear.id);
+        }
       }
       
-      // Initialize plans with default order for new contracts
-      const initial: Record<string, { selected: boolean; order: number }> = {};
-      sortedActivePlans.forEach((plan) => {
-        initial[plan.id] = {
-          selected: false,
-          order: getDefaultPaymentPlanOrder(plan.name) < 999 
-            ? getDefaultPaymentPlanOrder(plan.name) 
-            : sortedActivePlans.indexOf(plan) + 1,
-        };
-      });
-      setSelectedPlans(initial);
+      // Initialize plans with default order for new contracts only if none set yet
+      if (Object.keys(selectedPlans).length === 0 && sortedActivePlans.length > 0) {
+        const initial: Record<string, { selected: boolean; order: number }> = {};
+        sortedActivePlans.forEach((plan) => {
+          initial[plan.id] = {
+            selected: false,
+            order:
+              getDefaultPaymentPlanOrder(plan.name) < 999
+                ? getDefaultPaymentPlanOrder(plan.name)
+                : sortedActivePlans.indexOf(plan) + 1,
+          };
+        });
+        setSelectedPlans(initial);
+      }
     }
-  }, [open, editingId, data, sortedActivePlans, academicYears, form]);
+  }, [open, editingId, data, sortedActivePlans, academicYears, form, selectedAcademicYearId, selectedPlans]);
 
   useEffect(() => {
     if (!open) {
@@ -608,6 +616,31 @@ const Contracts = () => {
                         >
                           <Pencil className="h-4 w-4" />
                           Edit
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="rounded-full uppercase tracking-wide gap-2"
+                          onClick={async () => {
+                            try {
+                              const result = await duplicateSingleContract.mutateAsync(contract.id);
+                              toast({
+                                title: "Contract duplicated",
+                                description: `Created copy: ${result.name}`,
+                              });
+                            } catch (error: any) {
+                              console.error(error);
+                              toast({
+                                variant: "destructive",
+                                title: "Unable to duplicate contract",
+                                description: error.message || "Please try again or contact support.",
+                              });
+                            }
+                          }}
+                          disabled={duplicateSingleContract.isPending}
+                        >
+                          <Copy className="h-4 w-4" />
+                          Duplicate
                         </Button>
                         {isSuperadmin && !(contract as { student_application_id?: string | null }).student_application_id && (
                           <Button

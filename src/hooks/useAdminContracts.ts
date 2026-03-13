@@ -26,6 +26,49 @@ export type AdminContract = ContractRow & {
   } | null;
 };
 
+// Helper to generate a slug from contract name and academic year
+const generateContractSlug = async (
+  name: string | null,
+  academicYearId: string | null,
+): Promise<string | null> => {
+  if (!name) return null;
+
+  let academicYearName = "";
+  if (academicYearId) {
+    const { data: academicYear } = await supabase
+      .from("academic_years")
+      .select("name")
+      .eq("id", academicYearId)
+      .single();
+    if (academicYear?.name) {
+      const yearMatch = academicYear.name.match(/(\d{2})\/(\d{2})/);
+      if (yearMatch) {
+        academicYearName = `${yearMatch[1]}-${yearMatch[2]}`;
+      } else {
+        academicYearName = academicYear.name.replace(/\//g, "-");
+      }
+    }
+  }
+
+  let slug = name
+    .toLowerCase()
+    .replace(/\s*studio\s*·\s*/i, "-")
+    .replace(/\s*weeks\s*·\s*/i, "-weeks-")
+    .replace(/\s*\/\s*/g, "-")
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+
+  if (academicYearName) {
+    if (slug.match(/-\d{2}-\d{2}$/)) {
+      slug = slug.replace(/-\d{2}-\d{2}$/, `-${academicYearName}`);
+    } else {
+      slug = `${slug}-${academicYearName}`;
+    }
+  }
+
+  return slug;
+};
+
 const fetchContracts = async (): Promise<AdminContract[]> => {
   const { data, error } = await supabase
     .from("contracts")
@@ -62,51 +105,12 @@ export const useCreateContract = () => {
       },
     ) => {
       const { payment_plan_ids, payment_plan_orders, ...contractData } = payload;
-      
-      // Generate slug from name if not provided
-      // Format: {studio-type}-{weeks}-weeks-{academic-year}
-      // Example: "Platinum Studio · 45 Weeks · 25/26" → "platinum-45-weeks-25-26"
       let slug = contractData.slug;
       if (!slug && contractData.name) {
-        // Get academic year name for the slug
-        let academicYearName = "";
-        if (contractData.academic_year_id) {
-          const { data: academicYear } = await supabase
-            .from("academic_years")
-            .select("name")
-            .eq("id", contractData.academic_year_id)
-            .single();
-          if (academicYear?.name) {
-            // Convert "2024/2025" to "24-25" or "25/26" to "25-26"
-            // Handle both formats: "2024/2025" and "25/26"
-            const yearMatch = academicYear.name.match(/(\d{2})\/(\d{2})/);
-            if (yearMatch) {
-              academicYearName = `${yearMatch[1]}-${yearMatch[2]}`;
-            } else {
-              academicYearName = academicYear.name.replace(/\//g, "-");
-            }
-          }
-        }
-        
-        // Generate slug from name: "Platinum Studio · 45 Weeks · 25/26" → "platinum-45-weeks-25-26"
-        // This matches the format used in STANDARDIZE_CONTRACT_SLUGS_AUTO.sql
-        slug = contractData.name
-          .toLowerCase()
-          .replace(/\s*studio\s*·\s*/i, "-")
-          .replace(/\s*weeks\s*·\s*/i, "-weeks-")
-          .replace(/\s*\/\s*/g, "-")
-          .replace(/[^a-z0-9-]+/g, "-")
-          .replace(/(^-|-$)/g, "");
-        
-        // If we have academic year from database, ensure it's in the slug
-        if (academicYearName) {
-          // Replace the academic year part at the end if it exists, or append it
-          if (slug.match(/-\d{2}-\d{2}$/)) {
-            slug = slug.replace(/-\d{2}-\d{2}$/, `-${academicYearName}`);
-          } else {
-            slug = `${slug}-${academicYearName}`;
-          }
-        }
+        slug = await generateContractSlug(
+          contractData.name,
+          contractData.academic_year_id ?? null,
+        );
       }
 
       const { data: contract, error } = await supabase
@@ -247,6 +251,111 @@ export const useUpdateContract = () => {
       });
 
       return { id, ...rest };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-contracts"] });
+    },
+  });
+};
+
+/**
+ * Duplicate a single contract (including its payment plans) within the same academic year.
+ */
+export const useDuplicateContractById = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (contractId: string) => {
+      const { data: source, error: sourceError } = await supabase
+        .from("contracts")
+        .select(
+          `
+            *,
+            contract_payment_plans:contract_payment_plans (
+              *,
+              payment_plan:payment_plans ( id, name )
+            )
+          `,
+        )
+        .eq("id", contractId)
+        .single();
+
+      if (sourceError) throw sourceError;
+      if (!source) throw new Error("Source contract not found");
+
+      const src: any = source;
+
+      // Build new name and slug
+      const baseName: string = src.name || "Contract";
+      const newName = `${baseName} (Copy)`;
+      const newSlug = await generateContractSlug(
+        newName,
+        src.academic_year_id ?? null,
+      );
+
+      const { data: newContract, error: insertError } = await supabase
+        .from("contracts")
+        .insert({
+          academic_year_id: src.academic_year_id,
+          studio_grade_id: src.studio_grade_id,
+          name: newName,
+          slug: newSlug,
+          contract_start: src.contract_start,
+          contract_end: src.contract_end,
+          weeks: src.weeks,
+          weekly_price_override: src.weekly_price_override,
+          deposit_override: src.deposit_override,
+          summary: src.summary,
+          display_order: src.display_order,
+          cta_label: src.cta_label,
+          visible_on_portal: src.visible_on_portal,
+          is_custom_duration_placeholder: src.is_custom_duration_placeholder,
+          is_active: src.is_active,
+        })
+        .select("*")
+        .single();
+
+      if (insertError) throw insertError;
+
+      const links: any[] = src.contract_payment_plans ?? [];
+      if (links.length > 0 && newContract) {
+        const insertPayload = links.map((link: any, index: number) => ({
+          contract_id: newContract.id,
+          payment_plan_id: link.payment_plan_id,
+          display_order: link.display_order ?? index + 1,
+        }));
+
+        const { error: linkError } = await supabase
+          .from("contract_payment_plans")
+          .insert(insertPayload);
+        if (linkError) throw linkError;
+
+        const firstPlanId = insertPayload[0]?.payment_plan_id;
+        if (firstPlanId) {
+          const { error: backfillError } = await supabase.rpc(
+            "backfill_contract_payment_schedule_for_contract",
+            {
+              p_contract_id: newContract.id,
+              p_payment_plan_id: firstPlanId,
+            },
+          );
+          if (backfillError) throw backfillError;
+        }
+      }
+
+      await logActivity({
+        action: "create",
+        entityType: "contract",
+        entityId: newContract.id,
+        payload: {
+          source_contract_id: contractId,
+          name: newContract.name,
+          slug: newContract.slug,
+          academic_year_id: newContract.academic_year_id,
+          studio_grade_id: newContract.studio_grade_id,
+        },
+      });
+
+      return newContract;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-contracts"] });
