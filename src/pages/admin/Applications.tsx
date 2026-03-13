@@ -189,6 +189,8 @@ const Applications = () => {
   const [createdFrom, setCreatedFrom] = useState<string>("");
   const [createdTo, setCreatedTo] = useState<string>("");
   const [createdRange, setCreatedRange] = useState<DateRange | undefined>(undefined);
+  const [contractPickerOpen, setContractPickerOpen] = useState(false);
+  const [contractSearch, setContractSearch] = useState("");
 
   const { data: studentProfiles } = useQuery({
     queryKey: ["student-profiles"],
@@ -252,6 +254,22 @@ const Applications = () => {
     });
   }, [contracts, currentAcademicYear]);
 
+  const filteredContracts = useMemo(() => {
+    if (!sortedContracts.length) return [];
+    const q = contractSearch.trim().toLowerCase();
+    if (!q) return sortedContracts;
+    return sortedContracts.filter((c) => {
+      const name = (c.name ?? "").toLowerCase();
+      const grade = (c.studio_grade?.name ?? "").toLowerCase();
+      const year = (c.academic_year?.name ?? "").toLowerCase();
+      return (
+        name.includes(q) ||
+        grade.includes(q) ||
+        year.includes(q)
+      );
+    });
+  }, [sortedContracts, contractSearch]);
+
   // Clear selected contract if it no longer has any payment plans (e.g. after plan was deleted)
   useEffect(() => {
     if (!createContractId || !sortedContracts.length) return;
@@ -260,9 +278,20 @@ const Applications = () => {
   }, [createContractId, sortedContracts, setCreateContractId]);
 
   const selectedContract = contracts?.find((c) => c.id === createContractId);
+  const selectedContractLabel = useMemo(() => {
+    if (!selectedContract) return "Select contract";
+    const year = selectedContract.academic_year?.name
+      ? ` (${selectedContract.academic_year.name})`
+      : "";
+    return `${selectedContract.name}${year}`;
+  }, [selectedContract]);
   const { data: studios } = useAdminStudios(
     selectedContract?.studio_grade_id
-      ? { gradeId: selectedContract.studio_grade_id, status: "available" }
+      ? {
+          gradeId: selectedContract.studio_grade_id,
+          status: "available",
+          academicYearId: selectedContract.academic_year_id ?? undefined,
+        }
       : undefined,
   );
 
@@ -481,6 +510,8 @@ const Applications = () => {
     setNewStudentLastName("");
     setIsCreatingStudent(false);
     setCustomContractSheetOpen(false);
+    setContractPickerOpen(false);
+    setContractSearch("");
   };
 
   const handleCreateApplication = () => {
@@ -1137,18 +1168,65 @@ const Applications = () => {
                   Create custom contract
                 </Button>
               </div>
-              <Select value={createContractId} onValueChange={(v) => { setCreateContractId(v); setCreateStudioId(""); }}>
-                <SelectTrigger className="rounded-full">
-                  <SelectValue placeholder="Select contract" />
-                </SelectTrigger>
-                <SelectContent>
-                  {sortedContracts?.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name} {c.academic_year?.name ? `(${c.academic_year.name})` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover
+                open={contractPickerOpen}
+                onOpenChange={(open) => {
+                  setContractPickerOpen(open);
+                  if (!open) setContractSearch("");
+                }}
+              >
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={contractPickerOpen}
+                    className="w-full justify-between rounded-full font-normal"
+                  >
+                    <span className="truncate">
+                      {createContractId ? selectedContractLabel : "Select contract"}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                  <Command>
+                    <CommandInput
+                      placeholder="Search contracts by name, grade, year..."
+                      value={contractSearch}
+                      onValueChange={setContractSearch}
+                    />
+                    <CommandList>
+                      <CommandEmpty>No contract found.</CommandEmpty>
+                      <CommandGroup>
+                        {filteredContracts.map((c) => (
+                          <CommandItem
+                            key={c.id}
+                            value={c.name ?? c.id}
+                            onSelect={() => {
+                              setCreateContractId(c.id);
+                              setCreateStudioId("");
+                              setContractPickerOpen(false);
+                              setContractSearch("");
+                            }}
+                            className="cursor-pointer"
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                createContractId === c.id ? "opacity-100" : "opacity-0",
+                              )}
+                            />
+                            <span className="flex-1 truncate">
+                              {c.name}
+                              {c.academic_year?.name ? ` (${c.academic_year.name})` : ""}
+                            </span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             {selectedContract && (
               <div className="space-y-2">
@@ -1262,7 +1340,7 @@ const Applications = () => {
         </Drawer>
       ) : (
         <Sheet open={createDialogOpen} onOpenChange={(open) => { setCreateDialogOpen(open); if (!open) resetCreateDialog(); }}>
-          <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+          <SheetContent side="right" className="w-full sm:max-w-[34rem] overflow-y-auto">
             <SheetHeader>
               <SheetTitle className="text-xl font-display uppercase tracking-wide">
                 Create application (on behalf of student)
@@ -1371,18 +1449,65 @@ const Applications = () => {
                   Create custom contract
                 </Button>
               </div>
-              <Select value={createContractId} onValueChange={(v) => { setCreateContractId(v); setCreateStudioId(""); }}>
-                <SelectTrigger className="rounded-full">
-                  <SelectValue placeholder="Select contract" />
-                </SelectTrigger>
-                <SelectContent>
-                  {sortedContracts?.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name} {c.academic_year?.name ? `(${c.academic_year.name})` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover
+                open={contractPickerOpen}
+                onOpenChange={(open) => {
+                  setContractPickerOpen(open);
+                  if (!open) setContractSearch("");
+                }}
+              >
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={contractPickerOpen}
+                    className="w-full justify-between rounded-full font-normal"
+                  >
+                    <span className="truncate">
+                      {createContractId ? selectedContractLabel : "Select contract"}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                  <Command>
+                    <CommandInput
+                      placeholder="Search contracts by name, grade, year..."
+                      value={contractSearch}
+                      onValueChange={setContractSearch}
+                    />
+                    <CommandList>
+                      <CommandEmpty>No contract found.</CommandEmpty>
+                      <CommandGroup>
+                        {filteredContracts.map((c) => (
+                          <CommandItem
+                            key={c.id}
+                            value={c.name ?? c.id}
+                            onSelect={() => {
+                              setCreateContractId(c.id);
+                              setCreateStudioId("");
+                              setContractPickerOpen(false);
+                              setContractSearch("");
+                            }}
+                            className="cursor-pointer"
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                createContractId === c.id ? "opacity-100" : "opacity-0",
+                              )}
+                            />
+                            <span className="flex-1 truncate">
+                              {c.name}
+                              {c.academic_year?.name ? ` (${c.academic_year.name})` : ""}
+                            </span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             {selectedContract && (
               <div className="space-y-2">
