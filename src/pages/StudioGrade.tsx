@@ -397,6 +397,54 @@ const StudioGradePage = () => {
     return undefined;
   }, [grade]);
 
+  const filteredContracts = useMemo<StudioContract[]>(() => {
+    if (!grade) return [];
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const isDefaultContract = (contract: StudioContract) =>
+      contract.visible_on_portal === true &&
+      // Never treat flexible placeholders as default 45/51 contracts,
+      // even if their weeks happen to be 45 or 51.
+      !contract.is_custom_duration_placeholder &&
+      (contract.weeks === 45 || contract.weeks === 51);
+
+    const isPastDueDefault = (contract: StudioContract) => {
+      if (!isDefaultContract(contract) || !contract.contract_start) return false;
+      const start = new Date(contract.contract_start);
+      if (Number.isNaN(start.getTime())) return false;
+      start.setHours(0, 0, 0, 0);
+      return start <= today;
+    };
+
+    const defaultContracts = grade.contracts.filter(isDefaultContract);
+    const nonDefaultContracts = grade.contracts.filter(
+      (c) => !isDefaultContract(c),
+    );
+
+    const hasFlexiblePlaceholder = grade.contracts.some(
+      (c) => c.is_custom_duration_placeholder,
+    );
+
+    const activeDefaultContracts = defaultContracts.filter(
+      (c) => !isPastDueDefault(c),
+    );
+
+    // Option B (guarded): once default start passes, hide 45/51
+    // only if there is at least one flexible/custom placeholder
+    // or other non-default contract to show instead.
+    if (
+      defaultContracts.length &&
+      activeDefaultContracts.length === 0 &&
+      hasFlexiblePlaceholder
+    ) {
+      return nonDefaultContracts;
+    }
+
+    return [...activeDefaultContracts, ...nonDefaultContracts];
+  }, [grade]);
+
   if (redirecting) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6 text-center">
@@ -572,13 +620,20 @@ const StudioGradePage = () => {
             </div>
             <div className="lg:col-span-2">
               <ContractShowcase
-                contracts={grade.contracts}
+                contracts={filteredContracts}
                 getWeeks={(contract) => contract.weeks}
+                getWeeksLabel={(contract, weeks) =>
+                  contract.is_custom_duration_placeholder
+                    ? "Flexible stay"
+                    : `${weeks} Weeks`
+                }
                 getWeeklyPrice={(contract) => contract.computed_weekly_price}
                 getDeposit={(contract) => contract.computed_deposit_amount}
                 getStartDate={(contract) => contract.contract_start}
                 getEndDate={(contract) => contract.contract_end}
-                onSelect={(contract) => navigate(`/contracts/${encodeURIComponent(contract.slug)}`)}
+                onSelect={(contract) =>
+                  navigate(`/contracts/${encodeURIComponent(contract.slug)}`)
+                }
                 subtitle={contractAcademicYearName ?? undefined}
                 emptyState={
                   <span>

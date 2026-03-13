@@ -120,6 +120,7 @@ const StudioGradeStatic = () => (
               <ContractShowcase
                 contracts={contracts}
                 getWeeks={(contract) => contract.weeks}
+                getWeeksLabel={(_, weeks) => `${weeks} Weeks`}
                 getWeeklyPrice={(contract) => contract.weeklyPrice}
                 getDeposit={(contract) => contract.deposit}
                 getStartDate={(contract) => contract.startDate}

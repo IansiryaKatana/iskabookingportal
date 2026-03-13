@@ -3702,12 +3702,17 @@ useEffect(() => {
                                     ? "Due on contract start date"
                                     : `Due ${installment.due_date_offset_days} days after contract start`
                                   : "Schedule to be confirmed";
+                                const effectiveContractStart =
+                                  (application?.contract as { is_custom_duration_placeholder?: boolean } | null)?.is_custom_duration_placeholder &&
+                                  (application as { requested_contract_start?: string | null })?.requested_contract_start
+                                    ? (application as { requested_contract_start: string }).requested_contract_start
+                                    : application?.contract?.contract_start;
                                 const dueDateFormatted =
                                   !installment.due_date &&
                                   installment.due_date_offset_days != null &&
-                                  application?.contract?.contract_start
+                                  effectiveContractStart
                                     ? (() => {
-                                        const start = new Date(application.contract!.contract_start);
+                                        const start = new Date(effectiveContractStart);
                                         if (Number.isNaN(start.getTime())) return null;
                                         const d = new Date(start);
                                         d.setDate(d.getDate() + Number(installment.due_date_offset_days));

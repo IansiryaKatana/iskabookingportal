@@ -5,6 +5,7 @@ type ContractShowcaseProps<TContract> = {
   subtitle?: string;
   contracts: TContract[];
   getWeeks: (contract: TContract) => number;
+  getWeeksLabel?: (contract: TContract, weeks: number) => string;
   getWeeklyPrice: (contract: TContract) => number | null;
   getDeposit: (contract: TContract) => number | null;
   getStartDate: (contract: TContract) => string | null;
@@ -32,6 +33,7 @@ const ContractShowcase = <TContract,>({
   subtitle,
   contracts,
   getWeeks,
+  getWeeksLabel,
   getWeeklyPrice,
   getDeposit,
   getStartDate,
@@ -64,7 +66,7 @@ const ContractShowcase = <TContract,>({
               <div className="grid grid-cols-[35%_65%] gap-4">
                 <div className="border border-border/60 rounded-2xl overflow-hidden divide-y divide-border/40">
                   <div className="px-3 py-3 bg-primary text-primary-foreground text-xs font-semibold uppercase tracking-[0.3em]">
-                    {weeks} Weeks
+                    {getWeeksLabel ? getWeeksLabel(contract, weeks) : `${weeks} Weeks`}
                   </div>
                   <div className="px-3 py-2 space-y-1">
                     <p className="text-2xl font-black">

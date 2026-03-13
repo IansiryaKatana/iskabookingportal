@@ -325,6 +325,12 @@ const ApplicationDetail = () => {
     void loadPassportPhoto();
   }, [documents]);
 
+  const requestedFlexibleStart = (application as any)?.requested_contract_start as string | null;
+  const requestedFlexibleEnd = (application as any)?.requested_contract_end as string | null;
+  const isFlexiblePlaceholderContract = Boolean(
+    (application as any)?.contract?.is_custom_duration_placeholder,
+  );
+
   // Verify document mutation
   const verifyDocument = useMutation({
     mutationFn: async ({ documentId, status, notes }: { documentId: string; status: "approved" | "rejected"; notes?: string }) => {
@@ -2046,6 +2052,29 @@ const ApplicationDetail = () => {
               </Button>
             </CardContent>
           </Card>
+
+          {isFlexiblePlaceholderContract && (requestedFlexibleStart || requestedFlexibleEnd) && (
+            <Card className="rounded-3xl border border-dashed border-border/70">
+              <CardHeader>
+                <CardTitle className="text-base sm:text-lg font-display uppercase tracking-wide">
+                  Flexible stay request
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <p className="text-xs sm:text-sm text-muted-foreground">
+                  This application was started from a flexible stay placeholder contract. The student requested the dates below; use them when creating the specific custom contract for this booking.
+                </p>
+                <p>
+                  <span className="font-semibold">Requested start:</span>{" "}
+                  {requestedFlexibleStart || "—"}
+                </p>
+                <p>
+                  <span className="font-semibold">Requested end:</span>{" "}
+                  {requestedFlexibleEnd || "—"}
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Agreements & Studio Assignment (combined section) */}
           <Card className="rounded-3xl">

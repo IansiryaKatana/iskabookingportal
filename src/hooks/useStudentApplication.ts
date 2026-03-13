@@ -35,6 +35,7 @@ type StudentApplication = ApplicationRow & {
         payment_plan_installments: PaymentPlanInstallment[];
       } | null;
     }[];
+    is_custom_duration_placeholder?: boolean;
   } | null;
   assigned_studio: Database["public"]["Tables"]["studios"]["Row"] | null;
   student_application_steps: StepRow[];
@@ -57,6 +58,7 @@ const fetchApplication = async (
           contract_start,
           contract_end,
           weeks,
+          is_custom_duration_placeholder,
           studio_grade:studio_grades ( id, name ),
           contract_payment_plans:contract_payment_plans (
             id,

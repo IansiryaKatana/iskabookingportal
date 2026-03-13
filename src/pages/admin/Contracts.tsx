@@ -71,6 +71,7 @@ const schema = z.object({
   display_order: z.coerce.number().min(1),
   cta_label: z.string().optional(),
   visible_on_portal: z.boolean(),
+  is_custom_duration_placeholder: z.boolean().optional(),
 });
 
 // Default order for payment plans
@@ -126,6 +127,7 @@ const Contracts = () => {
       display_order: 1,
       cta_label: "",
       visible_on_portal: true,
+      is_custom_duration_placeholder: false,
     },
   });
 
@@ -269,6 +271,7 @@ const Contracts = () => {
       display_order: 1,
       cta_label: "",
       visible_on_portal: true,
+      is_custom_duration_placeholder: false,
     });
     setEditingId(null);
     setOpen(true);
@@ -294,6 +297,7 @@ const Contracts = () => {
       display_order: contract.display_order ?? 1,
       cta_label: contract.cta_label ?? "",
       visible_on_portal: contract.visible_on_portal ?? true,
+      is_custom_duration_placeholder: (contract as any).is_custom_duration_placeholder ?? false,
     });
     setEditingId(id);
     setOpen(true);
@@ -344,6 +348,8 @@ const Contracts = () => {
       if (editingId) {
         await updateContract.mutateAsync({
           id: editingId,
+          academic_year_id: values.academic_year_id,
+          studio_grade_id: values.studio_grade_id,
           name: values.name,
           slug: values.slug?.trim() || null,
           contract_start: values.contract_start,
@@ -355,6 +361,7 @@ const Contracts = () => {
           display_order: values.display_order,
           cta_label: values.cta_label ?? null,
           visible_on_portal: values.visible_on_portal,
+          is_custom_duration_placeholder: values.is_custom_duration_placeholder ?? false,
           payment_plan_ids: orderedPlans.map(p => p.planId),
           payment_plan_orders: orderedPlans.map(p => p.order),
         });
@@ -374,6 +381,7 @@ const Contracts = () => {
           display_order: values.display_order,
           cta_label: values.cta_label ?? null,
           visible_on_portal: values.visible_on_portal,
+          is_custom_duration_placeholder: values.is_custom_duration_placeholder ?? false,
           is_active: true,
           payment_plan_ids: orderedPlans.map(p => p.planId),
           payment_plan_orders: orderedPlans.map(p => p.order),
@@ -641,64 +649,60 @@ const Contracts = () => {
           </DialogHeader>
           <Form {...form}>
             <form className="space-y-4" onSubmit={handleSubmit}>
-              {!editingId && (
-                <>
-                  <FormField
-                    control={form.control}
-                    name="academic_year_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Academic Year</FormLabel>
-                        <Select
-                          value={field.value}
-                          onValueChange={(value) => {
-                            field.onChange(value);
-                            setSelectedAcademicYearId(value);
-                          }}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select academic year" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {academicYears?.map((year) => (
-                              <SelectItem key={year.id} value={year.id}>
-                                {year.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="studio_grade_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Studio Grade</FormLabel>
-                        <Select value={field.value} onValueChange={field.onChange}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select studio grade" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {studioGradesData?.grades?.map((grade) => (
-                              <SelectItem key={grade.id} value={grade.id}>
-                                {grade.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </>
-              )}
+              <FormField
+                control={form.control}
+                name="academic_year_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Academic Year</FormLabel>
+                    <Select
+                      value={field.value}
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        setSelectedAcademicYearId(value);
+                      }}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select academic year" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {academicYears?.map((year) => (
+                          <SelectItem key={year.id} value={year.id}>
+                            {year.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="studio_grade_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Studio Grade</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select studio grade" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {studioGradesData?.grades?.map((grade) => (
+                          <SelectItem key={grade.id} value={grade.id}>
+                            {grade.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="name"
@@ -824,6 +828,28 @@ const Contracts = () => {
                     <FormControl>
                       <Checkbox
                         checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="is_custom_duration_placeholder"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-xl border border-border/60 px-4 py-3 bg-muted/40">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-sm font-semibold uppercase tracking-wide">
+                        Flexible stay placeholder
+                      </FormLabel>
+                      <p className="text-xs text-muted-foreground">
+                        When on, this contract is used as a flexible/custom-duration starting point. Students request dates in the journey and staff create a specific custom contract from their request.
+                      </p>
+                    </div>
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value ?? false}
                         onCheckedChange={field.onChange}
                       />
                     </FormControl>

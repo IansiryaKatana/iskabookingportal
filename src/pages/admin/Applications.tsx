@@ -288,6 +288,7 @@ const Applications = () => {
   const createApplicationMutation = useMutation({
     mutationFn: async () => {
       let studentId = createStudentId;
+      let recoveredExistingUserByEmail = false;
 
       // If creating a new student, call manage-users first (same as Users.tsx)
       if (studentMode === "new") {
@@ -313,17 +314,58 @@ const Applications = () => {
 
         setIsCreatingStudent(false);
 
-        if (createError) {
-          throw new Error(createError.message || "Failed to create student");
-        }
-        if (createData?.error) {
-          throw new Error(typeof createData.error === "string" ? createData.error : "Failed to create student");
-        }
-        if (!createData?.user?.id) {
-          throw new Error("User creation succeeded but no ID returned");
-        }
+        const rawMessage =
+          (createError as unknown as { message?: string } | null)?.message ||
+          (typeof createData?.error === "string" ? createData.error : "") ||
+          "";
+        const msg = rawMessage.toLowerCase();
+        const emailLower = newStudentEmail.trim().toLowerCase();
+        const emailExistsLikely =
+          msg.includes("already exists") ||
+          msg.includes("already registered") ||
+          msg.includes("user with this email") ||
+          msg.includes("email already") ||
+          msg.includes("duplicate") ||
+          msg.includes("email address has already been registered");
 
-        studentId = createData.user.id;
+        // If user already exists (often because the email belongs to a staff/admin account or an old student),
+        // try to resolve the existing user ID and continue with a smoother UX.
+        if ((createError || createData?.error) && emailExistsLikely) {
+          const { data: existingUserId, error: findUserErr } = await supabase.rpc("find_user_by_email", {
+            p_email: emailLower,
+          });
+
+          if (findUserErr || !existingUserId) {
+            throw new Error("EMAIL_EXISTS_NO_USER_ID");
+          }
+
+          const { data: existingProfile, error: profileErr } = await supabase
+            .from("profiles")
+            .select("id, role")
+            .eq("id", existingUserId)
+            .maybeSingle();
+
+          if (profileErr) throw profileErr;
+          const role = (existingProfile as unknown as { role?: string } | null)?.role ?? null;
+          if (role && role !== "student") {
+            throw new Error(`EMAIL_IN_USE_NON_STUDENT:${role}`);
+          }
+
+          recoveredExistingUserByEmail = true;
+          studentId = existingUserId as unknown as string;
+        } else {
+          if (createError) {
+            throw new Error((createError as unknown as { message?: string } | null)?.message || "Failed to create student");
+          }
+          if (createData?.error) {
+            throw new Error(typeof createData.error === "string" ? createData.error : "Failed to create student");
+          }
+          if (!createData?.user?.id) {
+            throw new Error("User creation succeeded but no ID returned");
+          }
+
+          studentId = createData.user.id;
+        }
       }
 
       if (!studentId || !createContractId) throw new Error("Select student and contract");
@@ -338,7 +380,12 @@ const Applications = () => {
         .maybeSingle();
 
       if (existing) {
-        return { id: existing.id, isExisting: true, isNewStudent: studentMode === "new" };
+        return {
+          id: existing.id,
+          isExisting: true,
+          isNewStudent: studentMode === "new",
+          recoveredExistingUserByEmail,
+        };
       }
 
       const payload: Record<string, unknown> = {
@@ -364,7 +411,7 @@ const Applications = () => {
 
       if (error) throw error;
       if (!inserted) throw new Error("Failed to create application");
-      return { id: inserted.id, isExisting: false, isNewStudent: studentMode === "new" };
+      return { id: inserted.id, isExisting: false, isNewStudent: studentMode === "new", recoveredExistingUserByEmail };
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["admin-applications"] });
@@ -375,8 +422,10 @@ const Applications = () => {
         toast({ title: "Application exists", description: "Opening existing application." });
       } else if (result.isNewStudent) {
         toast({
-          title: "Student created & application started",
-          description: "The student can use 'Forgot Password' to set their password and log in.",
+          title: result.recoveredExistingUserByEmail ? "Student found & application started" : "Student created & application started",
+          description: result.recoveredExistingUserByEmail
+            ? "That email already existed. We used the existing student record and started the application."
+            : "The student can use 'Forgot Password' to set their password and log in.",
         });
       } else {
         toast({ title: "Application created", description: "Opening the booking journey." });
@@ -393,16 +442,24 @@ const Applications = () => {
       setIsCreatingStudent(false);
       const msg = err.message ?? "";
       // User-friendly messages for known create-student errors (avoid technical/function errors)
-      const friendly =
-        msg.includes("already exists") || msg.toLowerCase().includes("user with this email")
-          ? "A student with this email is already in the system. Choose “Existing student” and select them, or use a different email."
-          : msg.includes("Invalid email") || msg.toLowerCase().includes("email format")
-          ? "Please enter a valid email address."
-          : msg.includes("First name") || msg.includes("Last name")
-          ? "Please enter both first and last name for the student."
-          : msg.includes("Not authenticated") || msg.includes("Unauthorized")
-          ? "Your session may have expired. Please sign in again and try again."
-          : msg;
+      const msgLower = msg.toLowerCase();
+      let friendly = msg;
+      if (msg.startsWith("EMAIL_IN_USE_NON_STUDENT:")) {
+        friendly =
+          "This email is already used by a staff/admin account. If this should be the student’s email, contact an admin to remove it from the database (or use a different email).";
+      } else if (msg === "EMAIL_EXISTS_NO_USER_ID") {
+        friendly =
+          "This email already exists in the system, but we couldn’t link it to a student record. If there’s an existing application for this email, open it instead; otherwise contact an admin to remove the email from the database.";
+      } else if (msgLower.includes("already exists") || msgLower.includes("user with this email")) {
+        friendly =
+          "A student with this email is already in the system. Choose “Existing student” and select them, or use a different email.";
+      } else if (msgLower.includes("invalid email") || msgLower.includes("email format")) {
+        friendly = "Please enter a valid email address.";
+      } else if (msg.includes("First name") || msg.includes("Last name")) {
+        friendly = "Please enter both first and last name for the student.";
+      } else if (msgLower.includes("not authenticated") || msgLower.includes("unauthorized")) {
+        friendly = "Your session may have expired. Please sign in again and try again.";
+      }
       toast({
         variant: "destructive",
         title: "Couldn’t create application",

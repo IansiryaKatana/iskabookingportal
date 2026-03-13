@@ -19,6 +19,8 @@ import { format } from "date-fns";
 import { formatContractDuration } from "@/utils/contractDuration";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { differenceInCalendarDays } from "date-fns";
 
 const ContractDetail = () => {
   const location = useLocation();
@@ -242,11 +244,137 @@ const ContractDetail = () => {
 
   const isStaffOnlyContract = contract?.visible_on_portal === false;
   const isStaff = profile?.role && ["staff", "admin", "superadmin"].includes(profile.role);
-  const canApplyForContract = !isStaffOnlyContract || isStaff;
+  const isDefaultContract =
+    !!contract &&
+    contract.visible_on_portal === true &&
+    // Never treat flexible placeholders as default 45/51 contracts,
+    // even if their weeks happen to be 45 or 51.
+    !contract.is_custom_duration_placeholder &&
+    (contract.weeks === 45 || contract.weeks === 51);
+
+  const isPastDueDefaultContract = useMemo(() => {
+    if (!isDefaultContract || !contract?.contract_start) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const start = new Date(contract.contract_start);
+    if (Number.isNaN(start.getTime())) return false;
+    start.setHours(0, 0, 0, 0);
+    return start <= today;
+  }, [isDefaultContract, contract?.contract_start]);
+
+  const isFlexiblePlaceholder = !!contract?.is_custom_duration_placeholder;
+
+  const [flexibleStart, setFlexibleStart] = useState<string>("");
+  const [flexibleEnd, setFlexibleEnd] = useState<string>("");
+  const [flexibleError, setFlexibleError] = useState<string | null>(null);
+
+  const minFlexibleWeeks = contract?.academic_year?.min_flexible_weeks ?? 2;
+
+  const flexibleSummary = useMemo(() => {
+    if (!flexibleStart || !flexibleEnd) return null;
+    try {
+      const start = new Date(flexibleStart);
+      const end = new Date(flexibleEnd);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        return null;
+      }
+      const days = differenceInCalendarDays(end, start);
+      if (days <= 0) return null;
+      const weeks = Math.floor(days / 7);
+      const extraDays = days % 7;
+      const totalNights = days;
+
+      const weeklyRate = contract?.weekly_price_override ?? null;
+      const totalPrice =
+        weeklyRate != null ? (weeklyRate / 7) * totalNights : null;
+
+      return {
+        weeks,
+        extraDays,
+        totalNights,
+        totalPrice,
+      };
+    } catch {
+      return null;
+    }
+  }, [flexibleStart, flexibleEnd, contract?.weekly_price_override]);
+
+  useEffect(() => {
+    if (!isFlexiblePlaceholder) {
+      setFlexibleError(null);
+      return;
+    }
+    if (!flexibleStart || !flexibleEnd) {
+      setFlexibleError("Choose your preferred start and end dates within the academic year.");
+      return;
+    }
+    const yearStart = contract?.academic_year?.start_date
+      ? new Date(contract.academic_year.start_date)
+      : null;
+    const yearEnd = contract?.academic_year?.end_date
+      ? new Date(contract.academic_year.end_date)
+      : null;
+
+    try {
+      const start = new Date(flexibleStart);
+      const end = new Date(flexibleEnd);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        setFlexibleError("Enter valid dates.");
+        return;
+      }
+      if (yearStart && start < yearStart) {
+        setFlexibleError("Start date must be within the academic year.");
+        return;
+      }
+      if (yearEnd && end > yearEnd) {
+        setFlexibleError("End date must be within the academic year.");
+        return;
+      }
+      const days = differenceInCalendarDays(end, start);
+      if (days <= 0) {
+        setFlexibleError("End date must be after start date.");
+        return;
+      }
+      const weeks = days / 7;
+      if (weeks < minFlexibleWeeks) {
+        setFlexibleError(
+          `Minimum flexible stay is ${minFlexibleWeeks} week${minFlexibleWeeks === 1 ? "" : "s"}.`
+        );
+        return;
+      }
+      setFlexibleError(null);
+    } catch {
+      setFlexibleError("Enter valid dates.");
+    }
+  }, [
+    isFlexiblePlaceholder,
+    flexibleStart,
+    flexibleEnd,
+    contract?.academic_year?.start_date,
+    contract?.academic_year?.end_date,
+    minFlexibleWeeks,
+  ]);
+
+  const canApplyForContract =
+    (!isStaffOnlyContract || isStaff) &&
+    !isPastDueDefaultContract &&
+    (!isFlexiblePlaceholder || !flexibleError);
+
+  const showApplyButton = !isStaffOnlyContract || isStaff;
 
   const handleEnquire = async () => {
     if (!contract) return;
     if (!canApplyForContract) return;
+    if (isFlexiblePlaceholder && (!flexibleStart || !flexibleEnd || flexibleError)) {
+      toast({
+        variant: "destructive",
+        title: "Choose your flexible dates",
+        description:
+          flexibleError ??
+          "Please select your preferred start and end dates within the academic year before starting your booking.",
+      });
+      return;
+    }
 
     if (!user) {
       navigate("/portal/login", {
@@ -290,6 +418,8 @@ const ContractDetail = () => {
           studio_grade_id: contract.studio_grade_id,
           contract_id: contract.id,
           status: "draft",
+          requested_contract_start: isFlexiblePlaceholder ? flexibleStart : null,
+          requested_contract_end: isFlexiblePlaceholder ? flexibleEnd : null,
         })
         .select("id")
         .maybeSingle();
@@ -527,6 +657,85 @@ const ContractDetail = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {isFlexiblePlaceholder && (
+                <div className="space-y-3 rounded-2xl border border-dashed border-border/60 bg-muted/30 px-4 py-3">
+                  <p className="text-sm font-semibold">
+                    Flexible stay within bracket
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    You can request any stay that fits between{" "}
+                    <span className="font-medium">
+                      {format(new Date(contract.contract_start), "d MMM yyyy")}
+                    </span>{" "}
+                    and{" "}
+                    <span className="font-medium">
+                      {format(new Date(contract.contract_end), "d MMM yyyy")}
+                    </span>
+                    . Minimum stay is{" "}
+                    <span className="font-medium">
+                      {minFlexibleWeeks} week{minFlexibleWeeks === 1 ? "" : "s"}
+                    </span>
+                    .
+                  </p>
+                  <div className="mt-2 grid gap-3 md:grid-cols-2">
+                    <div className="space-y-1">
+                      <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">
+                        Preferred start date
+                      </p>
+                      <Input
+                        type="date"
+                        value={flexibleStart}
+                        onChange={(e) => setFlexibleStart(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">
+                        Preferred end date
+                      </p>
+                      <Input
+                        type="date"
+                        value={flexibleEnd}
+                        onChange={(e) => setFlexibleEnd(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  {flexibleSummary && !flexibleError && (
+                    <p className="text-xs text-foreground">
+                      Your requested stay is{" "}
+                      <span className="font-medium">
+                        {flexibleSummary.weeks} week
+                        {flexibleSummary.weeks === 1 ? "" : "s"}
+                        {flexibleSummary.extraDays
+                          ? ` and ${flexibleSummary.extraDays} day${
+                              flexibleSummary.extraDays === 1 ? "" : "s"
+                            }`
+                          : ""}
+                      </span>{" "}
+                      ({flexibleSummary.totalNights} nights)
+                      {flexibleSummary.totalPrice != null && (
+                        <>
+                          {" "}
+                          with an estimated total of{" "}
+                          <span className="font-semibold">
+                            £
+                            {flexibleSummary.totalPrice.toLocaleString(
+                              "en-GB",
+                              {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              },
+                            )}
+                          </span>{" "}
+                          based on the current weekly rate.
+                        </>
+                      )}
+                    </p>
+                  )}
+                  {flexibleError && (
+                    <p className="text-xs text-destructive">{flexibleError}</p>
+                  )}
+                </div>
+              )}
               <div className="space-y-2">
                 <h3 className="text-sm uppercase tracking-[0.3em] text-muted-foreground">
                   Weekly price
@@ -772,13 +981,22 @@ const ContractDetail = () => {
                 </Alert>
               )}
 
-              {/* Regular Booking Button — hidden when staff-only and user is not staff */}
-              {canApplyForContract && (
+              {isFlexiblePlaceholder && !flexibleError && !isStaffOnlyContract && (
+                <Alert className="rounded-2xl border-white/30 bg-white/10 text-white">
+                  <AlertTitle className="uppercase tracking-wide">Flexible stay request</AlertTitle>
+                  <AlertDescription className="text-xs">
+                    Choose your preferred dates above within the contract bracket, then start your booking journey. Our team will review and confirm your custom contract.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* Regular Booking Button — hidden only when staff-only and user is not staff */}
+              {showApplyButton && (
                 <Button
                   className="w-full rounded-full uppercase tracking-wide bg-white text-primary hover:bg-white/90"
                   size="lg"
                   onClick={handleEnquire}
-                  disabled={creating || creatingRebooking}
+                  disabled={!canApplyForContract || creating || creatingRebooking}
                 >
                   {creating ? (
                     <>

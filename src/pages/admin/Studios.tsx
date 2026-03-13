@@ -55,10 +55,17 @@ const Studios = () => {
   const [bulkAction, setBulkAction] = useState<{ type: string; value: string } | null>(null);
   const [bulkGradeId, setBulkGradeId] = useState<string>("");
 
+  // When using the virtual "occupied_can_release" filter, we still fetch all
+  // statuses from the backend and apply the "can release" condition in the UI.
+  const effectiveStatusFilter =
+    statusFilter === "all" || statusFilter === "occupied_can_release"
+      ? undefined
+      : statusFilter;
+
   const { data: gradesData } = useAdminStudioGrades(selectedAcademicYearId);
   const { data: studios, isLoading } = useAdminStudios({
     gradeId: gradeFilter === "all" ? undefined : gradeFilter,
-    status: statusFilter === "all" ? undefined : statusFilter,
+    status: effectiveStatusFilter,
     allocation: allocationFilter === "all" ? undefined : allocationFilter,
     floor: floorFilter === "all" ? undefined : floorFilter,
     academicYearId: selectedAcademicYearId,
@@ -89,13 +96,24 @@ const Studios = () => {
   const filteredStudios = useMemo(() => {
     if (!studios) return [];
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return studios;
+
     return studios.filter((studio) => {
+      // Apply real status filter (excluding the virtual "occupied_can_release")
+      if (statusFilter !== "all" && statusFilter !== "occupied_can_release") {
+        const studioStatus = (studio.status ?? studio.effective_status ?? "").toLowerCase();
+        if (studioStatus !== statusFilter.toLowerCase()) {
+          return false;
+        }
+      }
+
+      if (!q) return true;
+
       const number = (studio.studio_number ?? "").toLowerCase();
       const grade = (studio.studio_grade?.name ?? "").toLowerCase();
       const floor = (studio.floor ?? "").toLowerCase();
       const status = (studio.status ?? studio.effective_status ?? "").toLowerCase();
       const allocation = (studio.allocation ?? "").toLowerCase();
+
       return (
         number.includes(q) ||
         grade.includes(q) ||
@@ -104,7 +122,7 @@ const Studios = () => {
         allocation.includes(q)
       );
     });
-  }, [studios, searchQuery]);
+  }, [studios, searchQuery, statusFilter]);
 
   const occupiedStudioIds = useMemo(
     () => filteredStudios.filter((s) => s.status === "occupied").map((s) => s.id),
@@ -145,8 +163,15 @@ const Studios = () => {
     return map;
   }, [occupiedStudioIds, occupiedApplications]);
 
-  const selectAll = selectedStudios.size === filteredStudios.length && filteredStudios.length > 0;
-  const someSelected = selectedStudios.size > 0 && selectedStudios.size < filteredStudios.length;
+  const displayStudios = useMemo(() => {
+    if (statusFilter !== "occupied_can_release") return filteredStudios;
+    return filteredStudios.filter(
+      (studio) => studio.status === "occupied" && studioCanReleaseMap.get(studio.id),
+    );
+  }, [filteredStudios, statusFilter, studioCanReleaseMap]);
+
+  const selectAll = selectedStudios.size === displayStudios.length && displayStudios.length > 0;
+  const someSelected = selectedStudios.size > 0 && selectedStudios.size < displayStudios.length;
 
   const handleStatusChange = async (studioId: string, status: string) => {
     if (status === "maintenance" && !selectedAcademicYearId) {
@@ -190,7 +215,7 @@ const Studios = () => {
     if (selectAll) {
       setSelectedStudios(new Set());
     } else {
-      setSelectedStudios(new Set(filteredStudios.map((s) => s.id)));
+      setSelectedStudios(new Set(displayStudios.map((s) => s.id)));
     }
   };
 
@@ -303,6 +328,7 @@ const Studios = () => {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All status</SelectItem>
+            <SelectItem value="occupied_can_release">Occupied (can release)</SelectItem>
             {Object.keys(statusLabels).map((statusKey) => (
               <SelectItem key={statusKey} value={statusKey}>
                 {statusLabels[statusKey]}
@@ -402,7 +428,7 @@ const Studios = () => {
             </div>
           ) : (
             <div className="space-y-4">
-              {filteredStudios.length > 0 && (
+              {displayStudios.length > 0 && (
                 <div className="flex items-center gap-3 pb-2 border-b border-border/60">
                   <Checkbox
                     checked={selectAll}
@@ -412,14 +438,14 @@ const Studios = () => {
                   <span className="text-sm text-muted-foreground">
                     {selectAll ? "Deselect all" : "Select all"}
                   </span>
-                  {searchQuery.trim() && (
+                    {searchQuery.trim() && (
                     <span className="text-xs text-muted-foreground">
-                      {filteredStudios.length} of {studios?.length ?? 0} studios
+                      {displayStudios.length} of {studios?.length ?? 0} studios
                     </span>
                   )}
                 </div>
               )}
-              {filteredStudios.map((studio) => (
+              {displayStudios.map((studio) => (
                 <div
                   key={studio.id}
                   className={`rounded-2xl border px-5 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 ${
@@ -497,7 +523,9 @@ const Studios = () => {
                             : "bg-gray-500 hover:bg-gray-600 text-white"
                         }`}
                       >
-                        {statusLabels[studio.status] ?? studio.status}
+                        {studio.status === "occupied" && studioCanReleaseMap.get(studio.id)
+                          ? "Occupied (can release)"
+                          : statusLabels[studio.status] ?? studio.status}
                       </Badge>
                       <Select
                         onValueChange={(value) => handleStatusChange(studio.id, value)}
@@ -519,9 +547,46 @@ const Studios = () => {
                       variant="ghost"
                       size="sm"
                       className="rounded-full uppercase tracking-wide gap-2 w-full sm:w-auto"
-                      onClick={() =>
-                        handleStatusChange(studio.id, "available")
-                      }
+                      onClick={async () => {
+                        const canRelease = studio.status === "occupied" && studioCanReleaseMap.get(studio.id);
+                        if (!canRelease) {
+                          toast({
+                            variant: "destructive",
+                            title: "Cannot release studio",
+                            description:
+                              "This studio is still linked to an active confirmed contract. End or check out the contract from the Applications panel first.",
+                          });
+                          return;
+                        }
+
+                        try {
+                          const { error } = await supabase.rpc("admin_release_studio_occupancy", {
+                            p_studio_id: studio.id,
+                            p_academic_year_id: selectedAcademicYearId ?? null,
+                          });
+
+                          if (error) throw error;
+
+                          await updateStudio.mutateAsync({
+                            id: studio.id,
+                            status: "available",
+                            allocation: null,
+                            academicYearId: selectedAcademicYearId ?? undefined,
+                          });
+
+                          toast({
+                            title: "Studio released",
+                            description: "Studio is now available for new bookings.",
+                          });
+                        } catch (error) {
+                          console.error(error);
+                          toast({
+                            variant: "destructive",
+                            title: "Failed to release studio",
+                            description: "Please try again or release from the application detail.",
+                          });
+                        }
+                      }}
                     >
                       <ArrowRightCircle className="h-4 w-4" />
                       Release

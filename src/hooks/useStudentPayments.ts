@@ -22,7 +22,7 @@ const fetchPaymentSchedule = async (
   // First get the application to find the contract_id and payment plan
   const { data: application, error: appError } = await supabase
     .from("student_applications")
-    .select("contract_id, selected_payment_plan_id")
+    .select("contract_id, selected_payment_plan_id, requested_contract_start, requested_contract_end")
     .eq("id", applicationId)
     .maybeSingle();
 
@@ -67,7 +67,19 @@ const fetchPaymentSchedule = async (
       .maybeSingle();
 
     const weeklyPrice = contract.weekly_price_override || priceData?.weekly_price || 0;
-    const totalContractValue = weeklyPrice * getEffectiveWeeks(contract);
+    const isFlexiblePlaceholder = (contract as { is_custom_duration_placeholder?: boolean }).is_custom_duration_placeholder === true;
+    const totalContractValue =
+      isFlexiblePlaceholder && application.requested_contract_start && application.requested_contract_end
+        ? (() => {
+            const start = new Date(application.requested_contract_start);
+            const end = new Date(application.requested_contract_end);
+            if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+              return weeklyPrice * getEffectiveWeeks(contract);
+            }
+            const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+            return weeklyPrice * (days / 7);
+          })()
+        : weeklyPrice * getEffectiveWeeks(contract);
 
     // Get deposit amount with proper priority (matches database function logic):
     // 1. contract.deposit_override (highest priority)
@@ -143,16 +155,22 @@ const fetchPaymentSchedule = async (
         amount = Number(inst.amount_value);
       }
 
+      // For flexible placeholder contracts, use student's requested start so due dates match their stay
+      const effectiveStart =
+        (contract as { is_custom_duration_placeholder?: boolean }).is_custom_duration_placeholder &&
+        application.requested_contract_start
+          ? application.requested_contract_start
+          : contract.contract_start;
       // Calculate due date
       let dueDate: Date;
       if (inst.due_date) {
         dueDate = new Date(inst.due_date);
       } else if (inst.due_date_offset_days !== null) {
-        dueDate = new Date(contract.contract_start);
+        dueDate = new Date(effectiveStart);
         dueDate.setDate(dueDate.getDate() + inst.due_date_offset_days);
       } else {
         // Fallback to contract start
-        dueDate = new Date(contract.contract_start);
+        dueDate = new Date(effectiveStart);
       }
 
       return {

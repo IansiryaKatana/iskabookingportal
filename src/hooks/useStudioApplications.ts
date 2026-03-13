@@ -55,9 +55,12 @@ const fetchStudioApplications = async (
 
   if (status) {
     if (status === "checked_out") {
-      query = query.eq("status", "confirmed");
+      // Include both confirmed and checked_out so we can show ended stays
+      // regardless of whether they were explicitly marked checked_out or
+      // inferred from contract dates.
+      query = query.in("status", ["confirmed", "checked_out"] as any);
     } else {
-      query = query.eq("status", status);
+      query = query.eq("status", status as any);
     }
   }
 
@@ -69,6 +72,7 @@ const fetchStudioApplications = async (
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     rows = rows.filter((r) => {
+      if (r.status === "checked_out") return true;
       const end = r.contract?.contract_end;
       if (!end) return false;
       const endDate = new Date(end);
