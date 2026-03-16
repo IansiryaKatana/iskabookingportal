@@ -84,6 +84,12 @@ const getStatusBadge = (status: string) => {
       className: "bg-orange-500 hover:bg-orange-600 text-white",
       label: "Expired",
     },
+    // Confirmed booking where the stay has ended but the studio
+    // has not yet been released via the admin checkout flow.
+    confirmed_ended: {
+      className: "bg-slate-600 hover:bg-slate-700 text-white",
+      label: "Confirmed – stay ended (release pending)",
+    },
     checked_out: {
       className: "bg-slate-700 hover:bg-slate-800 text-white",
       label: "Checked Out",
@@ -170,7 +176,9 @@ const ApplicationDetail = () => {
   const isOriginalBooking = !!applicationId && !isExtension;
 
   // Derive a display status that shows "Checked Out" when a confirmed booking
-  // has passed its final contract end date (original + any extensions).
+  // has passed its final contract end date (original + any extensions), but
+  // only once the admin release flow has been run. Before that, show a
+  // "stay ended, release pending" state.
   const displayStatus = useMemo(() => {
     if (!application) return "";
 
@@ -206,7 +214,10 @@ const ApplicationDetail = () => {
 
     const now = new Date();
     if (isAfter(now, latestEnd)) {
-      return "checked_out";
+      // Keep the underlying DB status as "confirmed" until the admin
+      // explicitly runs the checkout/release flow. The UI uses this
+      // derived value to signal that action is pending.
+      return "confirmed_ended";
     }
 
     return rawStatus;
@@ -666,6 +677,44 @@ const ApplicationDetail = () => {
     }
   };
 
+  const handleCheckoutAndRelease = async () => {
+    if (!applicationId || !application?.assigned_studio_id) {
+      return;
+    }
+
+    try {
+      const studioId = application.assigned_studio_id;
+      const academicYearId = (application.contract as { academic_year_id?: string | null } | null)
+        ?.academic_year_id ?? null;
+
+      const { error } = await supabase.rpc("admin_release_studio_occupancy", {
+        p_studio_id: studioId,
+        p_academic_year_id: academicYearId,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ["student-application", applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["admin-applications"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-studios"] });
+
+      toast({
+        title: "Student checked out",
+        description: "Studio released and application marked as checked out.",
+      });
+    } catch (error) {
+      console.error("Failed to check out and release studio:", error);
+      toast({
+        title: "Unable to complete checkout",
+        description:
+          error instanceof Error ? error.message : "Please try again or contact an administrator.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleDownloadApplicationCsv = async () => {
     if (!applicationId || !application) return;
 
@@ -1040,18 +1089,32 @@ const ApplicationDetail = () => {
                 </Select>
               </div>
             </div>
-            {application.status === "draft" && (
-              <Button
-                type="button"
-                variant="outline"
-                className="rounded-full uppercase tracking-wide border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                onClick={() => setDiscardDialogOpen(true)}
-                disabled={discardDraftApplication.isPending}
-              >
-                <XCircle className="h-4 w-4 mr-1.5" />
-                Discard draft
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {application.status === "draft" && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-full uppercase tracking-wide border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                  onClick={() => setDiscardDialogOpen(true)}
+                  disabled={discardDraftApplication.isPending}
+                >
+                  <XCircle className="h-4 w-4 mr-1.5" />
+                  Discard draft
+                </Button>
+              )}
+              {application.status === "confirmed" &&
+                displayStatus === "confirmed_ended" &&
+                application.assigned_studio_id && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-full uppercase tracking-wide border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                    onClick={handleCheckoutAndRelease}
+                  >
+                    Check out &amp; release studio
+                  </Button>
+                )}
+            </div>
           </div>
         </div>
 
@@ -1090,7 +1153,9 @@ const ApplicationDetail = () => {
               </SelectContent>
           </Select>
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
-            <Label className="text-xs uppercase tracking-wide text-muted-foreground whitespace-nowrap">Booking source</Label>
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground whitespace-nowrap">
+              Booking source
+            </Label>
             <Select
               value={application.booking_source || BOOKING_SOURCE_NONE}
               onValueChange={handleBookingSourceChange}
@@ -1102,20 +1167,36 @@ const ApplicationDetail = () => {
               <SelectContent>
                 <SelectItem value={BOOKING_SOURCE_NONE}>—</SelectItem>
                 {BOOKING_SOURCE_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-              {application.status === "draft" && (
+          </div>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
+            {application.status === "draft" && (
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-1 sm:mt-0 rounded-full uppercase tracking-wide border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground w-full sm:w-auto justify-center"
+                onClick={() => setDiscardDialogOpen(true)}
+                disabled={discardDraftApplication.isPending}
+              >
+                <XCircle className="h-4 w-4 mr-1.5" />
+                Discard draft
+              </Button>
+            )}
+            {application.status === "confirmed" &&
+              displayStatus === "confirmed_ended" &&
+              application.assigned_studio_id && (
                 <Button
                   type="button"
                   variant="outline"
-                  className="mt-1 sm:mt-0 rounded-full uppercase tracking-wide border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground w-full sm:w-auto justify-center"
-                  onClick={() => setDiscardDialogOpen(true)}
-                  disabled={discardDraftApplication.isPending}
+                  className="mt-1 sm:mt-0 rounded-full uppercase tracking-wide border-primary text-primary hover:bg-primary hover:text-primary-foreground w-full sm:w-auto justify-center"
+                  onClick={handleCheckoutAndRelease}
                 >
-                  <XCircle className="h-4 w-4 mr-1.5" />
-                  Discard draft
+                  Check out &amp; release studio
                 </Button>
               )}
           </div>
