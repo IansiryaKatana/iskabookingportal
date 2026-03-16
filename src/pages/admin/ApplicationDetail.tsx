@@ -1837,10 +1837,16 @@ const ApplicationDetail = () => {
                             (b) => b.sequence === row.sequence
                           );
 
+                          const displayAmount = breakdown
+                            ? Number(breakdown.amount_due)
+                            : Number(row.amount);
+
                           return (
                             <tr key={row.id} className="border-b border-border/40 last:border-0 hover:bg-muted/30">
                               <td className="py-2 px-3 text-muted-foreground">{row.label ?? `Instalment ${row.sequence}`}</td>
-                              <td className="py-2 px-3 text-right font-medium">{formatCurrency(Number(row.amount))}</td>
+                              <td className="py-2 px-3 text-right font-medium">
+                                {formatCurrency(displayAmount)}
+                              </td>
                               <td className="py-2 px-3 text-center">
                                 {breakdown ? (
                                   <div className="flex flex-col items-center gap-0.5">

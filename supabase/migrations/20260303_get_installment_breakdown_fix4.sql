@@ -38,6 +38,8 @@ DECLARE
   v_contract_extra_days SMALLINT := 0;
   v_effective_weeks NUMERIC := 0;
   v_installment_base NUMERIC := 0;
+  v_cashback NUMERIC := 0;
+  v_discount NUMERIC := 0;
   v_tolerance NUMERIC := 1.00;
   v_total_instalment_paid NUMERIC := 0;
 BEGIN
@@ -78,6 +80,19 @@ BEGIN
   v_effective_weeks := COALESCE(v_contract_weeks, 0)
     + (LEAST(6, GREATEST(0, COALESCE(v_contract_extra_days, 0)))::NUMERIC / 7.0);
   v_installment_base := COALESCE(v_contract_weekly_price, 0) * v_effective_weeks;
+
+  -- Apply cashback and discount so instalment base matches adjusted total
+  BEGIN
+    SELECT COALESCE(cashback_amount, 0), COALESCE(discount_amount, 0)
+    INTO v_cashback, v_discount
+    FROM public.student_applications
+    WHERE id = p_application_id;
+  EXCEPTION WHEN OTHERS THEN
+    v_cashback := 0;
+    v_discount := 0;
+  END;
+
+  v_installment_base := GREATEST(v_installment_base - COALESCE(v_cashback, 0) - COALESCE(v_discount, 0), 0);
 
   -- Total instalment payments for this application (Stripe + manual).
   -- We deliberately ignore instalment_id and always apply payments in
