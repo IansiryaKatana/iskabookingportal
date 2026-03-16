@@ -70,6 +70,7 @@ const PaymentHistory = () => {
   const [selectedPayments, setSelectedPayments] = useState<Set<string>>(new Set());
   const [isGeneratingReceipts, setIsGeneratingReceipts] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isBulkSyncingAwaitingDeposit, setIsBulkSyncingAwaitingDeposit] = useState(false);
   const [syncResult, setSyncResult] = useState<{ synced: number; errors?: Array<{ paymentIntentId: string; error: string }> } | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [paymentToDelete, setPaymentToDelete] = useState<UnifiedPayment | null>(null);
@@ -762,6 +763,99 @@ const PaymentHistory = () => {
     }
   };
 
+  const handleBulkSyncAwaitingDeposit = async () => {
+    setIsBulkSyncingAwaitingDeposit(true);
+    setSyncResult(null);
+
+    try {
+      const { data: awaitingApps, error: awaitingError } = await supabase
+        .from("student_applications")
+        .select("id")
+        .eq("status", "awaiting_deposit");
+
+      if (awaitingError) {
+        console.error("Error fetching awaiting_deposit applications:", awaitingError);
+        toast({
+          title: "Error",
+          description: "Failed to load applications in awaiting deposit status.",
+          variant: "destructive",
+        });
+        setIsBulkSyncingAwaitingDeposit(false);
+        return;
+      }
+
+      const applicationIds = (awaitingApps ?? []).map((app) => app.id).filter(Boolean);
+
+      if (applicationIds.length === 0) {
+        toast({
+          title: "No applications in awaiting deposit",
+          description: "There are currently no applications with status awaiting_deposit.",
+        });
+        setIsBulkSyncingAwaitingDeposit(false);
+        return;
+      }
+
+      let totalSynced = 0;
+      const errors: Array<{ paymentIntentId: string; error: string }> = [];
+
+      for (const applicationId of applicationIds) {
+        try {
+          const { data, error } = await supabase.functions.invoke("sync-payment-from-stripe", {
+            body: { applicationId },
+          });
+
+          if (error) {
+            console.error(`Error syncing payments for ${applicationId}:`, error);
+            errors.push({
+              paymentIntentId: applicationId,
+              error: error.message || "Unknown error",
+            });
+          } else if (data) {
+            totalSynced += data.synced || 0;
+            if (data.errors && data.errors.length > 0) {
+              errors.push(...data.errors);
+            }
+          }
+        } catch (err) {
+          console.error(`Error calling sync function for ${applicationId}:`, err);
+          errors.push({
+            paymentIntentId: applicationId,
+            error: err instanceof Error ? err.message : "Unknown error",
+          });
+        }
+      }
+
+      setSyncResult({ synced: totalSynced, errors: errors.length > 0 ? errors : undefined });
+
+      if (totalSynced > 0) {
+        toast({
+          title: "Awaiting deposit synced",
+          description: `Synced ${totalSynced} payment(s) from Stripe for applications in awaiting_deposit.`,
+        });
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+      } else {
+        toast({
+          title: "No Stripe payments found",
+          description:
+            errors.length > 0
+              ? `Checked ${applicationIds.length} application(s); found ${errors.length} error(s).`
+              : "No successful Stripe deposits were found for applications in awaiting_deposit.",
+        });
+      }
+    } catch (error) {
+      console.error("Error bulk syncing awaiting_deposit applications:", error);
+      toast({
+        title: "Error",
+        description: "Failed to sync applications in awaiting_deposit. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBulkSyncingAwaitingDeposit(false);
+    }
+  };
+
   const handleEditManualPayment = async (payment: UnifiedPayment) => {
     if (payment.payment_source !== "manual") {
       toast({
@@ -1102,12 +1196,21 @@ const PaymentHistory = () => {
               <div className="flex items-center gap-2 flex-wrap">
                 <Button
                   onClick={handleSyncPayments}
-                  disabled={isSyncing}
+                  disabled={isSyncing || isBulkSyncingAwaitingDeposit}
                   variant="outline"
                   className="rounded-full uppercase tracking-wide gap-2"
                 >
                   <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
                   {isSyncing ? "Syncing..." : "Sync Missing Payments"}
+                </Button>
+                <Button
+                  onClick={handleBulkSyncAwaitingDeposit}
+                  disabled={isBulkSyncingAwaitingDeposit || isSyncing}
+                  variant="outline"
+                  className="rounded-full uppercase tracking-wide gap-2"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isBulkSyncingAwaitingDeposit ? "animate-spin" : ""}`} />
+                  {isBulkSyncingAwaitingDeposit ? "Syncing Awaiting..." : "Sync All Awaiting Deposit"}
                 </Button>
                 {filteredPayments && filteredPayments.length > 0 && (
                   <>

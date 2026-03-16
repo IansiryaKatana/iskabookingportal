@@ -11,6 +11,7 @@ export const BOOKING_SOURCE_VALUES = [
   "partner_referral",
   "unity_sales",
   "hfs_sales",
+  "extension",
 ] as const;
 
 export type BookingSourceValue = (typeof BOOKING_SOURCE_VALUES)[number];
@@ -22,6 +23,7 @@ export const BOOKING_SOURCE_OPTIONS: { value: BookingSourceValue; label: string 
   { value: "partner_referral", label: "Partner referral" },
   { value: "unity_sales", label: "Unity Sales" },
   { value: "hfs_sales", label: "HFS Sales" },
+  { value: "extension", label: "Extension" },
 ];
 
 export const BOOKING_SOURCE_BADGE_CONFIG: Record<
@@ -34,4 +36,5 @@ export const BOOKING_SOURCE_BADGE_CONFIG: Record<
   partner_referral: { label: "Partner referral", className: "bg-teal-500 hover:bg-teal-600 text-white" },
   unity_sales: { label: "Unity Sales", className: "bg-amber-500 hover:bg-amber-600 text-white" },
   hfs_sales: { label: "HFS Sales", className: "bg-emerald-500 hover:bg-emerald-600 text-white" },
+  extension: { label: "Extension", className: "bg-indigo-500 hover:bg-indigo-600 text-white" },
 };

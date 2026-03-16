@@ -242,52 +242,130 @@ serve(async (req) => {
 
       if (existingPayment) {
         console.log(
-          `Payment ${paymentIntent.id} already exists, skipping`,
+          `Payment ${paymentIntent.id} already exists, skipping insert`,
         );
-        continue;
-      }
-
-      // Create payment record
-      const instalmentId = paymentIntent.metadata?.instalment_id;
-      const label = paymentIntent.metadata?.label || "Payment";
-
-      const { error: insertError } = await supabaseAdmin
-        .from("stripe_payments")
-        .insert({
-          student_application_id: targetApplicationId,
-          stripe_payment_intent_id: paymentIntent.id,
-          amount: paymentIntent.amount / 100, // Convert from cents
-          currency: paymentIntent.currency.toUpperCase(),
-          status: "succeeded",
-          payment_type: paymentType,
-          metadata: {
-            application_id: targetApplicationId,
-            student_id: paymentIntent.metadata?.student_id,
-            instalment_id: instalmentId,
-            label: label,
-            amount_pounds: paymentIntent.metadata?.amount_pounds,
-            type: paymentType,
-          },
-        })
-        .select()
-        .single();
-
-      if (insertError) {
-        console.error(
-          `Error creating payment record for ${paymentIntent.id}:`,
-          insertError,
-        );
-        errors.push({
-          paymentIntentId: paymentIntent.id,
-          error: insertError.message,
-        });
       } else {
-        syncedPayments.push({
-          paymentIntentId: paymentIntent.id,
-          amount: paymentIntent.amount / 100,
-          type: paymentType,
-        });
+        // Create payment record
+        const instalmentId = paymentIntent.metadata?.instalment_id;
+        const label = paymentIntent.metadata?.label || "Payment";
+
+        const { error: insertError } = await supabaseAdmin
+          .from("stripe_payments")
+          .insert({
+            student_application_id: targetApplicationId,
+            stripe_payment_intent_id: paymentIntent.id,
+            amount: paymentIntent.amount / 100, // Convert from cents
+            currency: paymentIntent.currency.toUpperCase(),
+            status: "succeeded",
+            payment_type: paymentType,
+            metadata: {
+              application_id: targetApplicationId,
+              student_id: paymentIntent.metadata?.student_id,
+              instalment_id: instalmentId,
+              label: label,
+              amount_pounds: paymentIntent.metadata?.amount_pounds,
+              type: paymentType,
+            },
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error(
+            `Error creating payment record for ${paymentIntent.id}:`,
+            insertError,
+          );
+          errors.push({
+            paymentIntentId: paymentIntent.id,
+            error: insertError.message,
+          });
+          continue;
+        }
       }
+
+      // For deposit payments, ensure the application and step 5 payload reflect the paid state
+      if (paymentType === "deposit" && targetApplicationId) {
+        try {
+          // Update application deposit reference and status if needed
+          const { data: appRow, error: appFetchError } = await supabaseAdmin
+            .from("student_applications")
+            .select("id, deposit_payment_intent_id, status")
+            .eq("id", targetApplicationId)
+            .maybeSingle();
+
+          if (appFetchError) {
+            console.error("Error fetching application for deposit sync:", appFetchError);
+          } else if (appRow) {
+            const needsDepositIntentUpdate =
+              !appRow.deposit_payment_intent_id ||
+              appRow.deposit_payment_intent_id === "";
+
+            if (needsDepositIntentUpdate || appRow.status === "awaiting_deposit") {
+              const updates: Record<string, unknown> = {};
+              if (needsDepositIntentUpdate) {
+                updates.deposit_payment_intent_id = paymentIntent.id;
+              }
+              if (appRow.status === "awaiting_deposit") {
+                updates.status = "awaiting_signature";
+              }
+
+              if (Object.keys(updates).length > 0) {
+                const { error: appUpdateError } = await supabaseAdmin
+                  .from("student_applications")
+                  .update(updates)
+                  .eq("id", targetApplicationId);
+
+                if (appUpdateError) {
+                  console.error("Error updating application during deposit sync:", appUpdateError);
+                }
+              }
+            }
+          }
+
+          // Update step 5 payload.deposit_paid = true so the wizard reflects the synced deposit
+          const { data: step5, error: stepError } = await supabaseAdmin
+            .from("student_application_steps")
+            .select("id, payload")
+            .eq("application_id", targetApplicationId)
+            .eq("step_number", 5)
+            .maybeSingle();
+
+          if (stepError) {
+            console.error("Failed to fetch Step 5 for deposit sync:", stepError);
+          } else if (step5?.id) {
+            const currentPayload =
+              (step5.payload && typeof step5.payload === "object"
+                ? step5.payload
+                : {}) as Record<string, unknown>;
+
+            if (currentPayload.deposit_paid !== true) {
+              const updatedPayload = {
+                ...currentPayload,
+                deposit_paid: true,
+              };
+
+              const { error: stepUpdateError } = await supabaseAdmin
+                .from("student_application_steps")
+                .update({
+                  payload: updatedPayload,
+                })
+                .eq("id", step5.id);
+
+              if (stepUpdateError) {
+                console.error("Failed to update Step 5 payload during deposit sync:", stepUpdateError);
+              }
+            }
+          }
+        } catch (depositSyncError) {
+          console.error("Unexpected error while syncing deposit state:", depositSyncError);
+        }
+      }
+
+      syncedPayments.push({
+        paymentIntentId: paymentIntent.id,
+        amount: paymentIntent.amount / 100,
+        type: paymentType,
+      });
     }
 
     return new Response(

@@ -116,6 +116,43 @@ serve(async (req) => {
 
             if (error) {
               console.error("Failed to update application after deposit:", error);
+            } else {
+              try {
+                // Also mark Step 5 payload as deposit_paid = true so the wizard reflects Stripe deposits
+                const { data: step5, error: stepError } = await supabaseAdmin
+                  .from("student_application_steps")
+                  .select("id, payload")
+                  .eq("application_id", applicationId)
+                  .eq("step_number", 5)
+                  .maybeSingle();
+
+                if (stepError) {
+                  console.error("Failed to fetch Step 5 for deposit update:", stepError);
+                } else if (step5?.id) {
+                  const currentPayload =
+                    (step5.payload && typeof step5.payload === "object"
+                      ? step5.payload
+                      : {}) as Record<string, unknown>;
+
+                  const updatedPayload = {
+                    ...currentPayload,
+                    deposit_paid: true,
+                  };
+
+                  const { error: stepUpdateError } = await supabaseAdmin
+                    .from("student_application_steps")
+                    .update({
+                      payload: updatedPayload,
+                    })
+                    .eq("id", step5.id);
+
+                  if (stepUpdateError) {
+                    console.error("Failed to update Step 5 payload after Stripe deposit:", stepUpdateError);
+                  }
+                }
+              } catch (stepException) {
+                console.error("Unexpected error updating Step 5 after Stripe deposit:", stepException);
+              }
             }
 
             // Create a record in stripe_payments table for deposit
