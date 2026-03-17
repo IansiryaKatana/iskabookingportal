@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,11 +35,32 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import type { CashbackCampaign } from "@/hooks/useCashback";
+import { useRemoveCashback } from "@/hooks/useCashback";
 import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
 import { useAdminAcademicYears } from "@/hooks/useAdminAcademicYears";
 import { logActivity } from "@/utils/auditLog";
+import { useIsMobile } from "@/hooks/use-mobile";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const CashbackCampaigns = () => {
+  const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -50,6 +72,37 @@ const CashbackCampaigns = () => {
     action: "deactivate" | "reactivate";
     campaign: CashbackCampaign;
   } | null>(null);
+  const [usageCampaign, setUsageCampaign] = useState<CashbackCampaign | null>(null);
+
+  const removeCashback = useRemoveCashback();
+
+  const { data: usageApplications, isLoading: isUsageLoading } = useQuery({
+    queryKey: ["cashback-campaign-usage", usageCampaign?.id],
+    enabled: !!usageCampaign?.id,
+    queryFn: async () => {
+      if (!usageCampaign?.id) return [];
+      const { data, error } = await supabase
+        .from("application_cashbacks")
+        .select(
+          `
+          id,
+          application_id,
+          cashback_amount,
+          applied_at,
+          application:student_applications(
+            id,
+            status,
+            created_at
+          )
+        `,
+        )
+        .eq("campaign_id", usageCampaign.id)
+        .order("applied_at", { ascending: false });
+
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
 
   const { data: campaigns, isLoading } = useQuery({
     queryKey: ["cashback-campaigns", selectedAcademicYearId],
@@ -503,6 +556,7 @@ const CashbackCampaigns = () => {
                 className={`rounded-3xl ${
                   isActive(campaign) ? "border-primary/50 bg-primary/5" : ""
                 }`}
+                onClick={() => setUsageCampaign(campaign)}
               >
                 <CardHeader>
                   <div className="flex items-start justify-between">
@@ -520,7 +574,10 @@ const CashbackCampaigns = () => {
                         variant="ghost"
                         size="sm"
                         className="h-8 w-8 p-0"
-                        onClick={() => handleEdit(campaign)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEdit(campaign);
+                        }}
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -529,7 +586,10 @@ const CashbackCampaigns = () => {
                           variant="ghost"
                           size="sm"
                           className="h-8 w-8 p-0 text-destructive"
-                          onClick={() => setConfirmAction({ action: "deactivate", campaign })}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setConfirmAction({ action: "deactivate", campaign });
+                          }}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -538,7 +598,10 @@ const CashbackCampaigns = () => {
                           variant="ghost"
                           size="sm"
                           className="h-8 w-8 p-0 text-green-600 hover:text-green-700"
-                          onClick={() => setConfirmAction({ action: "reactivate", campaign })}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setConfirmAction({ action: "reactivate", campaign });
+                          }}
                         >
                           <RotateCcw className="h-4 w-4" />
                         </Button>
@@ -609,6 +672,188 @@ const CashbackCampaigns = () => {
           </Card>
         )}
       </div>
+
+      {/* Campaign usage: sheet on desktop, drawer on mobile */}
+      {usageCampaign &&
+        (isMobile ? (
+          <Drawer open={!!usageCampaign} onOpenChange={(open) => !open && setUsageCampaign(null)}>
+            <DrawerContent className="max-h-[90vh] rounded-t-[28px]">
+              <DrawerHeader className="text-left px-4 pt-6 pb-2">
+                <DrawerTitle className="text-lg font-display uppercase tracking-wide">
+                  Cashback applications
+                </DrawerTitle>
+                <DrawerDescription>
+                  {`Applications with cashback from "${usageCampaign.name}".`}
+                </DrawerDescription>
+              </DrawerHeader>
+              <ScrollArea className="flex-1 px-4 pb-4">
+                <div className="mt-2">
+                  {isUsageLoading ? (
+                    <p className="text-sm text-muted-foreground">Loading applications…</p>
+                  ) : !usageApplications || usageApplications.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No applications currently have this cashback applied.
+                    </p>
+                  ) : (
+                    <table className="w-full text-sm">
+                      <thead className="border-b text-xs uppercase text-muted-foreground">
+                        <tr>
+                          <th className="py-2 text-left">Application</th>
+                          <th className="py-2 text-left">Status</th>
+                          <th className="py-2 text-left">Applied At</th>
+                          <th className="py-2 text-left">Amount</th>
+                          <th className="py-2 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {usageApplications.map((row: any) => {
+                          const app = row.application as {
+                            id: string;
+                            status: string;
+                            created_at: string;
+                          } | null;
+                          return (
+                            <tr key={row.id} className="border-b last:border-0">
+                              <td className="py-2">{app?.id ?? row.application_id}</td>
+                              <td className="py-2 capitalize">{app?.status ?? "—"}</td>
+                              <td className="py-2">
+                                {row.applied_at
+                                  ? new Date(row.applied_at).toLocaleDateString("en-GB")
+                                  : "—"}
+                              </td>
+                              <td className="py-2">
+                                £{Number(row.cashback_amount || 0).toLocaleString("en-GB", {
+                                  minimumFractionDigits: 2,
+                                })}
+                              </td>
+                              <td className="py-2 text-right">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="rounded-full uppercase tracking-wide text-xs"
+                                  disabled={removeCashback.isPending}
+                                  onClick={async () => {
+                                    if (!app?.id) return;
+                                    try {
+                                      await removeCashback.mutateAsync({ applicationId: app.id });
+                                      setUsageCampaign(null);
+                                      navigate(`/admin/applications/${app.id}`);
+                                    } catch {
+                                      // toast handled in hook
+                                    }
+                                  }}
+                                >
+                                  {removeCashback.isPending ? "Removing..." : "Remove & open"}
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </ScrollArea>
+              <DrawerFooter className="px-4 pb-6">
+                <Button
+                  variant="outline"
+                  className="rounded-full uppercase tracking-wide"
+                  onClick={() => setUsageCampaign(null)}
+                >
+                  Close
+                </Button>
+              </DrawerFooter>
+            </DrawerContent>
+          </Drawer>
+        ) : (
+          <Sheet open={!!usageCampaign} onOpenChange={(open) => !open && setUsageCampaign(null)}>
+            <SheetContent side="right" className="w-full sm:max-w-4xl overflow-y-auto">
+              <SheetHeader>
+                <SheetTitle className="text-lg font-display uppercase tracking-wide">
+                  Cashback applications
+                </SheetTitle>
+                <SheetDescription>
+                  {`Applications with cashback from "${usageCampaign.name}".`}
+                </SheetDescription>
+              </SheetHeader>
+              <div className="mt-4">
+                {isUsageLoading ? (
+                  <p className="text-sm text-muted-foreground">Loading applications…</p>
+                ) : !usageApplications || usageApplications.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No applications currently have this cashback applied.
+                  </p>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead className="border-b text-xs uppercase text-muted-foreground">
+                      <tr>
+                        <th className="py-2 text-left">Application</th>
+                        <th className="py-2 text-left">Status</th>
+                        <th className="py-2 text-left">Applied At</th>
+                        <th className="py-2 text-left">Amount</th>
+                        <th className="py-2 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {usageApplications.map((row: any) => {
+                        const app = row.application as {
+                          id: string;
+                          status: string;
+                          created_at: string;
+                        } | null;
+                        return (
+                          <tr key={row.id} className="border-b last:border-0">
+                            <td className="py-2">{app?.id ?? row.application_id}</td>
+                            <td className="py-2 capitalize">{app?.status ?? "—"}</td>
+                            <td className="py-2">
+                              {row.applied_at
+                                ? new Date(row.applied_at).toLocaleDateString("en-GB")
+                                : "—"}
+                            </td>
+                            <td className="py-2">
+                              £{Number(row.cashback_amount || 0).toLocaleString("en-GB", {
+                                minimumFractionDigits: 2,
+                              })}
+                            </td>
+                            <td className="py-2 text-right">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="rounded-full uppercase tracking-wide text-xs"
+                                disabled={removeCashback.isPending}
+                                onClick={async () => {
+                                  if (!app?.id) return;
+                                  try {
+                                    await removeCashback.mutateAsync({ applicationId: app.id });
+                                    setUsageCampaign(null);
+                                    navigate(`/admin/applications/${app.id}`);
+                                  } catch {
+                                    // toast handled in hook
+                                  }
+                                }}
+                              >
+                                {removeCashback.isPending ? "Removing..." : "Remove & open"}
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+              <SheetFooter className="mt-4">
+                <Button
+                  variant="outline"
+                  className="rounded-full uppercase tracking-wide"
+                  onClick={() => setUsageCampaign(null)}
+                >
+                  Close
+                </Button>
+              </SheetFooter>
+            </SheetContent>
+          </Sheet>
+        ))}
 
       <AlertDialog open={!!confirmAction} onOpenChange={(open) => !open && setConfirmAction(null)}>
         <AlertDialogContent className="rounded-3xl">

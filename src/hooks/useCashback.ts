@@ -244,3 +244,36 @@ export const useApplyCashback = () => {
   });
 };
 
+/**
+ * Remove cashback from an application (admin only)
+ */
+export const useRemoveCashback = () => {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ applicationId }: { applicationId: string }) => {
+      const { error } = await supabase.rpc("remove_cashback_from_application", {
+        p_application_id: applicationId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["application-cashback", variables.applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["student-application", variables.applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["payment-summary", variables.applicationId] });
+      toast({
+        title: "Cashback removed",
+        description: "Cashback has been removed from the application.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to remove cashback.",
+        variant: "destructive",
+      });
+    },
+  });
+};
+
