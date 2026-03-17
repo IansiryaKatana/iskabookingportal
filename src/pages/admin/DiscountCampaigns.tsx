@@ -560,7 +560,7 @@ type CampaignFormProps = {
     description?: string;
     discount_amount: number;
     amount_type: "fixed" | "percentage";
-    applies_to: "all" | "new" | "rebooking";
+    applies_to: "all" | "new" | "rebooking" | "staff_assigned";
     booking_source?: string | null;
     start_date: string;
     end_date: string;
@@ -576,7 +576,9 @@ const CampaignForm = ({ campaign, onSubmit, onCancel, isSubmitting }: CampaignFo
   const [description, setDescription] = useState(campaign?.description || "");
   const [discountAmount, setDiscountAmount] = useState(campaign?.discount_amount.toString() || "");
   const [amountType, setAmountType] = useState<"fixed" | "percentage">(campaign?.amount_type || "fixed");
-  const [appliesTo, setAppliesTo] = useState<"all" | "new" | "rebooking">(campaign?.applies_to || "all");
+  const [appliesTo, setAppliesTo] = useState<"all" | "new" | "rebooking" | "staff_assigned">(
+    campaign?.applies_to || "all",
+  );
   const [bookingSource, setBookingSource] = useState<string>(campaign?.booking_source || "");
   const [startDate, setStartDate] = useState(
     campaign?.start_date ? format(new Date(campaign.start_date), "yyyy-MM-dd") : ""
@@ -657,7 +659,10 @@ const CampaignForm = ({ campaign, onSubmit, onCancel, isSubmitting }: CampaignFo
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="applies_to">Applies To *</Label>
-          <Select value={appliesTo} onValueChange={(v) => setAppliesTo(v as "all" | "new" | "rebooking")}>
+          <Select
+            value={appliesTo}
+            onValueChange={(v) => setAppliesTo(v as "all" | "new" | "rebooking" | "staff_assigned")}
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -665,6 +670,7 @@ const CampaignForm = ({ campaign, onSubmit, onCancel, isSubmitting }: CampaignFo
               <SelectItem value="all">All Applications</SelectItem>
               <SelectItem value="new">New Applications Only</SelectItem>
               <SelectItem value="rebooking">Rebooking Only</SelectItem>
+              <SelectItem value="staff_assigned">Staff assign only (manual on application)</SelectItem>
             </SelectContent>
           </Select>
         </div>

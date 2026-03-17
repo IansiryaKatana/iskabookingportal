@@ -8,7 +8,7 @@ export type DiscountCampaign = {
   description: string | null;
   discount_amount: number;
   amount_type: "fixed" | "percentage";
-  applies_to: "all" | "new" | "rebooking";
+  applies_to: "all" | "new" | "rebooking" | "staff_assigned";
   booking_source: string | null;
   start_date: string;
   end_date: string;
@@ -82,7 +82,14 @@ export const useActiveDiscountCampaigns = (
       }
 
       if (appliesTo) {
-        campaigns = campaigns.filter((c) => c.applies_to === appliesTo || c.applies_to === "all");
+        // For staff flows (e.g. admin Application Detail), we always want staff-assigned
+        // campaigns to be selectable, alongside the usual "all"/type-specific ones.
+        campaigns = campaigns.filter(
+          (c) =>
+            c.applies_to === appliesTo ||
+            c.applies_to === "all" ||
+            c.applies_to === "staff_assigned",
+        );
       }
 
       const availableCampaigns = campaigns.filter((c) => {
