@@ -166,7 +166,7 @@ const CashbackCampaigns = () => {
       name: string;
       description?: string;
       cashback_amount: number;
-      applies_to: "all" | "new" | "rebooking";
+      applies_to: "all" | "new" | "rebooking" | "staff_assigned";
       start_date: string;
       end_date: string;
       max_uses?: number;
@@ -672,7 +672,7 @@ type CampaignFormProps = {
     name: string;
     description?: string;
     cashback_amount: number;
-    applies_to: "all" | "new" | "rebooking";
+    applies_to: "all" | "new" | "rebooking" | "staff_assigned";
     start_date: string;
     end_date: string;
     max_uses?: number;
@@ -686,8 +686,8 @@ const CampaignForm = ({ campaign, onSubmit, onCancel, isSubmitting }: CampaignFo
   const [name, setName] = useState(campaign?.name || "");
   const [description, setDescription] = useState(campaign?.description || "");
   const [cashbackAmount, setCashbackAmount] = useState(campaign?.cashback_amount.toString() || "");
-  const [appliesTo, setAppliesTo] = useState<"all" | "new" | "rebooking">(
-    campaign?.applies_to || "all"
+  const [appliesTo, setAppliesTo] = useState<"all" | "new" | "rebooking" | "staff_assigned">(
+    campaign?.applies_to || "all",
   );
   const [startDate, setStartDate] = useState(
     campaign?.start_date ? format(new Date(campaign.start_date), "yyyy-MM-dd") : ""
@@ -757,7 +757,10 @@ const CampaignForm = ({ campaign, onSubmit, onCancel, isSubmitting }: CampaignFo
 
         <div className="space-y-2">
           <Label htmlFor="applies_to">Applies To *</Label>
-          <Select value={appliesTo} onValueChange={(v) => setAppliesTo(v as any)}>
+          <Select
+            value={appliesTo}
+            onValueChange={(v) => setAppliesTo(v as "all" | "new" | "rebooking" | "staff_assigned")}
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -765,6 +768,7 @@ const CampaignForm = ({ campaign, onSubmit, onCancel, isSubmitting }: CampaignFo
               <SelectItem value="all">All Applications</SelectItem>
               <SelectItem value="new">New Applications Only</SelectItem>
               <SelectItem value="rebooking">Rebooking Only</SelectItem>
+              <SelectItem value="staff_assigned">Staff assign only (manual on application)</SelectItem>
             </SelectContent>
           </Select>
         </div>

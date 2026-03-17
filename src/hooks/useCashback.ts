@@ -7,7 +7,7 @@ export type CashbackCampaign = {
   name: string;
   description: string | null;
   cashback_amount: number;
-  applies_to: "all" | "new" | "rebooking";
+  applies_to: "all" | "new" | "rebooking" | "staff_assigned";
   start_date: string;
   end_date: string;
   is_active: boolean;
@@ -94,7 +94,14 @@ export const useActiveCashbackCampaigns = (
 
       // Apply appliesTo filter if needed
       if (appliesTo) {
-        campaigns = campaigns.filter(c => c.applies_to === appliesTo || c.applies_to === "all");
+        // For staff flows (e.g. admin Application Detail), we always want staff-assigned
+        // campaigns to be selectable, alongside the usual "all"/type-specific ones.
+        campaigns = campaigns.filter(
+          (c) =>
+            c.applies_to === appliesTo ||
+            c.applies_to === "all" ||
+            c.applies_to === "staff_assigned",
+        );
       }
 
       // Filter out campaigns that have reached max uses
