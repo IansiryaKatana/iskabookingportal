@@ -16,6 +16,7 @@ export type AdminApplication = ApplicationRow & {
     id: string;
     name: string;
     weeks: number;
+    student_application_id?: string | null;
     contract_start?: string | null;
     contract_end?: string | null;
     studio_grade: {
@@ -57,6 +58,7 @@ const fetchApplications = async (academicYearId?: string): Promise<AdminApplicat
           id,
           name,
           weeks,
+          student_application_id,
           academic_year_id,
           contract_start,
           contract_end,
@@ -315,6 +317,12 @@ export const useUpdateApplicationStatus = () => {
         queryClient.invalidateQueries({ queryKey: ["payment-summary", variables.id] });
         queryClient.invalidateQueries({ queryKey: ["deposit-installment-breakdown"] });
       }
+
+      // Application status transitions affect accounting views (AR/outstanding/paid-in-full/upcoming).
+      queryClient.invalidateQueries({ queryKey: ["accounts-receivable-report"] });
+      queryClient.invalidateQueries({ queryKey: ["outstanding-balances-report"] });
+      queryClient.invalidateQueries({ queryKey: ["upcoming-paid-installments-report"] });
+      queryClient.invalidateQueries({ queryKey: ["fully-paid-students-report"] });
     },
   });
 };

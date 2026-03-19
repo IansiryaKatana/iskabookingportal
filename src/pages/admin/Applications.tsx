@@ -68,6 +68,27 @@ import { Calendar } from "@/components/ui/calendar";
 import { format, startOfMonth, endOfMonth, subDays } from "date-fns";
 import type { DateRange } from "react-day-picker";
 
+type ContractType = "default" | "custom" | "extension";
+
+type ContractTypeFilter = "all" | ContractType;
+
+const getContractType = (application: {
+  extension_of_application_id?: string | null;
+  contract?: {
+    student_application_id?: string | null;
+  } | null;
+}): ContractType => {
+  if (application.extension_of_application_id) {
+    return "extension";
+  }
+
+  if (application.contract?.student_application_id) {
+    return "custom";
+  }
+
+  return "default";
+};
+
 const statusLabels: Record<string, string> = {
   draft: "Draft",
   awaiting_deposit: "Awaiting Deposit",
@@ -168,6 +189,7 @@ const Applications = () => {
   const [manualPaymentInitialType, setManualPaymentInitialType] = useState<"deposit" | "instalment">("deposit");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [bookingSourceFilter, setBookingSourceFilter] = useState<string>("all");
+  const [contractTypeFilter, setContractTypeFilter] = useState<ContractTypeFilter>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -401,6 +423,19 @@ const Applications = () => {
       const contractRow = contracts?.find((c) => c.id === createContractId);
       if (!contractRow) throw new Error("Contract not found");
 
+      // Auto-select the default payment plan for the application.
+      // The Application Detail page is controlled by `student_applications.selected_payment_plan_id`,
+      // not `contracts.payment_plan_id`, so we set it here to avoid staff needing to click-select.
+      const linkedPlans = (contractRow.contract_payment_plans ?? [])
+        .filter((p) => Boolean(p.payment_plan_id))
+        .slice()
+        .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+
+      const defaultPlanId =
+        (contractRow as any)?.payment_plan_id ||
+        (linkedPlans.length === 1 ? linkedPlans[0]?.payment_plan_id : linkedPlans[0]?.payment_plan_id) ||
+        null;
+
       const { data: existing } = await supabase
         .from("student_applications")
         .select("id, status")
@@ -421,6 +456,7 @@ const Applications = () => {
         student_id: studentId,
         contract_id: createContractId,
         studio_grade_id: contractRow.studio_grade_id,
+        selected_payment_plan_id: defaultPlanId,
         status: "draft",
         booking_source: createBookingSource || null,
       };
@@ -569,6 +605,11 @@ const Applications = () => {
         (application) => (application.booking_source || "") === bookingSourceFilter,
       );
     }
+
+    // Apply contract type filter
+    if (contractTypeFilter !== "all") {
+      result = result.filter((application) => getContractType(application) === contractTypeFilter);
+    }
     
     // Apply search filter
     if (searchQuery.trim()) {
@@ -615,7 +656,7 @@ const Applications = () => {
     }
     
     return result;
-  }, [data, statusFilter, bookingSourceFilter, searchQuery, createdFrom, createdTo]);
+  }, [data, statusFilter, bookingSourceFilter, contractTypeFilter, searchQuery, createdFrom, createdTo]);
 
   // Pagination logic
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
@@ -628,7 +669,7 @@ const Applications = () => {
   // Reset to page 1 when filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, bookingSourceFilter, selectedAcademicYearId, searchQuery, createdFrom, createdTo]);
+  }, [statusFilter, bookingSourceFilter, contractTypeFilter, selectedAcademicYearId, searchQuery, createdFrom, createdTo]);
 
   const handleStatusChange = async (
     id: string,
@@ -678,6 +719,23 @@ const Applications = () => {
                     {opt.label}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="w-full md:w-56">
+            <Label className="sr-only">Contract type</Label>
+            <Select
+              value={contractTypeFilter}
+              onValueChange={(value) => setContractTypeFilter(value as ContractTypeFilter)}
+            >
+              <SelectTrigger className="rounded-full text-xs sm:text-sm">
+                <SelectValue placeholder="All contract types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All contract types</SelectItem>
+                <SelectItem value="default">Default contracts</SelectItem>
+                <SelectItem value="custom">Custom contracts</SelectItem>
+                <SelectItem value="extension">Extensions</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -888,6 +946,17 @@ const Applications = () => {
                             Extension
                           </Badge>
                         )}
+                        {!(
+                          application as { extension_of_application_id?: string | null }
+                        ).extension_of_application_id &&
+                          application.contract?.student_application_id && (
+                            <Badge
+                              variant="secondary"
+                              className="text-[10px] uppercase tracking-wide rounded-full"
+                            >
+                              Custom contract
+                            </Badge>
+                          )}
                         {getBookingSourceBadge(application.booking_source)}
                       </div>
                     </div>

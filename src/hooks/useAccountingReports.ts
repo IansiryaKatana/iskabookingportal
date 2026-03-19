@@ -12,6 +12,7 @@ export type AccountsReceivableItem = {
   application_status: string;
   contract_name: string;
   studio_grade: string;
+  academic_year_id?: string | null;
   total_contract_value: number | null;
   cashback_amount: number;
   discount_amount: number;
@@ -123,6 +124,27 @@ export type UpcomingPaidInstallmentItem = {
   is_paid: boolean;
   paid_date: string | null;
   status: "upcoming" | "overdue" | "paid" | "partially_paid";
+};
+
+export type FullyPaidStudentItem = {
+  application_id: string;
+  student_id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  contract_id: string;
+  contract_name: string | null;
+  academic_year_id: string | null;
+  academic_year_name: string | null;
+  total_due: number;
+  total_paid: number;
+  remaining_balance: number;
+  payment_status: string | null;
+  last_payment_date: string | null;
+  application_status: string | null;
+  application_created_at: string | null;
+  studio_number: string | null;
+  studio_grade_name: string | null;
 };
 
 // ============================================================================
@@ -274,6 +296,40 @@ export const useUpcomingPaidInstallmentsReport = () => {
 
       return (data || []) as UpcomingPaidInstallmentItem[];
     },
+  });
+};
+
+export const useFullyPaidStudentsReport = (params?: {
+  contractId?: string | null;
+  academicYearId?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  enabled?: boolean;
+}) => {
+  const enabled = params?.enabled ?? true;
+  const contractId = params?.contractId ?? null;
+  const academicYearId = params?.academicYearId ?? null;
+  const startDate = params?.startDate ?? null;
+  const endDate = params?.endDate ?? null;
+
+  return useQuery({
+    queryKey: ["fully-paid-students-report", contractId, academicYearId, startDate, endDate],
+    queryFn: async (): Promise<FullyPaidStudentItem[]> => {
+      const { data, error } = await supabase.rpc("get_fully_paid_students", {
+        p_contract_id: contractId,
+        p_academic_year_id: academicYearId,
+        p_start_date: startDate,
+        p_end_date: endDate,
+      });
+
+      if (error) {
+        console.error("Failed to fetch fully paid students report:", error);
+        throw error;
+      }
+
+      return (data || []) as FullyPaidStudentItem[];
+    },
+    enabled,
   });
 };
 

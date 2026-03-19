@@ -189,6 +189,12 @@ export const useApplyDiscount = () => {
       queryClient.invalidateQueries({ queryKey: ["application-discount", variables.applicationId] });
       queryClient.invalidateQueries({ queryKey: ["student-application", variables.applicationId] });
       queryClient.invalidateQueries({ queryKey: ["payment-summary", variables.applicationId] });
+
+      // Discount changes adjusted totals used in accounting reports.
+      queryClient.invalidateQueries({ queryKey: ["accounts-receivable-report"] });
+      queryClient.invalidateQueries({ queryKey: ["outstanding-balances-report"] });
+      queryClient.invalidateQueries({ queryKey: ["deposit-installment-breakdown"] });
+      queryClient.invalidateQueries({ queryKey: ["fully-paid-students-report"] });
       toast({
         title: "Discount applied",
         description: "Discount has been successfully applied to the application.",
@@ -222,6 +228,12 @@ export const useRemoveDiscount = () => {
       queryClient.invalidateQueries({ queryKey: ["application-discount", variables.applicationId] });
       queryClient.invalidateQueries({ queryKey: ["student-application", variables.applicationId] });
       queryClient.invalidateQueries({ queryKey: ["payment-summary", variables.applicationId] });
+
+      // Discount changes adjusted totals used in accounting reports.
+      queryClient.invalidateQueries({ queryKey: ["accounts-receivable-report"] });
+      queryClient.invalidateQueries({ queryKey: ["outstanding-balances-report"] });
+      queryClient.invalidateQueries({ queryKey: ["deposit-installment-breakdown"] });
+      queryClient.invalidateQueries({ queryKey: ["fully-paid-students-report"] });
       toast({
         title: "Discount removed",
         description: "Discount has been removed from the application.",

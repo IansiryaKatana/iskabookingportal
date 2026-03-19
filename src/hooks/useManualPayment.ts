@@ -159,9 +159,15 @@ export const useCreateManualPayment = () => {
       }
       queryClient.invalidateQueries({ queryKey: ["orphaned-payments"] });
       queryClient.invalidateQueries({ queryKey: ["verify-payment"] });
-      if (variables.paymentType === "deposit") {
-        queryClient.invalidateQueries({ queryKey: ["deposit-installment-breakdown"] });
-      }
+
+      // Payments affect accounting views/RPCs (AR totals, outstanding balances, reconciliation, etc.).
+      queryClient.invalidateQueries({ queryKey: ["accounts-receivable-report"] });
+      queryClient.invalidateQueries({ queryKey: ["outstanding-balances-report"] });
+      queryClient.invalidateQueries({ queryKey: ["deposit-installment-breakdown"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-reconciliation-report"] });
+      queryClient.invalidateQueries({ queryKey: ["upcoming-paid-installments-report"] });
+      queryClient.invalidateQueries({ queryKey: ["fully-paid-students-report"] });
+      queryClient.invalidateQueries({ queryKey: ["revenue-summary"] });
     },
   });
 };
@@ -267,6 +273,15 @@ export const useLinkPaymentToApplication = () => {
       queryClient.invalidateQueries({ queryKey: ["student-application"] });
       queryClient.invalidateQueries({ queryKey: ["orphaned-payments"] });
       queryClient.invalidateQueries({ queryKey: ["verify-payment"] });
+
+      // Linking a payment changes totals and statuses used in accounting reports.
+      queryClient.invalidateQueries({ queryKey: ["accounts-receivable-report"] });
+      queryClient.invalidateQueries({ queryKey: ["outstanding-balances-report"] });
+      queryClient.invalidateQueries({ queryKey: ["deposit-installment-breakdown"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-reconciliation-report"] });
+      queryClient.invalidateQueries({ queryKey: ["upcoming-paid-installments-report"] });
+      queryClient.invalidateQueries({ queryKey: ["fully-paid-students-report"] });
+      queryClient.invalidateQueries({ queryKey: ["revenue-summary"] });
     },
   });
 };
@@ -306,6 +321,15 @@ export const useLinkManualPaymentById = () => {
       queryClient.invalidateQueries({ queryKey: ["students"] });
       queryClient.invalidateQueries({ queryKey: ["admin-applications"] });
       queryClient.invalidateQueries({ queryKey: ["student-application"] });
+
+      // Linking a payment changes totals and statuses used in accounting reports.
+      queryClient.invalidateQueries({ queryKey: ["accounts-receivable-report"] });
+      queryClient.invalidateQueries({ queryKey: ["outstanding-balances-report"] });
+      queryClient.invalidateQueries({ queryKey: ["deposit-installment-breakdown"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-reconciliation-report"] });
+      queryClient.invalidateQueries({ queryKey: ["upcoming-paid-installments-report"] });
+      queryClient.invalidateQueries({ queryKey: ["fully-paid-students-report"] });
+      queryClient.invalidateQueries({ queryKey: ["revenue-summary"] });
     },
   });
 };

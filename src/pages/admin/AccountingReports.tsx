@@ -12,11 +12,13 @@ import {
   useDepositInstallmentBreakdown,
   useBankReconciliationReport,
   useUpcomingPaidInstallmentsReport,
+  useFullyPaidStudentsReport,
   type UpcomingPaidInstallmentItem,
+  type FullyPaidStudentItem,
 } from "@/hooks/useAccountingReports";
 import { useAdminAcademicYears } from "@/hooks/useAdminAcademicYears";
 import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
-import { Download, FileText, TrendingUp, AlertCircle, CreditCard, Receipt, Calendar, Search } from "lucide-react";
+import { Download, FileText, TrendingUp, AlertCircle, CreditCard, Receipt, Calendar, Search, CheckCircle2 } from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -38,7 +40,8 @@ type ReportType =
   | "outstanding-balances"
   | "deposit-installment"
   | "bank-reconciliation"
-  | "upcoming-payments";
+  | "upcoming-payments"
+  | "paid-in-full";
 
 const AccountingReports = () => {
   const { toast } = useToast();
@@ -58,6 +61,11 @@ const AccountingReports = () => {
   const [outstandingAcademicYearId, setOutstandingAcademicYearId] = useState<string>("all");
   const [breakdownAcademicYearId, setBreakdownAcademicYearId] = useState<string>("all");
   const AR_PER_PAGE = 10;
+  const FULLY_PAID_PER_PAGE = 10;
+
+  const [fullyPaidSearchQuery, setFullyPaidSearchQuery] = useState("");
+  const [fullyPaidPage, setFullyPaidPage] = useState(1);
+  const [fullyPaidAcademicYearId, setFullyPaidAcademicYearId] = useState<string>("all");
 
   // Fetch data based on selected report
   const { data: arData, isLoading: arLoading } = useAccountsReceivableReport();
@@ -74,6 +82,12 @@ const AccountingReports = () => {
     selectedReport === "bank-reconciliation" ? startDate : undefined,
     selectedReport === "bank-reconciliation" ? endDate : undefined
   );
+  const { data: fullyPaidData, isLoading: fullyPaidLoading } = useFullyPaidStudentsReport({
+    academicYearId: selectedReport === "paid-in-full" && fullyPaidAcademicYearId !== "all" ? fullyPaidAcademicYearId : null,
+    startDate: selectedReport === "paid-in-full" ? startDate : null,
+    endDate: selectedReport === "paid-in-full" ? endDate : null,
+    enabled: selectedReport === "paid-in-full",
+  });
 
   const formatCurrency = (amount: number | null) => {
     if (!amount && amount !== 0) return "—";
@@ -97,14 +111,14 @@ const AccountingReports = () => {
   const filteredArData = useMemo(() => {
     if (!arData) return [];
     let list = arData;
-    const selectedYearName =
-      arAcademicYearId && arAcademicYearId !== "all"
-        ? academicYears?.find((ay) => ay.id === arAcademicYearId)?.name
-        : null;
-    if (selectedYearName) {
-      list = list.filter(
-        (item) => (item.academic_year_name ?? "").trim() === selectedYearName.trim()
-      );
+    if (arAcademicYearId && arAcademicYearId !== "all") {
+      // Prefer ID match (stable). Fall back to name match for older report rows/views.
+      const selectedYearName = academicYears?.find((ay) => ay.id === arAcademicYearId)?.name ?? null;
+      list = list.filter((item) => {
+        if (item.academic_year_id) return item.academic_year_id === arAcademicYearId;
+        if (!selectedYearName) return true;
+        return (item.academic_year_name ?? "").trim() === selectedYearName.trim();
+      });
     }
     const q = arSearchQuery.trim().toLowerCase();
     if (!q) return list;
@@ -156,22 +170,46 @@ const AccountingReports = () => {
   const filteredOutstandingData = useMemo(() => {
     if (!outstandingData) return [];
     if (!outstandingAcademicYearId || outstandingAcademicYearId === "all") return outstandingData;
-    const selectedYearName = academicYears?.find((ay) => ay.id === outstandingAcademicYearId)?.name;
-    if (!selectedYearName) return outstandingData;
-    return outstandingData.filter(
-      (item) => (item.academic_year_name ?? "").trim() === selectedYearName.trim()
-    );
+    return outstandingData.filter((item) => item.academic_year_id === outstandingAcademicYearId);
   }, [outstandingData, outstandingAcademicYearId, academicYears]);
 
   const filteredBreakdownData = useMemo(() => {
     if (!breakdownData) return [];
     if (!breakdownAcademicYearId || breakdownAcademicYearId === "all") return breakdownData;
-    const selectedYearName = academicYears?.find((ay) => ay.id === breakdownAcademicYearId)?.name;
-    if (!selectedYearName) return breakdownData;
-    return breakdownData.filter(
-      (item) => (item.academic_year_name ?? "").trim() === selectedYearName.trim()
-    );
+    return breakdownData.filter((item) => item.academic_year_id === breakdownAcademicYearId);
   }, [breakdownData, breakdownAcademicYearId, academicYears]);
+
+  const filteredFullyPaidData = useMemo(() => {
+    if (!fullyPaidData) return [];
+    const q = fullyPaidSearchQuery.trim().toLowerCase();
+    if (!q) return fullyPaidData;
+    return fullyPaidData.filter((item) => {
+      const fullName = `${item.first_name ?? ""} ${item.last_name ?? ""}`.trim().toLowerCase();
+      return (
+        (fullName && fullName.includes(q)) ||
+        (item.email && item.email.toLowerCase().includes(q)) ||
+        (item.contract_name && item.contract_name.toLowerCase().includes(q)) ||
+        (item.studio_number && item.studio_number.toLowerCase().includes(q)) ||
+        (item.studio_grade_name && item.studio_grade_name.toLowerCase().includes(q)) ||
+        (item.academic_year_name && item.academic_year_name.toLowerCase().includes(q)) ||
+        (item.application_id && item.application_id.toLowerCase().includes(q))
+      );
+    });
+  }, [fullyPaidData, fullyPaidSearchQuery]);
+
+  const fullyPaidTotalPages = Math.max(1, Math.ceil(filteredFullyPaidData.length / FULLY_PAID_PER_PAGE));
+  const paginatedFullyPaidData = useMemo(() => {
+    const start = (fullyPaidPage - 1) * FULLY_PAID_PER_PAGE;
+    return filteredFullyPaidData.slice(start, start + FULLY_PAID_PER_PAGE);
+  }, [filteredFullyPaidData, fullyPaidPage]);
+
+  useEffect(() => {
+    setFullyPaidPage(1);
+  }, [fullyPaidSearchQuery, fullyPaidAcademicYearId, startDate, endDate, selectedReport]);
+
+  useEffect(() => {
+    setFullyPaidPage((p) => Math.min(p, fullyPaidTotalPages));
+  }, [fullyPaidTotalPages]);
 
   const exportToCSV = () => {
     let headers: string[] = [];
@@ -450,6 +488,52 @@ const AccountingReports = () => {
         ]);
         filename = `upcoming_payments_${format(new Date(), "yyyy-MM-dd")}.csv`;
         break;
+
+      case "paid-in-full":
+        if (!filteredFullyPaidData.length) {
+          toast({
+            title: "No data to export",
+            description: fullyPaidSearchQuery.trim()
+              ? "No paid-in-full applications match your search."
+              : "There are no paid-in-full applications for the selected filters.",
+            variant: "destructive",
+          });
+          return;
+        }
+        headers = [
+          "Application ID",
+          "Student Name",
+          "Email",
+          "Contract",
+          "Academic Year",
+          "Studio Number",
+          "Studio Grade",
+          "Total Due",
+          "Total Paid",
+          "Remaining Balance",
+          "Payment Status",
+          "Last Payment Date",
+          "Application Status",
+          "Application Created At",
+        ];
+        rows = filteredFullyPaidData.map((item: FullyPaidStudentItem) => [
+          item.application_id,
+          `${item.first_name ?? ""} ${item.last_name ?? ""}`.trim(),
+          item.email ?? "",
+          item.contract_name ?? "",
+          item.academic_year_name ?? "",
+          item.studio_number ?? "",
+          item.studio_grade_name ?? "",
+          String(item.total_due ?? ""),
+          String(item.total_paid ?? ""),
+          String(item.remaining_balance ?? ""),
+          item.payment_status ?? "",
+          item.last_payment_date ? format(new Date(item.last_payment_date), "yyyy-MM-dd") : "",
+          item.application_status ?? "",
+          item.application_created_at ? format(new Date(item.application_created_at), "yyyy-MM-dd HH:mm:ss") : "",
+        ]);
+        filename = `paid_in_full_${format(new Date(), "yyyy-MM-dd")}.csv`;
+        break;
     }
 
     const csvContent = [
@@ -523,7 +607,7 @@ const AccountingReports = () => {
           <CardContent>
             <Tabs value={selectedReport} onValueChange={(value) => setSelectedReport(value as ReportType)}>
               <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 mb-4 scrollbar-hide scroll-smooth">
-                <TabsList className="inline-flex w-auto min-w-full md:grid md:w-full md:grid-cols-6 h-auto gap-1 md:gap-0">
+                <TabsList className="inline-flex w-auto min-w-full md:grid md:w-full md:grid-cols-7 h-auto gap-1 md:gap-0">
                   <TabsTrigger value="accounts-receivable" className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 md:whitespace-normal">
                     <CreditCard className="h-4 w-4 mr-2" />
                     AR Report
@@ -548,11 +632,18 @@ const AccountingReports = () => {
                     <Calendar className="h-4 w-4 mr-2" />
                     Upcoming
                   </TabsTrigger>
+                  <TabsTrigger value="paid-in-full" className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 md:whitespace-normal">
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Paid in Full
+                  </TabsTrigger>
                 </TabsList>
               </div>
 
               {/* Date Filters for Revenue Summary and Bank Reconciliation */}
-              {(selectedReport === "revenue-summary" || selectedReport === "bank-reconciliation" || selectedReport === "upcoming-payments") && (
+              {(selectedReport === "revenue-summary" ||
+                selectedReport === "bank-reconciliation" ||
+                selectedReport === "upcoming-payments" ||
+                selectedReport === "paid-in-full") && (
                 <div className="grid gap-4 md:grid-cols-3 mt-4">
                   <div>
                     <Label htmlFor="start-date">Start Date</Label>
@@ -637,6 +728,24 @@ const AccountingReports = () => {
                       </div>
                     </>
                   )}
+                  {selectedReport === "paid-in-full" && (
+                    <div>
+                      <Label htmlFor="fully-paid-academic-year">Academic year</Label>
+                      <Select value={fullyPaidAcademicYearId} onValueChange={setFullyPaidAcademicYearId}>
+                        <SelectTrigger id="fully-paid-academic-year" className="mt-2">
+                          <SelectValue placeholder="Academic year" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All academic years</SelectItem>
+                          {(academicYears ?? []).map((ay) => (
+                            <SelectItem key={ay.id} value={ay.id}>
+                              {ay.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                 </div>
               )}
               {selectedReport === "upcoming-payments" && (
@@ -660,6 +769,7 @@ const AccountingReports = () => {
                   {selectedReport === "deposit-installment" && "Deposit vs Installment Breakdown"}
                   {selectedReport === "bank-reconciliation" && "Bank Reconciliation Report"}
                   {selectedReport === "upcoming-payments" && "Upcoming & Paid Installments"}
+                  {selectedReport === "paid-in-full" && "Paid in Full Applications"}
                 </CardTitle>
                 <CardDescription className="mt-1 text-xs md:text-sm">
                   {selectedReport === "accounts-receivable" &&
@@ -696,6 +806,10 @@ const AccountingReports = () => {
                     (upcomingLoading
                       ? "Loading..."
                       : `${filteredUpcomingData.length} installment${filteredUpcomingData.length !== 1 ? "s" : ""}${upcomingAcademicYearId !== "all" ? ` • ${academicYears?.find((ay) => ay.id === upcomingAcademicYearId)?.name ?? "Year"}` : ""} (${upcomingDueWindow === "all" ? "all dates" : `next ${upcomingDueWindow} days`}, ${upcomingStatusFilter === "all" ? "all statuses" : upcomingStatusFilter})`)}
+                  {selectedReport === "paid-in-full" &&
+                    (fullyPaidLoading
+                      ? "Loading..."
+                      : `${filteredFullyPaidData.length} application${filteredFullyPaidData.length !== 1 ? "s" : ""}${fullyPaidAcademicYearId !== "all" ? ` • ${academicYears?.find((ay) => ay.id === fullyPaidAcademicYearId)?.name ?? "Year"}` : ""}`)}
                 </CardDescription>
               </div>
               <Button
@@ -1195,6 +1309,173 @@ const AccountingReports = () => {
                       {upcomingData?.length === 0
                         ? "There are no installments in the system for confirmed applications."
                         : "No installments match the selected filters (academic year, due window, or status). Try selecting All academic years or All dates."}
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              ))}
+
+            {/* Paid in Full Applications */}
+            {selectedReport === "paid-in-full" &&
+              (fullyPaidLoading ? (
+                <ReportSkeleton />
+              ) : filteredFullyPaidData && filteredFullyPaidData.length > 0 ? (
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-3">
+                    <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+                      <div className="relative flex-1 max-w-md">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search by student, email, contract, studio..."
+                          value={fullyPaidSearchQuery}
+                          onChange={(e) => setFullyPaidSearchQuery(e.target.value)}
+                          className="rounded-full pl-9"
+                        />
+                      </div>
+                      <div className="text-sm text-muted-foreground self-center shrink-0">
+                        {filteredFullyPaidData.length} record{filteredFullyPaidData.length !== 1 ? "s" : ""}
+                        {(fullyPaidSearchQuery.trim() || (fullyPaidAcademicYearId && fullyPaidAcademicYearId !== "all")) ? " (filtered)" : ""}
+                      </div>
+                    </div>
+                  </div>
+
+                  {paginatedFullyPaidData.length > 0 ? (
+                    <>
+                      {paginatedFullyPaidData.map((item) => {
+                        const studentName = `${item.first_name ?? ""} ${item.last_name ?? ""}`.trim() || "—";
+                        return (
+                          <Card key={item.application_id} className="rounded-2xl">
+                            <CardContent className="p-6">
+                              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                                <div className="flex-1 space-y-2">
+                                  <div className="flex items-center gap-3 flex-wrap">
+                                    <h3 className="text-sm md:text-lg font-bold">{studentName}</h3>
+                                    <Badge variant="default" className="text-xs capitalize">
+                                      Paid in full
+                                    </Badge>
+                                    {item.academic_year_name && (
+                                      <Badge variant="secondary" className="text-xs font-normal">
+                                        {item.academic_year_name}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs md:text-sm text-muted-foreground">
+                                    <div>
+                                      <span className="font-medium">Email:</span> {item.email || "—"}
+                                    </div>
+                                    <div>
+                                      <span className="font-medium">Contract:</span> {item.contract_name || "—"}
+                                    </div>
+                                    <div>
+                                      <span className="font-medium">Studio:</span>{" "}
+                                      {item.studio_number ? item.studio_number : "—"}{" "}
+                                      {item.studio_grade_name ? `(${item.studio_grade_name})` : ""}
+                                    </div>
+                                    <div>
+                                      <span className="font-medium">Last payment:</span>{" "}
+                                      {formatDateSafe(item.last_payment_date, "MMM d, yyyy")}
+                                    </div>
+                                    <div>
+                                      <span className="font-medium">Total due:</span> {formatCurrency(item.total_due)}
+                                    </div>
+                                    <div>
+                                      <span className="font-medium">Total paid:</span> {formatCurrency(item.total_paid)}
+                                    </div>
+                                  </div>
+                                  <div className="text-base md:text-lg font-bold text-green-700">
+                                    Remaining Balance: {formatCurrency(item.remaining_balance)}
+                                  </div>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+
+                      {filteredFullyPaidData.length > FULLY_PAID_PER_PAGE && (
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t">
+                          <div className="text-sm text-muted-foreground">
+                            Showing {(fullyPaidPage - 1) * FULLY_PAID_PER_PAGE + 1} to{" "}
+                            {Math.min(fullyPaidPage * FULLY_PAID_PER_PAGE, filteredFullyPaidData.length)} of{" "}
+                            {filteredFullyPaidData.length}
+                          </div>
+                          <Pagination>
+                            <PaginationContent>
+                              <PaginationItem>
+                                <PaginationPrevious
+                                  href="#"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    if (fullyPaidPage > 1) setFullyPaidPage(fullyPaidPage - 1);
+                                  }}
+                                  className={fullyPaidPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                />
+                              </PaginationItem>
+                              {Array.from({ length: fullyPaidTotalPages }, (_, i) => i + 1).map((page) => {
+                                if (
+                                  page === 1 ||
+                                  page === fullyPaidTotalPages ||
+                                  (page >= fullyPaidPage - 1 && page <= fullyPaidPage + 1)
+                                ) {
+                                  return (
+                                    <PaginationItem key={page}>
+                                      <PaginationLink
+                                        href="#"
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          setFullyPaidPage(page);
+                                        }}
+                                        isActive={fullyPaidPage === page}
+                                        className="cursor-pointer"
+                                      >
+                                        {page}
+                                      </PaginationLink>
+                                    </PaginationItem>
+                                  );
+                                } else if (page === fullyPaidPage - 2 || page === fullyPaidPage + 2) {
+                                  return (
+                                    <PaginationItem key={page}>
+                                      <PaginationEllipsis />
+                                    </PaginationItem>
+                                  );
+                                }
+                                return null;
+                              })}
+                              <PaginationItem>
+                                <PaginationNext
+                                  href="#"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    if (fullyPaidPage < fullyPaidTotalPages) setFullyPaidPage(fullyPaidPage + 1);
+                                  }}
+                                  className={
+                                    fullyPaidPage === fullyPaidTotalPages
+                                      ? "pointer-events-none opacity-50"
+                                      : "cursor-pointer"
+                                  }
+                                />
+                              </PaginationItem>
+                            </PaginationContent>
+                          </Pagination>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <Card className="rounded-3xl border-dashed">
+                      <CardHeader>
+                        <CardTitle>No matches</CardTitle>
+                        <CardDescription>
+                          No paid-in-full applications match &quot;{fullyPaidSearchQuery}&quot;. Try a different search.
+                        </CardDescription>
+                      </CardHeader>
+                    </Card>
+                  )}
+                </div>
+              ) : (
+                <Card className="rounded-3xl border-dashed">
+                  <CardHeader>
+                    <CardTitle>No Records Found</CardTitle>
+                    <CardDescription>
+                      No paid-in-full applications match the selected filters (date range / academic year).
                     </CardDescription>
                   </CardHeader>
                 </Card>

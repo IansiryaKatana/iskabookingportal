@@ -229,6 +229,12 @@ export const useApplyCashback = () => {
       queryClient.invalidateQueries({ queryKey: ["application-cashback", variables.applicationId] });
       queryClient.invalidateQueries({ queryKey: ["student-application", variables.applicationId] });
       queryClient.invalidateQueries({ queryKey: ["payment-summary", variables.applicationId] });
+
+      // Cashback changes adjusted totals used in accounting reports.
+      queryClient.invalidateQueries({ queryKey: ["accounts-receivable-report"] });
+      queryClient.invalidateQueries({ queryKey: ["outstanding-balances-report"] });
+      queryClient.invalidateQueries({ queryKey: ["deposit-installment-breakdown"] });
+      queryClient.invalidateQueries({ queryKey: ["fully-paid-students-report"] });
       toast({
         title: "Cashback applied",
         description: "Cashback has been successfully applied to the application.",
@@ -262,6 +268,12 @@ export const useRemoveCashback = () => {
       queryClient.invalidateQueries({ queryKey: ["application-cashback", variables.applicationId] });
       queryClient.invalidateQueries({ queryKey: ["student-application", variables.applicationId] });
       queryClient.invalidateQueries({ queryKey: ["payment-summary", variables.applicationId] });
+
+      // Cashback changes adjusted totals used in accounting reports.
+      queryClient.invalidateQueries({ queryKey: ["accounts-receivable-report"] });
+      queryClient.invalidateQueries({ queryKey: ["outstanding-balances-report"] });
+      queryClient.invalidateQueries({ queryKey: ["deposit-installment-breakdown"] });
+      queryClient.invalidateQueries({ queryKey: ["fully-paid-students-report"] });
       toast({
         title: "Cashback removed",
         description: "Cashback has been removed from the application.",
