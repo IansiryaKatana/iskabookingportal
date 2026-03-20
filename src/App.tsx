@@ -424,7 +424,7 @@ const App = () => (
             <Route
               path="/admin/bulk-invitations"
               element={
-                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                <ProtectedRoute allowedRoles={["staff", "superadmin", "operations_manager", "reservationist", "accountant", "front_desk", "maintenance_officer", "housekeeper"]}>
                   <AdminBulkInvitations />
                 </ProtectedRoute>
               }

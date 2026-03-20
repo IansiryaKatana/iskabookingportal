@@ -112,16 +112,6 @@ export const useRoutePermissions = (routePaths: string[]) => {
       const permissionMap: Record<string, boolean> = {};
       
       routePaths.forEach((path) => {
-        // For sub-roles: Check staff permission first (if staff is denied, deny all sub-roles)
-        if (rolesToCheck.includes("staff") && role !== "staff") {
-          const staffPerm = data?.find((p) => p.route_path === path && p.role === "staff");
-          if (staffPerm && !staffPerm.allowed) {
-            // Staff is explicitly denied - deny all sub-roles
-            permissionMap[path] = false;
-            return;
-          }
-        }
-
         // Check specific role permission
         const specificPerm = data?.find((p) => p.route_path === path && p.role === role);
         if (specificPerm) {
