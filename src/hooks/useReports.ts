@@ -1128,6 +1128,17 @@ function nightsInRange(
   return differenceInCalendarDays(end, start) + 1;
 }
 
+function nightsInRangeExclusiveEnd(
+  bookingStart: string,
+  bookingEnd: string,
+  rangeStart: string,
+  rangeEnd: string,
+): number {
+  const start = new Date(Math.max(new Date(bookingStart).getTime(), new Date(rangeStart).getTime()));
+  const end = new Date(Math.min(new Date(bookingEnd).getTime(), new Date(rangeEnd).getTime()));
+  return Math.max(0, differenceInCalendarDays(end, start));
+}
+
 const fetchRoomNoIncomeSummaryReport = async (
   dateFrom: string,
   dateTo: string,
@@ -1396,9 +1407,7 @@ const fetchOTAStudioIncomeSummaryReport = async (
   const excludedStatuses = ["cancelled", "no_show"];
   const bookingsList = (bookings || []).filter((b: any) => {
     if (excludedStatuses.includes(b.status)) return false;
-    const overlapStart = new Date(Math.max(new Date(b.check_in).getTime(), rangeStart.getTime()));
-    const overlapEnd = new Date(Math.min(new Date(b.check_out).getTime(), rangeEnd.getTime()));
-    return overlapStart <= overlapEnd;
+    return nightsInRangeExclusiveEnd(b.check_in, b.check_out, dateFrom, dateTo) > 0;
   });
 
   const byStudio = new Map<
@@ -1409,7 +1418,8 @@ const fetchOTAStudioIncomeSummaryReport = async (
   bookingsList.forEach((b: any) => {
     const sid = b.studio_id;
     if (!sid) return;
-    const nights = nightsInRange(b.check_in, b.check_out, dateFrom, dateTo);
+    const nights = nightsInRangeExclusiveEnd(b.check_in, b.check_out, dateFrom, dateTo);
+    if (nights <= 0) return;
     const numNights = Number(b.number_of_nights) || 1;
     const pricePerNight = Number(b.price_per_night) || 0;
     const commission = Number(b.commission_amount) || 0;
