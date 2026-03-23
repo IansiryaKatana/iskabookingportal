@@ -44,6 +44,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useBrandingSettings } from "@/hooks/useBranding";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { Elements } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
 import StripePaymentForm from "@/components/StripePaymentForm";
@@ -1340,7 +1341,9 @@ useEffect(() => {
   const hasPlanOptions =
     resolvedPlans.length > 0 || Boolean(application?.selected_payment_plan_id);
   
-  // Check if selected plan is "Pay in Full" (1 installment with 100% percentage)
+  // Check if selected plan is "Pay in Full":
+  // - legacy/system plans: 1 installment with 100% percentage
+  // - custom staff plans: 1 installment (typically fixed amount)
   const isPayInFullPlan = useMemo(() => {
     // Check currently selected plan in UI
     const planIdToCheck = selectedPlanId || application?.selected_payment_plan_id;
@@ -1353,10 +1356,15 @@ useEffect(() => {
       .slice()
       .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
     
-    // Pay in Full = exactly 1 installment with 100% percentage
-    return installments.length === 1 && 
-           installments[0].amount_type === 'percentage' && 
-           installments[0].amount_value === 100;
+    if (installments.length !== 1) return false;
+
+    const onlyInstallment = installments[0];
+    if (onlyInstallment.amount_type === "percentage") {
+      return Number(onlyInstallment.amount_value) === 100;
+    }
+
+    // Staff custom plans can be created as a single fixed installment.
+    return Number(onlyInstallment.amount_value) > 0;
   }, [selectedPlanId, application?.selected_payment_plan_id, resolvedPlans]);
   
   // Require guarantor only if there are payment plan options AND it's not a "Pay in Full" plan
@@ -1824,14 +1832,32 @@ useEffect(() => {
       return;
     }
 
-    const parsed = paymentSchema.safeParse(paymentValues);
+    // When guarantor is not required (e.g., pay in full), ignore stale guarantor
+    // values so hidden fields cannot block submission.
+    const valuesForValidation: PaymentForm = requiresGuarantor
+      ? paymentValues
+      : {
+          ...paymentValues,
+          guarantor_name: "",
+          guarantor_email: "",
+          guarantor_phone: "",
+          guarantor_relationship: "",
+          guarantor_dob: "",
+          utility_bill: "",
+          id_document: "",
+          bank_statement: "",
+        };
+
+    const parsed = paymentSchema.safeParse(valuesForValidation);
     if (!parsed.success) {
       setPaymentErrors(
         toFieldErrorMap<PaymentForm>(parsed.error.flatten().fieldErrors),
       );
       toast({
         variant: "destructive",
-        title: "Please review payment & guarantor details",
+        title: requiresGuarantor
+          ? "Please review payment & guarantor details"
+          : "Please review payment details",
         description: "Fix the highlighted fields before submitting.",
       });
       return;
@@ -3759,6 +3785,11 @@ useEffect(() => {
                 </Tabs>
               ) : (
                 <div className="rounded-2xl border border-dashed border-border/60 px-4 py-3 text-sm text-muted-foreground">
+                  {isStaffOrSubRole && (
+                    <div className="mb-2">
+                      <Badge variant="secondary">Pay in full detected</Badge>
+                    </div>
+                  )}
                   You've selected to pay in full. We'll send your tenancy agreement once the deposit is confirmed.
                   {paymentValues.witness_name && paymentValues.witness_email && " Your witness will also receive a copy to view."}
                 </div>

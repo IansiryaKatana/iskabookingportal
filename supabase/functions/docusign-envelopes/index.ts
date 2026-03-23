@@ -11,6 +11,8 @@ const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
 const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 const stripeSecret = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
+const nodeEnv = Deno.env.get("NODE_ENV") ?? "production";
+const isDevelopment = nodeEnv === "development";
 
 const config = {
   clientId: Deno.env.get("DOCUSIGN_CLIENT_ID") ?? "",
@@ -219,6 +221,12 @@ const formatName = (...parts: Array<string | undefined | null>) =>
     .filter(Boolean)
     .join(" ")
     .trim();
+
+const normalizeEmail = (value: unknown): string =>
+  typeof value === "string" ? value.trim() : "";
+
+const isValidEmail = (email: string): boolean =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
 const formatAcademicYear = (dateIso?: string | null): string => {
   if (!dateIso) return "";
@@ -616,8 +624,10 @@ serve(async (req) => {
     // for staff-controlled "Resend agreements" actions in the UI.
     const allowResend = Boolean((body as { allowResend?: boolean }).allowResend);
     
-    // Check if the selected payment plan is "Pay in Full" (1 installment with 100% percentage)
-    // Pay in Full plans don't require a guarantor
+    // Check if the selected payment plan is "Pay in Full":
+    // - legacy/system plans: 1 installment with 100% percentage
+    // - custom staff plans: 1 installment (typically fixed amount)
+    // Pay in Full plans don't require a guarantor.
     let isPayInFullPlan = false;
     if (application.selected_payment_plan_id) {
       try {
@@ -632,10 +642,12 @@ serve(async (req) => {
           // If we can't check, default to requiring guarantor for safety
         } else if (installments && installments.length === 1) {
           const installment = installments[0];
-          // Pay in Full = exactly 1 installment with 100% percentage
-          isPayInFullPlan = 
-            installment.amount_type === 'percentage' && 
-            installment.amount_value === 100;
+          if (installment.amount_type === "percentage") {
+            isPayInFullPlan = Number(installment.amount_value) === 100;
+          } else {
+            // Staff custom plans can be a single fixed installment.
+            isPayInFullPlan = Number(installment.amount_value) > 0;
+          }
         }
       } catch (error) {
         console.error("Error checking if payment plan is Pay in Full:", error);
@@ -872,13 +884,13 @@ serve(async (req) => {
 
     const witness = {
       name: (paymentPayload.witness_name as string) ?? "",
-      email: (paymentPayload.witness_email as string) ?? "",
+      email: normalizeEmail(paymentPayload.witness_email),
       phone: (paymentPayload.witness_phone as string) ?? "",
     };
 
     const guarantor = {
       name: (paymentPayload.guarantor_name as string) ?? "",
-      email: (paymentPayload.guarantor_email as string) ?? "",
+      email: normalizeEmail(paymentPayload.guarantor_email),
       phone: (paymentPayload.guarantor_phone as string) ?? "",
       relationship: (paymentPayload.guarantor_relationship as string) ?? "",
       dob: (paymentPayload.guarantor_dob as string) ?? "",
@@ -1028,6 +1040,18 @@ serve(async (req) => {
     // Optionally add witness as viewer (routing order 2) - only if details provided
     const hasWitness = witness.name.trim() && witness.email.trim();
     let nextRoutingOrder = 2;
+
+    if (hasWitness && !isValidEmail(witness.email)) {
+      return new Response(
+        JSON.stringify({
+          error: "Witness email is invalid. Please enter a valid witness email address.",
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
     
     if (hasWitness) {
       tenancyRecipients.push({
@@ -1048,6 +1072,18 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({
             error: "Guarantor details are required before we can send the agreements.",
+          }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      if (!isValidEmail(guarantor.email)) {
+        return new Response(
+          JSON.stringify({
+            error: "Guarantor email is invalid. Please enter a valid guarantor email address.",
           }),
           {
             status: 400,
@@ -1282,7 +1318,7 @@ serve(async (req) => {
       error: message,
       error_code: hint?.error_code,
       hint: hint?.hint,
-      details: process.env.NODE_ENV === "development" 
+      details: isDevelopment
         ? (error instanceof Error ? error.stack : String(error))
         : undefined,
     }), {
