@@ -337,8 +337,8 @@ const OTABookingChartPage = () => {
               <div className="overflow-x-auto">
                 <div className="inline-block min-w-full">
                   {/* Header row - dates */}
-                  <div className="flex border-b-2 border-border sticky top-0 bg-background z-10">
-                    <div className="w-32 md:w-40 flex-shrink-0 border-r border-border p-2 font-semibold text-xs md:text-sm">
+                  <div className="flex border-b-2 border-border sticky top-0 bg-background z-20">
+                    <div className="w-32 md:w-40 flex-shrink-0 border-r border-border p-2 font-semibold text-xs md:text-sm sticky left-0 z-30 bg-background shadow-[6px_0_10px_-8px_hsl(var(--border))]">
                       Studio
                     </div>
                     {daysInMonth.map((day) => (
@@ -362,8 +362,8 @@ const OTABookingChartPage = () => {
 
                   {/* Studio rows */}
                   {filteredStudios.map((studio) => (
-                    <div key={studio.id} className="flex border-b border-border hover:bg-accent/50 transition-colors">
-                      <div className="w-32 md:w-40 flex-shrink-0 border-r border-border p-2 text-xs md:text-sm font-medium">
+                    <div key={studio.id} className="group flex border-b border-border hover:bg-accent/50 transition-colors">
+                      <div className="w-32 md:w-40 flex-shrink-0 border-r border-border p-2 text-xs md:text-sm font-medium sticky left-0 z-10 bg-background group-hover:bg-accent/50 shadow-[6px_0_10px_-8px_hsl(var(--border))]">
                         {studio.studio_number}
                       </div>
                       {daysInMonth.map((day) => {
