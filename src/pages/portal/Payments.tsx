@@ -652,9 +652,28 @@ const PaymentCard = ({
     }
     return new Map(
       installmentBreakdown.map((b) => [
-        // get_installment_breakdown uses installment_id (contract_payment_schedule.id)
-        // which matches instalment.id from useStudentPayments
+        // get_installment_breakdown keys by `installment_id` (contract_payment_schedule.id).
+        // In the portal UI, the card `instalment.id` may not always be the same id type
+        // (especially for manual payments), so we also fall back to mapping by `sequence` below.
         (b as any).installment_id as string,
+        {
+          payment_status: (b as any).payment_status as string,
+          amount_due: Number((b as any).amount_due ?? 0),
+          amount_paid: Number((b as any).amount_paid ?? 0),
+          remaining_amount: Number((b as any).remaining_amount ?? 0),
+        },
+      ]),
+    );
+  }, [installmentBreakdown]);
+
+  const breakdownBySequence = useMemo(() => {
+    if (!installmentBreakdown || installmentBreakdown.length === 0) {
+      return new Map<number, { payment_status: string; amount_due: number; amount_paid: number; remaining_amount: number }>();
+    }
+
+    return new Map(
+      installmentBreakdown.map((b) => [
+        (b as any).sequence as number,
         {
           payment_status: (b as any).payment_status as string,
           amount_due: Number((b as any).amount_due ?? 0),
@@ -866,7 +885,9 @@ const PaymentCard = ({
                 ? "Cashback"
                 : "Discount";
 
-          const breakdown = breakdownByInstalmentId.get(instalment.id);
+          // Prefer precise matching by id; fall back to sequence to handle cases
+          // where the card id and breakdown id refer to different tables.
+          const breakdown = breakdownByInstalmentId.get(instalment.id) ?? breakdownBySequence.get(instalment.sequence);
           const baseStatus = getInstalmentStatus(instalment, application);
 
           let status = baseStatus;
