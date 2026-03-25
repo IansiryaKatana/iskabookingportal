@@ -29,6 +29,26 @@ serve(async (req) => {
   if (preflightResponse) return preflightResponse;
 
   try {
+    // Simple, runtime-safe base64 encoder for Uint8Array.
+    // Avoids slow string concatenation loops and remote imports.
+    function toBase64(bytes: Uint8Array): string {
+      const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+      const out: string[] = [];
+      for (let i = 0; i < bytes.length; i += 3) {
+        const b1 = bytes[i];
+        const b2 = i + 1 < bytes.length ? bytes[i + 1] : 0;
+        const b3 = i + 2 < bytes.length ? bytes[i + 2] : 0;
+        const triple = (b1 << 16) | (b2 << 8) | b3;
+        out.push(
+          alphabet[(triple >> 18) & 63],
+          alphabet[(triple >> 12) & 63],
+          i + 1 < bytes.length ? alphabet[(triple >> 6) & 63] : "=",
+          i + 2 < bytes.length ? alphabet[triple & 63] : "=",
+        );
+      }
+      return out.join("");
+    }
+
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -94,23 +114,13 @@ serve(async (req) => {
     console.log("Payment found:", payment.payment_id);
     console.log("Application ID:", payment.student_application_id);
 
-    // Get application and student data
-    const { data: application, error: appError } = await supabaseAdmin
+    // Get application first.
+    // IMPORTANT: Avoid embedding `contracts(...)` here because the schema currently
+    // has multiple relationships between `student_applications` and `contracts`,
+    // which causes Supabase to throw a runtime error.
+    const { data: applicationRaw, error: appError } = await supabaseAdmin
       .from("student_applications")
-      .select(`
-        *,
-        contract:contracts(
-          id,
-          name,
-          contract_start,
-          contract_end,
-          weeks,
-          weekly_price_override,
-          deposit_override,
-          studio_grade:studio_grades(name),
-          payment_plan:payment_plans(deposit_amount)
-        )
-      `)
+      .select("*")
       .eq("id", payment.student_application_id)
       .single();
 
@@ -125,7 +135,7 @@ serve(async (req) => {
       );
     }
 
-    if (!application) {
+    if (!applicationRaw) {
       console.error("Application not found in database");
       return new Response(
         JSON.stringify({ error: "Application not found" }),
@@ -136,7 +146,36 @@ serve(async (req) => {
       );
     }
 
+    const application: any = applicationRaw;
     console.log("Application found:", application.id);
+
+    // Fetch contract separately to avoid ambiguous embedding.
+    let contract: any = null;
+    if (application.contract_id) {
+      const { data: contractData, error: contractError } = await supabaseAdmin
+        .from("contracts")
+        .select(`
+          id,
+          name,
+          contract_start,
+          contract_end,
+          weeks,
+          weekly_price_override,
+          deposit_override,
+          studio_grade:studio_grades(name),
+          payment_plan:payment_plans(deposit_amount)
+        `)
+        .eq("id", application.contract_id)
+        .single();
+
+      if (contractError) {
+        console.warn("Error fetching contract for invoice:", contractError);
+      } else {
+        contract = contractData;
+      }
+    }
+
+    application.contract = contract;
 
     // Get student profile
     const { data: profile } = await supabaseAdmin
@@ -864,12 +903,8 @@ serve(async (req) => {
     // Generate PDF bytes
     const pdfBytes = await pdfDoc.save();
 
-    // Convert to base64 (iterative approach to avoid stack overflow)
-    let binaryString = "";
-    for (let i = 0; i < pdfBytes.length; i++) {
-      binaryString += String.fromCharCode(pdfBytes[i]);
-    }
-    const base64 = btoa(binaryString);
+    // Convert to base64
+    const base64 = toBase64(pdfBytes);
 
     return new Response(
       JSON.stringify({

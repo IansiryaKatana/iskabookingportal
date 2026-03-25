@@ -22,6 +22,27 @@ serve(async (req) => {
   if (preflightResponse) return preflightResponse;
 
   try {
+    // Simple, runtime-safe base64 encoder for Uint8Array.
+    // Avoids extra remote imports that can break Edge Function boot.
+    function toBase64(bytes: Uint8Array): string {
+      const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+      const out: string[] = [];
+      for (let i = 0; i < bytes.length; i += 3) {
+        const b1 = bytes[i];
+        const b2 = i + 1 < bytes.length ? bytes[i + 1] : 0;
+        const b3 = i + 2 < bytes.length ? bytes[i + 2] : 0;
+        const triple = (b1 << 16) | (b2 << 8) | b3;
+
+        out.push(
+          alphabet[(triple >> 18) & 63],
+          alphabet[(triple >> 12) & 63],
+          i + 1 < bytes.length ? alphabet[(triple >> 6) & 63] : "=",
+          i + 2 < bytes.length ? alphabet[triple & 63] : "=",
+        );
+      }
+      return out.join("");
+    }
+
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -39,26 +60,43 @@ serve(async (req) => {
       );
     }
 
-    // Fetch application and student data
-    const { data: application, error: appError } = await supabaseAdmin
+    // Fetch application first.
+    // Note: we intentionally avoid embedding `contracts(...)` here because the
+    // schema currently has multiple relationships between `student_applications`
+    // and `contracts`, which causes Supabase to throw an "more than one relationship"
+    // embed error at runtime.
+    const { data: applicationRaw, error: appError } = await supabaseAdmin
       .from("student_applications")
-      .select(`
-        *,
-        contract:contracts(
-          id,
-          name,
-          contract_start,
-          contract_end,
-          weeks,
-          studio_grade:studio_grades(name)
-        )
-      `)
+      .select("*")
       .eq("id", applicationId)
       .single();
 
+    const application: any = applicationRaw;
+
     if (appError || !application) {
-      throw new Error("Application not found");
+      // Distinguish between a true "not found" and an actual query error (RLS, bad schema, etc).
+      throw new Error(
+        appError?.message ? `Application lookup failed: ${appError.message}` : "Application not found",
+      );
     }
+
+    // Fetch contract separately to avoid ambiguous embedding.
+    let contract: any = null;
+    if (application.contract_id) {
+      const { data: contractData, error: contractError } = await supabaseAdmin
+        .from("contracts")
+        .select("id, name, contract_start, contract_end, weeks, studio_grade:studio_grades(name)")
+        .eq("id", application.contract_id)
+        .single();
+
+      if (contractError) {
+        console.warn("Error fetching contract:", contractError);
+      } else {
+        contract = contractData;
+      }
+    }
+
+    application.contract = contract;
 
     // Get student profile
     const { data: profile } = await supabaseAdmin
@@ -705,18 +743,8 @@ serve(async (req) => {
     // Serialize PDF
     const pdfBytes = await pdfDoc.save();
 
-    // Return PDF as base64 (using efficient method to avoid stack overflow)
-    // Convert byte array to string in chunks to avoid call stack issues
-    const bytes = new Uint8Array(pdfBytes);
-    let binary = '';
-    const len = bytes.length;
-    
-    // Process in chunks to avoid stack overflow
-    for (let i = 0; i < len; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    
-    const base64Pdf = btoa(binary);
+    // Return PDF as base64 for the client download.
+    const base64Pdf = toBase64(pdfBytes);
 
     return new Response(
       JSON.stringify({
@@ -725,6 +753,7 @@ serve(async (req) => {
         filename: `payment-history-${finalStudentName.replace(/\s+/g, "-")}-${Date.now()}.pdf`,
       }),
       {
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
