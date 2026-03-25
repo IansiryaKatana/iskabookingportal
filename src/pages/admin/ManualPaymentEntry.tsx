@@ -70,6 +70,9 @@ type PendingRequestRow = {
   reference: string | null;
   notes: string | null;
   submitted_at: string;
+  student_name?: string | null;
+  student_email?: string | null;
+  contract_name?: string | null;
   student_applications?: { student_id: string; contract?: { name: string } | null } | null;
 };
 
@@ -84,6 +87,94 @@ type ResolvedRequestRow = {
   submitted_at: string;
   reviewed_at: string | null;
   rejection_reason: string | null;
+  student_name?: string | null;
+  student_email?: string | null;
+  contract_name?: string | null;
+};
+
+type ApplicationLookupRow = {
+  id: string;
+  student_id: string | null;
+  contract: { name: string | null } | null;
+};
+
+const enrichRequestsWithStudentInfo = async <T extends { application_id: string }>(
+  requests: T[],
+): Promise<(T & { student_name: string | null; student_email: string | null; contract_name: string | null })[]> => {
+  if (!requests.length) return [];
+
+  const applicationIds = [...new Set(requests.map((r) => r.application_id).filter(Boolean))] as string[];
+  if (!applicationIds.length) {
+    return requests.map((r) => ({ ...r, student_name: null, student_email: null, contract_name: null }));
+  }
+
+  const { data: applicationsData, error: appsError } = await supabase
+    .from("student_applications")
+    .select(
+      `
+        id,
+        student_id,
+        contract:contracts!contract_id (
+          name
+        )
+      `,
+    )
+    .in("id", applicationIds);
+  if (appsError) {
+    return requests.map((r) => ({ ...r, student_name: null, student_email: null, contract_name: null }));
+  }
+
+  const apps = (applicationsData ?? []) as ApplicationLookupRow[];
+  const appById = new Map(apps.map((a) => [a.id, a]));
+
+  const studentIds = [...new Set(apps.map((a) => a.student_id).filter(Boolean))] as string[];
+
+  const profilesMap = new Map<string, { first_name: string | null; last_name: string | null }>();
+  if (studentIds.length) {
+    const { data: profilesData } = await supabase
+      .from("profiles")
+      .select("id, first_name, last_name")
+      .in("id", studentIds);
+    (profilesData ?? []).forEach((p) => {
+      profilesMap.set(String((p as any).id), {
+        first_name: (p as any).first_name ?? null,
+        last_name: (p as any).last_name ?? null,
+      });
+    });
+  }
+
+  const emailsMap = new Map<string, string>();
+  if (studentIds.length) {
+    try {
+      const { data: emailData, error: emailsError } = await supabase.functions.invoke("get-user-emails", {
+        body: { userIds: studentIds },
+      });
+      if (!emailsError && emailData?.emails && typeof emailData.emails === "object") {
+        Object.entries(emailData.emails).forEach(([userId, email]) => {
+          emailsMap.set(userId, String(email ?? ""));
+        });
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return requests.map((r) => {
+    const app = appById.get(r.application_id);
+    const studentId = app?.student_id ?? null;
+    const profile = studentId ? profilesMap.get(studentId) : undefined;
+    const fullName =
+      profile?.first_name || profile?.last_name
+        ? `${profile?.first_name ?? ""} ${profile?.last_name ?? ""}`.trim()
+        : "";
+
+    const email = studentId ? (emailsMap.get(studentId) ?? "") : "";
+    const student_name = fullName || (email ? email.split("@")[0] : "") || null;
+    const student_email = email || null;
+    const contract_name = app?.contract?.name ?? null;
+
+    return { ...r, student_name, student_email, contract_name };
+  });
 };
 
 const ManualPaymentEntry = () => {
@@ -136,7 +227,8 @@ const ManualPaymentEntry = () => {
         .eq("status", "pending")
         .order("submitted_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as PendingRequestRow[];
+      const base = (data ?? []) as PendingRequestRow[];
+      return await enrichRequestsWithStudentInfo(base);
     },
   });
 
@@ -150,7 +242,8 @@ const ManualPaymentEntry = () => {
         .in("status", ["approved", "rejected"])
         .order("reviewed_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as ResolvedRequestRow[];
+      const base = (data ?? []) as ResolvedRequestRow[];
+      return await enrichRequestsWithStudentInfo(base);
     },
   });
 
@@ -862,14 +955,29 @@ const ManualPaymentEntry = () => {
                     className="rounded-2xl border border-border/60 px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
                   >
                     <div className="space-y-1 flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold">
-                          {formatCurrency(Number(req.amount))}
+                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                        <span className="text-sm font-semibold text-foreground">
+                          {req.student_name?.trim() || "Unknown student"}
                         </span>
+                        {req.student_email && (
+                          <span className="text-xs text-muted-foreground truncate max-w-[220px]">
+                            {req.student_email}
+                          </span>
+                        )}
+                        {req.contract_name && (
+                          <span className="text-xs text-muted-foreground truncate max-w-[260px]">
+                            • {req.contract_name}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold">{formatCurrency(Number(req.amount))}</span>
                         <Badge variant="outline" className="text-xs">
                           {getPaymentMethodLabel(req.payment_method)}
                         </Badge>
-                        <span className="text-xs text-muted-foreground">Application</span>
+                        <span className="text-xs text-muted-foreground">
+                          Application #{req.application_id?.slice(0, 8)}
+                        </span>
                       </div>
                       <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                         <span>Submitted {format(new Date(req.submitted_at), "d MMM yyyy, HH:mm")}</span>
@@ -953,6 +1061,24 @@ const ManualPaymentEntry = () => {
                     key={req.id}
                     className="rounded-2xl border border-border/60 px-4 py-3 flex flex-col gap-2"
                   >
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                      <span className="text-sm font-semibold text-foreground">
+                        {req.student_name?.trim() || "Unknown student"}
+                      </span>
+                      {req.student_email && (
+                        <span className="text-xs text-muted-foreground truncate max-w-[220px]">
+                          {req.student_email}
+                        </span>
+                      )}
+                      {req.contract_name && (
+                        <span className="text-xs text-muted-foreground truncate max-w-[260px]">
+                          • {req.contract_name}
+                        </span>
+                      )}
+                      <span className="text-xs text-muted-foreground">
+                        • Application #{req.application_id?.slice(0, 8)}
+                      </span>
+                    </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-semibold">{formatCurrency(Number(req.amount))}</span>
                       <Badge variant="outline" className="text-xs">

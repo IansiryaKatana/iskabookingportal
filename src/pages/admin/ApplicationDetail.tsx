@@ -139,6 +139,7 @@ const ApplicationDetail = () => {
   const [createExtensionOpen, setCreateExtensionOpen] = useState(false);
   const [extensionForm, setExtensionForm] = useState({
     extensionWeeks: 12,
+    extensionDays: 0,
     numInstallments: 4,
     extensionStartDate: "",
     weeklyPrice: 0,
@@ -2952,11 +2953,11 @@ const ApplicationDetail = () => {
           <DialogHeader>
             <DialogTitle>Create contract extension</DialogTitle>
             <DialogDescription>
-              Create a new application for an extension period (e.g. 12 weeks, 4 installments). The student and studio will be copied from the original booking.
+              Create a new application for an extension period (e.g. 12 weeks 3 days, 4 installments). The student and studio will be copied from the original booking.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <div>
                 <Label htmlFor="ext-weeks">Extension weeks</Label>
                 <Input
@@ -2966,6 +2967,23 @@ const ApplicationDetail = () => {
                   max={52}
                   value={extensionForm.extensionWeeks}
                   onChange={(e) => setExtensionForm((p) => ({ ...p, extensionWeeks: Math.max(1, parseInt(e.target.value, 10) || 1) }))}
+                  className="rounded-lg"
+                />
+              </div>
+              <div>
+                <Label htmlFor="ext-days">Extension days</Label>
+                <Input
+                  id="ext-days"
+                  type="number"
+                  min={0}
+                  max={6}
+                  value={extensionForm.extensionDays}
+                  onChange={(e) =>
+                    setExtensionForm((p) => ({
+                      ...p,
+                      extensionDays: Math.min(6, Math.max(0, parseInt(e.target.value, 10) || 0)),
+                    }))
+                  }
                   className="rounded-lg"
                 />
               </div>
@@ -3039,6 +3057,7 @@ const ApplicationDetail = () => {
                   const result = await createExtension.mutateAsync({
                     originalApplicationId: applicationId!,
                     extensionWeeks: extensionForm.extensionWeeks,
+                    extensionDays: extensionForm.extensionDays,
                     numInstallments: extensionForm.numInstallments,
                     extensionStartDate: extensionForm.extensionStartDate,
                     weeklyPrice: extensionForm.weeklyPrice,

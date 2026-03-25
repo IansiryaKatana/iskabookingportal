@@ -805,8 +805,9 @@ serve(async (req) => {
         : null;
     }
 
-    // Calculate payment schedule with actual amounts
-    if (application.selected_payment_plan_id && totalContractValue && depositAmount) {
+    // Calculate payment schedule with actual amounts.
+    // Policy: deposit is separate and must NOT reduce installment base.
+    if (application.selected_payment_plan_id && totalContractValue) {
       try {
         const { data: installments, error: installmentsError } = await supabaseAdmin
           .from("payment_plan_installments")
@@ -815,8 +816,8 @@ serve(async (req) => {
           .order("sequence", { ascending: true });
         
         if (!installmentsError && installments && installments.length) {
-          // Calculate remaining balance after deposit
-          const remainingBalance = totalContractValue - depositAmount;
+          // Installments are based on full contract value (deposit is separate).
+          const installmentBase = totalContractValue;
           
           // Build payment schedule with actual calculated amounts
           // CRITICAL: Last installment absorbs rounding difference for perfect accuracy
@@ -825,8 +826,7 @@ serve(async (req) => {
             if (it.amount_type === "fixed") {
               amount = Number(it.amount_value);
             } else if (it.amount_type === "percentage") {
-              // Calculate percentage of remaining balance (not total)
-              amount = (remainingBalance * Number(it.amount_value)) / 100;
+              amount = (installmentBase * Number(it.amount_value)) / 100;
             }
             
             // Adjust last installment to absorb rounding difference
@@ -838,12 +838,12 @@ serve(async (req) => {
                   if (prev.amount_type === "fixed") {
                     prevAmount = Number(prev.amount_value);
                   } else if (prev.amount_type === "percentage") {
-                    prevAmount = (remainingBalance * Number(prev.amount_value)) / 100;
+                    prevAmount = (installmentBase * Number(prev.amount_value)) / 100;
                   }
                   return sum + prevAmount;
                 }, 0);
-              // Last installment = remaining balance - sum of previous
-              amount = remainingBalance - sumOfPrevious;
+              // Last installment = installment base - sum of previous
+              amount = installmentBase - sumOfPrevious;
             }
             
             // Calculate actual due date: use due_date if available, otherwise calculate from contract_start + offset
@@ -865,13 +865,13 @@ serve(async (req) => {
             }
             
             const due = actualDueDate ? formatGbDate(actualDueDate) : "";
-            const label = it.label ? `${it.label}: ` : "";
             const formattedAmount = formatGBP(Math.round(amount * 100));
-            return [label, formattedAmount, due].filter(Boolean).join(" ");
+            const installmentLine = `Installment ${it.sequence} -- ${formattedAmount}`;
+            return due ? `${installmentLine} on ${due}` : installmentLine;
           });
           
-          // Join with HTML line breaks for better formatting in DocuSign
-          planSummary = scheduleItems.join("<br>\n");
+          // Newline-separated lines so multiline DocuSign tabs render each installment on its own row.
+          planSummary = scheduleItems.join("\n");
         }
       } catch (error) {
         console.error("Error processing payment plan installments:", error);

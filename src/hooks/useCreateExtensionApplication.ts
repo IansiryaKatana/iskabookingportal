@@ -7,6 +7,8 @@ export type CreateExtensionPayload = {
   originalApplicationId: string;
   /** Extension period in weeks */
   extensionWeeks: number;
+  /** Extra extension days (0-6) */
+  extensionDays?: number;
   /** Number of installments for the extension period */
   numInstallments: number;
   /** Start date of extension (default: day after original contract end) */
@@ -29,6 +31,7 @@ async function createExtensionApplication(
   const {
     originalApplicationId,
     extensionWeeks,
+    extensionDays = 0,
     numInstallments,
     extensionStartDate,
     weeklyPrice,
@@ -38,6 +41,9 @@ async function createExtensionApplication(
 
   if (extensionWeeks < 1 || numInstallments < 1) {
     throw new Error("Extension weeks and number of installments must be at least 1.");
+  }
+  if (extensionDays < 0 || extensionDays > 6) {
+    throw new Error("Extension days must be between 0 and 6.");
   }
 
   const start = new Date(extensionStartDate);
@@ -89,23 +95,26 @@ async function createExtensionApplication(
   const academicYearId = contract.academic_year_id as string;
   const studioGradeId = contract.studio_grade_id as string;
 
-  // Extension end date: start + extensionWeeks * 7 days
+  const totalExtensionDays = extensionWeeks * 7 + extensionDays;
+
+  // Extension end date: start + (weeks * 7 + extra days)
   const endDate = new Date(start);
-  endDate.setDate(endDate.getDate() + extensionWeeks * 7);
+  endDate.setDate(endDate.getDate() + totalExtensionDays);
   const contractEndStr = endDate.toISOString().slice(0, 10);
 
   const percentEach = 100 / numInstallments;
-  const daysSpan = extensionWeeks * 7;
+  const daysSpan = totalExtensionDays;
   const offsetStep = Math.floor(daysSpan / numInstallments);
 
   // 1) Create new payment plan for extension (installments only; deposit separate)
-  const planName = `Extension ${extensionWeeks}w ${numInstallments} inst (${studentDisplayName})`;
+  const durationLabel = extensionDays > 0 ? `${extensionWeeks}w ${extensionDays}d` : `${extensionWeeks}w`;
+  const planName = `Extension ${durationLabel} ${numInstallments} inst (${studentDisplayName})`;
   const { data: newPlan, error: planErr } = await supabase
     .from("payment_plans")
     .insert({
       academic_year_id: academicYearId,
       name: planName,
-      description: `Contract extension: ${extensionWeeks} weeks, ${numInstallments} installments.`,
+      description: `Contract extension: ${extensionWeeks} weeks${extensionDays > 0 ? ` ${extensionDays} days` : ""}, ${numInstallments} installments.`,
       deposit_amount: depositAmount,
       is_active: true,
       source_payment_plan_id: null,
@@ -144,7 +153,7 @@ async function createExtensionApplication(
   // 2) Create new contract for extension period (student_application_id set after we create application)
   const baseSlug = typeof contract.slug === "string" ? contract.slug : "custom";
   const uniqueSlug = `extension-${baseSlug}-${originalApplicationId.slice(0, 8)}-${Date.now().toString(36)}`;
-  const contractName = `Extension ${extensionWeeks}w (${studentDisplayName})`;
+  const contractName = `Extension ${durationLabel} (${studentDisplayName})`;
 
   const { data: newContract, error: contractInsertErr } = await supabase
     .from("contracts")
@@ -154,11 +163,11 @@ async function createExtensionApplication(
       payment_plan_id: newPlanId,
       slug: uniqueSlug,
       name: contractName,
-      summary: `Contract extension: ${extensionWeeks} weeks from ${extensionStartDate}.`,
+      summary: `Contract extension: ${extensionWeeks} weeks${extensionDays > 0 ? ` ${extensionDays} days` : ""} from ${extensionStartDate}.`,
       contract_start: extensionStartDate,
       contract_end: contractEndStr,
       weeks: extensionWeeks,
-      extra_days: 0,
+      extra_days: extensionDays,
       weekly_price_override: weeklyPrice,
       deposit_override: depositAmount > 0 ? depositAmount : null,
       cta_label: null,
@@ -248,6 +257,7 @@ async function createExtensionApplication(
     payload: {
       extension_of_application_id: originalApplicationId,
       extension_weeks: extensionWeeks,
+      extension_days: extensionDays,
       num_installments: numInstallments,
       contract_id: newContractId,
       payment_plan_id: newPlanId,
