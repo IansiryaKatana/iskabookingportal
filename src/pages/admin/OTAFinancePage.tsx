@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useOTABookings } from "@/hooks/useOTABookings";
+import { useOTAExpenses } from "@/hooks/useOTAExpenses";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format, parseISO, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, addWeeks, subMonths, addMonths } from "date-fns";
 import {
   DollarSign, TrendingUp, TrendingDown, Download, Calendar, Filter,
-  Loader2, Building2, CreditCard, FileText, BarChart3
+  Loader2, Building2, CreditCard, FileText, BarChart3, Receipt
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -82,6 +83,12 @@ const OTAFinancePage = () => {
     channel: channelFilter !== "all" ? channelFilter : undefined,
   });
 
+  const { data: otaExpenses } = useOTAExpenses({
+    startDate: startDate ? format(startDate, "yyyy-MM-dd") : undefined,
+    endDate: endDate ? format(endDate, "yyyy-MM-dd") : undefined,
+    channel: channelFilter !== "all" ? channelFilter : undefined,
+  });
+
   // Filter bookings that have revenue data (total_revenue is not null)
   // This includes all bookings with financial information, regardless of status
   const revenueBookings = useMemo(() => {
@@ -111,39 +118,55 @@ const OTAFinancePage = () => {
       return {
         totalRevenue: 0,
         totalCommission: 0,
-        netRevenue: 0,
+        grossRevenue: 0,
+        totalExpenses: 0,
+        netProfit: 0,
         totalBookings: 0,
         avgRevenuePerBooking: 0,
-        byChannel: {} as Record<string, { revenue: number; commission: number; count: number }>,
+        byChannel: {} as Record<string, { revenue: number; commission: number; expense: number; net: number; count: number }>,
       };
     }
 
     const totalRevenue = revenueBookings.reduce((sum, b) => sum + (b.total_revenue || 0), 0);
     const totalCommission = revenueBookings.reduce((sum, b) => sum + (b.commission_amount || 0), 0);
-    const netRevenue = totalRevenue;
+    const grossRevenue = totalRevenue;
+    const totalExpenses = (otaExpenses || []).reduce((sum, e) => sum + Number(e.amount || 0), 0);
+    const netProfit = grossRevenue - totalExpenses;
     const totalBookings = revenueBookings.length;
     const avgRevenuePerBooking = totalBookings > 0 ? totalRevenue / totalBookings : 0;
 
     // Calculate by channel
-    const byChannel: Record<string, { revenue: number; commission: number; count: number }> = {};
+    const byChannel: Record<string, { revenue: number; commission: number; expense: number; net: number; count: number }> = {};
     revenueBookings.forEach((b) => {
       if (!byChannel[b.channel]) {
-        byChannel[b.channel] = { revenue: 0, commission: 0, count: 0 };
+        byChannel[b.channel] = { revenue: 0, commission: 0, expense: 0, net: 0, count: 0 };
       }
       byChannel[b.channel].revenue += b.total_revenue || 0;
       byChannel[b.channel].commission += b.commission_amount || 0;
       byChannel[b.channel].count += 1;
     });
+    (otaExpenses || []).forEach((expense) => {
+      const key = expense.channel || "other";
+      if (!byChannel[key]) {
+        byChannel[key] = { revenue: 0, commission: 0, expense: 0, net: 0, count: 0 };
+      }
+      byChannel[key].expense += Number(expense.amount || 0);
+    });
+    Object.keys(byChannel).forEach((channel) => {
+      byChannel[channel].net = byChannel[channel].revenue - byChannel[channel].expense;
+    });
 
     return {
       totalRevenue,
       totalCommission,
-      netRevenue,
+      grossRevenue,
+      totalExpenses,
+      netProfit,
       totalBookings,
       avgRevenuePerBooking,
       byChannel,
     };
-  }, [revenueBookings]);
+  }, [revenueBookings, otaExpenses]);
 
   // Export to CSV
   const exportToCSV = () => {
@@ -335,7 +358,7 @@ const OTAFinancePage = () => {
         </Card>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
           <Card className="rounded-3xl border border-border/60 shadow-xl">
             <CardContent className="p-4 md:p-6">
               <div className="text-xs md:text-sm text-muted-foreground mb-1">Total Revenue</div>
@@ -354,9 +377,25 @@ const OTAFinancePage = () => {
           </Card>
           <Card className="rounded-3xl border border-border/60 shadow-xl">
             <CardContent className="p-4 md:p-6">
-              <div className="text-xs md:text-sm text-muted-foreground mb-1">Net Revenue</div>
+              <div className="text-xs md:text-sm text-muted-foreground mb-1">Gross Revenue</div>
               <div className="text-xl md:text-2xl font-bold text-blue-600">
-                {formatCurrency(stats.netRevenue)}
+                {formatCurrency(stats.grossRevenue)}
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="rounded-3xl border border-border/60 shadow-xl">
+            <CardContent className="p-4 md:p-6">
+              <div className="text-xs md:text-sm text-muted-foreground mb-1">OTA Expenses</div>
+              <div className="text-xl md:text-2xl font-bold text-red-600">
+                {formatCurrency(stats.totalExpenses)}
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="rounded-3xl border border-border/60 shadow-xl">
+            <CardContent className="p-4 md:p-6">
+              <div className="text-xs md:text-sm text-muted-foreground mb-1">Net Profit</div>
+              <div className={`text-xl md:text-2xl font-bold ${stats.netProfit >= 0 ? "text-emerald-600" : "text-destructive"}`}>
+                {formatCurrency(stats.netProfit)}
               </div>
             </CardContent>
           </Card>
@@ -382,6 +421,14 @@ const OTAFinancePage = () => {
               </div>
             </CardContent>
           </Card>
+          <Card className="rounded-3xl border border-border/60 shadow-xl">
+            <CardContent className="p-4 md:p-6">
+              <div className="text-xs md:text-sm text-muted-foreground mb-1">Expense Records</div>
+              <div className="text-xl md:text-2xl font-bold">
+                {otaExpenses?.length || 0}
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Channel Breakdown */}
@@ -399,6 +446,10 @@ const OTAFinancePage = () => {
                     <div className="font-semibold text-sm capitalize">{channel}</div>
                     <div className="text-xs text-muted-foreground">Revenue: {formatCurrency(data.revenue)}</div>
                     <div className="text-xs text-muted-foreground">Commission: {formatCurrency(data.commission)}</div>
+                    <div className="text-xs text-muted-foreground">Expenses: {formatCurrency(data.expense)}</div>
+                    <div className={`text-xs font-medium ${data.net >= 0 ? "text-emerald-600" : "text-destructive"}`}>
+                      Net: {formatCurrency(data.net)}
+                    </div>
                     <div className="text-xs text-muted-foreground">Bookings: {data.count}</div>
                   </div>
                 ))}

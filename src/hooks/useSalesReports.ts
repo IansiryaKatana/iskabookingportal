@@ -12,6 +12,7 @@ export type SalesDemographicsRow = {
   studio_number: string | null;
   studio_grade: string | null;
   company_name: string | null;
+  booking_source: string | null;
   created_at: string;
   confirmed_date: string | null;
   arrival_date: string | null;

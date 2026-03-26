@@ -58,6 +58,7 @@ const CommunalAreaHousekeepingDashboard = lazy(() => import("./pages/admin/Commu
 const OTABookingsDashboard = lazy(() => import("./pages/admin/OTABookingsDashboard"));
 const OTABookingChartPage = lazy(() => import("./pages/admin/OTABookingChartPage"));
 const OTAFinancePage = lazy(() => import("./pages/admin/OTAFinancePage"));
+const OTAExpensesPage = lazy(() => import("./pages/admin/OTAExpensesPage"));
 const OTAStudioAllocationPage = lazy(() => import("./pages/admin/OTAStudioAllocationPage"));
 const OTAReports = lazy(() => import("./pages/admin/OTAReports"));
 const AdminExpenses = lazy(() => import("./pages/admin/Expenses"));
@@ -362,6 +363,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["staff", "superadmin", "operations_manager", "reservationist"]}>
                   <OTAFinancePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/ota-bookings/expenses"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin", "operations_manager", "reservationist"]}>
+                  <OTAExpensesPage />
                 </ProtectedRoute>
               }
             />

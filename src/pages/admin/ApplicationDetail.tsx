@@ -131,6 +131,8 @@ const ApplicationDetail = () => {
   const [selectedCashbackCampaign, setSelectedCashbackCampaign] = useState<string>("");
   const [selectedDiscountCampaign, setSelectedDiscountCampaign] = useState<string>("");
   const [selectedPartner, setSelectedPartner] = useState<string>("");
+  const [partnerDropdownOpen, setPartnerDropdownOpen] = useState(false);
+  const [partnerSearchQuery, setPartnerSearchQuery] = useState("");
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [selectedRejectedDoc, setSelectedRejectedDoc] = useState<{ id: string; documentType: string; notes?: string } | null>(null);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -273,6 +275,15 @@ const ApplicationDetail = () => {
         (s.id ?? "").toLowerCase().includes(q)
     );
   }, [studios, studioSearchQuery]);
+
+  const filteredPartners = useMemo(() => {
+    if (!partners) return [];
+    const query = partnerSearchQuery.trim().toLowerCase();
+    if (!query) return partners;
+    return partners.filter((partner) =>
+      partner.name.toLowerCase().includes(query),
+    );
+  }, [partners, partnerSearchQuery]);
 
   // Fetch student documents
   const { data: documents } = useQuery({
@@ -2740,7 +2751,16 @@ const ApplicationDetail = () => {
       </Dialog>
 
       {/* Partner Referral Dialog */}
-      <Dialog open={partnerDialogOpen} onOpenChange={setPartnerDialogOpen}>
+      <Dialog
+        open={partnerDialogOpen}
+        onOpenChange={(open) => {
+          setPartnerDialogOpen(open);
+          if (!open) {
+            setPartnerDropdownOpen(false);
+            setPartnerSearchQuery("");
+          }
+        }}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-lg font-display uppercase tracking-wide">
@@ -2752,18 +2772,53 @@ const ApplicationDetail = () => {
           </DialogHeader>
           <div className="space-y-4">
             {partners && partners.length > 0 ? (
-              <Select value={selectedPartner} onValueChange={setSelectedPartner}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select partner" />
-                </SelectTrigger>
-                <SelectContent>
-                  {partners.map((partner) => (
-                    <SelectItem key={partner.id} value={partner.id}>
-                      {partner.name} ({partner.commission_percentage}%)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={partnerDropdownOpen} onOpenChange={setPartnerDropdownOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={partnerDropdownOpen}
+                    className="w-full justify-between font-normal"
+                  >
+                    <span className="truncate">
+                      {selectedPartner
+                        ? `${partners.find((partner) => partner.id === selectedPartner)?.name ?? "Selected partner"}`
+                        : "Select partner"}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                  <Command>
+                    <CommandInput
+                      placeholder="Search partner..."
+                      value={partnerSearchQuery}
+                      onValueChange={setPartnerSearchQuery}
+                    />
+                    <CommandList>
+                      <CommandEmpty>No partner found.</CommandEmpty>
+                      <CommandGroup>
+                        {filteredPartners.map((partner) => (
+                          <CommandItem
+                            key={partner.id}
+                            value={`${partner.name} ${partner.commission_percentage}`}
+                            onSelect={() => {
+                              setSelectedPartner(partner.id);
+                              setPartnerDropdownOpen(false);
+                              setPartnerSearchQuery("");
+                            }}
+                          >
+                            <Check
+                              className={`mr-2 h-4 w-4 ${selectedPartner === partner.id ? "opacity-100" : "opacity-0"}`}
+                            />
+                            <span className="truncate">{partner.name} ({partner.commission_percentage}%)</span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             ) : (
               <p className="text-sm text-muted-foreground">
                 No active partners available. Create a partner first.

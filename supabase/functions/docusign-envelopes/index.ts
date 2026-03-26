@@ -255,6 +255,14 @@ const formatGBP = (amount: number): string =>
     amount / 100,
   );
 
+const toTitleCase = (value?: string | null): string => {
+  if (!value) return "";
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
 const sendEnvelope = async (
   body: Record<string, unknown>,
 ) => {
@@ -1119,12 +1127,14 @@ serve(async (req) => {
       academicYearId,
     });
 
+    const tenancySubject = toTitleCase(
+      `${companyName} tenancy agreement - ${application.contract?.studio_grade?.name ?? companyName}`,
+    );
+
     const tenancyBody = {
       templateId: tenancyTemplateId,
       status: "sent",
-      emailSubject: `${companyName} tenancy agreement – ${
-        application.contract?.studio_grade?.name ?? companyName
-      }`,
+      emailSubject: tenancySubject,
       templateRoles: tenancyRecipients,
     };
 
@@ -1235,10 +1245,14 @@ serve(async (req) => {
             },
           },
         ];
+        const guarantorSubject = toTitleCase(
+          `${companyName} guarantor agreement - ${studentName || "Student"}`,
+        );
+
         const guarantorBody = {
           templateId: String(guarantorTemplate.template_id ?? "").trim(),
           status: "sent",
-          emailSubject: `${companyName} guarantor agreement – ${studentName || "Student"}`,
+          emailSubject: guarantorSubject,
           templateRoles: guarantorRecipients,
         };
 

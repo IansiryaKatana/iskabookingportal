@@ -31,6 +31,12 @@ const quickLinks = [
     actionLabel: "View pipeline",
     path: "/admin/applications",
   },
+  {
+    title: "OTA Expenses",
+    description: "Track OTA costs, commissions, and profitability.",
+    actionLabel: "Open OTA expenses",
+    path: "/ota-bookings/expenses",
+  },
 ];
 
 const Dashboard = () => {
@@ -103,7 +109,7 @@ const Dashboard = () => {
 
           <section>
             <div className="h-6 w-32 bg-muted animate-pulse rounded mb-4" />
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               {[1, 2, 3].map((i) => (
                 <Card key={i} className="rounded-3xl shadow-sm">
                   <CardHeader>
@@ -343,7 +349,7 @@ const Dashboard = () => {
             <h3 className="text-lg font-semibold uppercase tracking-wide mb-4">
               Quick actions
             </h3>
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               {quickLinks.map((item) => (
                 <Card key={item.title} className="rounded-3xl shadow-sm">
                   <CardHeader>

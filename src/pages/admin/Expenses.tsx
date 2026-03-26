@@ -23,13 +23,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -595,8 +595,8 @@ const Expenses = () => {
           </CardContent>
         </Card>
 
-        {/* Create/Edit Expense Dialog */}
-        <Dialog open={createDialogOpen || editDialogOpen} onOpenChange={(open) => {
+        {/* Create/Edit Expense Sheet */}
+        <Sheet open={createDialogOpen || editDialogOpen} onOpenChange={(open) => {
           if (!open) {
             setCreateDialogOpen(false);
             setEditDialogOpen(false);
@@ -606,13 +606,14 @@ const Expenses = () => {
             setReceiptFile(null);
           }
         }}>
-          <DialogContent className="sm:max-w-[600px] rounded-3xl">
-            <DialogHeader>
-              <DialogTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">{editDialogOpen ? "Edit Expense" : "Create Expense"}</DialogTitle>
-              <DialogDescription className="text-xs md:text-sm">
+          <SheetContent side="bottom" className="h-[90vh] rounded-t-3xl border-0 p-0">
+            <div className="h-full overflow-y-auto p-6 md:p-8">
+            <SheetHeader>
+              <SheetTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">{editDialogOpen ? "Edit Expense" : "Create Expense"}</SheetTitle>
+              <SheetDescription className="text-xs md:text-sm">
                 {editDialogOpen ? "Update expense details" : "Record a new utility or expense payment"}
-              </DialogDescription>
-            </DialogHeader>
+              </SheetDescription>
+            </SheetHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label htmlFor="academic_year_id" className="text-xs md:text-sm">Academic Year *</Label>
@@ -766,7 +767,7 @@ const Expenses = () => {
                 </div>
               </div>
             </div>
-            <DialogFooter className="gap-2">
+            <SheetFooter className="gap-2">
               <Button
                 variant="outline"
                 onClick={() => {
@@ -800,9 +801,10 @@ const Expenses = () => {
                   </>
                 )}
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </SheetFooter>
+            </div>
+          </SheetContent>
+        </Sheet>
 
         {/* Delete Confirmation Dialog */}
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

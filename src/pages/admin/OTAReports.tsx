@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useOTAStudioIncomeSummaryReport } from "@/hooks/useReports";
+import { useOTAExpenses } from "@/hooks/useOTAExpenses";
 import { Download, FileText, CalendarRange } from "lucide-react";
 import { format, startOfMonth, endOfMonth, subDays } from "date-fns";
 import type { DateRange } from "react-day-picker";
@@ -59,6 +60,20 @@ const OTAReports = () => {
   };
 
   const { data: report, isLoading } = useOTAStudioIncomeSummaryReport(dateFrom, dateTo);
+  const { data: otaExpenses, isLoading: otaExpensesLoading } = useOTAExpenses({
+    startDate: dateFrom || undefined,
+    endDate: dateTo || undefined,
+  });
+
+  const expenseSummary = (otaExpenses || []).reduce(
+    (acc, row) => {
+      const amount = Number(row.amount || 0);
+      acc.total += amount;
+      acc.byCategory[row.expense_category] = (acc.byCategory[row.expense_category] || 0) + amount;
+      return acc;
+    },
+    { total: 0, byCategory: {} as Record<string, number> },
+  );
 
   const exportToCSV = () => {
     if (!report || report.rows.length === 0) {
@@ -103,9 +118,20 @@ const OTAReports = () => {
       r.revenue_per_month.toFixed(2),
       r.revenue_per_year.toFixed(2),
     ]);
+    const expenseHeaders = ["Expense Category", "Total Amount (GBP)"];
+    const expenseRows = Object.entries(expenseSummary.byCategory).map(([category, amount]) => [
+      category,
+      amount.toFixed(2),
+    ]);
+
     const csvContent = [
       headers.join(","),
       ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
+      "",
+      '"OTA Expense Summary"',
+      expenseHeaders.map((h) => `"${h}"`).join(","),
+      ...expenseRows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
+      `"Total OTA Expenses","${expenseSummary.total.toFixed(2)}"`,
     ].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
@@ -188,8 +214,22 @@ const OTAReports = () => {
       footStyles: { fillColor: [220, 220, 220] },
     });
 
+    const finalY = (doc as any).lastAutoTable?.finalY || 40;
+    autoTable(doc, {
+      startY: finalY + 10,
+      head: [["Expense Category", "Total Amount"]],
+      body: Object.entries(expenseSummary.byCategory).map(([category, amount]) => [
+        category,
+        formatCurrencyReport(amount),
+      ]),
+      foot: [["Total OTA Expenses", formatCurrencyReport(expenseSummary.total)]],
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [121, 85, 72] },
+      footStyles: { fillColor: [220, 220, 220] },
+    });
+
     doc.save(`ota_studio_income_summary_${report.dateFrom}_${report.dateTo}.pdf`);
-    toast({ title: "Report exported", description: "OTA Studio Income Summary exported to PDF." });
+    toast({ title: "Report exported", description: "OTA Studio Income + OTA Expenses exported to PDF." });
   };
 
   const hasData = report && report.rows.length > 0;
@@ -336,6 +376,28 @@ const OTAReports = () => {
               </div>
             ) : hasData ? (
               <>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <Card className="rounded-2xl border border-border/60">
+                    <CardContent className="p-4">
+                      <p className="text-xs text-muted-foreground">Gross OTA Income</p>
+                      <p className="text-xl font-bold">{formatCurrencyReport(report!.grandTotal.total)}</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="rounded-2xl border border-border/60">
+                    <CardContent className="p-4">
+                      <p className="text-xs text-muted-foreground">OTA Expenses</p>
+                      <p className="text-xl font-bold text-red-600">{formatCurrencyReport(expenseSummary.total)}</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="rounded-2xl border border-border/60">
+                    <CardContent className="p-4">
+                      <p className="text-xs text-muted-foreground">Net OTA Position</p>
+                      <p className="text-xl font-bold">
+                        {formatCurrencyReport(report!.grandTotal.total - expenseSummary.total)}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
                 <p className="text-sm text-muted-foreground">
                   From {format(new Date(report!.dateFrom), "dd MMM yyyy")} to{" "}
                   {format(new Date(report!.dateTo), "dd MMM yyyy")} · {report!.rows.length} room
@@ -408,6 +470,38 @@ const OTAReports = () => {
                           {report!.grandTotal.occupancy_pct.toFixed(2)}%
                         </TableCell>
                         <TableCell colSpan={4} />
+                      </TableRow>
+                    </TableFooter>
+                  </Table>
+                </div>
+                <div className="rounded-xl border overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead className="font-semibold">OTA Expense Category</TableHead>
+                        <TableHead className="text-right font-semibold">Total Amount</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(Object.entries(expenseSummary.byCategory).length === 0 && !otaExpensesLoading) ? (
+                        <TableRow>
+                          <TableCell colSpan={2} className="text-center text-muted-foreground py-6">
+                            No OTA expenses recorded in this date range.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        Object.entries(expenseSummary.byCategory).map(([category, amount]) => (
+                          <TableRow key={category}>
+                            <TableCell className="capitalize">{category.replace("_", " ")}</TableCell>
+                            <TableCell className="text-right">{formatCurrencyReport(amount)}</TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                    <TableFooter>
+                      <TableRow className="bg-muted/70 font-semibold">
+                        <TableCell>Total OTA Expenses</TableCell>
+                        <TableCell className="text-right">{formatCurrencyReport(expenseSummary.total)}</TableCell>
                       </TableRow>
                     </TableFooter>
                   </Table>
