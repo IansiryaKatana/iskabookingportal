@@ -1,9 +1,9 @@
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Calendar, CheckCircle2, Users, FileText, TrendingUp, AlertCircle, Gift } from "lucide-react";
+import { CheckCircle2, Users, FileText, TrendingUp, AlertCircle, Gift } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useDashboardStats } from "@/hooks/useDashboardStats";
+import { useDashboardStats, useDashboardBreakdowns } from "@/hooks/useDashboardStats";
 import { useActiveCashbackCampaigns } from "@/hooks/useCashback";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
@@ -12,38 +12,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
 import { useState } from "react";
 
-const quickLinks = [
-  {
-    title: "Studio Grades",
-    description: "Manage grade content, galleries, and amenities.",
-    actionLabel: "Go to grades",
-    path: "/admin/studio-grades",
-  },
-  {
-    title: "Academic Years",
-    description: "Configure pricing, contracts, and payment plans.",
-    actionLabel: "Manage years",
-    path: "/admin/academic-years",
-  },
-  {
-    title: "Applications",
-    description: "Review student submissions, documents, and signatures.",
-    actionLabel: "View pipeline",
-    path: "/admin/applications",
-  },
-  {
-    title: "OTA Expenses",
-    description: "Track OTA costs, commissions, and profitability.",
-    actionLabel: "Open OTA expenses",
-    path: "/ota-bookings/expenses",
-  },
-];
-
 const Dashboard = () => {
   const { loading, profile } = useAuth();
   const navigate = useNavigate();
   const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string | undefined>(undefined);
   const { data: stats, isLoading: statsLoading } = useDashboardStats(selectedAcademicYearId);
+  const { data: breakdowns, isLoading: breakdownsLoading } = useDashboardBreakdowns(selectedAcademicYearId);
   const { data: activeCampaigns, isLoading: campaignsLoading } = useActiveCashbackCampaigns(
     undefined, 
     selectedAcademicYearId
@@ -52,6 +26,15 @@ const Dashboard = () => {
   // Only show skeleton while auth is actually loading
   // Once loading is false, show content (even if profile is null, it will show empty state)
   const isLoading = loading || statsLoading;
+  const otherStatusEntries = Object.entries(breakdowns?.applications.byStatus ?? {})
+    .filter(
+      ([status]) =>
+        status !== "confirmed" &&
+        status !== "awaiting_deposit" &&
+        status !== "awaiting_signature",
+    )
+    .filter(([, count]) => count > 0)
+    .sort((a, b) => b[1] - a[1]);
 
   return (
     <AdminLayout
@@ -345,34 +328,144 @@ const Dashboard = () => {
             </Card>
           </section>
 
-          <section>
+          <section className="mb-10">
             <h3 className="text-lg font-semibold uppercase tracking-wide mb-4">
-              Quick actions
+              Students Breakdown
             </h3>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              {quickLinks.map((item) => (
-                <Card key={item.title} className="rounded-3xl shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="text-base md:text-lg font-bold">
-                      {item.title}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <p className="text-sm text-muted-foreground">
-                      {item.description}
-                    </p>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-between rounded-full uppercase tracking-wide"
-                      onClick={() => navigate(item.path)}
-                    >
-                      {item.actionLabel}
-                      <ArrowRight className="h-4 w-4" />
-                    </Button>
+            {breakdownsLoading ? (
+              <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <Card key={i} className="rounded-3xl border border-border/60 shadow-sm">
+                    <CardContent className="p-4">
+                      <Skeleton className="h-4 w-24 mb-3" />
+                      <Skeleton className="h-8 w-12" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-5">
+                <Card className="rounded-3xl border border-border/60 shadow-sm">
+                  <CardContent className="p-4">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Total Students</p>
+                    <p className="text-2xl font-bold font-display mt-2">{breakdowns?.students.total ?? 0}</p>
+                    <p className="text-xs text-muted-foreground mt-1">All registered student profiles</p>
                   </CardContent>
                 </Card>
-              ))}
-            </div>
+                <Card className="rounded-3xl border border-border/60 shadow-sm">
+                  <CardContent className="p-4">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">With Applications</p>
+                    <p className="text-2xl font-bold font-display mt-2">{breakdowns?.students.withApplication ?? 0}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Students who submitted at least one application</p>
+                  </CardContent>
+                </Card>
+                <Card className="rounded-3xl border border-border/60 shadow-sm">
+                  <CardContent className="p-4">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Confirmed Students</p>
+                    <p className="text-2xl font-bold font-display mt-2">{breakdowns?.students.confirmed ?? 0}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Unique students with a confirmed booking</p>
+                  </CardContent>
+                </Card>
+                <Card className="rounded-3xl border border-border/60 shadow-sm">
+                  <CardContent className="p-4">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">In Pipeline</p>
+                    <p className="text-2xl font-bold font-display mt-2">{breakdowns?.students.inPipeline ?? 0}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Awaiting signature or awaiting deposit</p>
+                  </CardContent>
+                </Card>
+                <Card className="rounded-3xl border border-border/60 shadow-sm">
+                  <CardContent className="p-4">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Without Applications</p>
+                    <p className="text-2xl font-bold font-display mt-2">{breakdowns?.students.withoutApplication ?? 0}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Registered students with no application yet</p>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </section>
+
+          <section>
+            <h3 className="text-lg font-semibold uppercase tracking-wide mb-4">
+              Applications Breakdown
+            </h3>
+            {breakdownsLoading ? (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <Card key={i} className="rounded-3xl border border-border/60 shadow-sm">
+                    <CardContent className="p-4">
+                      <Skeleton className="h-4 w-24 mb-3" />
+                      <Skeleton className="h-8 w-12" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <Card className="rounded-3xl border border-primary/20 bg-primary/5 shadow-sm">
+                  <CardContent className="p-4 md:p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Contract Type Mix</p>
+                      <p className="text-lg font-semibold mt-1">Applications by default vs custom contracts</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 w-full md:w-auto">
+                      <div className="rounded-2xl border border-border/60 bg-background px-3 py-2">
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Default Contracts</p>
+                        <p className="text-xl font-bold font-display">{breakdowns?.applications.defaultContracts ?? 0}</p>
+                      </div>
+                      <div className="rounded-2xl border border-border/60 bg-background px-3 py-2">
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Custom Contracts</p>
+                        <p className="text-xl font-bold font-display">{breakdowns?.applications.customContracts ?? 0}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+                <Card className="rounded-3xl border border-border/60 shadow-sm">
+                  <CardContent className="p-4">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Total Applications</p>
+                    <p className="text-2xl font-bold font-display mt-2">{breakdowns?.applications.total ?? 0}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Every application row in current scope</p>
+                  </CardContent>
+                </Card>
+                <Card className="rounded-3xl border border-border/60 shadow-sm">
+                  <CardContent className="p-4">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Confirmed</p>
+                    <p className="text-2xl font-bold font-display mt-2">{breakdowns?.applications.byStatus.confirmed ?? 0}</p>
+                  </CardContent>
+                </Card>
+                <Card className="rounded-3xl border border-border/60 shadow-sm">
+                  <CardContent className="p-4">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Awaiting Deposit</p>
+                    <p className="text-2xl font-bold font-display mt-2">{breakdowns?.applications.byStatus.awaiting_deposit ?? 0}</p>
+                  </CardContent>
+                </Card>
+                <Card className="rounded-3xl border border-border/60 shadow-sm">
+                  <CardContent className="p-4">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Awaiting Signature</p>
+                    <p className="text-2xl font-bold font-display mt-2">{breakdowns?.applications.byStatus.awaiting_signature ?? 0}</p>
+                  </CardContent>
+                </Card>
+                <Card className="rounded-3xl border border-border/60 shadow-sm">
+                  <CardContent className="p-4">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Other Statuses</p>
+                    {otherStatusEntries.length > 0 ? (
+                      <div className="mt-2 space-y-1.5">
+                        {otherStatusEntries.map(([status, count]) => (
+                          <div key={status} className="flex items-center justify-between text-sm">
+                            <span className="capitalize text-muted-foreground">{status.replace(/_/g, " ")}</span>
+                            <span className="font-bold font-display">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground mt-2">No additional statuses</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+              </div>
+            )}
           </section>
         </>
       )}

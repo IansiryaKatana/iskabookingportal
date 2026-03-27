@@ -151,6 +151,12 @@ const AccountingReports = () => {
   const filteredUpcomingData = useMemo(() => {
     if (!upcomingData) return [];
     let list = [...upcomingData];
+    if (startDate) {
+      list = list.filter((r) => r.due_date >= startDate);
+    }
+    if (endDate) {
+      list = list.filter((r) => r.due_date <= endDate);
+    }
     if (upcomingAcademicYearId !== "all") {
       list = list.filter((r) => r.academic_year_id === upcomingAcademicYearId);
     }
@@ -165,7 +171,7 @@ const AccountingReports = () => {
       list = list.filter((r) => r.status === upcomingStatusFilter);
     }
     return list.sort((a, b) => (a.due_date < b.due_date ? -1 : 1));
-  }, [upcomingData, upcomingAcademicYearId, upcomingDueWindow, upcomingStatusFilter, today]);
+  }, [upcomingData, startDate, endDate, upcomingAcademicYearId, upcomingDueWindow, upcomingStatusFilter, today]);
 
   const filteredOutstandingData = useMemo(() => {
     if (!outstandingData) return [];

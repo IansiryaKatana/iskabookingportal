@@ -62,12 +62,19 @@ export type SalesReportCashSummary = {
   total_installments_collected: number;
 };
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const toValidAcademicYearParam = (id?: string | null): string | null => {
+  if (!id || id === "all") return null;
+  return UUID_REGEX.test(id) ? id : null;
+};
+
 export const useSalesReportCashSummary = (academicYearId?: string) => {
   return useQuery({
     queryKey: ["sales-report-cash-summary", academicYearId],
     queryFn: async (): Promise<SalesReportCashSummary> => {
+      const pAcademicYearId = toValidAcademicYearParam(academicYearId ?? null);
       const { data, error } = await supabase.rpc("get_sales_report_cash_summary", {
-        p_academic_year_id: academicYearId || null,
+        p_academic_year_id: pAcademicYearId,
       });
       if (error) {
         console.error("Failed to fetch sales report cash summary:", error);
@@ -87,9 +94,10 @@ export const useSalesDemographicsReport = (academicYearId?: string) => {
   return useQuery({
     queryKey: ["sales-demographics-report", academicYearId],
     queryFn: async (): Promise<SalesDemographicsRow[]> => {
+      const pAcademicYearId = toValidAcademicYearParam(academicYearId ?? null);
       let query = supabase.from("sales_demographics_report").select("*");
-      if (academicYearId) {
-        query = query.eq("academic_year_id", academicYearId);
+      if (pAcademicYearId) {
+        query = query.eq("academic_year_id", pAcademicYearId);
       }
       const { data, error } = await query;
       if (error) {
@@ -105,9 +113,10 @@ export const useSalesOccupancyMonthly = (academicYearId?: string) => {
   return useQuery({
     queryKey: ["sales-occupancy-monthly", academicYearId],
     queryFn: async (): Promise<SalesOccupancyMonthlyRow[]> => {
+      const pAcademicYearId = toValidAcademicYearParam(academicYearId ?? null);
       let query = supabase.from("sales_occupancy_monthly").select("*");
-      if (academicYearId) {
-        query = query.eq("academic_year_id", academicYearId);
+      if (pAcademicYearId) {
+        query = query.eq("academic_year_id", pAcademicYearId);
       }
       const { data, error } = await query;
       if (error) {
@@ -123,9 +132,10 @@ export const useSalesRebookersMonthly = (academicYearId?: string) => {
   return useQuery({
     queryKey: ["sales-rebookers-monthly", academicYearId],
     queryFn: async (): Promise<SalesRebookersMonthlyRow[]> => {
+      const pAcademicYearId = toValidAcademicYearParam(academicYearId ?? null);
       let query = supabase.from("sales_rebookers_monthly").select("*");
-      if (academicYearId) {
-        query = query.eq("academic_year_id", academicYearId);
+      if (pAcademicYearId) {
+        query = query.eq("academic_year_id", pAcademicYearId);
       }
       const { data, error } = await query;
       if (error) {
@@ -140,6 +150,7 @@ export const useSalesRebookersMonthly = (academicYearId?: string) => {
 export const useDownloadSalesReport = () => {
   return useMutation({
     mutationFn: async (academicYearId?: string) => {
+      const pAcademicYearId = toValidAcademicYearParam(academicYearId ?? null);
       const session = await supabase.auth.getSession();
       const accessToken = session.data.session?.access_token;
 
@@ -154,7 +165,7 @@ export const useDownloadSalesReport = () => {
           apikey: SUPABASE_PUBLISHABLE_KEY,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(academicYearId ? { academicYearId } : {}),
+        body: JSON.stringify(pAcademicYearId ? { academicYearId: pAcademicYearId } : {}),
       });
 
       if (!response.ok) {

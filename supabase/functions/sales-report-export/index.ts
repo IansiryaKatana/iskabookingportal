@@ -7,6 +7,9 @@ interface SalesReportRequest {
   academicYearId?: string;
 }
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
@@ -69,7 +72,10 @@ serve(async (req) => {
       }
     }
 
-    const { academicYearId } = body;
+    const academicYearId =
+      body.academicYearId && UUID_REGEX.test(body.academicYearId)
+        ? body.academicYearId
+        : undefined;
 
     // -----------------------------------------------------------------------
     // Fetch data from reporting views

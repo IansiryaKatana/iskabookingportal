@@ -20,6 +20,22 @@ export type DashboardStats = {
   confirmedApplications: number;
 };
 
+export type DashboardBreakdowns = {
+  students: {
+    total: number;
+    withApplication: number;
+    confirmed: number;
+    inPipeline: number;
+    withoutApplication: number;
+  };
+  applications: {
+    total: number;
+    byStatus: Record<string, number>;
+    customContracts: number;
+    defaultContracts: number;
+  };
+};
+
 type RpcRow = {
   total_students: number | null;
   total_applications: number | null;
@@ -112,12 +128,121 @@ const fetchDashboardStats = async (academicYearId?: string): Promise<DashboardSt
   }
 };
 
+const fetchDashboardBreakdowns = async (academicYearId?: string): Promise<DashboardBreakdowns> => {
+  const pAcademicYearId = toValidAcademicYearParam(academicYearId ?? null);
+
+  const [{ data: studentsData, error: studentsError }, { data: applicationsData, error: applicationsError }] =
+    await Promise.all([
+      supabase.from("profiles").select("id").eq("role", "student"),
+      supabase
+        .from("student_applications")
+        .select(
+          `
+          student_id,
+          status,
+          contract:contracts!contract_id(
+            academic_year_id,
+            student_application_id,
+            source_contract_id
+          )
+        `,
+        ),
+    ]);
+
+  if (studentsError) {
+    console.error("Failed to fetch student profiles for dashboard breakdown:", studentsError);
+  }
+  if (applicationsError) {
+    console.error("Failed to fetch applications for dashboard breakdown:", applicationsError);
+  }
+
+  const allStudents = studentsData ?? [];
+  const allApplications = (applicationsData ?? []) as Array<{
+    student_id: string | null;
+    status: string;
+    contract: {
+      academic_year_id: string | null;
+      student_application_id: string | null;
+      source_contract_id: string | null;
+    } | null;
+  }>;
+
+  const filteredApplications = pAcademicYearId
+    ? allApplications.filter((app) => (app.contract as any)?.academic_year_id === pAcademicYearId)
+    : allApplications;
+
+  const applicationStatusCounts = filteredApplications.reduce<Record<string, number>>((acc, app) => {
+    const key = app.status || "unknown";
+    acc[key] = (acc[key] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const studentsWithApplicationSet = new Set(
+    filteredApplications
+      .map((app) => app.student_id)
+      .filter((id): id is string => Boolean(id)),
+  );
+
+  const confirmedStudentsSet = new Set(
+    filteredApplications
+      .filter((app) => app.status === "confirmed")
+      .map((app) => app.student_id)
+      .filter((id): id is string => Boolean(id)),
+  );
+
+  const pipelineStudentsSet = new Set(
+    filteredApplications
+      .filter((app) => app.status === "awaiting_signature" || app.status === "awaiting_deposit")
+      .map((app) => app.student_id)
+      .filter((id): id is string => Boolean(id)),
+  );
+
+  const totalStudents = allStudents.length;
+  const withApplication = studentsWithApplicationSet.size;
+  const customContracts = filteredApplications.filter(
+    (app) =>
+      Boolean((app.contract as any)?.student_application_id) ||
+      Boolean((app.contract as any)?.source_contract_id),
+  ).length;
+  const defaultContracts = Math.max(filteredApplications.length - customContracts, 0);
+
+  return {
+    students: {
+      total: totalStudents,
+      withApplication,
+      confirmed: confirmedStudentsSet.size,
+      inPipeline: pipelineStudentsSet.size,
+      withoutApplication: Math.max(totalStudents - withApplication, 0),
+    },
+    applications: {
+      total: filteredApplications.length,
+      byStatus: applicationStatusCounts,
+      customContracts,
+      defaultContracts,
+    },
+  };
+};
+
 export const useDashboardStats = (academicYearId?: string) => {
   return useQuery({
     queryKey: ["dashboard-stats", academicYearId],
     queryFn: () => fetchDashboardStats(academicYearId),
     refetchInterval: 60000, // Refetch every minute
     staleTime: 60000,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    retry: 1,
+  });
+};
+
+export const useDashboardBreakdowns = (academicYearId?: string) => {
+  return useQuery({
+    queryKey: ["dashboard-breakdowns", academicYearId],
+    queryFn: () => fetchDashboardBreakdowns(academicYearId),
+    staleTime: 60000,
+    refetchInterval: 60000,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 };
 
