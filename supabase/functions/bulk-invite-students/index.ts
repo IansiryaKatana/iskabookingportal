@@ -106,13 +106,8 @@ serve(async (req) => {
             id,
             name
           )
-        ),
-        student_application_steps!inner (
-          step_number,
-          payload
         )
-      `)
-      .eq("student_application_steps.step_number", 2); // Step 2 contains email
+      `);
 
     // Filter by application IDs if provided
     if (application_ids && application_ids.length > 0) {
@@ -163,6 +158,25 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
+    }
+
+    // Fetch step 2 payload separately so applications without step 2 are not excluded
+    const applicationIds = applications.map((app: any) => app.id).filter(Boolean);
+    const step2ByApplicationId = new Map<string, any>();
+    if (applicationIds.length > 0) {
+      const { data: stepRows, error: stepRowsError } = await supabaseAdmin
+        .from("student_application_steps")
+        .select("application_id, step_number, payload")
+        .in("application_id", applicationIds)
+        .eq("step_number", 2);
+
+      if (stepRowsError) {
+        console.warn("Failed to fetch step 2 rows for bulk invitations:", stepRowsError);
+      } else {
+        (stepRows || []).forEach((row: any) => {
+          step2ByApplicationId.set(row.application_id, row.payload || {});
+        });
+      }
     }
 
     // Get user metadata to check account status
@@ -337,10 +351,9 @@ serve(async (req) => {
         }
 
         // Get email from step 2 payload
-        const step2 = app.student_application_steps?.find(
-          (s: any) => s.step_number === 2
-        );
-        const email = step2?.payload?.email;
+        const step2Payload = step2ByApplicationId.get(app.id) || {};
+        const authUser = users.find((u) => u.id === studentId);
+        const email = (step2Payload?.email || authUser?.email || "").toString().trim();
 
         if (!email) {
           results.failed++;
@@ -357,7 +370,6 @@ serve(async (req) => {
 
         // Sync email to auth user if different (safety net)
         const normalizedEmail = email.toLowerCase().trim();
-        const authUser = users.find((u) => u.id === studentId);
         if (authUser && authUser.email?.toLowerCase() !== normalizedEmail) {
           try {
             console.log(`Syncing email for user ${studentId}: ${authUser.email} -> ${normalizedEmail}`);
@@ -411,7 +423,7 @@ serve(async (req) => {
         });
 
         // Send email
-        const firstName = userMetadata.first_name || step2?.payload?.first_name || "Student";
+        const firstName = userMetadata.first_name || step2Payload?.first_name || "Student";
         const contractName = app.contract?.name || "Your Contract";
         const academicYear = app.contract?.academic_years?.name || "";
         const expirationDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString();
@@ -508,7 +520,7 @@ serve(async (req) => {
       } catch (error: any) {
         results.failed++;
         results.errors.push({
-          email: app.student_application_steps?.find((s: any) => s.step_number === 2)?.payload?.email || "unknown",
+          email: step2ByApplicationId.get(app.id)?.email || "unknown",
           error: error.message || "Unknown error",
         });
         console.error("Error processing invitation:", error);

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useOTABookings, useUpdateOTABooking, type OTABookingWithRelations } from "@/hooks/useOTABookings";
 import { useOutOfOrderRecords } from "@/hooks/useOutOfOrder";
@@ -79,6 +79,16 @@ const OTABookingChartPage = () => {
   const { toast } = useToast();
   const { role, profile } = useAuth();
   const isMobile = useIsMobile();
+  const chartScrollRef = useRef<HTMLDivElement | null>(null);
+  const dragStateRef = useRef<{
+    isDragging: boolean;
+    startX: number;
+    startScrollLeft: number;
+  }>({
+    isDragging: false,
+    startX: 0,
+    startScrollLeft: 0,
+  });
   
   // Date navigation
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -99,8 +109,8 @@ const OTABookingChartPage = () => {
 
   // Fetch data
   const { data: bookings, isLoading: bookingsLoading } = useOTABookings({
-    check_in_start: format(monthStart, "yyyy-MM-dd"),
     check_in_end: format(monthEnd, "yyyy-MM-dd"),
+    check_out_start: format(monthStart, "yyyy-MM-dd"),
   });
   const { data: outOfOrderRecords } = useOutOfOrderRecords({ is_active: true });
   const { data: studios } = useAdminStudios({ allocation: "OTA" });
@@ -184,6 +194,31 @@ const OTABookingChartPage = () => {
       setSelectedBooking(dayBookings[0]);
       setDetailsOpen(true);
     }
+  };
+
+  const handleChartMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+    // Only drag-scroll with primary button on desktop.
+    if (isMobile || event.button !== 0 || !chartScrollRef.current) return;
+
+    dragStateRef.current.isDragging = true;
+    dragStateRef.current.startX = event.clientX;
+    dragStateRef.current.startScrollLeft = chartScrollRef.current.scrollLeft;
+    chartScrollRef.current.style.cursor = "grabbing";
+  };
+
+  const handleChartMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!dragStateRef.current.isDragging || !chartScrollRef.current) return;
+
+    // Prevent text selection while dragging horizontally.
+    event.preventDefault();
+    const deltaX = event.clientX - dragStateRef.current.startX;
+    chartScrollRef.current.scrollLeft = dragStateRef.current.startScrollLeft - deltaX;
+  };
+
+  const stopChartDragging = () => {
+    if (!chartScrollRef.current) return;
+    dragStateRef.current.isDragging = false;
+    chartScrollRef.current.style.cursor = "grab";
   };
 
   // Skeleton loader
@@ -334,7 +369,14 @@ const OTABookingChartPage = () => {
                 </p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div
+                ref={chartScrollRef}
+                className="overflow-x-auto cursor-grab select-none"
+                onMouseDown={handleChartMouseDown}
+                onMouseMove={handleChartMouseMove}
+                onMouseUp={stopChartDragging}
+                onMouseLeave={stopChartDragging}
+              >
                 <div className="inline-block min-w-full">
                   {/* Header row - dates */}
                   <div className="flex border-b-2 border-border sticky top-0 bg-background z-20">
@@ -375,7 +417,7 @@ const OTABookingChartPage = () => {
                           <div
                             key={format(day, "yyyy-MM-dd")}
                             className={cn(
-                              "w-12 md:w-16 flex-shrink-0 border-r border-border p-0.5 relative cursor-pointer",
+                              "w-12 md:w-16 h-10 md:h-12 flex-shrink-0 border-r border-border p-0.5 relative cursor-pointer",
                               isTodayDate && "bg-primary/5",
                               isOutOfOrder && "bg-red-100 dark:bg-red-900/20"
                             )}
@@ -389,12 +431,13 @@ const OTABookingChartPage = () => {
                             }
                           >
                             {dayBookings.length > 0 ? (
-                              <div className="space-y-0.5 h-full">
+                              <div className="h-full flex flex-col gap-0.5">
 {dayBookings.slice(0, 2).map((booking, idx) => (
                                                   <div
                                                     key={booking.id}
                                                     className={cn(
-                                                      "h-3 md:h-4 rounded text-[8px] md:text-[10px] flex items-center justify-center font-bold overflow-hidden",
+                                                      "rounded text-[8px] md:text-[10px] flex items-center justify-center font-bold overflow-hidden",
+                                                      dayBookings.length === 1 ? "h-full" : "flex-1 min-h-0",
                                                       getChannelColor(booking.channel),
                                                       booking.channel !== "expedia" && "text-white",
                                                       idx === 0 && dayBookings.length > 1 && "border-b border-white/30"

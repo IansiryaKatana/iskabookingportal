@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -111,6 +111,11 @@ const getStatusBadge = (status: string) => {
 const ApplicationDetail = () => {
   const { applicationId } = useParams<{ applicationId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo =
+    (location.state as { returnTo?: string } | null)?.returnTo ??
+    "/admin/applications";
+  const navigateToApplications = () => navigate(returnTo);
   const { toast } = useToast();
   const { data: application, isLoading } = useStudentApplication(applicationId || "");
   const updateStatus = useUpdateApplicationStatus();
@@ -635,7 +640,7 @@ const ApplicationDetail = () => {
         title: "Draft discarded",
         description: "The draft application and its related data have been removed.",
       });
-      navigate("/admin/applications");
+      navigateToApplications();
     },
     onError: (err: unknown) => {
       console.error("Error discarding draft application:", err);
@@ -818,6 +823,13 @@ const ApplicationDetail = () => {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
+  };
+
+  const formatStayDate = (value?: string | null) => {
+    if (!value) return "—";
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return "—";
+    return format(parsed, "dd MMM yyyy");
   };
 
   const canDownloadEnvelope = (envelope: { envelope_id?: string | null; signed_document_path?: string | null; status?: string | null }) =>
@@ -1016,7 +1028,7 @@ const ApplicationDetail = () => {
             <CardDescription>The requested application could not be found.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => navigate("/admin/applications")} className="rounded-full uppercase tracking-wide gap-2 bg-black text-white hover:bg-accent hover:text-accent-foreground">
+            <Button onClick={navigateToApplications} className="rounded-full uppercase tracking-wide gap-2 bg-black text-white hover:bg-accent hover:text-accent-foreground">
               <ArrowUpLeft className="h-4 w-4" />
               Back to Applications
             </Button>
@@ -1032,7 +1044,7 @@ const ApplicationDetail = () => {
       subtitle="Review and verify student application"
       mobileActionButton={
         <Button
-          onClick={() => navigate("/admin/applications")}
+          onClick={navigateToApplications}
           className="rounded-full h-9 w-9 p-0 bg-black text-white hover:bg-accent hover:text-accent-foreground flex-shrink-0"
           size="sm"
         >
@@ -1044,7 +1056,7 @@ const ApplicationDetail = () => {
         {/* Header - Hidden on mobile, shown on desktop */}
         <div className="hidden lg:flex items-center justify-between">
           <Button
-            onClick={() => navigate("/admin/applications")}
+            onClick={navigateToApplications}
             className="rounded-full uppercase tracking-wide gap-2 bg-black text-white hover:bg-accent hover:text-accent-foreground"
           >
             <ArrowUpLeft className="h-4 w-4" />
@@ -1808,6 +1820,16 @@ const ApplicationDetail = () => {
               <div>
                 <p className="text-xs sm:text-sm text-muted-foreground mb-1">Contract</p>
                 <p className="font-medium text-sm sm:text-base break-words">{application.contract?.slug || "—"}</p>
+                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm">
+                  <div className="rounded-xl border border-border/60 px-3 py-2 bg-muted/30">
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Check-in</p>
+                    <p className="mt-0.5 font-medium">{formatStayDate(application.contract?.contract_start)}</p>
+                  </div>
+                  <div className="rounded-xl border border-border/60 px-3 py-2 bg-muted/30">
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Check-out</p>
+                    <p className="mt-0.5 font-medium">{formatStayDate(application.contract?.contract_end)}</p>
+                  </div>
+                </div>
               </div>
               {application.contract?.contract_payment_plans && application.contract.contract_payment_plans.length > 0 && (
                 <div>

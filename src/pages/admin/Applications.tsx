@@ -16,7 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ExternalLink, CreditCard, Plus, UserPlus, Users, ChevronsUpDown, Check, CalendarRange, CalendarPlus } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import ManualPaymentDialog from "@/components/admin/ManualPaymentDialog";
 import {
@@ -178,8 +178,48 @@ const getBookingSourceBadge = (source?: string | null) => {
   );
 };
 
+const formatStayDate = (value?: string | null) => {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "—";
+  return format(parsed, "dd MMM yyyy");
+};
+
+const formatStayRange = (start?: string | null, end?: string | null) => {
+  const from = formatStayDate(start);
+  const to = formatStayDate(end);
+  if (from === "—" && to === "—") return null;
+  return `${from} - ${to}`;
+};
+
 const Applications = () => {
-  const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string | undefined>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const parseDateParam = (value: string | null): string => {
+    if (!value) return "";
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? "" : value;
+  };
+  const parsePageParam = (value: string | null): number => {
+    if (!value) return 1;
+    const parsed = Number.parseInt(value, 10);
+    return Number.isNaN(parsed) || parsed < 1 ? 1 : parsed;
+  };
+  const parseContractTypeParam = (
+    value: string | null,
+  ): ContractTypeFilter => {
+    if (value === "default" || value === "custom" || value === "extension") {
+      return value;
+    }
+    return "all";
+  };
+  const initialCreatedFrom = parseDateParam(searchParams.get("createdFrom"));
+  const initialCreatedTo = parseDateParam(searchParams.get("createdTo"));
+  const initialFromDate = initialCreatedFrom ? new Date(initialCreatedFrom) : undefined;
+  const initialToDate = initialCreatedTo ? new Date(initialCreatedTo) : undefined;
+
+  const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string | undefined>(
+    searchParams.get("academicYearId") ?? undefined,
+  );
   const { data, isLoading, isError, error } = useAdminApplications(selectedAcademicYearId);
   const updateStatus = useUpdateApplicationStatus();
   const navigate = useNavigate();
@@ -187,11 +227,15 @@ const Applications = () => {
   const [manualPaymentOpen, setManualPaymentOpen] = useState(false);
   const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(null);
   const [manualPaymentInitialType, setManualPaymentInitialType] = useState<"deposit" | "instalment">("deposit");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [bookingSourceFilter, setBookingSourceFilter] = useState<string>("all");
-  const [contractTypeFilter, setContractTypeFilter] = useState<ContractTypeFilter>("all");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<string>(searchParams.get("status") ?? "all");
+  const [bookingSourceFilter, setBookingSourceFilter] = useState<string>(
+    searchParams.get("bookingSource") ?? "all",
+  );
+  const [contractTypeFilter, setContractTypeFilter] = useState<ContractTypeFilter>(
+    parseContractTypeParam(searchParams.get("contractType")),
+  );
+  const [currentPage, setCurrentPage] = useState(parsePageParam(searchParams.get("page")));
+  const [searchQuery, setSearchQuery] = useState<string>(searchParams.get("q") ?? "");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [customContractSheetOpen, setCustomContractSheetOpen] = useState(false);
   const isMobile = useIsMobile();
@@ -208,9 +252,13 @@ const Applications = () => {
   const [newStudentFirstName, setNewStudentFirstName] = useState<string>("");
   const [newStudentLastName, setNewStudentLastName] = useState<string>("");
   const [isCreatingStudent, setIsCreatingStudent] = useState(false);
-  const [createdFrom, setCreatedFrom] = useState<string>("");
-  const [createdTo, setCreatedTo] = useState<string>("");
-  const [createdRange, setCreatedRange] = useState<DateRange | undefined>(undefined);
+  const [createdFrom, setCreatedFrom] = useState<string>(initialCreatedFrom);
+  const [createdTo, setCreatedTo] = useState<string>(initialCreatedTo);
+  const [createdRange, setCreatedRange] = useState<DateRange | undefined>(
+    initialFromDate || initialToDate
+      ? { from: initialFromDate, to: initialToDate }
+      : undefined,
+  );
   const [contractPickerOpen, setContractPickerOpen] = useState(false);
   const [contractSearch, setContractSearch] = useState("");
 
@@ -577,6 +625,33 @@ const Applications = () => {
     setCreatedFrom("");
     setCreatedTo("");
   };
+
+  const buildListSearchParams = () => {
+    const params = new URLSearchParams();
+    if (statusFilter !== "all") params.set("status", statusFilter);
+    if (bookingSourceFilter !== "all") params.set("bookingSource", bookingSourceFilter);
+    if (contractTypeFilter !== "all") params.set("contractType", contractTypeFilter);
+    if (selectedAcademicYearId) params.set("academicYearId", selectedAcademicYearId);
+    if (searchQuery.trim()) params.set("q", searchQuery.trim());
+    if (createdFrom) params.set("createdFrom", createdFrom);
+    if (createdTo) params.set("createdTo", createdTo);
+    if (currentPage > 1) params.set("page", String(currentPage));
+    return params;
+  };
+
+  useEffect(() => {
+    setSearchParams(buildListSearchParams(), { replace: true });
+  }, [
+    statusFilter,
+    bookingSourceFilter,
+    contractTypeFilter,
+    selectedAcademicYearId,
+    searchQuery,
+    createdFrom,
+    createdTo,
+    currentPage,
+    setSearchParams,
+  ]);
 
   const filtered = useMemo(() => {
     let result = data ?? [];
@@ -957,6 +1032,20 @@ const Applications = () => {
                               Custom contract
                             </Badge>
                           )}
+                        {formatStayRange(
+                          application.contract?.contract_start,
+                          application.contract?.contract_end,
+                        ) && (
+                          <Badge
+                            variant="secondary"
+                            className="text-[10px] normal-case tracking-normal rounded-full bg-muted text-muted-foreground"
+                          >
+                            {formatStayRange(
+                              application.contract?.contract_start,
+                              application.contract?.contract_end,
+                            )}
+                          </Badge>
+                        )}
                         {getBookingSourceBadge(application.booking_source)}
                       </div>
                     </div>
@@ -1009,7 +1098,16 @@ const Applications = () => {
                         variant="outline"
                         size="sm"
                         className="rounded-full uppercase tracking-wide gap-2 flex-1 sm:flex-initial text-xs"
-                        onClick={() => navigate(`/admin/applications/${application.id}`)}
+                        onClick={() => {
+                          const currentQuery = buildListSearchParams().toString();
+                          navigate(`/admin/applications/${application.id}`, {
+                            state: {
+                              returnTo: currentQuery
+                                ? `/admin/applications?${currentQuery}`
+                                : "/admin/applications",
+                            },
+                          });
+                        }}
                       >
                         Review
                       </Button>

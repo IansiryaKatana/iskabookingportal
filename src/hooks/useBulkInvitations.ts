@@ -49,13 +49,8 @@ const fetchApplicationsWithPlaceholders = async (
           id,
           name
         )
-      ),
-      student_application_steps!inner (
-        step_number,
-        payload
       )
-    `)
-    .eq("student_application_steps.step_number", 2);
+    `);
 
   // Apply filters
   if (filters?.contract_id) {
@@ -109,8 +104,71 @@ const fetchApplicationsWithPlaceholders = async (
     }
   }
 
-  // Get user metadata to check account status
-  const studentIds = [...new Set(applications.map((app: any) => app.student_id))];
+  const applicationIds = applications.map((app: any) => app.id).filter(Boolean);
+  const studentIds = [...new Set(applications.map((app: any) => app.student_id).filter(Boolean))];
+
+  // Fetch step 2 payload separately so applications are not dropped when step 2 is missing
+  const step2ByApplicationId = new Map<string, any>();
+  if (applicationIds.length > 0) {
+    try {
+      const { data: step2Rows, error: step2Error } = await supabase
+        .from("student_application_steps")
+        .select("application_id, step_number, payload")
+        .in("application_id", applicationIds)
+        .eq("step_number", 2);
+
+      if (!step2Error && step2Rows) {
+        step2Rows.forEach((row: any) => {
+          step2ByApplicationId.set(row.application_id, row.payload || {});
+        });
+      } else if (step2Error) {
+        console.warn("Could not fetch step 2 payloads:", step2Error);
+      }
+    } catch (err) {
+      console.warn("Could not fetch step 2 payloads:", err);
+    }
+  }
+
+  // Fetch profile names as fallback for search and display
+  const profileMap = new Map<string, { first_name?: string | null; last_name?: string | null }>();
+  if (studentIds.length > 0) {
+    try {
+      const { data: profilesData, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name")
+        .in("id", studentIds);
+
+      if (!profilesError && profilesData) {
+        profilesData.forEach((p: any) => {
+          profileMap.set(p.id, { first_name: p.first_name, last_name: p.last_name });
+        });
+      } else if (profilesError) {
+        console.warn("Could not fetch profile names:", profilesError);
+      }
+    } catch (err) {
+      console.warn("Could not fetch profile names:", err);
+    }
+  }
+
+  // Fetch auth emails as fallback when step 2 payload does not contain email
+  const emailsMap = new Map<string, string>();
+  if (studentIds.length > 0) {
+    try {
+      const { data: emailsData, error: emailsError } = await supabase.functions.invoke("get-user-emails", {
+        body: { userIds: studentIds },
+      });
+
+      if (!emailsError && emailsData?.emails) {
+        Object.entries(emailsData.emails).forEach(([userId, email]) => {
+          emailsMap.set(userId, String(email || ""));
+        });
+      } else if (emailsError) {
+        console.warn("Could not fetch auth emails:", emailsError);
+      }
+    } catch (err) {
+      console.warn("Could not fetch auth emails:", err);
+    }
+  }
   
   // Fetch user metadata from auth.users via Edge Function
   let metadataMap: Record<string, { account_status?: string; invitation_sent_at?: string; invitation_expires_at?: string }> = {};
@@ -132,10 +190,11 @@ const fetchApplicationsWithPlaceholders = async (
 
   // Enrich applications with metadata and ensure contracts are populated
   const enriched = applications.map((app: any) => {
-    const step2 = app.student_application_steps?.find((s: any) => s.step_number === 2);
-    const email = step2?.payload?.email || "";
-    const firstName = step2?.payload?.first_name || "";
-    const lastName = step2?.payload?.last_name || "";
+    const step2Payload = step2ByApplicationId.get(app.id) || {};
+    const profile = profileMap.get(app.student_id) || {};
+    const email = (step2Payload?.email || emailsMap.get(app.student_id) || "").toString();
+    const firstName = (step2Payload?.first_name || profile.first_name || "").toString();
+    const lastName = (step2Payload?.last_name || profile.last_name || "").toString();
     const metadata = metadataMap[app.student_id] || {};
 
     // Use contract from query if available, otherwise fetch from map
@@ -151,7 +210,7 @@ const fetchApplicationsWithPlaceholders = async (
       created_at: app.created_at,
       contract: contract,
       student_email: email,
-      student_name: `${firstName} ${lastName}`.trim() || email,
+      student_name: `${firstName} ${lastName}`.trim() || email || "Student",
       // Determine account status:
       // 1. If metadata has account_status, use it (this is the source of truth)
       // 2. If no metadata, default to "pending_activation" (bulk imported users start as pending)

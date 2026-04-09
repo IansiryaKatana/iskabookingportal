@@ -4693,8 +4693,8 @@ useEffect(() => {
                   )}
                   <p className="text-sm text-muted-foreground">
                     We’ve emailed your guarantor with their own secure signing link. Let
-                    them know to check their inbox (and spam folder) for "{companyName}
-                    guarantor agreement".
+                    them know to check their inbox (and spam folder) for "Urban Hub
+                    Guarantor Agreement".
                   </p>
                 </CardContent>
               </Card>
