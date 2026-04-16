@@ -223,27 +223,42 @@ export const useAllPayments = (filters?: {
   return useQuery({
     queryKey: ["all-payments", filters],
     queryFn: async () => {
-      let query = supabase
-        .from("unified_payment_history")
-        .select("*")
-        .order("payment_date", { ascending: false });
+      const pageSize = 1000;
+      let offset = 0;
+      const allRows: UnifiedPayment[] = [];
 
-      if (filters?.contractId) {
-        query = query.eq("contract_id", filters.contractId);
-      }
-      if (filters?.academicYearId) {
-        query = query.eq("academic_year_id", filters.academicYearId);
-      }
-      if (filters?.startDate) {
-        query = query.gte("payment_date", filters.startDate);
-      }
-      if (filters?.endDate) {
-        query = query.lte("payment_date", filters.endDate);
+      while (true) {
+        let query = supabase
+          .from("unified_payment_history")
+          .select("*")
+          .order("payment_date", { ascending: false })
+          .range(offset, offset + pageSize - 1);
+
+        if (filters?.contractId) {
+          query = query.eq("contract_id", filters.contractId);
+        }
+        if (filters?.academicYearId) {
+          query = query.eq("academic_year_id", filters.academicYearId);
+        }
+        if (filters?.startDate) {
+          query = query.gte("payment_date", filters.startDate);
+        }
+        if (filters?.endDate) {
+          query = query.lte("payment_date", filters.endDate);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        const pageRows = (data || []) as UnifiedPayment[];
+        allRows.push(...pageRows);
+
+        // Stop when this page is not full; we've reached the end.
+        if (pageRows.length < pageSize) break;
+        offset += pageSize;
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return (data || []) as UnifiedPayment[];
+      return allRows;
     },
   });
 };
