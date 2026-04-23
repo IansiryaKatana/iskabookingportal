@@ -41,7 +41,9 @@ const Payments = () => {
   const [selectedInstalment, setSelectedInstalment] = useState<{
     applicationId: string;
     instalmentId: string;
-    amount: number;
+    baseAmount: number;
+    processingFee: number;
+    totalChargeAmount: number;
     label: string;
   } | null>(null);
   const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(null);
@@ -163,7 +165,7 @@ const Payments = () => {
   const createInstalmentPaymentIntent = async (
     applicationId: string,
     instalmentId: string,
-    amount: number,
+    baseAmount: number,
     label: string,
   ) => {
     if (import.meta.env.DEV) console.log("Creating instalment payment intent:", {
@@ -177,7 +179,7 @@ const Payments = () => {
     try {
       const { data, error } = await invokeCreatePayment({
         applicationId,
-        amount,
+        amount: baseAmount,
         type: "instalment",
         label,
         instalmentId,
@@ -195,9 +197,22 @@ const Payments = () => {
       if (import.meta.env.DEV) console.log("Payment intent created successfully:", {
         clientSecret: data.clientSecret?.substring(0, 20) + "...",
         amount: data.amount,
+        baseAmount: data.baseAmount,
+        processingFee: data.processingFee,
         currency: data.currency,
       });
 
+      const totalChargePence = data.totalChargeAmount ?? data.amount;
+      const baseAmountPence = data.baseAmount ?? Math.round(baseAmount * 100);
+      const processingFeePence = data.processingFee ?? Math.max(0, totalChargePence - baseAmountPence);
+      setSelectedInstalment({
+        applicationId,
+        instalmentId,
+        baseAmount: baseAmountPence / 100,
+        processingFee: processingFeePence / 100,
+        totalChargeAmount: totalChargePence / 100,
+        label,
+      });
       setPaymentClientSecret(data.clientSecret);
     } catch (error) {
       console.error("Error creating payment intent:", error);
@@ -220,7 +235,6 @@ const Payments = () => {
     amount: number,
     label: string,
   ) => {
-    setSelectedInstalment({ applicationId, instalmentId, amount, label });
     await createInstalmentPaymentIntent(applicationId, instalmentId, amount, label);
   };
 
@@ -517,7 +531,9 @@ type PaymentCardProps = {
   selectedInstalment: {
     applicationId: string;
     instalmentId: string;
-    amount: number;
+    baseAmount: number;
+    processingFee: number;
+    totalChargeAmount: number;
     label: string;
   } | null;
   paymentClientSecret: string | null;
@@ -1055,13 +1071,27 @@ const PaymentCard = ({
                       Cancel
                     </Button>
                   </div>
+                  <div className="mb-4 rounded-lg border border-border/60 bg-background/70 p-3 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Instalment amount</span>
+                      <span>£{selectedInstalment.baseAmount.toFixed(2)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Card processing fee</span>
+                      <span>£{selectedInstalment.processingFee.toFixed(2)}</span>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between border-t border-border/50 pt-2 font-semibold">
+                      <span>Total charged</span>
+                      <span>£{selectedInstalment.totalChargeAmount.toFixed(2)}</span>
+                    </div>
+                  </div>
                   <Elements
                     key={paymentClientSecret}
                     stripe={stripePromise}
                     options={{ clientSecret: paymentClientSecret }}
                   >
                     <StripePaymentForm
-                      amountPence={Math.round(selectedInstalment.amount * 100)}
+                      amountPence={Math.round(selectedInstalment.totalChargeAmount * 100)}
                       currency="GBP"
                       onSuccess={onPaymentSuccess}
                       onLoadError={() => {

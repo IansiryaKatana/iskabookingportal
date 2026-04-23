@@ -248,13 +248,16 @@ serve(async (req) => {
         // Create payment record
         const instalmentId = paymentIntent.metadata?.instalment_id;
         const label = paymentIntent.metadata?.label || "Payment";
+        const baseAmountPence = Number(paymentIntent.metadata?.base_amount_pence ?? paymentIntent.amount);
+        const grossAmountPence = paymentIntent.amount;
+        const processingFeePence = Number(paymentIntent.metadata?.processing_fee_pence ?? Math.max(0, grossAmountPence - baseAmountPence));
 
         const { error: insertError } = await supabaseAdmin
           .from("stripe_payments")
           .insert({
             student_application_id: targetApplicationId,
             stripe_payment_intent_id: paymentIntent.id,
-            amount: paymentIntent.amount / 100, // Convert from cents
+            amount: baseAmountPence / 100,
             currency: paymentIntent.currency.toUpperCase(),
             status: "succeeded",
             payment_type: paymentType,
@@ -263,7 +266,15 @@ serve(async (req) => {
               student_id: paymentIntent.metadata?.student_id,
               instalment_id: instalmentId,
               label: label,
-              amount_pounds: paymentIntent.metadata?.amount_pounds,
+              amount_pounds: String(baseAmountPence / 100),
+              base_amount_pence: String(baseAmountPence),
+              base_amount_pounds: String(baseAmountPence / 100),
+              processing_fee_pence: String(processingFeePence),
+              processing_fee_pounds: String(processingFeePence / 100),
+              gross_amount_pence: String(grossAmountPence),
+              gross_amount_pounds: String(grossAmountPence / 100),
+              fee_percent: paymentIntent.metadata?.fee_percent,
+              fee_fixed_pence: paymentIntent.metadata?.fee_fixed_pence,
               type: paymentType,
             },
           })
@@ -363,7 +374,7 @@ serve(async (req) => {
 
       syncedPayments.push({
         paymentIntentId: paymentIntent.id,
-        amount: paymentIntent.amount / 100,
+        amount: Number(paymentIntent.metadata?.base_amount_pence ?? paymentIntent.amount) / 100,
         type: paymentType,
       });
     }

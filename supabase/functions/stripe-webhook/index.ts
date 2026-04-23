@@ -94,6 +94,9 @@ serve(async (req) => {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         const applicationId = paymentIntent.metadata?.application_id;
         const paymentType = paymentIntent.metadata?.type || "deposit";
+        const baseAmountPence = Number(paymentIntent.metadata?.base_amount_pence ?? paymentIntent.amount);
+        const grossAmountPence = paymentIntent.amount;
+        const processingFeePence = Number(paymentIntent.metadata?.processing_fee_pence ?? Math.max(0, grossAmountPence - baseAmountPence));
         
         if (applicationId) {
           // Handle deposit payments
@@ -162,13 +165,21 @@ serve(async (req) => {
                 .insert({
                   student_application_id: applicationId,
                   stripe_payment_intent_id: paymentIntent.id,
-                  amount: paymentIntent.amount / 100, // Convert from cents
+                  amount: baseAmountPence / 100,
                   currency: paymentIntent.currency.toUpperCase(),
                   status: "succeeded",
                   payment_type: "deposit",
                   metadata: {
                     application_id: applicationId,
                     student_id: paymentIntent.metadata?.student_id,
+                    base_amount_pence: String(baseAmountPence),
+                    base_amount_pounds: String(baseAmountPence / 100),
+                    processing_fee_pence: String(processingFeePence),
+                    processing_fee_pounds: String(processingFeePence / 100),
+                    gross_amount_pence: String(grossAmountPence),
+                    gross_amount_pounds: String(grossAmountPence / 100),
+                    fee_percent: paymentIntent.metadata?.fee_percent,
+                    fee_fixed_pence: paymentIntent.metadata?.fee_fixed_pence,
                   },
                 })
                 .select()
@@ -198,7 +209,7 @@ serve(async (req) => {
               .insert({
                 student_application_id: applicationId,
                 stripe_payment_intent_id: paymentIntent.id,
-                amount: paymentIntent.amount / 100, // Convert from cents
+                amount: baseAmountPence / 100,
                 currency: paymentIntent.currency.toUpperCase(),
                 status: "succeeded",
                 payment_type: "instalment",
@@ -207,7 +218,15 @@ serve(async (req) => {
                   student_id: paymentIntent.metadata?.student_id,
                   instalment_id: instalmentId,
                   label: label,
-                  amount_pounds: paymentIntent.metadata?.amount_pounds,
+                  amount_pounds: String(baseAmountPence / 100),
+                  base_amount_pence: String(baseAmountPence),
+                  base_amount_pounds: String(baseAmountPence / 100),
+                  processing_fee_pence: String(processingFeePence),
+                  processing_fee_pounds: String(processingFeePence / 100),
+                  gross_amount_pence: String(grossAmountPence),
+                  gross_amount_pounds: String(grossAmountPence / 100),
+                  fee_percent: paymentIntent.metadata?.fee_percent,
+                  fee_fixed_pence: paymentIntent.metadata?.fee_fixed_pence,
                 },
               })
               .select()

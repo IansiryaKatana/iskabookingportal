@@ -688,7 +688,10 @@ const ApplicationDetail = () => {
       console.error("Failed to update status:", error);
       toast({
         title: "Error",
-        description: "Failed to update application status.",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to update application status.",
         variant: "destructive",
       });
     }

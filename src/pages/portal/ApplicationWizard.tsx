@@ -43,6 +43,7 @@ import { invokeCreatePayment } from "@/utils/invokeCreatePayment";
 import { useToast } from "@/hooks/use-toast";
 import { useBrandingSettings } from "@/hooks/useBranding";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Elements } from "@stripe/react-stripe-js";
@@ -112,6 +113,29 @@ const entryOptions = [
   "International Student - Visa Pending",
   "International Student - Visa Granted",
 ];
+
+type RebookingVerificationSection =
+  | "personal"
+  | "contact"
+  | "academic"
+  | "documentation"
+  | "payment";
+
+const REBOOKING_STEP_TO_SECTION: Record<number, RebookingVerificationSection> = {
+  1: "personal",
+  2: "contact",
+  3: "academic",
+  4: "documentation",
+  5: "payment",
+};
+
+const REBOOKING_SECTION_LABEL: Record<RebookingVerificationSection, string> = {
+  personal: "personal details",
+  contact: "contact details",
+  academic: "academic details",
+  documentation: "documents",
+  payment: "payment and guarantor details",
+};
 
 type PaymentPlanInstallment =
   Database["public"]["Tables"]["payment_plan_installments"]["Row"];
@@ -392,6 +416,8 @@ const StudentApplicationWizard = () => {
     null,
   );
   const [paymentAmount, setPaymentAmount] = useState<number | null>(null);
+  const [paymentBaseAmount, setPaymentBaseAmount] = useState<number | null>(null);
+  const [paymentProcessingFee, setPaymentProcessingFee] = useState<number | null>(null);
   const [paymentCurrency, setPaymentCurrency] = useState<string>("GBP");
   const [creatingIntent, setCreatingIntent] = useState(false);
   const [signingLoading, setSigningLoading] = useState(false);
@@ -408,6 +434,18 @@ const StudentApplicationWizard = () => {
   const [uploadingTenancy, setUploadingTenancy] = useState(false);
   const [uploadingGuarantor, setUploadingGuarantor] = useState(false);
   const [countryOpen, setCountryOpen] = useState(false);
+  const [rebookingVerification, setRebookingVerification] = useState<
+    Record<RebookingVerificationSection, boolean>
+  >({
+    personal: false,
+    contact: false,
+    academic: false,
+    documentation: false,
+    payment: false,
+  });
+  const [rebookingVerificationErrors, setRebookingVerificationErrors] = useState<
+    Partial<Record<RebookingVerificationSection, string>>
+  >({});
   const [uploadStates, setUploadStates] = useState<Record<string, UploadState>>(
     {},
   );
@@ -516,6 +554,109 @@ const StudentApplicationWizard = () => {
     if (!applicationId) return;
     writeStoredStep(applicationId, currentStep);
   }, [applicationId, currentStep]);
+
+  useEffect(() => {
+    if (!application?.is_rebooking) {
+      setRebookingVerification({
+        personal: false,
+        contact: false,
+        academic: false,
+        documentation: false,
+        payment: false,
+      });
+      setRebookingVerificationErrors({});
+      return;
+    }
+
+    const confirmed: Record<RebookingVerificationSection, boolean> = {
+      personal: false,
+      contact: false,
+      academic: false,
+      documentation: false,
+      payment: false,
+    };
+
+    (application.student_application_steps ?? []).forEach((step) => {
+      const section = REBOOKING_STEP_TO_SECTION[step.step_number];
+      if (!section) return;
+
+      const payload =
+        typeof step.payload === "object" && step.payload !== null
+          ? (step.payload as Record<string, unknown>)
+          : {};
+      const isPayloadConfirmed = payload.rebooking_section_confirmed === true;
+      if (step.is_complete || isPayloadConfirmed) {
+        confirmed[section] = true;
+      }
+    });
+
+    setRebookingVerification(confirmed);
+    setRebookingVerificationErrors({});
+  }, [application?.is_rebooking, application?.student_application_steps]);
+
+  const requireRebookingVerification = useCallback(
+    (section: RebookingVerificationSection) => {
+      if (!application?.is_rebooking) return true;
+      if (rebookingVerification[section]) return true;
+
+      const sectionLabel = REBOOKING_SECTION_LABEL[section];
+      const message = `Please confirm your ${sectionLabel} before continuing.`;
+      setRebookingVerificationErrors((prev) => ({
+        ...prev,
+        [section]: message,
+      }));
+      toast({
+        variant: "destructive",
+        title: "Review required for rebooking",
+        description: message,
+      });
+      return false;
+    },
+    [application?.is_rebooking, rebookingVerification, toast],
+  );
+
+  const renderRebookingVerification = useCallback(
+    (section: RebookingVerificationSection) => {
+      if (!application?.is_rebooking) return null;
+      const sectionLabel = REBOOKING_SECTION_LABEL[section];
+      const checkboxId = `rebooking-verify-${section}`;
+
+      return (
+        <div className="space-y-2 rounded-2xl border border-primary/25 bg-primary/5 p-4">
+          <div className="flex items-start gap-3">
+            <Checkbox
+              id={checkboxId}
+              checked={rebookingVerification[section]}
+              onCheckedChange={(checked) => {
+                const isChecked = checked === true;
+                setRebookingVerification((prev) => ({
+                  ...prev,
+                  [section]: isChecked,
+                }));
+                if (isChecked) {
+                  setRebookingVerificationErrors((prev) => {
+                    if (!prev[section]) return prev;
+                    const next = { ...prev };
+                    delete next[section];
+                    return next;
+                  });
+                }
+              }}
+            />
+            <Label htmlFor={checkboxId} className="text-sm leading-relaxed">
+              I have reviewed these pre-filled {sectionLabel} and confirmed they are up to date.
+            </Label>
+          </div>
+          {rebookingVerificationErrors[section] && (
+            <p className="text-xs text-destructive">
+              {rebookingVerificationErrors[section]}
+            </p>
+          )}
+        </div>
+      );
+    },
+    [application?.is_rebooking, rebookingVerification, rebookingVerificationErrors],
+  );
 
   // populated later once upload field state exists
 
@@ -1441,6 +1582,7 @@ useEffect(() => {
     event: React.FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault();
+    if (!requireRebookingVerification("personal")) return;
     
     // Validate referral code if provided
     if (personalValues.referral_code?.trim()) {
@@ -1504,7 +1646,12 @@ useEffect(() => {
     }
     
     // Save to application steps (existing workflow)
-    await handleStepSubmit(1, sanitized);
+    await handleStepSubmit(1, {
+      ...sanitized,
+      rebooking_section_confirmed: application?.is_rebooking
+        ? rebookingVerification.personal
+        : undefined,
+    });
 
     // Sync first_name and last_name to profiles only when the applicant is the logged-in user.
     // When staff create an application on behalf of a student, do NOT update the staff's profile with the student's name.
@@ -1539,6 +1686,7 @@ useEffect(() => {
     event: React.FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault();
+    if (!requireRebookingVerification("contact")) return;
     const parsed = contactSchema.safeParse(contactValues);
     if (!parsed.success) {
       setContactErrors(
@@ -1557,7 +1705,12 @@ useEffect(() => {
     setContactErrors({});
     
     // Save to application steps (existing workflow)
-    await handleStepSubmit(2, sanitized);
+    await handleStepSubmit(2, {
+      ...sanitized,
+      rebooking_section_confirmed: application?.is_rebooking
+        ? rebookingVerification.contact
+        : undefined,
+    });
     
     // Sync email to auth user if changed and user is the student (self-service journey)
     if (sanitized.email && user?.email && sanitized.email !== user.email && application?.student_id === user.id) {
@@ -1658,6 +1811,7 @@ useEffect(() => {
     event: React.FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault();
+    if (!requireRebookingVerification("academic")) return;
     const parsed = academicSchema.safeParse(academicValues);
     if (!parsed.success) {
       setAcademicErrors(
@@ -1674,13 +1828,19 @@ useEffect(() => {
     const sanitized = parsed.data;
     setAcademicValues(sanitized);
     setAcademicErrors({});
-    await handleStepSubmit(3, sanitized);
+    await handleStepSubmit(3, {
+      ...sanitized,
+      rebooking_section_confirmed: application?.is_rebooking
+        ? rebookingVerification.academic
+        : undefined,
+    });
   };
 
   const handleDocumentationSubmit = async (
     event: React.FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault();
+    if (!requireRebookingVerification("documentation")) return;
     const parsed = documentationSchema.safeParse(documentationValues);
     if (!parsed.success) {
       setDocumentationErrors(
@@ -1794,7 +1954,12 @@ useEffect(() => {
       }
     }
 
-    await handleStepSubmit(4, sanitized);
+    await handleStepSubmit(4, {
+      ...sanitized,
+      rebooking_section_confirmed: application?.is_rebooking
+        ? rebookingVerification.documentation
+        : undefined,
+    });
   };
 
   const linkPayment = useLinkPaymentToApplication();
@@ -1803,6 +1968,7 @@ useEffect(() => {
     event: React.FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault();
+    if (!requireRebookingVerification("payment")) return;
     if (!application) return;
     
     // Check if deposit is paid OR payment is verified (but not yet linked)
@@ -2039,7 +2205,12 @@ useEffect(() => {
       }
     }
 
-    await handleStepSubmit(5, sanitized);
+    await handleStepSubmit(5, {
+      ...sanitized,
+      rebooking_section_confirmed: application?.is_rebooking
+        ? rebookingVerification.payment
+        : undefined,
+    });
 
     if (!application.id) {
       toast({
@@ -2506,7 +2677,12 @@ useEffect(() => {
     }
 
     setPaymentClientSecret(data.clientSecret);
-    setPaymentAmount(data.amount);
+    setPaymentAmount(data.totalChargeAmount ?? data.amount);
+    setPaymentBaseAmount(data.baseAmount ?? Math.round(depositValue * 100));
+    setPaymentProcessingFee(
+      data.processingFee ??
+        Math.max(0, (data.totalChargeAmount ?? data.amount ?? 0) - (data.baseAmount ?? Math.round(depositValue * 100))),
+    );
     setPaymentCurrency((data.currency ?? "GBP").toUpperCase());
   };
 
@@ -2862,6 +3038,9 @@ useEffect(() => {
     }));
 
     setPaymentClientSecret(null);
+    setPaymentAmount(null);
+    setPaymentBaseAmount(null);
+    setPaymentProcessingFee(null);
     
     // Refetch to get updated application state
     await refetchApplication();
@@ -3181,6 +3360,7 @@ useEffect(() => {
                 )}
               </div>
             </div>
+            {renderRebookingVerification("personal")}
             <div className="flex items-center justify-end gap-2">
               <Button
                 type="submit"
@@ -3302,6 +3482,7 @@ useEffect(() => {
                 )}
               </div>
             </div>
+            {renderRebookingVerification("contact")}
             <div className="flex items-center justify-between">
               <Button
                 type="button"
@@ -3485,6 +3666,7 @@ useEffect(() => {
                 )}
               </div>
             </div>
+            {renderRebookingVerification("academic")}
             <div className="flex items-center justify-between">
               <Button
                 type="button"
@@ -3600,6 +3782,7 @@ useEffect(() => {
                   },
                 })}
             </div>
+            {renderRebookingVerification("documentation")}
             <div className="flex items-center justify-between">
               <Button
                 type="button"
@@ -4182,6 +4365,22 @@ useEffect(() => {
                     stripe={stripePromise}
                     options={{ clientSecret: paymentClientSecret }}
                   >
+                    {paymentAmount !== null && (
+                      <div className="mb-4 rounded-lg border border-border/60 bg-muted/20 p-3 text-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Deposit amount</span>
+                          <span>£{((paymentBaseAmount ?? Math.round(depositValue * 100)) / 100).toFixed(2)}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Card processing fee</span>
+                          <span>£{((paymentProcessingFee ?? 0) / 100).toFixed(2)}</span>
+                        </div>
+                        <div className="mt-2 flex items-center justify-between border-t border-border/60 pt-2 font-semibold">
+                          <span>Total charged</span>
+                          <span>£{(paymentAmount / 100).toFixed(2)}</span>
+                        </div>
+                      </div>
+                    )}
                     <StripePaymentForm
                       amountPence={
                         paymentAmount ?? Math.round(depositValue * 100)
@@ -4191,6 +4390,9 @@ useEffect(() => {
                       onLoadError={() => {
                         setPaymentClientSecret(null);
                         setCreatingIntent(false);
+                        setPaymentAmount(null);
+                        setPaymentBaseAmount(null);
+                        setPaymentProcessingFee(null);
                       }}
                     />
                   </Elements>
@@ -4206,6 +4408,8 @@ useEffect(() => {
                 )}
               </CardContent>
             </Card>
+
+            {renderRebookingVerification("payment")}
 
             <div className="flex items-center justify-between">
               <Button

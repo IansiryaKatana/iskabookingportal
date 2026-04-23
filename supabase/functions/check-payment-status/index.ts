@@ -175,7 +175,7 @@ serve(async (req) => {
       .map((pi) => ({
         instalmentId: pi.metadata!.instalment_id as string,
         paymentIntentId: pi.id,
-        amount: pi.amount / 100,
+        amount: Number(pi.metadata?.base_amount_pence ?? pi.amount) / 100,
         paidAt: new Date(pi.created * 1000).toISOString(),
       }));
 

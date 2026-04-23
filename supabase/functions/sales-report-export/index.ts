@@ -5,10 +5,26 @@ import { getCorsHeaders, handleCorsPrelight } from "../_shared/cors.ts";
 
 interface SalesReportRequest {
   academicYearId?: string;
+  statuses?: Array<"confirmed" | "awaiting_deposit" | "awaiting_signature" | "awaiting_verification">;
 }
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ALLOWED_STATUSES = [
+  "confirmed",
+  "awaiting_deposit",
+  "awaiting_signature",
+  "awaiting_verification",
+] as const;
+type AllowedStatus = (typeof ALLOWED_STATUSES)[number];
+
+const sanitizeStatuses = (statuses?: SalesReportRequest["statuses"]): AllowedStatus[] => {
+  if (!statuses?.length) return [...ALLOWED_STATUSES];
+  const valid = statuses.filter((status): status is AllowedStatus =>
+    ALLOWED_STATUSES.includes(status),
+  );
+  return valid.length ? valid : [...ALLOWED_STATUSES];
+};
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -76,6 +92,7 @@ serve(async (req) => {
       body.academicYearId && UUID_REGEX.test(body.academicYearId)
         ? body.academicYearId
         : undefined;
+    const statuses = sanitizeStatuses(body.statuses);
 
     // -----------------------------------------------------------------------
     // Fetch data from reporting views
@@ -86,6 +103,7 @@ serve(async (req) => {
     if (academicYearId) {
       demographicsQuery = demographicsQuery.eq("academic_year_id", academicYearId);
     }
+    demographicsQuery = demographicsQuery.in("application_status", statuses);
     const { data: demographics, error: demographicsError } = await demographicsQuery;
     if (demographicsError) throw demographicsError;
 
@@ -142,7 +160,7 @@ serve(async (req) => {
       ["Generated At", generatedAt.toISOString()],
       [],
       ["Metric", "Value"],
-      ["Total Confirmed Contracts", totalContracts],
+      ["Total Contracts (Selected Statuses)", totalContracts],
       ["Total Sales Value", totalSalesValue],
       ["Total Summer Sales Value", totalSummerSales],
       ["Total Rebooker Contracts", totalRebookers],
@@ -224,6 +242,7 @@ serve(async (req) => {
       "Partner Commission",
       "Rebooker",
       "Summer Sales Value",
+      "Application Status",
     ];
 
     const demographicsRows = [
@@ -257,6 +276,7 @@ serve(async (req) => {
         row.partner_commission,
         row.is_rebooker,
         row.summer_sales_value,
+        row.application_status,
       ]),
     ];
     const demographicsSheet = XLSX.utils.aoa_to_sheet(demographicsRows);

@@ -758,6 +758,10 @@ const Applications = () => {
       toast({
         variant: "destructive",
         title: "Unable to update status",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to update application status.",
       });
     }
   };

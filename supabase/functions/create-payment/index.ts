@@ -6,6 +6,7 @@ import {
   createCustomer,
   createPaymentIntent,
 } from "../_shared/stripe_rest.ts";
+import { calculateGrossAmountForNet } from "../_shared/stripe_fee.ts";
 
 const stripeSecret = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -144,18 +145,20 @@ serve(async (req) => {
       }
 
       // Amount is in pounds, convert to pence
-      const paymentAmount = typeof amount === "number" 
+      const baseAmountPence = typeof amount === "number" 
         ? Math.round(amount * 100) 
         : Math.round(parseFloat(String(amount)) * 100);
+      const feeQuote = calculateGrossAmountForNet(baseAmountPence);
       
-      console.log("Payment amount calculated:", {
+      console.log("Instalment amount calculated:", {
         originalAmount: amount,
-        paymentAmountPence: paymentAmount,
-        paymentAmountPounds: paymentAmount / 100,
+        baseAmountPence: feeQuote.netAmountPence,
+        processingFeePence: feeQuote.processingFeePence,
+        grossAmountPence: feeQuote.grossAmountPence,
       });
       
       // Verify we're not accidentally using deposit amount
-      if (paymentAmount === 9900) {
+      if (feeQuote.netAmountPence === 9900) {
         console.error("WARNING: Payment amount is £99 (deposit amount)! This should not happen for instalments.");
         console.error("Original amount received:", amount);
       }
@@ -194,7 +197,7 @@ serve(async (req) => {
       }
 
       const piRes = await createPaymentIntent(stripeSecret, {
-        amount: paymentAmount,
+        amount: feeQuote.grossAmountPence,
         currency: "gbp",
         customer: customerId,
         receipt_email: user.email ?? undefined,
@@ -206,7 +209,15 @@ serve(async (req) => {
           type: "instalment",
           instalment_id: instalmentId || "",
           label: label || "",
-          amount_pounds: String(amount),
+          amount_pounds: String(feeQuote.netAmountPence / 100),
+          base_amount_pence: String(feeQuote.netAmountPence),
+          base_amount_pounds: String(feeQuote.netAmountPence / 100),
+          processing_fee_pence: String(feeQuote.processingFeePence),
+          processing_fee_pounds: String(feeQuote.processingFeePence / 100),
+          gross_amount_pence: String(feeQuote.grossAmountPence),
+          gross_amount_pounds: String(feeQuote.grossAmountPence / 100),
+          fee_percent: String(feeQuote.feePercent),
+          fee_fixed_pence: String(feeQuote.fixedFeePence),
         },
       });
       if (piRes.error || !piRes.data) {
@@ -230,7 +241,10 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           clientSecret: paymentIntent.client_secret,
-          amount: paymentAmount,
+          amount: feeQuote.grossAmountPence,
+          baseAmount: feeQuote.netAmountPence,
+          processingFee: feeQuote.processingFeePence,
+          totalChargeAmount: feeQuote.grossAmountPence,
           currency: "GBP",
         }),
         {
@@ -269,7 +283,8 @@ serve(async (req) => {
       );
     }
 
-    const depositAmount = Math.round(depositValue * 100);
+    const depositAmountPence = Math.round(depositValue * 100);
+    const feeQuote = calculateGrossAmountForNet(depositAmountPence);
 
     const { data: profile } = await supabaseAdmin
       .from("profiles")
@@ -306,7 +321,7 @@ serve(async (req) => {
     }
 
     const piRes = await createPaymentIntent(stripeSecret, {
-      amount: depositAmount,
+      amount: feeQuote.grossAmountPence,
       currency: "gbp",
       customer: customerId,
       receipt_email: user.email ?? undefined,
@@ -316,6 +331,14 @@ serve(async (req) => {
         student_id: application.student_id,
         contract_id: application.contract?.id ?? "",
         type: "deposit",
+        base_amount_pence: String(feeQuote.netAmountPence),
+        base_amount_pounds: String(feeQuote.netAmountPence / 100),
+        processing_fee_pence: String(feeQuote.processingFeePence),
+        processing_fee_pounds: String(feeQuote.processingFeePence / 100),
+        gross_amount_pence: String(feeQuote.grossAmountPence),
+        gross_amount_pounds: String(feeQuote.grossAmountPence / 100),
+        fee_percent: String(feeQuote.feePercent),
+        fee_fixed_pence: String(feeQuote.fixedFeePence),
       },
     });
     if (piRes.error || !piRes.data) {
@@ -341,7 +364,10 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         clientSecret: paymentIntent.client_secret,
-        amount: depositAmount,
+        amount: feeQuote.grossAmountPence,
+        baseAmount: feeQuote.netAmountPence,
+        processingFee: feeQuote.processingFeePence,
+        totalChargeAmount: feeQuote.grossAmountPence,
         currency: "GBP",
       }),
       {

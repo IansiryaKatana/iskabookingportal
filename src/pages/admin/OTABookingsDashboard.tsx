@@ -91,6 +91,14 @@ const CHANNELS = [
   { value: "other", label: "Other" },
 ];
 
+const SORT_OPTIONS = [
+  { value: "operational", label: "Operational" },
+  { value: "check_in_asc", label: "Check-in (Earliest)" },
+  { value: "check_out_asc", label: "Check-out (Earliest)" },
+  { value: "created_desc", label: "Newest Created" },
+  { value: "revenue_desc", label: "Highest Revenue" },
+];
+
 // Status Badge Helper
 const getStatusBadge = (status: string) => {
   const configs: Record<string, { className: string; icon: typeof Clock; label: string }> = {
@@ -146,7 +154,30 @@ const OTABookingsDashboard = () => {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [channelFilter, setChannelFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [sortBy, setSortBy] = useState<string>("operational");
+  const [checkInFromFilter, setCheckInFromFilter] = useState<string>("");
+  const [checkInToFilter, setCheckInToFilter] = useState<string>("");
+  const [unallocatedOnly, setUnallocatedOnly] = useState<boolean>(false);
   const [selectedBookings, setSelectedBookings] = useState<Set<string>>(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const [checkInRangeOpen, setCheckInRangeOpen] = useState(false);
+  const bookingsPerPage = 18;
+  const hasActiveFilters =
+    statusFilter !== "all" ||
+    channelFilter !== "all" ||
+    searchQuery.trim().length > 0 ||
+    checkInFromFilter !== "" ||
+    checkInToFilter !== "" ||
+    unallocatedOnly ||
+    sortBy !== "operational";
+  const checkInRangeLabel =
+    checkInFromFilter && checkInToFilter
+      ? `${format(parseISO(checkInFromFilter), "MMM d")} - ${format(parseISO(checkInToFilter), "MMM d, yyyy")}`
+      : checkInFromFilter
+        ? `From ${format(parseISO(checkInFromFilter), "MMM d, yyyy")}`
+        : checkInToFilter
+          ? `Until ${format(parseISO(checkInToFilter), "MMM d, yyyy")}`
+          : "Check-in Date Range";
   
   // Details drawer/sheet
   const [selectedBooking, setSelectedBooking] = useState<OTABookingWithRelations | null>(null);
@@ -336,8 +367,79 @@ const OTABookingsDashboard = () => {
       );
     }
 
-    return filtered;
-  }, [bookings, statusFilter, channelFilter, searchQuery]);
+    if (unallocatedOnly) {
+      filtered = filtered.filter((b) => !b.studio_id);
+    }
+
+    if (checkInFromFilter) {
+      filtered = filtered.filter((b) => b.check_in >= checkInFromFilter);
+    }
+
+    if (checkInToFilter) {
+      filtered = filtered.filter((b) => b.check_in <= checkInToFilter);
+    }
+
+    return [...filtered].sort((a, b) => {
+      if (sortBy === "check_in_asc") {
+        return parseISO(a.check_in).getTime() - parseISO(b.check_in).getTime();
+      }
+
+      if (sortBy === "check_out_asc") {
+        return parseISO(a.check_out).getTime() - parseISO(b.check_out).getTime();
+      }
+
+      if (sortBy === "created_desc") {
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }
+
+      if (sortBy === "revenue_desc") {
+        return (b.total_revenue ?? 0) - (a.total_revenue ?? 0);
+      }
+
+      // Default: operational sorting
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const aCheckIn = parseISO(a.check_in);
+      const bCheckIn = parseISO(b.check_in);
+      const aCheckOut = parseISO(a.check_out);
+      const bCheckOut = parseISO(b.check_out);
+
+      const aIsPast = aCheckOut < today;
+      const bIsPast = bCheckOut < today;
+
+      if (aIsPast !== bIsPast) {
+        return aIsPast ? 1 : -1;
+      }
+
+      // Both upcoming/current: nearest check-in first, then nearest check-out
+      if (!aIsPast && !bIsPast) {
+        if (aCheckIn.getTime() !== bCheckIn.getTime()) {
+          return aCheckIn.getTime() - bCheckIn.getTime();
+        }
+        return aCheckOut.getTime() - bCheckOut.getTime();
+      }
+
+      // Both past: latest check-out first
+      return bCheckOut.getTime() - aCheckOut.getTime();
+    });
+  }, [bookings, statusFilter, channelFilter, searchQuery, checkInFromFilter, checkInToFilter, unallocatedOnly, sortBy]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredBookings.length / bookingsPerPage));
+  const paginatedBookings = useMemo(() => {
+    const startIndex = (currentPage - 1) * bookingsPerPage;
+    return filteredBookings.slice(startIndex, startIndex + bookingsPerPage);
+  }, [filteredBookings, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, channelFilter, searchQuery, checkInFromFilter, checkInToFilter, unallocatedOnly, sortBy]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   // Stats calculation
   const stats = useMemo(() => {
@@ -768,24 +870,53 @@ const OTABookingsDashboard = () => {
         {/* Filters and Bulk Actions */}
         <Card className="rounded-3xl border border-border/60 shadow-xl">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base md:text-lg font-display font-bold uppercase tracking-wide">
-              <Filter className="h-4 w-4 md:h-5 md:w-5" />
-              Filters & Actions
-            </CardTitle>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle className="flex items-center gap-2 text-base md:text-lg font-display font-bold uppercase tracking-wide">
+                <Filter className="h-4 w-4 md:h-5 md:w-5" />
+                Filters & Actions
+              </CardTitle>
+              <div className="hidden lg:flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant={unallocatedOnly ? "default" : "outline"}
+                  onClick={() => setUnallocatedOnly((prev) => !prev)}
+                  className="rounded-full"
+                >
+                  {unallocatedOnly ? "Unallocated Only: ON" : "Unallocated Only"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setStatusFilter("all");
+                    setChannelFilter("all");
+                    setSearchQuery("");
+                    setSortBy("operational");
+                    setCheckInFromFilter("");
+                    setCheckInToFilter("");
+                    setUnallocatedOnly(false);
+                    setSelectedBookings(new Set());
+                  }}
+                  className="rounded-full"
+                  disabled={!hasActiveFilters}
+                >
+                  Clear Filters
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs md:text-sm">Search</Label>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 gap-3 items-center">
+                <div className="xl:col-span-3">
                 <Input
                   placeholder="Ref, guest name, studio..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="rounded-full text-sm md:text-base"
                 />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs md:text-sm">Status</Label>
+                </div>
+                <div className="xl:col-span-2">
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="rounded-full">
                     <SelectValue />
@@ -798,9 +929,8 @@ const OTABookingsDashboard = () => {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs md:text-sm">Channel</Label>
+                </div>
+                <div className="xl:col-span-2">
                 <Select value={channelFilter} onValueChange={setChannelFilter}>
                   <SelectTrigger className="rounded-full">
                     <SelectValue />
@@ -813,6 +943,99 @@ const OTABookingsDashboard = () => {
                     ))}
                   </SelectContent>
                 </Select>
+                </div>
+                <div className="xl:col-span-3">
+                  <Popover open={checkInRangeOpen} onOpenChange={setCheckInRangeOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="rounded-full w-full justify-start text-left font-normal"
+                      >
+                        {checkInRangeLabel}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[320px] p-4" align="end">
+                      <div className="space-y-3">
+                        <Input
+                          type="date"
+                          value={checkInFromFilter}
+                          onChange={(e) => setCheckInFromFilter(e.target.value)}
+                          className="rounded-full text-sm"
+                        />
+                        <Input
+                          type="date"
+                          value={checkInToFilter}
+                          onChange={(e) => setCheckInToFilter(e.target.value)}
+                          className="rounded-full text-sm"
+                        />
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="rounded-full"
+                            onClick={() => {
+                              setCheckInFromFilter("");
+                              setCheckInToFilter("");
+                            }}
+                          >
+                            Reset
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="rounded-full"
+                            onClick={() => setCheckInRangeOpen(false)}
+                          >
+                            Done
+                          </Button>
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="xl:col-span-2">
+                <Select value={sortBy} onValueChange={setSortBy}>
+                  <SelectTrigger className="rounded-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SORT_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 lg:hidden">
+                <Button
+                  type="button"
+                  variant={unallocatedOnly ? "default" : "outline"}
+                  onClick={() => setUnallocatedOnly((prev) => !prev)}
+                  className="rounded-full"
+                >
+                  {unallocatedOnly ? "Unallocated Only: ON" : "Unallocated Only"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setStatusFilter("all");
+                    setChannelFilter("all");
+                    setSearchQuery("");
+                    setSortBy("operational");
+                    setCheckInFromFilter("");
+                    setCheckInToFilter("");
+                    setUnallocatedOnly(false);
+                    setSelectedBookings(new Set());
+                  }}
+                  className="rounded-full"
+                  disabled={!hasActiveFilters}
+                >
+                  Clear Filters
+                </Button>
               </div>
               {selectedBookings.size > 0 && (
                 <div className="flex flex-col gap-2">
@@ -888,12 +1111,19 @@ const OTABookingsDashboard = () => {
                         {isReservationist && (
                           <TableHead className="w-12">
                             <Checkbox
-                              checked={selectedBookings.size === filteredBookings.length && filteredBookings.length > 0}
+                              checked={
+                                paginatedBookings.length > 0 &&
+                                paginatedBookings.every((booking) => selectedBookings.has(booking.id))
+                              }
                               onCheckedChange={(checked) => {
                                 if (checked) {
-                                  setSelectedBookings(new Set(filteredBookings.map((b) => b.id)));
+                                  const newSet = new Set(selectedBookings);
+                                  paginatedBookings.forEach((booking) => newSet.add(booking.id));
+                                  setSelectedBookings(newSet);
                                 } else {
-                                  setSelectedBookings(new Set());
+                                  const newSet = new Set(selectedBookings);
+                                  paginatedBookings.forEach((booking) => newSet.delete(booking.id));
+                                  setSelectedBookings(newSet);
                                 }
                               }}
                             />
@@ -909,7 +1139,7 @@ const OTABookingsDashboard = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredBookings.map((booking) => (
+                      {paginatedBookings.map((booking) => (
                         <TableRow
                           key={booking.id}
                           className="hover:bg-accent/50 cursor-pointer"
@@ -967,7 +1197,7 @@ const OTABookingsDashboard = () => {
 
                 {/* Mobile: Cards */}
                 <div className="md:hidden space-y-4">
-                  {filteredBookings.map((booking) => (
+                  {paginatedBookings.map((booking) => (
                     <Card
                       key={booking.id}
                       className="rounded-2xl border border-border/60 cursor-pointer hover:shadow-md transition-shadow"
@@ -1007,6 +1237,38 @@ const OTABookingsDashboard = () => {
                     </Card>
                   ))}
                 </div>
+
+                {filteredBookings.length > bookingsPerPage && (
+                  <div className="mt-6 flex items-center justify-between gap-3">
+                    <p className="text-xs text-muted-foreground md:text-sm">
+                      Showing {(currentPage - 1) * bookingsPerPage + 1}-
+                      {Math.min(currentPage * bookingsPerPage, filteredBookings.length)} of {filteredBookings.length}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="rounded-full"
+                        onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                        disabled={currentPage === 1}
+                      >
+                        Previous
+                      </Button>
+                      <span className="text-xs text-muted-foreground md:text-sm">
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="rounded-full"
+                        onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                        disabled={currentPage === totalPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </CardContent>
@@ -1394,7 +1656,7 @@ const OTABookingsDashboard = () => {
               <Button 
                 onClick={handleCreateBooking} 
                 className="rounded-full"
-                disabled={createBooking.isPending}
+                disabled={createBooking.isPending || (conflictingBookings.length > 0 && !!formCheckIn && !!formCheckOut)}
               >
                 {createBooking.isPending ? (
                   <>

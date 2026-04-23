@@ -199,14 +199,60 @@ export const useUpdateApplicationStatus = () => {
     }) => {
       const { id, status, ...rest } = payload;
       
-      // Get current application to check if status is changing to confirmed
+      // Get current application state and payment marker before changing status.
       const { data: currentApp } = await supabase
         .from("student_applications")
-        .select("status, student_id, contract:contracts!contract_id(contract_start), assigned_studio:studios(studio_number)")
+        .select("status, student_id, deposit_payment_intent_id, contract:contracts!contract_id(contract_start), assigned_studio:studios(studio_number)")
         .eq("id", id)
         .single();
 
       const oldStatus = currentApp?.status;
+      const nextStatus = status;
+
+      // Guard rails: workflow status must align with real deposit records.
+      // We intentionally do not auto-create or auto-delete financial records from status changes.
+      const { data: manualDeposit } = await supabase
+        .from("manual_payments")
+        .select("id")
+        .eq("application_id", id)
+        .eq("payment_type", "deposit")
+        .limit(1)
+        .maybeSingle();
+
+      const { data: stripeDeposit } = await supabase
+        .from("stripe_payments")
+        .select("id")
+        .eq("student_application_id", id)
+        .eq("payment_type", "deposit")
+        .in("status", ["succeeded", "completed"])
+        .limit(1)
+        .maybeSingle();
+
+      const hasRecordedDeposit =
+        Boolean(currentApp?.deposit_payment_intent_id) ||
+        Boolean(manualDeposit?.id) ||
+        Boolean(stripeDeposit?.id);
+
+      const statusesRequiringDeposit: ApplicationRow["status"][] = [
+        "awaiting_signature",
+        "confirmed",
+      ];
+
+      if (
+        oldStatus === "awaiting_deposit" &&
+        statusesRequiringDeposit.includes(nextStatus) &&
+        !hasRecordedDeposit
+      ) {
+        throw new Error(
+          "Cannot move out of Awaiting Deposit: no deposit payment record exists yet. Record a deposit first."
+        );
+      }
+
+      if (nextStatus === "awaiting_deposit" && hasRecordedDeposit) {
+        throw new Error(
+          "This application already has a recorded deposit. Reverse/refund the deposit first, then move back to Awaiting Deposit."
+        );
+      }
 
       const { data, error } = await supabase
         .from("student_applications")
@@ -268,42 +314,6 @@ export const useUpdateApplicationStatus = () => {
         } catch (emailError) {
           console.error("Error sending confirmation email:", emailError);
           // Don't fail the status update if email fails
-        }
-      }
-
-      // When reverting confirmed → awaiting_deposit: remove deposit record created at bulk import so staff can record the real payment.
-      // Only runs when transition is confirmed → awaiting_deposit (not draft → awaiting_deposit or other paths). Only the import placeholder is removed (notes = 'Historical deposit payment (imported)').
-      if (status === "awaiting_deposit" && oldStatus === "confirmed") {
-        const { data: importDeposit } = await supabase
-          .from("manual_payments")
-          .select("id")
-          .eq("application_id", id)
-          .eq("payment_type", "deposit")
-          .eq("notes", "Historical deposit payment (imported)")
-          .limit(1)
-          .maybeSingle();
-
-        if (importDeposit) {
-          await supabase.from("manual_payments").delete().eq("id", importDeposit.id);
-          await supabase
-            .from("student_applications")
-            .update({ deposit_payment_intent_id: null })
-            .eq("id", id);
-
-          const { data: step5 } = await supabase
-            .from("student_application_steps")
-            .select("id, payload")
-            .eq("application_id", id)
-            .eq("step_number", 5)
-            .single();
-
-          if (step5?.payload && typeof step5.payload === "object") {
-            const updatedPayload = { ...(step5.payload as Record<string, unknown>), deposit_paid: false };
-            await supabase
-              .from("student_application_steps")
-              .update({ payload: updatedPayload })
-              .eq("id", step5.id);
-          }
         }
       }
 

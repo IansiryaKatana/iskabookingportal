@@ -5,7 +5,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { useSalesDemographicsReport, useSalesOccupancyMonthly, useSalesRebookersMonthly, useDownloadSalesReport, useSalesReportCashSummary } from "@/hooks/useSalesReports";
+import {
+  useSalesDemographicsReport,
+  useSalesOccupancyMonthly,
+  useSalesRebookersMonthly,
+  useDownloadSalesReport,
+  useSalesReportCashSummary,
+  SALES_REPORT_ALLOWED_STATUSES,
+  type SalesReportStatus,
+} from "@/hooks/useSalesReports";
 import { useToast } from "@/hooks/use-toast";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from "@/components/ui/chart";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
@@ -23,11 +31,22 @@ const chartConfig = {
   },
 } as const;
 
+const STATUS_LABELS: Record<SalesReportStatus, string> = {
+  confirmed: "Confirmed",
+  awaiting_deposit: "Awaiting Deposit",
+  awaiting_signature: "Awaiting Signature",
+  awaiting_verification: "Awaiting Verification",
+};
+
 const SalesReports = () => {
   const [academicYearId, setAcademicYearId] = useState<string | undefined>();
+  const [selectedStatus, setSelectedStatus] = useState<SalesReportStatus>("confirmed");
   const { toast } = useToast();
 
-  const { data: demographics, isLoading: loadingDemographics } = useSalesDemographicsReport(academicYearId);
+  const { data: demographics, isLoading: loadingDemographics } = useSalesDemographicsReport(
+    academicYearId,
+    [selectedStatus],
+  );
   const { data: occupancy, isLoading: loadingOccupancy } = useSalesOccupancyMonthly(academicYearId);
   const { data: rebookers, isLoading: loadingRebookers } = useSalesRebookersMonthly(academicYearId);
   const { data: cashSummary, isLoading: loadingCash } = useSalesReportCashSummary(academicYearId);
@@ -35,10 +54,10 @@ const SalesReports = () => {
 
   const handleDownload = async () => {
     try {
-      await downloadMutation.mutateAsync(academicYearId);
+      await downloadMutation.mutateAsync({ academicYearId, statuses: [selectedStatus] });
       toast({
         title: "Sales report downloaded",
-        description: "Your Excel sales report has been generated using live confirmed contracts.",
+        description: "Your Excel sales report has been generated using the selected application statuses.",
       });
     } catch (error) {
       console.error(error);
@@ -65,6 +84,7 @@ const SalesReports = () => {
   );
 
   const rebookerRate = totalContracts > 0 ? Math.round((totalRebookers / totalContracts) * 100 * 100) / 100 : 0;
+  const selectedStatusSummary = STATUS_LABELS[selectedStatus];
 
   const occupancyChartData = useMemo(
     () =>
@@ -96,7 +116,7 @@ const SalesReports = () => {
   return (
     <AdminLayout
       pageTitle="Sales & Demographics"
-      subtitle="Live sales, occupancy, and demographics from confirmed contracts"
+      subtitle="Live sales and demographics by selected application statuses"
       mobileActionButton={
         <Button
           size="sm"
@@ -129,7 +149,30 @@ const SalesReports = () => {
                   <AcademicYearSelector value={academicYearId} onValueChange={setAcademicYearId} />
                 </div>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Data is always calculated from live confirmed contracts in the selected academic year.
+                  Data is calculated from live applications in the selected academic year and statuses.
+                </p>
+              </div>
+              <div>
+                <Label>Application Statuses</Label>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {SALES_REPORT_ALLOWED_STATUSES.map((status) => {
+                    const active = selectedStatus === status;
+                    return (
+                      <Button
+                        key={status}
+                        type="button"
+                        variant={active ? "default" : "outline"}
+                        size="sm"
+                        className="rounded-full"
+                        onClick={() => setSelectedStatus(status)}
+                      >
+                        {STATUS_LABELS[status]}
+                      </Button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Occupancy and rebooker charts remain confirmed-only for consistency.
                 </p>
               </div>
             </div>
@@ -144,7 +187,7 @@ const SalesReports = () => {
                   Sales Overview
                 </CardTitle>
                 <CardDescription className="mt-1">
-                  {academicYearName} • Live confirmed contracts only
+                  {academicYearName} • Status: {selectedStatusSummary}
                 </CardDescription>
               </div>
               <Button
@@ -170,7 +213,7 @@ const SalesReports = () => {
             {/* Desktop: one row of 7 cards (xl). Mobile: 2 cols; sm 3; md 4 */}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7 gap-3 sm:gap-4 mb-6">
               <div className="rounded-2xl bg-primary/5 p-3 sm:p-4 flex flex-col gap-1 min-w-0 min-h-[88px] sm:min-h-[100px]">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide">Confirmed Contracts</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Contracts in Selected Statuses</p>
                 <p className="text-xl sm:text-2xl font-bold mt-auto">{totalContracts}</p>
               </div>
               <div className="rounded-2xl bg-primary/5 p-3 sm:p-4 flex flex-col gap-1 min-w-0 min-h-[88px] sm:min-h-[100px]">
@@ -243,7 +286,7 @@ const SalesReports = () => {
                     Occupancy by Month
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    Average occupancy percentage across studio grades per month.
+                    Average occupancy percentage across studio grades per month (confirmed only).
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="pt-0">
@@ -313,7 +356,7 @@ const SalesReports = () => {
               Demographics (Per Contract)
             </CardTitle>
             <CardDescription className="mt-1">
-              Each row represents a confirmed contract, aligned with the Demographics sheet in your Excel sample.
+              Each row represents an application in the selected statuses, aligned with the Demographics sheet in your Excel sample.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -331,6 +374,7 @@ const SalesReports = () => {
                       <th className="py-2 px-2 text-left">Studio</th>
                       <th className="py-2 px-2 text-left">Grade</th>
                       <th className="py-2 px-2 text-left">Partner</th>
+                      <th className="py-2 px-2 text-left">Status</th>
                       <th className="py-2 px-2 text-right">Weekly Rent</th>
                       <th className="py-2 px-2 text-right">Total Value</th>
                       <th className="py-2 px-2 text-right">Cashback</th>
@@ -366,6 +410,7 @@ const SalesReports = () => {
                             "Direct"
                           )}
                         </td>
+                        <td className="py-2 px-2">{STATUS_LABELS[row.application_status]}</td>
                         <td className="py-2 px-2 text-right">
                           {row.weekly_rent != null ? `£${row.weekly_rent.toFixed(0)}` : "—"}
                         </td>

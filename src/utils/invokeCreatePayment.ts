@@ -15,6 +15,9 @@ export type CreatePaymentBody = {
 export type CreatePaymentResult = {
   clientSecret?: string;
   amount?: number;
+  baseAmount?: number;
+  processingFee?: number;
+  totalChargeAmount?: number;
   currency?: string;
   error?: string;
 };

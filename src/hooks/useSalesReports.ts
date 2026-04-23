@@ -3,6 +3,7 @@ import { supabase, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "@/integrations
 
 export type SalesDemographicsRow = {
   application_id: string;
+  application_status: "confirmed" | "awaiting_deposit" | "awaiting_signature" | "awaiting_verification";
   student_id: string;
   ucas_id: string | null;
   first_name: string | null;
@@ -63,6 +64,22 @@ export type SalesReportCashSummary = {
 };
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const SALES_REPORT_ALLOWED_STATUSES = [
+  "confirmed",
+  "awaiting_deposit",
+  "awaiting_signature",
+  "awaiting_verification",
+] as const;
+export type SalesReportStatus = (typeof SALES_REPORT_ALLOWED_STATUSES)[number];
+
+const toValidStatusFilter = (statuses?: SalesReportStatus[] | null): SalesReportStatus[] => {
+  if (!statuses?.length) return [...SALES_REPORT_ALLOWED_STATUSES];
+  const valid = statuses.filter((status): status is SalesReportStatus =>
+    SALES_REPORT_ALLOWED_STATUSES.includes(status),
+  );
+  return valid.length ? valid : [...SALES_REPORT_ALLOWED_STATUSES];
+};
+
 const toValidAcademicYearParam = (id?: string | null): string | null => {
   if (!id || id === "all") return null;
   return UUID_REGEX.test(id) ? id : null;
@@ -90,15 +107,20 @@ export const useSalesReportCashSummary = (academicYearId?: string) => {
   });
 };
 
-export const useSalesDemographicsReport = (academicYearId?: string) => {
+export const useSalesDemographicsReport = (
+  academicYearId?: string,
+  statuses?: SalesReportStatus[],
+) => {
   return useQuery({
-    queryKey: ["sales-demographics-report", academicYearId],
+    queryKey: ["sales-demographics-report", academicYearId, statuses],
     queryFn: async (): Promise<SalesDemographicsRow[]> => {
       const pAcademicYearId = toValidAcademicYearParam(academicYearId ?? null);
+      const statusFilter = toValidStatusFilter(statuses);
       let query = supabase.from("sales_demographics_report").select("*");
       if (pAcademicYearId) {
         query = query.eq("academic_year_id", pAcademicYearId);
       }
+      query = query.in("application_status", statusFilter);
       const { data, error } = await query;
       if (error) {
         console.error("Failed to fetch sales demographics report:", error);
@@ -149,8 +171,15 @@ export const useSalesRebookersMonthly = (academicYearId?: string) => {
 
 export const useDownloadSalesReport = () => {
   return useMutation({
-    mutationFn: async (academicYearId?: string) => {
+    mutationFn: async ({
+      academicYearId,
+      statuses,
+    }: {
+      academicYearId?: string;
+      statuses?: SalesReportStatus[];
+    }) => {
       const pAcademicYearId = toValidAcademicYearParam(academicYearId ?? null);
+      const statusFilter = toValidStatusFilter(statuses);
       const session = await supabase.auth.getSession();
       const accessToken = session.data.session?.access_token;
 
@@ -165,7 +194,10 @@ export const useDownloadSalesReport = () => {
           apikey: SUPABASE_PUBLISHABLE_KEY,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(pAcademicYearId ? { academicYearId: pAcademicYearId } : {}),
+        body: JSON.stringify({
+          ...(pAcademicYearId ? { academicYearId: pAcademicYearId } : {}),
+          statuses: statusFilter,
+        }),
       });
 
       if (!response.ok) {
