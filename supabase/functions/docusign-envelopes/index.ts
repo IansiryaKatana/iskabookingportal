@@ -263,6 +263,17 @@ const toTitleCase = (value?: string | null): string => {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 };
 
+const normalizePlanSummary = (value?: string | null): string => {
+  if (!value) return "";
+  return value
+    .replace(/<br\s*\/?>/gi, " | ")
+    .replace(/\u25a1/g, " | ")
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]*\n[ \t]*/g, " | ")
+    .replace(/\s*\|\s*\|\s*/g, " | ")
+    .trim();
+};
+
 const sendEnvelope = async (
   body: Record<string, unknown>,
 ) => {
@@ -878,8 +889,8 @@ serve(async (req) => {
             return due ? `${installmentLine} on ${due}` : installmentLine;
           });
           
-          // Newline-separated lines so multiline DocuSign tabs render each installment on its own row.
-          planSummary = scheduleItems.join("\n");
+          // Keep summary single-line safe for DocuSign text tabs that don't support multiline rendering.
+          planSummary = scheduleItems.join(" | ");
         }
       } catch (error) {
         console.error("Error processing payment plan installments:", error);
@@ -906,6 +917,8 @@ serve(async (req) => {
 
     // Note: Witness and guarantor validation is now done in the tenancy recipients section
 
+    const normalizedPlanSummary = normalizePlanSummary(planSummary);
+
     const textTabs = [
       ...(academicYear ? [{ tabLabel: "academic_year", value: academicYear }] : []),
       ...(weeklyRateFormatted ? [{ tabLabel: "weekly_rate", value: weeklyRateFormatted }] : []),
@@ -914,7 +927,12 @@ serve(async (req) => {
       ...(depositAmountFormatted ? [{ tabLabel: "deposit_amount", value: depositAmountFormatted }] : []),
       ...(tenancyPeriod ? [{ tabLabel: "tenancy_period", value: tenancyPeriod }] : []),
       ...(totalRent ? [{ tabLabel: "total_rent", value: totalRent }] : []),
-      ...(planSummary ? [{ tabLabel: "plan_summary", value: planSummary }] : []),
+      ...(normalizedPlanSummary
+        ? [{
+          tabLabel: "plan_summary",
+          value: normalizedPlanSummary,
+        }]
+        : []),
       ...(studentPhone
         ? [{ tabLabel: "student_phone", value: studentPhone }]
         : []),
