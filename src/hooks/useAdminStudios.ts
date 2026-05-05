@@ -149,7 +149,8 @@ export const useUpdateStudio = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (payload: UpdateStudioPayload) => {
-      const { id, academicYearId, ...rest } = payload;
+      const { id, academicYearId, ...restPayload } = payload;
+      let rest = restPayload as Partial<StudioRow>;
 
       const { data: oldStudio } = await supabase
         .from("studios")

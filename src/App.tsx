@@ -45,6 +45,7 @@ const AdminBulkMessages = lazy(() => import("./pages/admin/BulkMessages"));
 const AdminBulkInvitations = lazy(() => import("./pages/admin/BulkInvitations"));
 const AdminTargetedMessages = lazy(() => import("./pages/admin/TargetedMessages"));
 const AdminEmailTemplates = lazy(() => import("./pages/admin/EmailTemplates"));
+const AdminMarketingCampaigns = lazy(() => import("./pages/admin/MarketingCampaigns"));
 const AdminApplicationDetail = lazy(() => import("./pages/admin/ApplicationDetail"));
 const AdminUsers = lazy(() => import("./pages/admin/Users"));
 const AdminPermissions = lazy(() => import("./pages/admin/Permissions"));
@@ -451,6 +452,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
                   <AdminEmailTemplates />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/marketing-campaigns"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                  <AdminMarketingCampaigns />
                 </ProtectedRoute>
               }
             />

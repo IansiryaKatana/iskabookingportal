@@ -284,6 +284,11 @@ export const navSections: NavSection[] = [
         icon: Mail,
       },
       {
+        label: "Marketing Campaigns",
+        to: "/admin/marketing-campaigns",
+        icon: Send,
+      },
+      {
         label: "Cashback Campaigns",
         to: "/admin/cashback-campaigns",
         icon: Gift,

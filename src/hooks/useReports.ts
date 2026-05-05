@@ -1150,19 +1150,27 @@ const fetchRoomNoIncomeSummaryReport = async (
   const daysInRange = differenceInCalendarDays(rangeEnd, rangeStart) + 1;
   if (daysInRange <= 0) return null;
 
-  const { data: otaStudios, error: studiosError } = await supabase
-    .from("studios")
-    .select("id, studio_number, studio_grade_id, studio_grade:studio_grades!studio_grade_id(name)")
-    .eq("allocation", "OTA")
-    .eq("is_active", true)
-    .order("studio_number", { ascending: true });
+  const { data: bookings, error: bookingsError } = await supabase
+    .from("ota_bookings")
+    .select("id, studio_id, check_in, check_out, price_per_night, commission_amount, total_revenue, number_of_nights, status")
+    .not("studio_id", "is", null);
 
-  if (studiosError) {
-    console.error("Failed to fetch OTA studios:", studiosError);
-    throw studiosError;
+  if (bookingsError) {
+    console.error("Failed to fetch OTA bookings for income summary:", bookingsError);
+    throw bookingsError;
   }
 
-  if (!otaStudios || otaStudios.length === 0) {
+  const excludedStatuses = ["cancelled", "no_show"];
+  const bookingsList = (bookings || []).filter((b: any) => {
+    if (excludedStatuses.includes(b.status)) return false;
+    return nightsInRangeExclusiveEnd(b.check_in, b.check_out, dateFrom, dateTo) > 0;
+  });
+
+  const studioIds = Array.from(
+    new Set((bookingsList || []).map((b: any) => b.studio_id).filter(Boolean)),
+  ) as string[];
+
+  if (studioIds.length === 0) {
     return {
       rows: [],
       grandTotal: {
@@ -1182,7 +1190,16 @@ const fetchRoomNoIncomeSummaryReport = async (
     };
   }
 
-  const studioIds = otaStudios.map((s) => s.id);
+  const { data: otaStudios, error: studiosError } = await supabase
+    .from("studios")
+    .select("id, studio_number, studio_grade_id, studio_grade:studio_grades!studio_grade_id(name)")
+    .in("id", studioIds)
+    .order("studio_number", { ascending: true });
+
+  if (studiosError) {
+    console.error("Failed to fetch studios for room income summary:", studiosError);
+    throw studiosError;
+  }
 
   const { data: applications, error: appsError } = await supabase
     .from("student_applications")
@@ -1391,24 +1408,7 @@ const fetchOTAStudioIncomeSummaryReport = async (
     };
   }
 
-  const studioIds = otaStudios.map((s) => s.id);
-
-  const { data: bookings, error: bookingsError } = await supabase
-    .from("ota_bookings")
-    .select("id, studio_id, check_in, check_out, price_per_night, commission_amount, total_revenue, number_of_nights, status")
-    .in("studio_id", studioIds)
-    .not("studio_id", "is", null);
-
-  if (bookingsError) {
-    console.error("Failed to fetch OTA bookings for income summary:", bookingsError);
-    throw bookingsError;
-  }
-
-  const excludedStatuses = ["cancelled", "no_show"];
-  const bookingsList = (bookings || []).filter((b: any) => {
-    if (excludedStatuses.includes(b.status)) return false;
-    return nightsInRangeExclusiveEnd(b.check_in, b.check_out, dateFrom, dateTo) > 0;
-  });
+  const otaStudiosList = (otaStudios ?? []) as any[];
 
   const byStudio = new Map<
     string,
@@ -1447,7 +1447,7 @@ const fetchOTAStudioIncomeSummaryReport = async (
   let grandDiscount = 0;
   let grandOther = 0;
 
-  for (const studio of otaStudios as any[]) {
+  for (const studio of otaStudiosList) {
     const sid = studio.id;
     const agg = byStudio.get(sid) ?? {
       total_res: 0,

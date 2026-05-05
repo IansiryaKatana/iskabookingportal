@@ -6,6 +6,12 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import { useAdminStudios, useUpdateStudio, useBulkUpdateStudios } from "@/hooks/useAdminStudios";
 import { useAdminStudioGrades } from "@/hooks/useAdminStudioGrades";
 import {
+  previewStudioAllocationChange,
+  useReassignStudioAllocation,
+  type AllocationPolicy,
+  type AllocationValue,
+} from "@/hooks/useStudioAllocation";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -54,6 +60,11 @@ const Studios = () => {
   const [bulkActionDialogOpen, setBulkActionDialogOpen] = useState(false);
   const [bulkAction, setBulkAction] = useState<{ type: string; value: string } | null>(null);
   const [bulkGradeId, setBulkGradeId] = useState<string>("");
+  const [allocationPolicy, setAllocationPolicy] = useState<AllocationPolicy>("keep");
+  const [allocationReason, setAllocationReason] = useState<string>("");
+  const [targetOtaStudioId, setTargetOtaStudioId] = useState<string>("");
+  const [allocationPrecheck, setAllocationPrecheck] = useState<{ impactedBookings: number } | null>(null);
+  const [isPrecheckingAllocation, setIsPrecheckingAllocation] = useState(false);
 
   // When using the virtual "occupied_can_release" filter, we still fetch all
   // statuses from the backend and apply the "can release" condition in the UI.
@@ -72,6 +83,11 @@ const Studios = () => {
   });
   const updateStudio = useUpdateStudio();
   const bulkUpdateStudios = useBulkUpdateStudios();
+  const reassignStudioAllocation = useReassignStudioAllocation();
+  const { data: otaStudiosForMove } = useAdminStudios({
+    allocation: "OTA",
+    academicYearId: selectedAcademicYearId,
+  });
 
   const gradeOptions = useMemo(
     () =>
@@ -229,8 +245,40 @@ const Studios = () => {
     setSelectedStudios(newSelected);
   };
 
-  const handleBulkAction = (type: string, value: string) => {
+  const handleBulkAction = async (type: string, value: string) => {
     setBulkAction({ type, value });
+    setAllocationPolicy("keep");
+    setAllocationReason("");
+    setTargetOtaStudioId("");
+    setAllocationPrecheck(null);
+
+    if (type === "allocation") {
+      try {
+        setIsPrecheckingAllocation(true);
+        const newAllocation: AllocationValue = value === "unallocated" ? null : (value as AllocationValue);
+        const previews = await Promise.all(
+          Array.from(selectedStudios).map((studioId) =>
+            previewStudioAllocationChange(studioId, newAllocation),
+          ),
+        );
+        const impactedBookings = previews.reduce(
+          (sum, item) => sum + (Number(item.future_ota_bookings) || 0),
+          0,
+        );
+        setAllocationPrecheck({ impactedBookings });
+      } catch (error) {
+        console.error(error);
+        toast({
+          variant: "destructive",
+          title: "Unable to run allocation pre-check",
+          description: "Please try again. No changes were made.",
+        });
+        return;
+      } finally {
+        setIsPrecheckingAllocation(false);
+      }
+    }
+
     setBulkActionDialogOpen(true);
   };
 
@@ -254,18 +302,44 @@ const Studios = () => {
     try {
       const updates: Record<string, unknown> = {};
       if (bulkAction.type === "allocation") {
-        updates.allocation = bulkAction.value === "unallocated" ? null : bulkAction.value;
+        const nextAllocation: AllocationValue =
+          bulkAction.value === "unallocated" ? null : (bulkAction.value as AllocationValue);
+
+        if (
+          allocationPolicy === "move" &&
+          (selectedStudios.size !== 1 || !targetOtaStudioId)
+        ) {
+          toast({
+            variant: "destructive",
+            title: "Choose one source studio and target OTA studio",
+            description:
+              "Move policy currently supports one source studio at a time and requires a target OTA studio.",
+          });
+          return;
+        }
+
+        for (const studioId of Array.from(selectedStudios)) {
+          await reassignStudioAllocation.mutateAsync({
+            studioId,
+            newAllocation: nextAllocation,
+            policy: allocationPolicy,
+            reason: allocationReason.trim() || null,
+            targetStudioId: allocationPolicy === "move" ? targetOtaStudioId : null,
+          });
+        }
       } else if (bulkAction.type === "status") {
         updates.status = bulkAction.value;
       } else if (bulkAction.type === "grade") {
         updates.studio_grade_id = bulkGradeId;
       }
 
-      await bulkUpdateStudios.mutateAsync({
-        studioIds: Array.from(selectedStudios),
-        updates,
-        academicYearId: selectedAcademicYearId ?? undefined,
-      });
+      if (bulkAction.type !== "allocation") {
+        await bulkUpdateStudios.mutateAsync({
+          studioIds: Array.from(selectedStudios),
+          updates,
+          academicYearId: selectedAcademicYearId ?? undefined,
+        });
+      }
 
       toast({
         title: "Bulk update successful",
@@ -276,6 +350,10 @@ const Studios = () => {
       setBulkActionDialogOpen(false);
       setBulkAction(null);
       setBulkGradeId("");
+      setAllocationReason("");
+      setTargetOtaStudioId("");
+      setAllocationPrecheck(null);
+      setAllocationPolicy("keep");
     } catch (error) {
       console.error(error);
       toast({
@@ -616,6 +694,10 @@ const Studios = () => {
           if (!open) {
             setBulkAction(null);
             setBulkGradeId("");
+            setAllocationReason("");
+            setTargetOtaStudioId("");
+            setAllocationPrecheck(null);
+            setAllocationPolicy("keep");
           }
         }}
       >
@@ -640,6 +722,61 @@ const Studios = () => {
               )}
             </DialogDescription>
           </DialogHeader>
+          {bulkAction?.type === "allocation" && (
+            <div className="space-y-3 py-2">
+              {isPrecheckingAllocation ? (
+                <p className="text-sm text-muted-foreground">Checking OTA booking conflicts...</p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Future/active OTA bookings impacted:{" "}
+                  <span className="font-semibold">{allocationPrecheck?.impactedBookings ?? 0}</span>
+                </p>
+              )}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Reassignment policy</label>
+                <Select value={allocationPolicy} onValueChange={(v) => setAllocationPolicy(v as AllocationPolicy)}>
+                  <SelectTrigger className="rounded-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="keep">Keep future OTA bookings on current studio</SelectItem>
+                    <SelectItem value="move">Move future OTA bookings to another OTA studio</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {allocationPolicy === "move" && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Target OTA studio</label>
+                  <Select value={targetOtaStudioId} onValueChange={setTargetOtaStudioId}>
+                    <SelectTrigger className="rounded-full">
+                      <SelectValue placeholder="Select target OTA studio" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(otaStudiosForMove ?? [])
+                        .filter((s) => !selectedStudios.has(s.id))
+                        .map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.studio_number}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Move policy requires exactly one selected source studio.
+                  </p>
+                </div>
+              )}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Reason (recommended)</label>
+                <Input
+                  value={allocationReason}
+                  onChange={(e) => setAllocationReason(e.target.value)}
+                  placeholder="e.g. Term strategy update / OTA rebalance"
+                  className="rounded-full"
+                />
+              </div>
+            </div>
+          )}
           {bulkAction?.type === "grade" && (
             <div className="space-y-2 py-2">
               <label className="text-sm font-medium">Studio grade</label>
@@ -671,10 +808,17 @@ const Studios = () => {
             </Button>
             <Button
               onClick={confirmBulkAction}
-              disabled={bulkUpdateStudios.isPending || (bulkAction?.type === "grade" && !bulkGradeId)}
+              disabled={
+                bulkUpdateStudios.isPending ||
+                reassignStudioAllocation.isPending ||
+                (bulkAction?.type === "grade" && !bulkGradeId) ||
+                (bulkAction?.type === "allocation" &&
+                  allocationPolicy === "move" &&
+                  (!targetOtaStudioId || selectedStudios.size !== 1))
+              }
               className="rounded-full uppercase tracking-wide w-full sm:w-auto"
             >
-              {bulkUpdateStudios.isPending ? (
+              {bulkUpdateStudios.isPending || reassignStudioAllocation.isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Updating...

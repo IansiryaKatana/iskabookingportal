@@ -10,6 +10,7 @@ import { ArrowUpLeft, ArrowRightCircle, Loader2 } from "lucide-react";
 import { useAdminStudios, useUpdateStudio } from "@/hooks/useAdminStudios";
 import { useStudioApplications } from "@/hooks/useStudioApplications";
 import { useToast } from "@/hooks/use-toast";
+import { useStudioAllocationHistory } from "@/hooks/useStudioAllocation";
 
 const statusLabelMap: Record<string, string> = {
   draft: "Draft",
@@ -56,6 +57,7 @@ const StudioDetail = () => {
     academicYearId: selectedAcademicYearId ?? null,
     status: statusFilter === "all" ? null : statusFilter,
   });
+  const { data: allocationHistory, isLoading: allocationHistoryLoading } = useStudioAllocationHistory(studioId);
 
   return (
     <AdminLayout
@@ -244,6 +246,49 @@ const StudioDetail = () => {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-3xl border border-border/60 shadow-xl mt-4">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg font-display uppercase tracking-wide">
+            Allocation Timeline
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {allocationHistoryLoading ? (
+            <p className="text-sm text-muted-foreground">Loading allocation timeline…</p>
+          ) : !allocationHistory || allocationHistory.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No allocation history recorded yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {allocationHistory.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="rounded-2xl border border-border/60 px-4 py-3 flex flex-col gap-1"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline" className="rounded-full text-xs uppercase tracking-wide">
+                      {(entry.previous_allocation ?? "Unallocated")} {"->"} {(entry.new_allocation ?? "Unallocated")}
+                    </Badge>
+                    {entry.policy && (
+                      <Badge variant="secondary" className="rounded-full text-xs uppercase tracking-wide">
+                        Policy: {entry.policy}
+                      </Badge>
+                    )}
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(entry.starts_at).toLocaleString()}
+                    </span>
+                  </div>
+                  {entry.reason && <p className="text-sm text-muted-foreground">{entry.reason}</p>}
+                  <p className="text-xs text-muted-foreground">
+                    Impacted OTA bookings: {entry.impacted_ota_bookings_count ?? 0}
+                    {entry.ends_at ? ` · Ended: ${new Date(entry.ends_at).toLocaleString()}` : " · Active"}
+                  </p>
+                </div>
+              ))}
             </div>
           )}
         </CardContent>
