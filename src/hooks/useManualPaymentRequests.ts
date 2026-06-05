@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { notifyBookingEvent } from "@/utils/notifyBookingEvent";
 
 export type ManualPaymentRequestRow = {
   id: string;
@@ -87,10 +88,23 @@ export function useCreateManualPaymentRequest() {
       if (error) throw error;
       return data as ManualPaymentRequestRow;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["manual-payment-requests", variables.applicationId] });
       queryClient.invalidateQueries({ queryKey: ["manual-payment-request-history", variables.applicationId] });
       queryClient.invalidateQueries({ queryKey: ["student-payments", variables.applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["manual-payment-requests-pending"] });
+      queryClient.invalidateQueries({ queryKey: ["manual-payment-requests-pending-count"] });
+
+      const methodLabels: Record<string, string> = {
+        cash: "Cash",
+        card: "Card",
+        bank_transfer: "Bank Transfer",
+        cheque: "Cheque",
+      };
+      void notifyBookingEvent("manual_payment_request_submitted", variables.applicationId, {
+        amount: `£${Number(data.amount).toFixed(2)}`,
+        paymentMethod: methodLabels[data.payment_method] ?? data.payment_method,
+      });
     },
   });
 }

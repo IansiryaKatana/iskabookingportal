@@ -339,7 +339,7 @@ const toFieldErrorMap = <T extends Record<string, unknown>>(
 
 const StudentApplicationWizard = () => {
   const { data: brandingSettings } = useBrandingSettings();
-  const companyName = brandingSettings?.company_name || "StudentStaySolutions";
+  const companyName = brandingSettings?.company_name || "Urban Hub";
   const successColorHex = brandingSettings?.color_success || "#10B981";
   
   // Convert hex to rgba for opacity support
@@ -2790,17 +2790,23 @@ useEffect(() => {
   );
 
   const depositPaid = useMemo(() => {
-    // Check local state first (for immediate updates)
-    if (paymentValues.deposit_paid === true) {
+    if (!application) return false;
+
+    // Manual deposit recorded by staff or receipt linking
+    if (application.deposit_payment_intent_id?.startsWith("manual-")) {
       return true;
     }
-    
-    // Check if payment was verified via receipt number
-    if (paymentValues.already_paid_deposit && paymentVerification && !paymentVerification.is_linked) {
-      return true; // Payment verified but not yet linked (will be linked on submit)
+
+    // Receipt number verified (linked on submit)
+    if (
+      paymentValues.already_paid_deposit &&
+      paymentVerification &&
+      !paymentVerification.is_linked
+    ) {
+      return true;
     }
-    
-    if (!application) return false;
+
+    // Workflow statuses only advance after server-side deposit verification
     if (
       application.status === "awaiting_signature" ||
       application.status === "awaiting_verification" ||
@@ -2808,14 +2814,13 @@ useEffect(() => {
     ) {
       return true;
     }
-    const stepFive = application.student_application_steps.find(
-      (step) => step.step_number === 5,
-    );
-    const depositFlag =
-      stepFive?.payload &&
-      typeof stepFive.payload === "object" &&
-      (stepFive.payload as Record<string, unknown>).deposit_paid === true;
-    return Boolean(depositFlag);
+
+    // Local/session flag set only after sync-payment-from-stripe confirms succeeded
+    if (paymentValues.deposit_paid === true) {
+      return true;
+    }
+
+    return false;
   }, [application, paymentValues.deposit_paid, paymentValues.already_paid_deposit, paymentVerification]);
 
   // Initialise staff signing mode from application or inferred behaviour
@@ -3004,10 +3009,68 @@ useEffect(() => {
     };
   }, [currentStep, application?.id, refetchApplication]);
 
-  const handleDepositSuccess = async () => {
+  const handleDepositSuccess = async (paymentIntentId?: string) => {
     const applicationId = application?.id ?? null;
     if (!applicationId) {
       console.warn("No application ID when deposit succeeded");
+      return;
+    }
+
+    if (!paymentIntentId) {
+      toast({
+        variant: "destructive",
+        title: "Payment not confirmed",
+        description: "We could not verify your deposit with Stripe. Please try the payment again.",
+      });
+      return;
+    }
+
+    // Verify and persist deposit server-side before marking paid in the wizard
+    try {
+      const { data: syncData, error: syncError } = await supabase.functions.invoke<{
+        success?: boolean;
+        synced?: number;
+        verified?: boolean;
+        status?: string;
+        error?: string;
+      }>("sync-payment-from-stripe", {
+        body: {
+          applicationId,
+          paymentIntentId,
+        },
+      });
+
+      if (syncError) {
+        throw syncError;
+      }
+
+      if (syncData?.verified === false) {
+        const friendlyStatus = (syncData.status ?? "incomplete").replaceAll("_", " ");
+        toast({
+          variant: "destructive",
+          title: "Deposit not confirmed",
+          description: `Your payment is ${friendlyStatus}. Please complete the payment before continuing.`,
+        });
+        return;
+      }
+
+      if (!syncData?.success || (syncData.synced ?? 0) < 1) {
+        toast({
+          variant: "destructive",
+          title: "Deposit not confirmed",
+          description:
+            syncData?.error ??
+            "Stripe has not confirmed your deposit yet. Please wait a moment and try again.",
+        });
+        return;
+      }
+    } catch (error) {
+      console.error("Error verifying deposit with Stripe:", error);
+      toast({
+        variant: "destructive",
+        title: "Unable to verify deposit",
+        description: "Your card may have been charged, but we could not confirm it yet. Please refresh in a moment or contact support.",
+      });
       return;
     }
 

@@ -229,7 +229,7 @@ export const useUpdateApplicationStatus = () => {
         .maybeSingle();
 
       const hasRecordedDeposit =
-        Boolean(currentApp?.deposit_payment_intent_id) ||
+        Boolean(currentApp?.deposit_payment_intent_id?.startsWith("manual-")) ||
         Boolean(manualDeposit?.id) ||
         Boolean(stripeDeposit?.id);
 

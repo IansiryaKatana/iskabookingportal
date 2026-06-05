@@ -75,7 +75,7 @@ serve(async (req) => {
     const brandingMap = new Map(
       brandingSettings?.map((s) => [s.setting_key, s.setting_value]) || []
     );
-    const companyName = brandingMap.get("company_name") || "StudentStaySolutions";
+    const companyName = brandingMap.get("company_name") || "Urban Hub";
     const logoPath = brandingMap.get("logo_path") || "";
     const supportEmail = brandingMap.get("contact_email") || "";
 

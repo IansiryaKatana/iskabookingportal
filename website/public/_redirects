@@ -1,7 +1,0 @@
-# Netlify SPA redirects file
-# This file is copied to the dist folder during build
-# All routes should be handled by the client-side router
-
-# Redirect all routes to index.html (SPA fallback)
-/*    /index.html   200
-

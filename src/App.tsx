@@ -106,6 +106,9 @@ const PageLoader = () => (
 
 const queryClient = new QueryClient();
 
+/** Staff roles that can access finance / payment approval pages */
+const ADMIN_FINANCE_ROLES = ["staff", "superadmin", "accountant"] as const;
+
 const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
@@ -207,7 +210,7 @@ const App = () => (
             <Route
               path="/admin"
               element={
-                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                <ProtectedRoute allowedRoles={[...ADMIN_FINANCE_ROLES]}>
                   <AdminDashboard />
                 </ProtectedRoute>
               }
@@ -231,7 +234,7 @@ const App = () => (
             <Route
               path="/admin/payment-plans"
               element={
-                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                <ProtectedRoute allowedRoles={[...ADMIN_FINANCE_ROLES]}>
                   <AdminPaymentPlans />
                 </ProtectedRoute>
               }
@@ -239,7 +242,7 @@ const App = () => (
             <Route
               path="/admin/contracts"
               element={
-                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                <ProtectedRoute allowedRoles={[...ADMIN_FINANCE_ROLES]}>
                   <AdminContracts />
                 </ProtectedRoute>
               }
@@ -394,7 +397,7 @@ const App = () => (
             <Route
               path="/admin/reports"
               element={
-                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                <ProtectedRoute allowedRoles={[...ADMIN_FINANCE_ROLES]}>
                   <AdminReports />
                 </ProtectedRoute>
               }
@@ -402,7 +405,7 @@ const App = () => (
             <Route
               path="/admin/sales-reports"
               element={
-                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                <ProtectedRoute allowedRoles={[...ADMIN_FINANCE_ROLES]}>
                   <AdminSalesReports />
                 </ProtectedRoute>
               }
@@ -410,7 +413,7 @@ const App = () => (
             <Route
               path="/admin/accounting-reports"
               element={
-                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                <ProtectedRoute allowedRoles={[...ADMIN_FINANCE_ROLES]}>
                   <AdminAccountingReports />
                 </ProtectedRoute>
               }
@@ -482,7 +485,7 @@ const App = () => (
             <Route
               path="/admin/expenses"
               element={
-                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                <ProtectedRoute allowedRoles={[...ADMIN_FINANCE_ROLES]}>
                   <AdminExpenses />
                 </ProtectedRoute>
               }
@@ -490,7 +493,7 @@ const App = () => (
             <Route
               path="/admin/refunds"
               element={
-                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                <ProtectedRoute allowedRoles={[...ADMIN_FINANCE_ROLES]}>
                   <AdminRefunds />
                 </ProtectedRoute>
               }
@@ -538,7 +541,7 @@ const App = () => (
             <Route
               path="/admin/financial-forecast"
               element={
-                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                <ProtectedRoute allowedRoles={[...ADMIN_FINANCE_ROLES]}>
                   <AdminFinancialForecast />
                 </ProtectedRoute>
               }
@@ -546,7 +549,7 @@ const App = () => (
             <Route
               path="/admin/payment-history"
               element={
-                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                <ProtectedRoute allowedRoles={[...ADMIN_FINANCE_ROLES]}>
                   <AdminPaymentHistory />
                 </ProtectedRoute>
               }
@@ -554,7 +557,7 @@ const App = () => (
             <Route
               path="/admin/fully-paid-students"
               element={
-                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                <ProtectedRoute allowedRoles={[...ADMIN_FINANCE_ROLES]}>
                   <AdminFullyPaidStudents />
                 </ProtectedRoute>
               }
@@ -594,7 +597,7 @@ const App = () => (
             <Route
               path="/admin/weekly-payment-report"
               element={
-                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                <ProtectedRoute allowedRoles={[...ADMIN_FINANCE_ROLES]}>
                   <AdminWeeklyPaymentReport />
                 </ProtectedRoute>
               }
@@ -610,7 +613,7 @@ const App = () => (
             <Route
               path="/admin/manual-payment-entry"
               element={
-                <ProtectedRoute allowedRoles={["staff", "superadmin"]}>
+                <ProtectedRoute allowedRoles={[...ADMIN_FINANCE_ROLES]}>
                   <AdminManualPaymentEntry />
                 </ProtectedRoute>
               }

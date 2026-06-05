@@ -24,3 +24,7 @@ dist-ssr
 *.sw?
 
 .env.local.backup
+
+# Supabase full dumps (contain PII and auth data)
+supabase-dump/
+.tools/

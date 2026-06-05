@@ -44,6 +44,9 @@ verify_jwt = true
 [functions.send-transactional-email]
 verify_jwt = true
 
+[functions.notify-booking-event]
+verify_jwt = true
+
 [functions.get-email-template]
 verify_jwt = true
 

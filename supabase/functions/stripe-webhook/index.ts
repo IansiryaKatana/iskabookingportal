@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { getCredential } from "../_shared/get-credential.ts";
+import { notifyBookingEvent } from "../_shared/booking-notifications.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -14,9 +15,9 @@ const getCompanyName = async (): Promise<string> => {
       .select("setting_value")
       .eq("setting_key", "company_name")
       .maybeSingle();
-    return data?.setting_value || "StudentStaySolutions";
+    return data?.setting_value || "Urban Hub";
   } catch {
-    return "StudentStaySolutions";
+    return "Urban Hub";
   }
 };
 
@@ -239,85 +240,20 @@ serve(async (req) => {
             }
           }
 
-          // Send notifications for deposits
+          // Deposit notifications → student + reservationist/accountant staff
           if (paymentType === "deposit" && !error) {
-            const customerId =
-              typeof paymentIntent.customer === "string"
-                ? paymentIntent.customer
-                : paymentIntent.customer?.id ?? null;
-
-            const studentId = paymentIntent.metadata?.student_id;
-            let studentEmail: string | undefined;
-            let studentName: string | undefined;
-
-            if (studentId) {
-              const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(
-                studentId,
+            try {
+              await notifyBookingEvent(
+                supabaseAdmin,
+                "deposit_paid",
+                applicationId,
+                {
+                  amount: `£${(paymentIntent.amount / 100).toFixed(2)}`,
+                  paymentMethod: "Stripe",
+                },
               );
-              studentEmail = authUser?.user?.email ?? undefined;
-
-              const { data: profile } = await supabaseAdmin
-                .from("profiles")
-                .select("first_name, last_name")
-                .eq("id", studentId)
-                .maybeSingle();
-              if (profile) {
-                studentName = [profile.first_name, profile.last_name]
-                  .filter(Boolean)
-                  .join(" ");
-              }
-            }
-
-            // Send deposit received email via transactional email function
-            if (studentId) {
-              try {
-                await supabaseAdmin.functions.invoke("send-transactional-email", {
-                  body: {
-                    user_id: studentId,
-                    email_type: "deposit_received",
-                    variables: {
-                      student_name: studentName || "Student",
-                      amount: `£${(paymentIntent.amount / 100).toFixed(2)}`,
-                    },
-                    create_notification: true,
-                  },
-                });
-              } catch (emailError) {
-                console.error("Error sending deposit received email:", emailError);
-                // Fallback to direct email if function fails
-                if (studentEmail) {
-                  const companyName = await getCompanyName();
-                  await sendEmail({
-                    to: studentEmail,
-                    subject: `${companyName} deposit received`,
-                    html:
-                      `<p>Hi ${studentName ?? ""},</p>
-                       <p>Thanks for paying your £${(paymentIntent.amount / 100).toFixed(
-                         2,
-                       )} deposit. We're preparing your tenancy agreement.</p>
-                       <p>You can now continue your booking journey via the ${companyName} portal.</p>`,
-                  });
-                }
-              }
-            }
-
-            // Get staff notification email from database
-            const staffNotificationEmail = await getCredential("NOTIFICATIONS_STAFF_EMAIL", {
-              supabase: supabaseAdmin,
-              fallback: Deno.env.get("NOTIFICATIONS_STAFF_EMAIL") ?? "",
-            });
-            
-            if (staffNotificationEmail && studentEmail) {
-              const companyName = await getCompanyName();
-              await sendEmail({
-                to: staffNotificationEmail,
-                subject: `Deposit received – ${companyName} booking update`,
-                html:
-                  `<p>Deposit payment succeeded for application ${applicationId}.</p>
-                   <p>Student: ${studentName ?? studentEmail}</p>
-                   <p>Stripe Customer: ${customerId ?? "n/a"}</p>
-                   <p>Amount: £${(paymentIntent.amount / 100).toFixed(2)}</p>`,
-              });
+            } catch (notifyError) {
+              console.error("Error sending deposit booking notifications:", notifyError);
             }
           }
         }
@@ -326,14 +262,49 @@ serve(async (req) => {
       case "payment_intent.payment_failed": {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         const applicationId = paymentIntent.metadata?.application_id;
-        if (applicationId) {
+        const paymentType = paymentIntent.metadata?.type || "deposit";
+        if (applicationId && paymentType === "deposit") {
+          const { data: appRow } = await supabaseAdmin
+            .from("student_applications")
+            .select("deposit_payment_intent_id")
+            .eq("id", applicationId)
+            .maybeSingle();
+
+          const updates: Record<string, unknown> = { status: "awaiting_deposit" };
+          if (appRow?.deposit_payment_intent_id === paymentIntent.id) {
+            updates.deposit_payment_intent_id = null;
+          }
+
           const { error } = await supabaseAdmin
             .from("student_applications")
-            .update({ status: "awaiting_deposit" })
+            .update(updates)
             .eq("id", applicationId);
 
           if (error) {
             console.error("Failed to mark deposit as failed:", error);
+          } else {
+            try {
+              const { data: step5 } = await supabaseAdmin
+                .from("student_application_steps")
+                .select("id, payload")
+                .eq("application_id", applicationId)
+                .eq("step_number", 5)
+                .maybeSingle();
+
+              if (step5?.id && step5.payload && typeof step5.payload === "object") {
+                const currentPayload = step5.payload as Record<string, unknown>;
+                if (currentPayload.deposit_paid === true) {
+                  await supabaseAdmin
+                    .from("student_application_steps")
+                    .update({
+                      payload: { ...currentPayload, deposit_paid: false },
+                    })
+                    .eq("id", step5.id);
+                }
+              }
+            } catch (stepException) {
+              console.error("Failed to reset Step 5 after deposit failure:", stepException);
+            }
           }
 
           const studentId = paymentIntent.metadata?.student_id;

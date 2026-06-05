@@ -13,7 +13,7 @@ export async function getDefaultRouteForRole(role: string): Promise<string | nul
     housekeeper: ["/housekeeping", "/housekeeping/roster"],
     reservationist: ["/ota-bookings", "/ota-bookings/booking-chart", "/ota-bookings/studio-allocation"],
     operations_manager: ["/maintenance", "/housekeeping", "/ota-bookings", "/admin"],
-    accountant: ["/admin", "/admin/payment-history", "/admin/reports"],
+    accountant: ["/admin/manual-payment-entry", "/admin", "/admin/payment-history", "/admin/accounting-reports", "/admin/reports"],
     front_desk: ["/admin", "/admin/applications", "/admin/students"],
     staff: ["/admin"],
     superadmin: ["/admin"],

@@ -2,8 +2,12 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { getDefaultRouteForRole } from "@/utils/getDefaultRoute";
+import {
+  evaluateProtectedRouteAccess,
+  ROUTE_PERMISSION_GC_MS,
+  ROUTE_PERMISSION_STALE_MS,
+} from "@/hooks/useRoutePermission";
 
 /** UUID v4 pattern for last path segment (detail routes like /admin/applications/:id) */
 const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -44,80 +48,15 @@ const ProtectedRoute = ({ children, allowedRoles, checkDatabase = true }: Protec
   // Check database permissions (default: enabled)
   // For detail routes (e.g. /admin/applications/:id), use parent path so Permissions UI toggle controls both list and detail
   const { data: hasPermission, isLoading: checkingPermission } = useQuery({
-    queryKey: ["route-permission", permissionPath, role],
-    queryFn: async () => {
-      if (!checkDatabase || !role) {
-        // If database check is disabled, use allowedRoles
-        return allowedRoles.includes(role);
-      }
-      
-      // Check permission for the specific role first (database permissions take precedence)
-      // Use permissionPath so /admin/applications/:id uses /admin/applications permission
-      const { data: specificRoleData, error: specificError } = await supabase
-        .from("route_permissions")
-        .select("allowed")
-        .eq("route_path", permissionPath)
-        .eq("role", role)
-        .maybeSingle();
-
-      if (specificError && specificError.code !== "PGRST116") {
-        // PGRST116 = no rows returned, which is fine
-        console.error("Error checking route permission:", specificError);
-        // Fallback to allowedRoles on error (safe default)
-        return allowedRoles.includes(role);
-      }
-
-      // If specific role has an explicit record (allowed or denied), use it
-      // This respects the permissions page settings and takes highest priority
-      if (specificRoleData !== null) {
-        return specificRoleData.allowed === true;
-      }
-
-      // For sub-roles: Route-level restrictions take precedence, then database permissions
-      // CRITICAL: If sub-role is NOT in allowedRoles, deny immediately (route-level restriction)
-      // This prevents sub-roles from accessing routes they shouldn't have access to
-      // even if database permissions exist (e.g., maintenance_officer cannot access /admin dashboard)
-      if (role === "operations_manager" || role === "reservationist" || role === "accountant" || role === "front_desk" || role === "maintenance_officer" || role === "housekeeper") {
-        // Route-level check: If sub-role is NOT in allowedRoles, deny immediately
-        // This is the primary security boundary and cannot be bypassed by database permissions
-        if (!allowedRoles.includes(role)) {
-          return false;
-        }
-
-        // Sub-role IS in allowedRoles - now check database permissions (use parent path for detail routes)
-        const { data: staffData, error: staffError } = await supabase
-          .from("route_permissions")
-          .select("allowed")
-          .eq("route_path", permissionPath)
-          .eq("role", "staff")
-          .maybeSingle();
-
-        if (staffError && staffError.code !== "PGRST116") {
-          console.error("Error checking staff route permission:", staffError);
-          // Fallback to allowedRoles on error (safe default)
-          return allowedRoles.includes(role) || allowedRoles.includes("staff");
-        }
-
-        // If staff has explicit permission record (allowed or denied), sub-roles inherit it
-        if (staffData !== null) {
-          // Respect explicit staff permission (true or false)
-          return staffData.allowed === true;
-        }
-
-        // If no database permission record exists, fallback to allowedRoles
-        // Sub-role is already confirmed to be in allowedRoles (checked above)
-        return true;
-      }
-
-      // For non-sub-roles: If no permission record exists in database, fallback to allowedRoles (safe default)
-      return allowedRoles.includes(role);
-    },
-    enabled: checkDatabase && !!role && !loading,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes to prevent unnecessary refetches
-    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
-    refetchOnWindowFocus: false, // Don't refetch on window focus to prevent unwanted redirects
-    refetchOnMount: false, // Don't refetch on mount if data is fresh (within staleTime)
-    retry: 1, // Retry once on failure, then fallback to allowedRoles
+    queryKey: ["route-permission", permissionPath, role, allowedRoles.join(",")],
+    queryFn: () =>
+      evaluateProtectedRouteAccess(permissionPath, role, allowedRoles, checkDatabase),
+    enabled: !!role && !loading,
+    staleTime: ROUTE_PERMISSION_STALE_MS,
+    gcTime: ROUTE_PERMISSION_GC_MS,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    retry: 1,
   });
 
   // Get default route for user - ALWAYS call this hook (use enabled to control when it runs)

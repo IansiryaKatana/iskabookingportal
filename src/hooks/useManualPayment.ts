@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { logActivity } from "@/utils/auditLog";
+import { notifyBookingEvent } from "@/utils/notifyBookingEvent";
 
 type ManualPayment = Database["public"]["Tables"]["manual_payments"]["Row"];
 
@@ -141,6 +142,11 @@ export const useCreateManualPayment = () => {
             .update({ status: "awaiting_signature" })
             .eq("id", input.applicationId);
         }
+
+        void notifyBookingEvent("deposit_paid", input.applicationId, {
+          amount: `£${Number(input.amount).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          paymentMethod: `Manual (${input.paymentMethod})`,
+        });
       }
 
       return data;
@@ -250,6 +256,11 @@ export const useLinkPaymentToApplication = () => {
             .update({ status: "awaiting_signature" })
             .eq("id", applicationId);
         }
+
+        void notifyBookingEvent("deposit_paid", applicationId, {
+          amount: `£${Number(payment.amount).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          paymentMethod: `Manual (${payment.payment_method})`,
+        });
       }
 
       // Log payment linking
@@ -310,7 +321,20 @@ export const useLinkManualPaymentById = () => {
       if (error) throw error;
       return data as string;
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: async (_data, variables) => {
+      const { data: payment } = await supabase
+        .from("manual_payments")
+        .select("payment_type, amount, payment_method")
+        .eq("id", variables.paymentId)
+        .maybeSingle();
+
+      if (payment?.payment_type === "deposit" && variables.applicationId) {
+        void notifyBookingEvent("deposit_paid", variables.applicationId, {
+          amount: `£${Number(payment.amount).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          paymentMethod: `Manual (${payment.payment_method})`,
+        });
+      }
+
       queryClient.invalidateQueries({ queryKey: ["orphaned-payments"] });
       queryClient.invalidateQueries({ queryKey: ["payment-summary", variables.applicationId] });
       queryClient.invalidateQueries({ queryKey: ["paid-instalment-ids", variables.applicationId] });

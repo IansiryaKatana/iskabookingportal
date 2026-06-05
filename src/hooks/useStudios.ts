@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { notifyBookingEvent } from "@/utils/notifyBookingEvent";
 import type { Database } from "@/integrations/supabase/types";
 
 type StudioRow = Database["public"]["Tables"]["studios"]["Row"];
@@ -122,6 +123,16 @@ const reserveStudio = async ({
   // Return the result in the expected format
   // Handle both old format (if function returns directly) and new JSONB format
   if (data && typeof data === 'object' && 'studio_id' in data) {
+    const { data: studioRow } = await supabase
+      .from("studios")
+      .select("studio_number")
+      .eq("id", studioId)
+      .maybeSingle();
+
+    void notifyBookingEvent("studio_reserved", applicationId, {
+      studioNumber: studioRow?.studio_number ?? undefined,
+    });
+
     return {
       studioId: (data as any).studio_id,
       expiry: (data as any).expiry,

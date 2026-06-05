@@ -40,7 +40,7 @@ const StudiosCatalog = () => {
   const [viewingDialogOpen, setViewingDialogOpen] = useState(false);
   const heroImagePath = useBrandingSetting("studio_catalog_hero_image");
   const { data: brandingSettings } = useBrandingSettings();
-  const companyName = brandingSettings?.company_name || "StudentStaySolutions";
+  const companyName = brandingSettings?.company_name || "Urban Hub";
   
   // Get availability for selected academic year
   const { data: availabilityData, isLoading: availabilityLoading } = useAllStudioAvailability(

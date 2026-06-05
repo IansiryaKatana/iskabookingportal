@@ -237,6 +237,7 @@ serve(async (req) => {
       "send-bulk-message",
       "send-confirmation-email",
       "send-transactional-email",
+      "notify-booking-event",
       "stripe-webhook",
       "sync-payment-from-stripe",
       "weekly-payment-report",

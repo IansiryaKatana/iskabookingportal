@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "types:gen": "npx supabase gen types typescript --project-id pzptocwdaqpczexlbajr > src/integrations/supabase/types.generated.ts",
+    "dev:stop": "powershell -ExecutionPolicy Bypass -File scripts/stop-dev-servers.ps1",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",

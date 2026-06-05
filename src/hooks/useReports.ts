@@ -329,6 +329,30 @@ const fetchReport = async (
     ])
   );
 
+  const paidDepositApplicationIds = new Set<string>();
+  if (applicationIds.length > 0) {
+    const [{ data: stripeDeposits }, { data: manualDeposits }] = await Promise.all([
+      supabase
+        .from("stripe_payments")
+        .select("student_application_id")
+        .in("student_application_id", applicationIds)
+        .eq("payment_type", "deposit")
+        .in("status", ["succeeded", "completed"]),
+      supabase
+        .from("manual_payments")
+        .select("application_id")
+        .in("application_id", applicationIds)
+        .eq("payment_type", "deposit"),
+    ]);
+
+    (stripeDeposits || []).forEach((row) => {
+      if (row.student_application_id) paidDepositApplicationIds.add(row.student_application_id);
+    });
+    (manualDeposits || []).forEach((row) => {
+      if (row.application_id) paidDepositApplicationIds.add(row.application_id);
+    });
+  }
+
   // Build report items
   const reportItems: ReportItem[] = filteredApplications
     .map((app) => {
@@ -376,9 +400,14 @@ const fetchReport = async (
         }
       }
 
+      const depositRecorded =
+        paidDepositApplicationIds.has(app.id) ||
+        (typeof app.deposit_payment_intent_id === "string" &&
+          app.deposit_payment_intent_id.startsWith("manual-"));
+
       // Filter based on report type
       if (reportType === "awaiting_deposit") {
-        if (app.deposit_payment_intent_id) {
+        if (depositRecorded) {
           return null; // Deposit already paid
         }
       }
@@ -416,7 +445,7 @@ const fetchReport = async (
         contract_name: (app.contract as any)?.name || "—",
         studio_grade: (app.contract as any)?.studio_grade?.name || "—",
         status: app.status,
-        deposit_paid: !!app.deposit_payment_intent_id,
+        deposit_paid: depositRecorded,
         deposit_payment_intent_id: app.deposit_payment_intent_id,
         total_contract_value: app.total_contract_value,
         cashback_amount: cashbackAmount,
@@ -1409,6 +1438,24 @@ const fetchOTAStudioIncomeSummaryReport = async (
   }
 
   const otaStudiosList = (otaStudios ?? []) as any[];
+  const studioIds = otaStudiosList.map((s) => s.id);
+
+  const { data: bookings, error: bookingsError } = await supabase
+    .from("ota_bookings")
+    .select("id, studio_id, check_in, check_out, price_per_night, commission_amount, total_revenue, number_of_nights, status")
+    .in("studio_id", studioIds)
+    .not("studio_id", "is", null);
+
+  if (bookingsError) {
+    console.error("Failed to fetch OTA bookings for income summary:", bookingsError);
+    throw bookingsError;
+  }
+
+  const excludedStatuses = ["cancelled", "no_show"];
+  const bookingsList = (bookings || []).filter((b: any) => {
+    if (excludedStatuses.includes(b.status)) return false;
+    return nightsInRangeExclusiveEnd(b.check_in, b.check_out, dateFrom, dateTo) > 0;
+  });
 
   const byStudio = new Map<
     string,

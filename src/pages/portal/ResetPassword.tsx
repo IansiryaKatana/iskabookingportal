@@ -15,7 +15,7 @@ const PortalResetPassword = () => {
   const { data: brandingSettings } = useBrandingSettings();
   const faviconPath = brandingSettings?.favicon_path;
   const faviconUrl = faviconPath || "/favicon.png";
-  const companyName = brandingSettings?.company_name || "StudentStaySolutions";
+  const companyName = brandingSettings?.company_name || "Urban Hub";
   
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");

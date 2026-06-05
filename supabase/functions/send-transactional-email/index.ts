@@ -90,7 +90,7 @@ serve(async (req) => {
       .eq("setting_key", "company_name")
       .single();
 
-    const companyName = brandingSettings?.setting_value || "StudentStaySolutions";
+    const companyName = brandingSettings?.setting_value || "Urban Hub";
 
     // Default templates for common email types
     if (!emailSubject) {

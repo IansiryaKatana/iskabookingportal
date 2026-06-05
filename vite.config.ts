@@ -3,9 +3,14 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 // https://vitejs.dev/config/
 export default defineConfig(() => ({
+  // Single SPA entry — avoid scanning website/index.html (separate Vite app).
+  optimizeDeps: {
+    entries: [path.resolve(__dirname, "index.html")],
+  },
   server: {
-    host: "127.0.0.1",
-    port: 5173,
+    host: "localhost",
+    port: 8080,
+    strictPort: true,
   },
   plugins: [react()],
   resolve: {

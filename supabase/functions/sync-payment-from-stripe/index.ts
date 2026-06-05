@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { getCorsHeaders, handleCorsPrelight } from "../_shared/cors.ts";
+import { notifyBookingEvent } from "../_shared/booking-notifications.ts";
 
 const stripeSecret = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -117,15 +118,64 @@ serve(async (req) => {
     // Find payment intents
     const paymentIntents: Stripe.PaymentIntent[] = [];
 
+    let requestedPaymentIntentStatus: string | null = null;
+
     if (paymentIntentId) {
       // Get specific payment intent
       try {
         const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
+        requestedPaymentIntentStatus = pi.status;
+
+        if (
+          applicationId &&
+          pi.metadata?.application_id &&
+          pi.metadata.application_id !== applicationId
+        ) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              verified: false,
+              error: "Payment intent does not belong to this application",
+            }),
+            {
+              status: 403,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            },
+          );
+        }
+
         if (pi.status === "succeeded") {
           paymentIntents.push(pi);
+        } else {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              verified: false,
+              status: pi.status,
+              synced: 0,
+              payments: [],
+              error: `Payment intent status is ${pi.status}`,
+            }),
+            {
+              status: 200,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            },
+          );
         }
       } catch (err) {
         console.error("Error retrieving payment intent:", err);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            verified: false,
+            synced: 0,
+            error: "Unable to retrieve payment intent from Stripe",
+          }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
       }
     } else if (application?.stripe_customer_id) {
       // Get all payment intents for customer
@@ -370,6 +420,26 @@ serve(async (req) => {
         } catch (depositSyncError) {
           console.error("Unexpected error while syncing deposit state:", depositSyncError);
         }
+
+        // Notify only when this sync newly recorded the deposit (avoid duplicate with stripe-webhook)
+        if (!existingPayment) {
+          try {
+            const baseAmountPence = Number(
+              paymentIntent.metadata?.base_amount_pence ?? paymentIntent.amount,
+            );
+            await notifyBookingEvent(
+              supabaseAdmin,
+              "deposit_paid",
+              targetApplicationId,
+              {
+                amount: `£${(baseAmountPence / 100).toFixed(2)}`,
+                paymentMethod: "Stripe (synced)",
+              },
+            );
+          } catch (notifyError) {
+            console.error("Error sending deposit notifications after sync:", notifyError);
+          }
+        }
       }
 
       syncedPayments.push({
@@ -382,6 +452,8 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
+        verified: paymentIntentId ? requestedPaymentIntentStatus === "succeeded" : true,
+        status: requestedPaymentIntentStatus ?? undefined,
         synced: syncedPayments.length,
         payments: syncedPayments,
         errors: errors.length > 0 ? errors : undefined,

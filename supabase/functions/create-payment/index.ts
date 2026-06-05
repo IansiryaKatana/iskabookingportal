@@ -350,16 +350,9 @@ serve(async (req) => {
     }
     const paymentIntent = piRes.data;
 
-    await supabaseAdmin
-      .from("student_applications")
-      .update({
-        deposit_payment_intent_id: paymentIntent.id,
-        status:
-          application.status === "draft"
-            ? "awaiting_deposit"
-            : application.status,
-      })
-      .eq("id", application.id);
+    // Do not persist deposit_payment_intent_id until Stripe reports succeeded
+    // (stripe-webhook / sync-payment-from-stripe). Saving the PI id here caused
+    // incomplete intents to be treated as paid across reports and payment history.
 
     return new Response(
       JSON.stringify({

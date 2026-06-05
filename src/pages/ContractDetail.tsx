@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
+import { notifyBookingEvent } from "@/utils/notifyBookingEvent";
 import { useAuth } from "@/contexts/AuthContext";
 import { useContract } from "@/hooks/useContract";
 import { useToast } from "@/hooks/use-toast";
@@ -34,7 +35,7 @@ const ContractDetail = () => {
   const { user, profile } = useAuth();
   const { toast } = useToast();
   const { data: brandingSettings } = useBrandingSettings();
-  const companyName = brandingSettings?.company_name || "StudentStaySolutions";
+  const companyName = brandingSettings?.company_name || "Urban Hub";
 
   const { data: contract, isLoading, isError } = useContract(slug);
   const [creating, setCreating] = useState(false);
@@ -426,6 +427,8 @@ const ContractDetail = () => {
 
       if (insertError) throw insertError;
       if (!inserted) throw new Error("Failed to create application");
+
+      void notifyBookingEvent("application_created", inserted.id);
 
       toast({
         title: "Application started",

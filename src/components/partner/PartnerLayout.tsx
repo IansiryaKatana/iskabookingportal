@@ -60,7 +60,7 @@ const PartnerLayout = ({
   actionButton,
 }: PartnerLayoutProps) => {
   const { data: brandingSettings } = useBrandingSettings();
-  const companyName = brandingSettings?.company_name || "StudentStaySolutions";
+  const companyName = brandingSettings?.company_name || "Urban Hub";
   const navigate = useNavigate();
   const location = useLocation();
   const { profile, signOut, user } = useAuth();

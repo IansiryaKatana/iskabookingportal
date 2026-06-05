@@ -43,7 +43,7 @@ export const generateInvoicePDF = async (data: InvoiceData): Promise<void> => {
   const footerHelp = asReceipt ? "this receipt" : "this invoice";
   const fileNamePrefix = asReceipt ? "receipt" : "invoice";
 
-  const companyName = branding?.companyName || "StudentStaySolutions";
+  const companyName = branding?.companyName || "Urban Hub";
   const contactPhone = branding?.contactPhone || "+44 123 456 7890";
   const contactEmail = branding?.contactEmail || "Accounts@unitylivin.com";
   const contactAddress1 = branding?.contactAddress1 || "123 Student Street";

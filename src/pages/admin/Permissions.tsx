@@ -222,15 +222,10 @@ const Permissions = () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["route-permissions"] }),
         queryClient.invalidateQueries({ queryKey: ["route-permission"] }),
-        queryClient.invalidateQueries({ queryKey: ["route-permission-check"] }),
         queryClient.invalidateQueries({ queryKey: ["route-permissions-batch"] }),
       ]);
       
-      // Force refetch all route permission queries immediately
-      await Promise.all([
-        queryClient.refetchQueries({ queryKey: ["route-permissions-batch"] }),
-        queryClient.refetchQueries({ queryKey: ["route-permission-check"] }),
-      ]);
+      await queryClient.refetchQueries({ queryKey: ["route-permissions-batch"] });
       
       toast({
         title: "Permissions updated",

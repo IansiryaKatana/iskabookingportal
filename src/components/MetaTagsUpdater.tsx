@@ -7,7 +7,7 @@ const MetaTagsUpdater = () => {
   useEffect(() => {
     if (!brandingSettings) return;
 
-    const companyName = brandingSettings.company_name || "StudentStaySolutions";
+    const companyName = brandingSettings.company_name || "Urban Hub";
     const metaDescription = brandingSettings.meta_description || 
       `Modern student accommodation. Book your studio apartment for the academic year. Premium amenities and convenient location.`;
     const faviconPath = brandingSettings.favicon_path || "/favicon.png";

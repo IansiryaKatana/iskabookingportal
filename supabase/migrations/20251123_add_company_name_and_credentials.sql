@@ -7,9 +7,9 @@
 -- ============================================================================
 
 INSERT INTO public.branding_settings (setting_key, setting_value, setting_type, description)
-VALUES ('company_name', 'StudentStaySolutions', 'text', 'Company name used throughout the system (emails, invoices, UI)')
+VALUES ('company_name', 'Urban Hub', 'text', 'Company name used throughout the system (emails, invoices, UI)')
 ON CONFLICT (setting_key) DO UPDATE 
-SET setting_value = 'StudentStaySolutions', updated_at = NOW();
+SET setting_value = 'Urban Hub', updated_at = NOW();
 
 -- ============================================================================
 -- PART 2: CREATE CREDENTIALS TABLE

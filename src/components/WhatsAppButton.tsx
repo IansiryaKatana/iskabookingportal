@@ -5,7 +5,7 @@ import { useBrandingSettings } from "@/hooks/useBranding";
 
 const WhatsAppButton = () => {
   const { data: brandingSettings } = useBrandingSettings();
-  const companyName = brandingSettings?.company_name || "StudentStaySolutions";
+  const companyName = brandingSettings?.company_name || "Urban Hub";
   const [whatsappUrl, setWhatsappUrl] = useState<string | null>(null);
   const whatsappMessage = `Hi! I'd like to inquire about booking a studio at ${companyName}.`;
 

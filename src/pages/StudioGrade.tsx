@@ -234,7 +234,7 @@ const loadStudioGrade = async (slug: string, academicYearName?: string): Promise
 
 const StudioGradePage = () => {
   const { data: brandingSettings } = useBrandingSettings();
-  const companyName = brandingSettings?.company_name || "StudentStaySolutions";
+  const companyName = brandingSettings?.company_name || "Urban Hub";
   const { slug, year } = useParams<{ slug: string; year?: string }>();
   const navigate = useNavigate();
   const [redirecting, setRedirecting] = useState(false);

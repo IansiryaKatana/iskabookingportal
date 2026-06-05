@@ -25,7 +25,7 @@ const routeTitleMap: Record<string, string> = {
 export const usePageTitle = () => {
   const location = useLocation();
   const { data: brandingSettings } = useBrandingSettings();
-  const companyName = brandingSettings?.company_name || "StudentStaySolutions";
+  const companyName = brandingSettings?.company_name || "Urban Hub";
   const baseTitle = `${companyName} Booking Portal`;
   const [studioGradeName, setStudioGradeName] = useState<string | null>(null);
 

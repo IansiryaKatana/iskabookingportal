@@ -253,7 +253,7 @@ serve(async (req) => {
       .select("setting_value")
       .eq("setting_key", "company_name")
       .single();
-    const companyName = brandingSettings?.setting_value || "StudentStaySolutions";
+    const companyName = brandingSettings?.setting_value || "Urban Hub";
 
     // Process invitations
     const results = {

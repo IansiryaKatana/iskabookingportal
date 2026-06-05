@@ -246,25 +246,19 @@ const Payments = () => {
       paymentIntentId,
       applicationId: currentInstalment?.applicationId,
     });
-    
-    // Add the paid instalment ID to the set immediately and persist it
-    if (currentInstalment) {
-      setPaidInstalmentIds((prev) => {
-        const newSet = new Set(prev);
-        newSet.add(currentInstalment.instalmentId);
-        if (import.meta.env.DEV) console.log("Added instalment to paid set:", currentInstalment.instalmentId);
-        return newSet;
+
+    if (!paymentIntentId) {
+      toast({
+        variant: "destructive",
+        title: "Payment not confirmed",
+        description: "We could not verify your instalment with Stripe. Please try again.",
       });
+      return;
     }
     
     setPaymentClientSecret(null);
     setSelectedInstalment(null);
     setCreatingIntentId(null);
-    
-    toast({
-      title: "Payment successful",
-      description: "Your instalment has been processed successfully. Updating payment history...",
-    });
     
     // Immediately sync payment from Stripe to ensure it's in the database
     let syncSucceeded = false;
@@ -280,25 +274,47 @@ const Payments = () => {
 
         if (syncError) {
           console.error("Sync error:", syncError);
+        } else if (syncData?.verified === false) {
+          toast({
+            variant: "destructive",
+            title: "Payment not confirmed",
+            description: "Stripe has not confirmed this instalment yet. Please wait and refresh.",
+          });
+          return;
         } else if (syncData?.synced && syncData.synced > 0) {
           if (import.meta.env.DEV) console.log("Payment synced successfully:", syncData);
           syncSucceeded = true;
-        } else if (syncData?.synced === 0) {
-          if (import.meta.env.DEV) console.log("Payment already exists in database (synced: 0)");
-          syncSucceeded = true; // Already exists is fine
         } else {
-          if (import.meta.env.DEV) console.log("Sync response:", syncData);
+          toast({
+            variant: "destructive",
+            title: "Payment not confirmed",
+            description: "We could not record your instalment yet. Please refresh in a moment.",
+          });
+          return;
         }
       } catch (syncErr) {
         console.error("Error syncing payment:", syncErr);
-        // Continue - webhook will handle it
+        toast({
+          variant: "destructive",
+          title: "Unable to verify payment",
+          description: "Please refresh shortly to check whether your instalment was recorded.",
+        });
+        return;
       }
-    } else {
-      console.warn("Cannot sync: missing paymentIntentId or instalment", {
-        hasPaymentIntentId: !!paymentIntentId,
-        hasInstalment: !!currentInstalment,
+    }
+
+    if (currentInstalment) {
+      setPaidInstalmentIds((prev) => {
+        const newSet = new Set(prev);
+        newSet.add(currentInstalment.instalmentId);
+        return newSet;
       });
     }
+
+    toast({
+      title: "Payment successful",
+      description: "Your instalment has been processed successfully. Updating payment history...",
+    });
     
     // Immediately invalidate and refetch React Query caches
     if (currentInstalment) {
@@ -382,15 +398,8 @@ const Payments = () => {
     // Only check deposit status if label explicitly says "deposit"
     // This should rarely happen since deposits are usually separate
     if (isDeposit) {
-      if (application.deposit_payment_intent_id) {
+      if (application.deposit_payment_intent_id?.startsWith("manual-")) {
         return { status: "paid", label: "Paid", color: "default" as const };
-      }
-      const step5 = application.student_application_steps?.find(s => s.step_number === 5);
-      if (step5?.payload && typeof step5.payload === "object") {
-        const payload = step5.payload as Record<string, unknown>;
-        if (payload.deposit_paid === true) {
-          return { status: "paid", label: "Paid", color: "default" as const };
-        }
       }
     }
 
@@ -629,8 +638,15 @@ const PaymentCard = ({
   }, [contract]);
 
   const isDepositPaid = useMemo(() => {
-    return !!application.deposit_payment_intent_id;
-  }, [application.deposit_payment_intent_id]);
+    if (application.deposit_payment_intent_id?.startsWith("manual-")) {
+      return true;
+    }
+    return (unifiedPayments ?? []).some(
+      (payment) =>
+        payment.payment_metadata?.type === "deposit" ||
+        payment.payment_type === "deposit",
+    );
+  }, [application.deposit_payment_intent_id, unifiedPayments]);
 
   // Calculate installments total due (sum of all installments)
   const installmentsTotalDue = useMemo(() => {

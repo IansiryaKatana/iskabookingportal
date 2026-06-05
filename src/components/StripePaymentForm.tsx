@@ -61,13 +61,6 @@ const StripePaymentForm = ({
         confirmParams: {
           return_url: window.location.href,
         },
-      }).catch((err) => {
-        // Handle postMessage errors gracefully
-        if (err?.message?.includes("message channel") || err?.message?.includes("asynchronous response")) {
-          // These are non-critical, try to proceed
-          return { error: null, paymentIntent: null };
-        }
-        throw err;
       });
 
       if (error) {
@@ -77,7 +70,16 @@ const StripePaymentForm = ({
         return;
       }
 
-      // Verify payment intent status
+      const confirmSucceeded = async (intent: { id: string; status: string; client_secret?: string | null }) => {
+        if (intent.status === "succeeded") {
+          if (import.meta.env.DEV) console.log("Payment succeeded:", intent.id);
+          toast.success("Payment successful!");
+          onSuccess(intent.id);
+          return true;
+        }
+        return false;
+      };
+
       if (paymentIntent) {
         if (import.meta.env.DEV) console.log("Payment intent received:", {
           id: paymentIntent.id,
@@ -85,40 +87,35 @@ const StripePaymentForm = ({
           amount: paymentIntent.amount,
           metadata: paymentIntent.metadata,
         });
-        
-        if (paymentIntent.status === "succeeded") {
-          if (import.meta.env.DEV) console.log("Payment succeeded:", paymentIntent.id);
-          toast.success("Payment successful!");
-          onSuccess(paymentIntent.id);
-        } else if (paymentIntent.status === "processing") {
-          toast.success("Payment is processing. Please wait...");
-          // Wait a bit and check status
-          setTimeout(async () => {
+
+        if (await confirmSucceeded(paymentIntent)) {
+          return;
+        }
+
+        if (paymentIntent.status === "processing") {
+          toast.info("Payment is processing. Verifying with Stripe...");
+          for (let attempt = 0; attempt < 5; attempt++) {
+            await new Promise((resolve) => setTimeout(resolve, 2000));
             try {
               const retrieved = await stripe.retrievePaymentIntent(paymentIntent.client_secret!);
-              if (retrieved.paymentIntent?.status === "succeeded") {
-                if (import.meta.env.DEV) console.log("Payment confirmed as succeeded:", retrieved.paymentIntent.id);
-                toast.success("Payment successful!");
-                onSuccess(retrieved.paymentIntent.id);
-              } else {
-                console.warn("Payment still processing:", retrieved.paymentIntent?.status);
-                toast.error("Payment is still processing. Please refresh the page to check status.");
+              if (retrieved.paymentIntent && await confirmSucceeded(retrieved.paymentIntent)) {
+                return;
               }
             } catch (err) {
               console.error("Error checking payment status:", err);
             }
-          }, 2000);
-        } else {
-          console.error("Payment intent status:", paymentIntent.status);
-          toast.error(`Payment status: ${paymentIntent.status}. Please try again.`);
+          }
+          toast.error("Payment is still processing. Please wait and refresh before trying again.");
+          return;
         }
-      } else {
-        // If no paymentIntent returned, the payment might have been redirected
-        // In that case, onSuccess will be called after redirect
-        console.warn("No payment intent returned from confirmPayment");
-        toast.success("Payment processing...");
-        onSuccess();
+
+        console.error("Payment intent status:", paymentIntent.status);
+        toast.error(`Payment was not completed (${paymentIntent.status.replaceAll("_", " ")}). Please try again.`);
+        return;
       }
+
+      console.warn("No payment intent returned from confirmPayment");
+      toast.error("We could not confirm your payment. Please try again.");
     } catch (error) {
       // Only log actual errors, not postMessage warnings
       const errorMessage = error instanceof Error ? error.message : String(error);

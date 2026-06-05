@@ -183,7 +183,7 @@ const Navigation = ({ compactLogo = false }: NavigationProps) => {
           <a href="/" className="flex items-center lg:absolute lg:left-1/2 lg:transform lg:-translate-x-1/2">
             <img
               src={logoUrl}
-              alt={companyName || "StudentStaySolutions"}
+              alt={companyName || "Urban Hub"}
               className={compactLogo ? "h-6 md:h-8" : "h-8 md:h-12"}
             />
           </a>

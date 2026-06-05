@@ -5,6 +5,7 @@ import {
   importPKCS8,
 } from "https://esm.sh/jose@4.15.5?target=deno";
 import { getCorsHeaders, staticCorsHeaders } from "../_shared/cors.ts";
+import { notifyBookingEvent } from "../_shared/booking-notifications.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -266,12 +267,129 @@ const toTitleCase = (value?: string | null): string => {
 const normalizePlanSummary = (value?: string | null): string => {
   if (!value) return "";
   return value
-    .replace(/<br\s*\/?>/gi, " | ")
-    .replace(/\u25a1/g, " | ")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/\u25a1/g, "")
     .replace(/\r\n/g, "\n")
-    .replace(/[ \t]*\n[ \t]*/g, " | ")
-    .replace(/\s*\|\s*\|\s*/g, " | ")
-    .trim();
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join("\n");
+};
+
+const isDepositInstallment = (
+  installment: {
+    label?: string | null;
+    sequence?: number | null;
+    amount_type?: string | null;
+    amount_value?: number | string | null;
+  },
+  depositAmount: number | null,
+): boolean => {
+  if (installment.label?.toLowerCase().includes("deposit")) {
+    return true;
+  }
+  return (
+    installment.sequence === 1 &&
+    installment.amount_type === "fixed" &&
+    depositAmount != null &&
+    Number(installment.amount_value) === depositAmount
+  );
+};
+
+const calculateInstallmentDueDate = (
+  installment: {
+    due_date?: string | null;
+    due_date_offset_days?: number | null;
+  },
+  contractStart?: string | null,
+): string | null => {
+  if (installment.due_date) {
+    return installment.due_date;
+  }
+  if (
+    installment.due_date_offset_days !== null &&
+    installment.due_date_offset_days !== undefined &&
+    contractStart
+  ) {
+    try {
+      const calculatedDate = new Date(contractStart);
+      calculatedDate.setDate(
+        calculatedDate.getDate() + installment.due_date_offset_days,
+      );
+      return calculatedDate.toISOString().split("T")[0];
+    } catch (dateError) {
+      console.error("Error calculating due date from offset:", dateError);
+    }
+  }
+  return null;
+};
+
+const isDepositScheduleRow = (
+  row: {
+    label?: string | null;
+    sequence?: number | null;
+    amount?: number | string | null;
+  },
+  depositAmount: number | null,
+): boolean => {
+  if (row.label?.toLowerCase().includes("deposit")) {
+    return true;
+  }
+  return (
+    row.sequence === 1 &&
+    depositAmount != null &&
+    Number(row.amount) === depositAmount
+  );
+};
+
+const formatPlanSummaryLine = (
+  kind: "deposit" | "installment",
+  amountPounds: number,
+  dueDate?: string | null,
+  installmentNumber?: number,
+): string => {
+  const formattedAmount = formatGBP(Math.round(amountPounds * 100));
+  if (kind === "deposit") {
+    return `Deposit: ${formattedAmount} (payable upon booking)`;
+  }
+  const label = `Installment ${installmentNumber}: ${formattedAmount}`;
+  return dueDate ? `${label} — due ${formatGbDate(dueDate)}` : label;
+};
+
+type DocuSignTextTab = {
+  tabLabel?: string;
+  value?: string;
+  locked?: string;
+  anchorString?: string;
+  anchorXOffset?: string;
+  anchorYOffset?: string;
+  anchorUnits?: string;
+  width?: string;
+  height?: string;
+  disableAutoSize?: string;
+  fontSize?: string;
+  required?: string;
+};
+
+const PLAN_SUMMARY_LINE_HEIGHT = 18;
+const PLAN_SUMMARY_TAB_WIDTH = "520";
+
+// Match the template tab by label only — anchor tabs and locked=true prevent API population.
+const createPlanSummaryTab = (
+  value: string,
+  lineCount: number,
+): DocuSignTextTab | null => {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+
+  return {
+    tabLabel: "plan_summary",
+    value: trimmed,
+    width: PLAN_SUMMARY_TAB_WIDTH,
+    height: String(Math.max(90, lineCount * PLAN_SUMMARY_LINE_HEIGHT + 12)),
+    disableAutoSize: "false",
+    fontSize: "Size8",
+  };
 };
 
 const sendEnvelope = async (
@@ -287,7 +405,11 @@ const sendEnvelope = async (
       ? {
         textTabs: (tabsForFirstRole.textTabs as any[])?.map((t: any) => ({
           label: t.tabLabel,
-          value: t.value?.substring(0, 50), // truncate for logging
+          value: t.value?.substring(0, 80),
+          anchor: t.anchorString,
+          anchorYOffset: t.anchorYOffset,
+          width: t.width,
+          height: t.height,
         })),
       }
       : null,
@@ -442,6 +564,7 @@ serve(async (req) => {
         status,
         deposit_payment_intent_id,
         selected_payment_plan_id,
+        requested_contract_start,
         studio_grade_id,
         assigned_studio_id,
         assigned_studio:studios (
@@ -456,6 +579,7 @@ serve(async (req) => {
           contract_end,
           weeks,
           extra_days,
+          is_custom_duration_placeholder,
           weekly_price_override,
           deposit_override,
           studio_grade:studio_grades ( 
@@ -824,78 +948,133 @@ serve(async (req) => {
         : null;
     }
 
-    // Calculate payment schedule with actual amounts.
-    // Policy: deposit is separate and must NOT reduce installment base.
-    if (application.selected_payment_plan_id && totalContractValue) {
-      try {
-        const { data: installments, error: installmentsError } = await supabaseAdmin
-          .from("payment_plan_installments")
-          .select("amount_value, amount_type, due_date, due_date_offset_days, sequence, label")
-          .eq("payment_plan_id", application.selected_payment_plan_id)
-          .order("sequence", { ascending: true });
-        
-        if (!installmentsError && installments && installments.length) {
-          // Installments are based on full contract value (deposit is separate).
+    // Build payment schedule lines for DocuSign (deposit separate from installments).
+    const planSummaryLines: string[] = [];
+    const effectiveContractStart =
+      (contract as { is_custom_duration_placeholder?: boolean })
+        .is_custom_duration_placeholder &&
+      application.requested_contract_start
+        ? application.requested_contract_start
+        : contract?.contract_start;
+
+    if (depositAmount) {
+      planSummaryLines.push(
+        formatPlanSummaryLine("deposit", depositAmount),
+      );
+    }
+
+    try {
+      let installmentsBuilt = false;
+
+      if (application.selected_payment_plan_id && totalContractValue) {
+        const { data: installments, error: installmentsError } =
+          await supabaseAdmin
+            .from("payment_plan_installments")
+            .select(
+              "amount_value, amount_type, due_date, due_date_offset_days, sequence, label",
+            )
+            .eq("payment_plan_id", application.selected_payment_plan_id)
+            .order("sequence", { ascending: true });
+
+        if (!installmentsError && installments?.length) {
           const installmentBase = totalContractValue;
-          
-          // Build payment schedule with actual calculated amounts
-          // CRITICAL: Last installment absorbs rounding difference for perfect accuracy
-          const scheduleItems = installments.map((it, index) => {
+          const paymentInstallments = installments.filter(
+            (it) => !isDepositInstallment(it, depositAmount),
+          );
+
+          const scheduleEntries = paymentInstallments.map((it, index) => {
             let amount = 0;
             if (it.amount_type === "fixed") {
               amount = Number(it.amount_value);
             } else if (it.amount_type === "percentage") {
               amount = (installmentBase * Number(it.amount_value)) / 100;
             }
-            
-            // Adjust last installment to absorb rounding difference
-            if (index === installments.length - 1) {
-              const sumOfPrevious = installments
+
+            if (index === paymentInstallments.length - 1) {
+              const sumOfPrevious = paymentInstallments
                 .slice(0, index)
                 .reduce((sum, prev) => {
                   let prevAmount = 0;
                   if (prev.amount_type === "fixed") {
                     prevAmount = Number(prev.amount_value);
                   } else if (prev.amount_type === "percentage") {
-                    prevAmount = (installmentBase * Number(prev.amount_value)) / 100;
+                    prevAmount =
+                      (installmentBase * Number(prev.amount_value)) / 100;
                   }
                   return sum + prevAmount;
                 }, 0);
-              // Last installment = installment base - sum of previous
               amount = installmentBase - sumOfPrevious;
             }
-            
-            // Calculate actual due date: use due_date if available, otherwise calculate from contract_start + offset
-            let actualDueDate: string | null = null;
-            if (it.due_date) {
-              actualDueDate = it.due_date;
-            } else if (it.due_date_offset_days !== null && contract?.contract_start) {
-              // Calculate: contract_start + offset_days
-              try {
-                const contractStart = new Date(contract.contract_start);
-                const calculatedDate = new Date(contractStart);
-                calculatedDate.setDate(calculatedDate.getDate() + it.due_date_offset_days);
-                actualDueDate = calculatedDate.toISOString().split('T')[0]; // Format as YYYY-MM-DD
-              } catch (dateError) {
-                console.error("Error calculating due date from offset:", dateError);
-                // Fall back to empty date if calculation fails
-                actualDueDate = null;
-              }
-            }
-            
-            const due = actualDueDate ? formatGbDate(actualDueDate) : "";
-            const formattedAmount = formatGBP(Math.round(amount * 100));
-            const installmentLine = `Installment ${it.sequence} -- ${formattedAmount}`;
-            return due ? `${installmentLine} on ${due}` : installmentLine;
+
+            return {
+              amount,
+              dueDate: calculateInstallmentDueDate(it, effectiveContractStart),
+            };
           });
-          
-          // Keep summary single-line safe for DocuSign text tabs that don't support multiline rendering.
-          planSummary = scheduleItems.join(" | ");
+
+          scheduleEntries.sort((a, b) => {
+            if (!a.dueDate && !b.dueDate) return 0;
+            if (!a.dueDate) return 1;
+            if (!b.dueDate) return -1;
+            return (
+              new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+            );
+          });
+
+          scheduleEntries.forEach((entry, index) => {
+            planSummaryLines.push(
+              formatPlanSummaryLine(
+                "installment",
+                entry.amount,
+                entry.dueDate,
+                index + 1,
+              ),
+            );
+          });
+          installmentsBuilt = scheduleEntries.length > 0;
         }
-      } catch (error) {
-        console.error("Error processing payment plan installments:", error);
       }
+
+      if (!installmentsBuilt && contract?.id) {
+        const { data: scheduleRows, error: scheduleError } = await supabaseAdmin
+          .from("contract_payment_schedule")
+          .select("amount, due_date, sequence, label")
+          .eq("contract_id", contract.id)
+          .order("sequence", { ascending: true });
+
+        if (!scheduleError && scheduleRows?.length) {
+          const paymentRows = scheduleRows
+            .filter((row) => !isDepositScheduleRow(row, depositAmount))
+            .map((row) => ({
+              amount: Number(row.amount),
+              dueDate: row.due_date,
+            }))
+            .sort((a, b) => {
+              if (!a.dueDate && !b.dueDate) return 0;
+              if (!a.dueDate) return 1;
+              if (!b.dueDate) return -1;
+              return (
+                new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+              );
+            });
+
+          paymentRows.forEach((row, index) => {
+            planSummaryLines.push(
+              formatPlanSummaryLine(
+                "installment",
+                row.amount,
+                row.dueDate,
+                index + 1,
+              ),
+            );
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error processing payment plan installments:", error);
     }
+
+    planSummary = planSummaryLines.join("\n");
 
     const weeklyRateFormatted = weeklyRate ? formatGBP(Math.round(weeklyRate * 100)) : "";
     const depositAmountFormatted = depositAmount ? formatGBP(Math.round(depositAmount * 100)) : "";
@@ -918,8 +1097,25 @@ serve(async (req) => {
     // Note: Witness and guarantor validation is now done in the tenancy recipients section
 
     const normalizedPlanSummary = normalizePlanSummary(planSummary);
+    const planSummaryLineList = normalizedPlanSummary
+      ? normalizedPlanSummary.split("\n").filter(Boolean)
+      : [];
+    const planSummaryTab = createPlanSummaryTab(
+      normalizedPlanSummary,
+      planSummaryLineList.length,
+    );
 
-    const textTabs = [
+    if (!planSummaryTab) {
+      console.warn("DocuSign plan_summary is empty", {
+        applicationId: application.id,
+        selectedPaymentPlanId: application.selected_payment_plan_id,
+        totalContractValue,
+        depositAmount,
+        planSummaryLines,
+      });
+    }
+
+    const textTabs: DocuSignTextTab[] = [
       ...(academicYear ? [{ tabLabel: "academic_year", value: academicYear }] : []),
       ...(weeklyRateFormatted ? [{ tabLabel: "weekly_rate", value: weeklyRateFormatted }] : []),
       ...(tenantNameForDoc ? [{ tabLabel: "tenant_name", value: tenantNameForDoc }] : []),
@@ -927,12 +1123,7 @@ serve(async (req) => {
       ...(depositAmountFormatted ? [{ tabLabel: "deposit_amount", value: depositAmountFormatted }] : []),
       ...(tenancyPeriod ? [{ tabLabel: "tenancy_period", value: tenancyPeriod }] : []),
       ...(totalRent ? [{ tabLabel: "total_rent", value: totalRent }] : []),
-      ...(normalizedPlanSummary
-        ? [{
-          tabLabel: "plan_summary",
-          value: normalizedPlanSummary,
-        }]
-        : []),
+      ...(planSummaryTab ? [planSummaryTab] : []),
       ...(studentPhone
         ? [{ tabLabel: "student_phone", value: studentPhone }]
         : []),
@@ -952,8 +1143,17 @@ serve(async (req) => {
       roomNumber,
       tenancyPeriod,
       planSummary,
+      planSummaryLineCount: planSummaryLineList.length,
+      planSummaryTabHeight: planSummaryTab?.height,
       textTabsCount: textTabs.length,
-      textTabs: textTabs.map(t => ({ label: t.tabLabel, value: t.value?.substring(0, 50) })),
+      textTabs: textTabs.map((t) => ({
+        label: t.tabLabel,
+        value: t.value?.substring(0, 80),
+        anchor: t.anchorString,
+        anchorYOffset: t.anchorYOffset,
+        width: t.width,
+        height: t.height,
+      })),
     });
 
     // IMPORTANT: Signature tabs should ideally be pre-placed in the DocuSign template
@@ -1132,7 +1332,7 @@ serve(async (req) => {
       .select("setting_value")
       .eq("setting_key", "company_name")
       .maybeSingle();
-    const companyName = brandingData?.setting_value || "StudentStaySolutions";
+    const companyName = brandingData?.setting_value || "Urban Hub";
 
     const tenancyTemplateId = String(tenancyTemplate.template_id ?? "").trim();
     console.info("DocuSign environment check", {
@@ -1324,6 +1524,18 @@ serve(async (req) => {
       : requiresGuarantor
       ? "Tenancy and guarantor agreements have been emailed."
       : "Tenancy agreement has been emailed to you and your witness.";
+
+    if (envelopesCreated.length > 0) {
+      try {
+        await notifyBookingEvent(
+          supabaseAdmin,
+          "application_submitted",
+          application.id,
+        );
+      } catch (notifyError) {
+        console.error("Error sending application_submitted staff notification:", notifyError);
+      }
+    }
 
     return new Response(
       JSON.stringify({

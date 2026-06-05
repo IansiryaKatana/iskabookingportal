@@ -730,7 +730,7 @@ const Branding = () => {
               Company Name
             </CardTitle>
             <CardDescription className="text-xs md:text-sm">
-              Your company name used throughout the system (emails, invoices, UI). Default: StudentStaySolutions
+              Your company name used throughout the system (emails, invoices, UI). Default: Urban Hub
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -738,7 +738,7 @@ const Branding = () => {
               <Input
                 id="company_name"
                 type="text"
-                placeholder="StudentStaySolutions"
+                placeholder="Urban Hub"
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
                 className="text-sm md:text-base"
@@ -1936,11 +1936,11 @@ const Branding = () => {
                 id="footer-copyright"
                 value={footerCopyright}
                 onChange={(e) => setFooterCopyright(e.target.value)}
-                placeholder={`${settings?.company_name || "StudentStaySolutions"}. All rights reserved.`}
+                placeholder={`${settings?.company_name || "Urban Hub"}. All rights reserved.`}
                 className="rounded-xl text-sm"
               />
               <p className="text-xs text-muted-foreground">
-                The current year will be automatically added (e.g., `© 2025 ${settings?.company_name || "StudentStaySolutions"}. All rights reserved.`)
+                The current year will be automatically added (e.g., `© 2025 ${settings?.company_name || "Urban Hub"}. All rights reserved.`)
               </p>
             </div>
             <Button

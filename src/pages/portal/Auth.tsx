@@ -194,7 +194,7 @@ const PortalAuth = () => {
               {faviconLoaded ? (
                 <img 
                   src={faviconUrl} 
-                  alt={brandingSettings?.company_name || "StudentStaySolutions"} 
+                  alt={brandingSettings?.company_name || "Urban Hub"} 
                   className="h-8 w-8 md:h-10 md:w-10"
                 />
               ) : (
@@ -222,7 +222,7 @@ const PortalAuth = () => {
                   <span>Secure login & encrypted data</span>
                 </>
               ) : (
-                `Register to begin your ${brandingSettings?.company_name || "StudentStaySolutions"} booking journey.`
+                `Register to begin your ${brandingSettings?.company_name || "Urban Hub"} booking journey.`
               )}
             </p>
           </div>

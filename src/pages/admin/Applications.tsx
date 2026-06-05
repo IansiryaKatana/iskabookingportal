@@ -52,6 +52,7 @@ import { CreateCustomContractSheet } from "@/components/admin/CreateCustomContra
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FilePlus2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { notifyBookingEvent } from "@/utils/notifyBookingEvent";
 import { cn } from "@/lib/utils";
 import {
   Pagination,
@@ -531,6 +532,9 @@ const Applications = () => {
       queryClient.invalidateQueries({ queryKey: ["student-profiles"] });
       setCreateDialogOpen(false);
       resetCreateDialog();
+      if (!result.isExisting && result.id) {
+        void notifyBookingEvent("application_created", result.id);
+      }
       if (result.isExisting) {
         toast({ title: "Application exists", description: "Opening existing application." });
       } else if (result.isNewStudent) {
