@@ -6373,6 +6373,7 @@ export type Database = {
           contract_start: string | null
           discount_amount: number | null
           outstanding_balance: number | null
+          payment_plan: string | null
           payment_status: string | null
           student_id: string | null
           student_name: string | null
@@ -6419,6 +6420,7 @@ export type Database = {
           payment_date: string | null
           payment_id: string | null
           payment_method: string | null
+          payment_plan: string | null
           payment_source: string | null
           payment_status: string | null
           payment_type: string | null
@@ -6590,6 +6592,7 @@ export type Database = {
           expected_installments: number | null
           installment_payment_count: number | null
           installments_paid: number | null
+          payment_plan: string | null
           status: Database["public"]["Enums"]["application_status"] | null
           student_id: string | null
           student_name: string | null
@@ -6738,6 +6741,7 @@ export type Database = {
           first_name: string | null
           last_name: string | null
           last_payment_date: string | null
+          payment_plan: string | null
           payment_status: string | null
           remaining_balance: number | null
           student_id: string | null
@@ -6763,6 +6767,7 @@ export type Database = {
           days_overdue: number | null
           oldest_unpaid_due_date: string | null
           outstanding_balance: number | null
+          payment_plan: string | null
           student_id: string | null
           student_name: string | null
           studio_grade: string | null
@@ -7085,6 +7090,7 @@ export type Database = {
           is_deposit: boolean | null
           is_paid: boolean | null
           paid_date: string | null
+          payment_plan: string | null
           sequence: number | null
           status: string | null
           student_id: string | null
@@ -7626,6 +7632,7 @@ export type Database = {
           first_name: string
           last_name: string
           last_payment_date: string
+          payment_plan: string
           payment_status: string
           remaining_balance: number
           student_id: string

@@ -15,21 +15,9 @@ import {
   type SalesReportStatus,
 } from "@/hooks/useSalesReports";
 import { useToast } from "@/hooks/use-toast";
-import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from "@/components/ui/chart";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
-import { Download, Users, BarChart3, RefreshCw, PiggyBank, Receipt } from "lucide-react";
+import { SalesReportCharts } from "@/components/admin/sales/SalesReportCharts";
+import { Download, RefreshCw, PiggyBank, Receipt } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-
-const chartConfig = {
-  occupancy: {
-    label: "Occupancy %",
-    color: "hsl(var(--chart-1))",
-  },
-  rebooker_share: {
-    label: "Rebooker Share %",
-    color: "hsl(var(--chart-2))",
-  },
-} as const;
 
 const STATUS_LABELS: Record<SalesReportStatus, string> = {
   confirmed: "Confirmed",
@@ -85,25 +73,6 @@ const SalesReports = () => {
 
   const rebookerRate = totalContracts > 0 ? Math.round((totalRebookers / totalContracts) * 100 * 100) / 100 : 0;
   const selectedStatusSummary = STATUS_LABELS[selectedStatus];
-
-  const occupancyChartData = useMemo(
-    () =>
-      (occupancy ?? []).map((row) => ({
-        month: row.month_label,
-        occupancy: row.occupancy_percentage,
-      })),
-    [occupancy],
-  );
-
-  const rebookerChartData = useMemo(
-    () =>
-      (rebookers ?? []).map((row) => ({
-        month: row.month_label,
-        rebooker_share: row.rebooker_share_percentage,
-      })),
-    [rebookers],
-  );
-
   const academicYearName =
     demographics?.[0]?.academic_year_name ||
     occupancy?.[0]?.academic_year_name ||
@@ -278,75 +247,19 @@ const SalesReports = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card className="rounded-2xl">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm md:text-base font-display flex items-center gap-2">
-                    <BarChart3 className="h-4 w-4" />
-                    Occupancy by Month
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    Average occupancy percentage across studio grades per month (confirmed only).
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  {occupancyChartData.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No occupancy data available.</p>
-                  ) : (
-                    <ChartContainer config={chartConfig} className="w-full h-64">
-                      <LineChart data={occupancyChartData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="month" tick={{ fontSize: 10 }} />
-                        <YAxis tickFormatter={(v) => `${v}%`} width={40} />
-                        <ChartTooltip content={<ChartTooltipContent />} />
-                        <ChartLegend content={<ChartLegendContent />} />
-                        <Line
-                          type="monotone"
-                          dataKey="occupancy"
-                          stroke="var(--color-occupancy)"
-                          strokeWidth={2}
-                          dot={false}
-                        />
-                      </LineChart>
-                    </ChartContainer>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className="rounded-2xl">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm md:text-base font-display flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    Rebookers by Month
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    Percentage of confirmed contracts that are rebookers for each month.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  {rebookerChartData.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No rebooking data available.</p>
-                  ) : (
-                    <ChartContainer config={chartConfig} className="w-full h-64">
-                      <LineChart data={rebookerChartData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="month" tick={{ fontSize: 10 }} />
-                        <YAxis tickFormatter={(v) => `${v}%`} width={40} />
-                        <ChartTooltip content={<ChartTooltipContent />} />
-                        <ChartLegend content={<ChartLegendContent />} />
-                        <Line
-                          type="monotone"
-                          dataKey="rebooker_share"
-                          stroke="var(--color-rebooker_share)"
-                          strokeWidth={2}
-                          dot={false}
-                        />
-                      </LineChart>
-                    </ChartContainer>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+            <SalesReportCharts
+              occupancy={occupancy}
+              rebookers={rebookers}
+              demographics={demographics}
+              loadingOccupancy={loadingOccupancy}
+              loadingRebookers={loadingRebookers}
+              loadingDemographics={loadingDemographics}
+              loadingCash={loadingCash}
+              totalReceived={cashSummary?.total_received ?? 0}
+              totalDepositsCollected={cashSummary?.total_deposits_collected ?? 0}
+              totalInstallmentsCollected={cashSummary?.total_installments_collected ?? 0}
+              totalSalesValue={totalSalesValue}
+            />
           </CardContent>
         </Card>
 

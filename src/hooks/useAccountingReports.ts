@@ -27,6 +27,7 @@ export type AccountsReceivableItem = {
   contract_start: string | null;
   contract_end: string | null;
   academic_year_name: string | null;
+  payment_plan: string | null;
 };
 
 export type RevenueSummaryItem = {
@@ -60,6 +61,7 @@ export type OutstandingBalanceItem = {
   application_date: string;
   contract_start: string | null;
   contract_end: string | null;
+  payment_plan: string | null;
 };
 
 export type DepositInstallmentBreakdownItem = {
@@ -79,6 +81,7 @@ export type DepositInstallmentBreakdownItem = {
   installment_payment_count: number;
   status: string;
   application_date: string;
+  payment_plan: string | null;
 };
 
 export type BankReconciliationItem = {
@@ -101,6 +104,7 @@ export type BankReconciliationItem = {
   studio_grade: string | null;
   invoice_number: string | null;
   invoice_generated_at: string | null;
+  payment_plan: string | null;
 };
 
 export type UpcomingPaidInstallmentItem = {
@@ -124,6 +128,7 @@ export type UpcomingPaidInstallmentItem = {
   is_paid: boolean;
   paid_date: string | null;
   status: "upcoming" | "overdue" | "paid" | "partially_paid";
+  payment_plan: string | null;
 };
 
 export type FullyPaidStudentItem = {
@@ -145,6 +150,7 @@ export type FullyPaidStudentItem = {
   application_created_at: string | null;
   studio_number: string | null;
   studio_grade_name: string | null;
+  payment_plan: string | null;
 };
 
 // ============================================================================

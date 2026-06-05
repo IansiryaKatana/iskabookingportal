@@ -253,6 +253,7 @@ const AccountingReports = () => {
           "Contract Start",
           "Contract End",
           "Academic Year",
+          "Payment Plan",
         ];
         rows = filteredArData.map((item) => [
           item.application_id,
@@ -273,6 +274,7 @@ const AccountingReports = () => {
           item.contract_start ? format(new Date(item.contract_start), "yyyy-MM-dd") : "",
           item.contract_end ? format(new Date(item.contract_end), "yyyy-MM-dd") : "",
           item.academic_year_name || "",
+          item.payment_plan || "",
         ]);
         filename = `accounts_receivable_${format(new Date(), "yyyy-MM-dd")}.csv`;
         break;
@@ -337,6 +339,7 @@ const AccountingReports = () => {
           "Application Date",
           "Contract Start",
           "Contract End",
+          "Payment Plan",
         ];
         rows = filteredOutstandingData.map((item) => [
           item.application_id,
@@ -353,6 +356,7 @@ const AccountingReports = () => {
           format(new Date(item.application_date), "yyyy-MM-dd"),
           item.contract_start ? format(new Date(item.contract_start), "yyyy-MM-dd") : "",
           item.contract_end ? format(new Date(item.contract_end), "yyyy-MM-dd") : "",
+          item.payment_plan || "",
         ]);
         filename = `outstanding_balances_${format(new Date(), "yyyy-MM-dd")}.csv`;
         break;
@@ -383,6 +387,7 @@ const AccountingReports = () => {
           "Installment Payment Count",
           "Status",
           "Application Date",
+          "Payment Plan",
         ];
         rows = filteredBreakdownData.map((item) => [
           item.application_id,
@@ -399,6 +404,7 @@ const AccountingReports = () => {
           item.installment_payment_count.toString(),
           item.status,
           format(new Date(item.application_date), "yyyy-MM-dd"),
+          item.payment_plan || "",
         ]);
         filename = `deposit_installment_breakdown_${format(new Date(), "yyyy-MM-dd")}.csv`;
         break;
@@ -429,6 +435,7 @@ const AccountingReports = () => {
           "Studio Grade",
           "Invoice Number",
           "Invoice Generated At",
+          "Payment Plan",
         ];
         rows = bankData.map((item) => [
           item.payment_id,
@@ -447,6 +454,7 @@ const AccountingReports = () => {
           item.studio_grade || "",
           item.invoice_number || "",
           item.invoice_generated_at ? format(new Date(item.invoice_generated_at), "yyyy-MM-dd HH:mm:ss") : "",
+          item.payment_plan || "",
         ]);
         filename = `bank_reconciliation_${format(new Date(), "yyyy-MM-dd")}.csv`;
         break;
@@ -475,6 +483,7 @@ const AccountingReports = () => {
           "Installment Label",
           "Application ID",
           "Is Deposit",
+          "Payment Plan",
         ];
         rows = filteredUpcomingData.map((item: UpcomingPaidInstallmentItem) => [
           item.student_name ?? "",
@@ -491,6 +500,7 @@ const AccountingReports = () => {
           item.installment_label ?? "",
           item.application_id,
           item.is_deposit ? "Yes" : "No",
+          item.payment_plan ?? "",
         ]);
         filename = `upcoming_payments_${format(new Date(), "yyyy-MM-dd")}.csv`;
         break;
@@ -521,6 +531,7 @@ const AccountingReports = () => {
           "Last Payment Date",
           "Application Status",
           "Application Created At",
+          "Payment Plan",
         ];
         rows = filteredFullyPaidData.map((item: FullyPaidStudentItem) => [
           item.application_id,
@@ -537,6 +548,7 @@ const AccountingReports = () => {
           item.last_payment_date ? format(new Date(item.last_payment_date), "yyyy-MM-dd") : "",
           item.application_status ?? "",
           item.application_created_at ? format(new Date(item.application_created_at), "yyyy-MM-dd HH:mm:ss") : "",
+          item.payment_plan ?? "",
         ]);
         filename = `paid_in_full_${format(new Date(), "yyyy-MM-dd")}.csv`;
         break;
@@ -884,6 +896,9 @@ const AccountingReports = () => {
                                     <span className="font-medium">Studio Grade:</span> {item.studio_grade}
                                   </div>
                                   <div>
+                                    <span className="font-medium">Payment Plan:</span> {item.payment_plan || "—"}
+                                  </div>
+                                  <div>
                                     <span className="font-medium">Total Due:</span> {formatCurrency(item.total_due)}
                                   </div>
                                   <div>
@@ -1079,6 +1094,9 @@ const AccountingReports = () => {
                                 <span className="font-medium">Contract:</span> {item.contract_name}
                               </div>
                               <div>
+                                <span className="font-medium">Payment Plan:</span> {item.payment_plan || "—"}
+                              </div>
+                              <div>
                                 <span className="font-medium">Outstanding:</span>{" "}
                                 <span className="font-bold text-destructive">
                                   {formatCurrency(item.outstanding_balance)}
@@ -1171,6 +1189,10 @@ const AccountingReports = () => {
                                 {formatCurrency(item.total_contract_value)}
                               </div>
                               <div>
+                                <span className="font-medium text-muted-foreground">Payment Plan:</span>{" "}
+                                {item.payment_plan || "—"}
+                              </div>
+                              <div>
                                 <span className="font-medium text-muted-foreground">Payment Count:</span>{" "}
                                 {item.deposit_payment_count} deposit{item.deposit_payment_count !== 1 ? "s" : ""},{" "}
                                 {item.installment_payment_count} installment
@@ -1215,6 +1237,7 @@ const AccountingReports = () => {
                           <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Amount</th>
                           <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Method</th>
                           <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Type</th>
+                          <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Payment Plan</th>
                           <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Invoice #</th>
                         </tr>
                       </thead>
@@ -1230,6 +1253,7 @@ const AccountingReports = () => {
                               <Badge variant="outline" className="text-xs">{item.payment_method}</Badge>
                             </td>
                             <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">{item.payment_type}</td>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">{item.payment_plan || "—"}</td>
                             <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">{item.invoice_number || "—"}</td>
                           </tr>
                         ))}
@@ -1262,6 +1286,7 @@ const AccountingReports = () => {
                           <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Student</th>
                           <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Studio</th>
                           <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Contract</th>
+                          <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Payment Plan</th>
                           <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Due Date</th>
                           <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Amount</th>
                           <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Paid</th>
@@ -1275,6 +1300,7 @@ const AccountingReports = () => {
                             <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-medium">{item.student_name ?? "—"}</td>
                             <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">{item.studio_number ?? "—"} {item.studio_grade ? `(${item.studio_grade})` : ""}</td>
                             <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">{item.contract_name ?? "—"}</td>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">{item.payment_plan ?? "—"}</td>
                             <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">{formatDateSafe(item.due_date, "MMM d, yyyy")}</td>
                             <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm text-right font-semibold">{formatCurrency(item.amount)}</td>
                             <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm text-right">
@@ -1370,6 +1396,9 @@ const AccountingReports = () => {
                                     </div>
                                     <div>
                                       <span className="font-medium">Contract:</span> {item.contract_name || "—"}
+                                    </div>
+                                    <div>
+                                      <span className="font-medium">Payment Plan:</span> {item.payment_plan || "—"}
                                     </div>
                                     <div>
                                       <span className="font-medium">Studio:</span>{" "}
