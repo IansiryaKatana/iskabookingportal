@@ -26,10 +26,12 @@ export type CashbackCampaign = {
 export type ApplicationCashback = {
   id: string;
   application_id: string;
-  campaign_id: string;
+  campaign_id: string | null;
   cashback_amount: number;
   applied_at: string;
   campaign?: CashbackCampaign;
+  /** True when cashback_amount exists on the application but no application_cashbacks row */
+  is_denormalized_only?: boolean;
 };
 
 /**
@@ -200,7 +202,29 @@ export const useApplicationCashback = (applicationId?: string) => {
         .maybeSingle();
 
       if (error) throw error;
-      return (data as ApplicationCashback | null) || null;
+      if (data) return data as ApplicationCashback;
+
+      // Payment calculations use student_applications.cashback_amount; some historical
+      // imports set that column without creating an application_cashbacks row.
+      const { data: application, error: appError } = await supabase
+        .from("student_applications")
+        .select("id, cashback_amount, updated_at")
+        .eq("id", applicationId)
+        .maybeSingle();
+
+      if (appError) throw appError;
+
+      const cashbackAmount = Number(application?.cashback_amount ?? 0);
+      if (cashbackAmount <= 0) return null;
+
+      return {
+        id: `denormalized-${applicationId}`,
+        application_id: applicationId,
+        campaign_id: null,
+        cashback_amount: cashbackAmount,
+        applied_at: application?.updated_at ?? new Date().toISOString(),
+        is_denormalized_only: true,
+      } satisfies ApplicationCashback;
     },
     enabled: !!applicationId,
   });

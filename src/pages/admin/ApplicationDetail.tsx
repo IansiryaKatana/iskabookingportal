@@ -33,7 +33,7 @@ import {
   type CustomInstallmentInput,
 } from "@/hooks/useCreateCustomContractFromApplication";
 import { useCreateNotification } from "@/hooks/useNotifications";
-import { useApplicationCashback, useActiveCashbackCampaigns, useApplyCashback } from "@/hooks/useCashback";
+import { useApplicationCashback, useActiveCashbackCampaigns, useApplyCashback, useRemoveCashback } from "@/hooks/useCashback";
 import { useApplicationDiscount, useActiveDiscountCampaigns, useApplyDiscount, useRemoveDiscount } from "@/hooks/useDiscount";
 import { useApplicationPartnerReferral, usePartners, useCreatePartnerReferral } from "@/hooks/usePartners";
 import { useDocumentUpload } from "@/hooks/useDocumentUpload";
@@ -251,6 +251,7 @@ const ApplicationDetail = () => {
     application?.is_rebooking ? "rebooking" : "new"
   );
   const applyCashback = useApplyCashback();
+  const removeCashback = useRemoveCashback();
   const { data: discount } = useApplicationDiscount(applicationId);
   const { data: activeDiscountCampaigns } = useActiveDiscountCampaigns(
     application?.is_rebooking ? "rebooking" : "new"
@@ -2023,10 +2024,25 @@ const ApplicationDetail = () => {
                 <div className="flex items-center justify-between">
                   <span className="text-xs sm:text-sm text-muted-foreground">Cashback</span>
                   {cashback ? (
-                    <Badge className="bg-green-600 text-white">
-                      <Gift className="h-3 w-3 mr-1" />
-                      Applied
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-green-600 text-white">
+                        <Gift className="h-3 w-3 mr-1" />
+                        Applied
+                      </Badge>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="rounded-full uppercase tracking-wide text-[10px]"
+                        onClick={() => {
+                          if (applicationId) {
+                            removeCashback.mutate({ applicationId });
+                          }
+                        }}
+                        disabled={removeCashback.isPending}
+                      >
+                        {removeCashback.isPending ? "Removing..." : "Remove"}
+                      </Button>
+                    </div>
                   ) : (
                     <Button
                       variant="outline"
@@ -2041,7 +2057,7 @@ const ApplicationDetail = () => {
                 </div>
                 {cashback && (
                   <p className="text-xs text-muted-foreground">
-                    {cashback.campaign?.name} - £{cashback.cashback_amount.toFixed(2)}
+                    {cashback.campaign?.name ?? (cashback.is_denormalized_only ? "Imported/historical cashback" : "Cashback")} - £{cashback.cashback_amount.toFixed(2)}
                   </p>
                 )}
               </div>

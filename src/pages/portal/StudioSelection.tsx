@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Loader2, MapPin, Clock, AlertTriangle } from "lucide-react";
+import { ArrowRight, Loader2, MapPin, Clock, AlertTriangle } from "lucide-react";
 import PortalLayout from "@/components/portal/PortalLayout";
 import { useStudentApplication } from "@/hooks/useStudentApplication";
 import { useReserveStudio, useReleaseStudio, useStudios } from "@/hooks/useStudios";
@@ -31,41 +31,46 @@ const StudioSelection = () => {
     refetch: refetchStudios,
   } = useStudios(studioGradeId ?? undefined, academicYearId);
 
-  // Safety check: Get studios with confirmed applications for this contract
-  const { data: occupiedStudioIds } = useQuery({
-    queryKey: ["occupied-studios", application?.contract_id],
+  const blockingApplicationStatuses = [
+    "draft",
+    "awaiting_deposit",
+    "awaiting_signature",
+    "awaiting_verification",
+    "confirmed",
+  ] as const;
+
+  // Safety check: studios held by other applications on this contract
+  const { data: blockedStudioIds } = useQuery({
+    queryKey: ["blocked-studios", application?.contract_id],
     queryFn: async () => {
       if (!application?.contract_id) return [];
-      
+
       const { data, error } = await supabase
         .from("student_applications")
         .select("assigned_studio_id")
         .eq("contract_id", application.contract_id)
-        .eq("status", "confirmed")
+        .in("status", [...blockingApplicationStatuses])
         .not("assigned_studio_id", "is", null);
-      
+
       if (error) {
-        console.error("Error fetching occupied studios:", error);
+        console.error("Error fetching blocked studios:", error);
         return [];
       }
-      
+
       return (data || []).map((app) => app.assigned_studio_id).filter(Boolean) as string[];
     },
     enabled: Boolean(application?.contract_id),
-    staleTime: 30000, // 30 seconds
-    refetchInterval: 30000, // Refresh every 30 seconds
+    staleTime: 30000,
+    refetchInterval: 30000,
   });
 
-  // Filter out studios with confirmed applications for this contract (safety check)
   const availableStudios = useMemo(() => {
-    if (!studios || !occupiedStudioIds) return studios;
+    if (!studios || !blockedStudioIds) return studios;
     return studios.filter((studio) => {
-      // Always show the selected studio even if it has a confirmed application
       if (studio.id === application?.assigned_studio_id) return true;
-      // Filter out studios with confirmed applications for this contract
-      return !occupiedStudioIds.includes(studio.id);
+      return !blockedStudioIds.includes(studio.id);
     });
-  }, [studios, occupiedStudioIds, application?.assigned_studio_id]);
+  }, [studios, blockedStudioIds, application?.assigned_studio_id]);
 
   const { mutateAsync: reserveStudio, isLoading: reserving } = useReserveStudio(
     studioGradeId,
@@ -171,19 +176,7 @@ const StudioSelection = () => {
     : null;
 
   const StudioSelectionSkeleton = () => (
-    <div className="space-y-6">
-      <Card className="rounded-3xl border border-primary/30 bg-primary/5">
-        <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div className="space-y-2 flex-1">
-            <Skeleton className="h-6 w-48" />
-            <Skeleton className="h-4 w-64" />
-          </div>
-          <div className="flex gap-2">
-            <Skeleton className="h-10 w-24 rounded-full" />
-            <Skeleton className="h-10 w-32 rounded-full" />
-          </div>
-        </CardHeader>
-      </Card>
+    <div className="space-y-6 pb-28">
       <Card className="rounded-3xl border border-border/60 shadow-xl">
         <CardHeader>
           <Skeleton className="h-6 w-48" />
@@ -206,10 +199,6 @@ const StudioSelection = () => {
           </div>
         </CardContent>
       </Card>
-      <div className="flex justify-end gap-2">
-        <Skeleton className="h-10 w-32 rounded-full" />
-        <Skeleton className="h-10 w-48 rounded-full" />
-      </div>
     </div>
   );
 
@@ -265,40 +254,7 @@ const StudioSelection = () => {
         }
       }}
     >
-      <section className="space-y-6">
-        {selectedStudio && (
-          <Card className="rounded-3xl border border-primary/30 bg-primary/5">
-            <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div>
-                <CardTitle className="text-xl font-display uppercase tracking-wide">
-                  {selectedStudio.studio_number} reserved
-                </CardTitle>
-                <CardDescription>
-                  Complete your booking before{" "}
-                  <strong>{reservationExpiry ?? "the reservation expires"}</strong>.
-                </CardDescription>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="ghost"
-                  className="rounded-full uppercase tracking-wide"
-                  onClick={handleRelease}
-                  disabled={saving || releasing}
-                >
-                  Release
-                </Button>
-                <Button
-                  className="rounded-full uppercase tracking-wide"
-                  onClick={handleContinue}
-                  disabled={saving}
-                >
-                  Continue
-                </Button>
-              </div>
-            </CardHeader>
-          </Card>
-        )}
-
+      <section className="space-y-6 pb-28">
         <Card className="rounded-3xl border border-border/60 shadow-xl">
           <CardHeader>
             <CardTitle className="text-xl font-display uppercase tracking-wide">
@@ -358,25 +314,22 @@ const StudioSelection = () => {
                     saving ||
                     reserving;
 
-                  return (
-                    <button
-                      key={studio.id}
-                      className={`text-left rounded-3xl border px-5 py-4 transition-all ${
-                        isSelected
-                          ? "border-primary bg-primary/10 shadow-lg"
-                          : isOccupied
-                          ? "border-gray-300 bg-gray-50/50 cursor-not-allowed"
-                          : isAvailable
-                          ? "border-green-200 bg-green-50/30 hover:border-green-300 hover:bg-green-50/50 hover:-translate-y-1 hover:shadow-md"
-                          : "border-amber-200 bg-amber-50/30 hover:border-amber-300 hover:bg-amber-50/50 hover:-translate-y-1"
-                      } ${
-                        disabled && !isSelected
-                          ? "opacity-60 cursor-not-allowed"
-                          : ""
-                      }`}
-                      onClick={() => handleSelect(studio.id)}
-                      disabled={disabled}
-                    >
+                  const cardClasses = `rounded-3xl border px-5 py-4 transition-all ${
+                    isSelected
+                      ? "border-primary bg-primary/10 shadow-lg"
+                      : isOccupied
+                      ? "border-gray-300 bg-gray-50/50"
+                      : isAvailable
+                      ? "border-green-200 bg-green-50/30 hover:border-green-300 hover:bg-green-50/50 hover:-translate-y-1 hover:shadow-md"
+                      : "border-amber-200 bg-amber-50/30 hover:border-amber-300 hover:bg-amber-50/50 hover:-translate-y-1"
+                  } ${
+                    disabled && !isSelected
+                      ? "opacity-60 cursor-not-allowed"
+                      : ""
+                  }`;
+
+                  const cardContent = (
+                    <>
                       <div className="flex items-center justify-between">
                         <p
                           className={`text-lg font-display font-black uppercase tracking-wide ${
@@ -407,8 +360,6 @@ const StudioSelection = () => {
                         className={`mt-3 space-y-2 text-sm ${
                           isOccupied
                             ? "text-gray-500"
-                            : isAvailable
-                            ? "text-muted-foreground"
                             : "text-muted-foreground"
                         }`}
                       >
@@ -444,6 +395,34 @@ const StudioSelection = () => {
                           </p>
                         )}
                       </div>
+                    </>
+                  );
+
+                  if (isSelected) {
+                    return (
+                      <div key={studio.id} className={cardClasses}>
+                        <div className="text-left">{cardContent}</div>
+                        <Button
+                          className="mt-4 w-full rounded-full uppercase tracking-wide gap-2"
+                          onClick={handleContinue}
+                          disabled={saving}
+                        >
+                          Continue to booking
+                          <ArrowRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <button
+                      key={studio.id}
+                      type="button"
+                      className={`text-left w-full ${cardClasses}`}
+                      onClick={() => handleSelect(studio.id)}
+                      disabled={disabled}
+                    >
+                      {cardContent}
                     </button>
                   );
                 })}
@@ -451,24 +430,71 @@ const StudioSelection = () => {
             )}
           </CardContent>
         </Card>
-
-        <div className="flex justify-end gap-2">
-          <Button
-            variant="outline"
-            className="rounded-full uppercase tracking-wide"
-            onClick={() => navigate("/portal")}
-          >
-            Save for later
-          </Button>
-          <Button
-            className="rounded-full uppercase tracking-wide"
-            onClick={handleContinue}
-            disabled={!application.assigned_studio_id || saving}
-          >
-            Continue to booking journey
-          </Button>
-        </div>
       </section>
+
+      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-border/60 bg-background/95 backdrop-blur lg:left-64">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-3 md:py-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0 flex-1">
+              {selectedStudio ? (
+                <>
+                  <p className="font-display font-black uppercase tracking-wide truncate">
+                    {selectedStudio.studio_number} reserved
+                  </p>
+                  <p className="text-sm text-muted-foreground flex items-center gap-2">
+                    <Clock className="h-4 w-4 shrink-0 text-primary" />
+                    <span>
+                      Complete before{" "}
+                      <strong>{reservationExpiry ?? "the reservation expires"}</strong>
+                    </span>
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Select a studio to continue your booking journey.
+                </p>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
+              <Button
+                variant="outline"
+                className="rounded-full uppercase tracking-wide"
+                onClick={() => navigate("/portal")}
+              >
+                Save for later
+              </Button>
+              {selectedStudio && (
+                <Button
+                  variant="ghost"
+                  className="rounded-full uppercase tracking-wide"
+                  onClick={handleRelease}
+                  disabled={saving || releasing}
+                >
+                  {releasing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Release"
+                  )}
+                </Button>
+              )}
+              <Button
+                className="rounded-full uppercase tracking-wide gap-2"
+                onClick={handleContinue}
+                disabled={!application.assigned_studio_id || saving}
+              >
+                {saving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    Continue
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
     </PortalLayout>
   );
 };

@@ -97,12 +97,25 @@ export const useCreateManualPayment = () => {
 
       // If deposit payment and application_id exists, update application status
       if (input.paymentType === "deposit" && input.applicationId) {
-        // Update application deposit_payment_intent_id to indicate deposit is paid
+        const { data: application } = await supabase
+          .from("student_applications")
+          .select("status")
+          .eq("id", input.applicationId)
+          .single();
+
+        const applicationUpdates: Record<string, unknown> = {
+          deposit_payment_intent_id: `manual-${data.id}`,
+          reserved_studio_expires_at: null,
+        };
+
+        if (application?.status === "awaiting_deposit") {
+          applicationUpdates.status = "awaiting_signature";
+          applicationUpdates.submitted_at = new Date().toISOString();
+        }
+
         const { error: updateError } = await supabase
           .from("student_applications")
-          .update({
-            deposit_payment_intent_id: `manual-${data.id}`,
-          })
+          .update(applicationUpdates)
           .eq("id", input.applicationId);
 
         if (updateError) {
@@ -127,20 +140,6 @@ export const useCreateManualPayment = () => {
             .from("student_application_steps")
             .update({ payload: updatedPayload })
             .eq("id", step5.id);
-        }
-
-        // Update application status if needed
-        const { data: application } = await supabase
-          .from("student_applications")
-          .select("status")
-          .eq("id", input.applicationId)
-          .single();
-
-        if (application?.status === "awaiting_deposit") {
-          await supabase
-            .from("student_applications")
-            .update({ status: "awaiting_signature" })
-            .eq("id", input.applicationId);
         }
 
         void notifyBookingEvent("deposit_paid", input.applicationId, {
@@ -210,12 +209,25 @@ export const useLinkPaymentToApplication = () => {
 
       // If it's a deposit payment, update application status
       if (payment.payment_type === "deposit") {
-        // Update application deposit_payment_intent_id
+        const { data: application } = await supabase
+          .from("student_applications")
+          .select("status")
+          .eq("id", applicationId)
+          .single();
+
+        const applicationUpdates: Record<string, unknown> = {
+          deposit_payment_intent_id: `manual-${payment.id}`,
+          reserved_studio_expires_at: null,
+        };
+
+        if (application?.status === "awaiting_deposit") {
+          applicationUpdates.status = "awaiting_signature";
+          applicationUpdates.submitted_at = new Date().toISOString();
+        }
+
         const { error: updateError } = await supabase
           .from("student_applications")
-          .update({
-            deposit_payment_intent_id: `manual-${payment.id}`,
-          })
+          .update(applicationUpdates)
           .eq("id", applicationId);
 
         if (updateError) {
@@ -241,20 +253,6 @@ export const useLinkPaymentToApplication = () => {
             .from("student_application_steps")
             .update({ payload: updatedPayload })
             .eq("id", step5.id);
-        }
-
-        // Update application status if needed
-        const { data: application } = await supabase
-          .from("student_applications")
-          .select("status")
-          .eq("id", applicationId)
-          .single();
-
-        if (application?.status === "awaiting_deposit") {
-          await supabase
-            .from("student_applications")
-            .update({ status: "awaiting_signature" })
-            .eq("id", applicationId);
         }
 
         void notifyBookingEvent("deposit_paid", applicationId, {
