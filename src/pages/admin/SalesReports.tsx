@@ -375,6 +375,7 @@ const SalesReports = () => {
                       <th className="py-2 px-2 text-left">Grade</th>
                       <th className="py-2 px-2 text-left">Partner</th>
                       <th className="py-2 px-2 text-left">Status</th>
+                      <th className="py-2 px-2 text-left">Payment Plan</th>
                       <th className="py-2 px-2 text-right">Weekly Rent</th>
                       <th className="py-2 px-2 text-right">Total Value</th>
                       <th className="py-2 px-2 text-right">Cashback</th>
@@ -411,6 +412,7 @@ const SalesReports = () => {
                           )}
                         </td>
                         <td className="py-2 px-2">{STATUS_LABELS[row.application_status]}</td>
+                        <td className="py-2 px-2">{row.payment_plan || "—"}</td>
                         <td className="py-2 px-2 text-right">
                           {row.weekly_rent != null ? `£${row.weekly_rent.toFixed(0)}` : "—"}
                         </td>

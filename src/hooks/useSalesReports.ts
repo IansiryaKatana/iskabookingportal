@@ -32,6 +32,7 @@ export type SalesDemographicsRow = {
   partner_commission: number | null;
   is_rebooker: boolean;
   summer_sales_value: number | null;
+  payment_plan: string | null;
 };
 
 export type SalesOccupancyMonthlyRow = {

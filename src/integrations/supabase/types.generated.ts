@@ -6875,6 +6875,7 @@ export type Database = {
           partner_commission: number | null
           partner_name: string | null
           partner_referral_code: string | null
+          payment_plan: string | null
           student_id: string | null
           studio_grade: string | null
           studio_number: string | null

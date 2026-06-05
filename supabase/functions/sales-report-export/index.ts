@@ -243,6 +243,7 @@ serve(async (req) => {
       "Rebooker",
       "Summer Sales Value",
       "Application Status",
+      "Payment Plan",
     ];
 
     const demographicsRows = [
@@ -277,6 +278,7 @@ serve(async (req) => {
         row.is_rebooker,
         row.summer_sales_value,
         row.application_status,
+        row.payment_plan,
       ]),
     ];
     const demographicsSheet = XLSX.utils.aoa_to_sheet(demographicsRows);
