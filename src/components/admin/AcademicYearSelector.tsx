@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Database } from "@/integrations/supabase/types";
+import { useAuth } from "@/contexts/AuthContext";
 
 type AcademicYearRow = Database["public"]["Tables"]["academic_years"]["Row"];
 
@@ -25,6 +26,8 @@ export const AcademicYearSelector = ({
   className,
   allowEmpty = false,
 }: AcademicYearSelectorProps) => {
+  const { session, loading: authLoading } = useAuth();
+  const authReady = !!session && !authLoading;
   const [academicYears, setAcademicYears] = useState<AcademicYearRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [defaultYear, setDefaultYear] = useState<AcademicYearRow | null>(null);
@@ -32,6 +35,11 @@ export const AcademicYearSelector = ({
   const [internalValue, setInternalValue] = useState<string>("__loading__");
 
   useEffect(() => {
+    if (!authReady) {
+      setLoading(true);
+      return;
+    }
+
     const loadAcademicYears = async () => {
       const { data, error } = await supabase
         .from("academic_years")
@@ -72,7 +80,7 @@ export const AcademicYearSelector = ({
 
     loadAcademicYears();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [authReady]);
 
   // Update internal value when prop changes
   useEffect(() => {

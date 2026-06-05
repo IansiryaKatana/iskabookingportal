@@ -7,9 +7,18 @@ import {
   useRef,
   useState,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Session, User } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { isUnauthorizedAuthError } from "@/utils/authErrors";
+
+const POST_AUTH_QUERY_KEYS = [
+  "dashboard-stats",
+  "dashboard-breakdowns",
+  "active-cashback-campaigns",
+  "manual-payment-requests-pending-count",
+] as const;
 
 type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"] & {
   staff_subrole?: StaffSubrole | null;
@@ -31,14 +40,14 @@ type AuthContextValue = {
   role: Role;
   session: Session | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error?: string }>;
+  signIn: (email: string, password: string) => Promise<{ error?: string; effectiveRole?: string }>;
   signUp: (
     email: string,
     password: string,
     metadata?: { first_name?: string; last_name?: string },
   ) => Promise<{ error?: string } | { requiresConfirmation: true; email: string }>;
   signOut: () => Promise<void>;
-  refreshProfile: () => Promise<void>;
+  refreshProfile: (userId?: string) => Promise<ProfileRow | null>;
   /** If error is invalid refresh token, signs out and returns true so UI can show "Session expired" */
   clearSessionIfExpired: (error: unknown) => Promise<boolean>;
 };
@@ -61,74 +70,103 @@ type AuthProviderProps = {
 };
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const currentUserIdRef = useRef<string | null>(null);
+  const signingInRef = useRef(false);
+
+  const invalidatePostAuthQueries = useCallback(async () => {
+    await Promise.all(
+      POST_AUTH_QUERY_KEYS.map((key) =>
+        queryClient.invalidateQueries({ queryKey: [key] }),
+      ),
+    );
+  }, [queryClient]);
 
   const updateUser = useCallback((nextUser: User | null) => {
     currentUserIdRef.current = nextUser?.id ?? null;
     setUser(nextUser);
   }, []);
 
-  const refreshProfile = useCallback(async (userId?: string) => {
+  const clearInvalidSession = useCallback(async () => {
+    await supabase.auth.signOut({ scope: "local" });
+    setSession(null);
+    updateUser(null);
+    setProfile(null);
+  }, [updateUser]);
+
+  const refreshProfile = useCallback(async (userId?: string): Promise<ProfileRow | null> => {
     const idToLoad = userId ?? currentUserIdRef.current;
 
     if (!idToLoad) {
       setProfile(null);
-      return;
+      return null;
     }
 
     try {
       const profileData = await fetchProfile(idToLoad);
       setProfile(profileData);
+      return profileData;
     } catch (error) {
       console.error("Failed to load profile:", error);
+      if (isUnauthorizedAuthError(error) || isInvalidRefreshTokenError(error)) {
+        await clearInvalidSession();
+      }
+      return null;
     }
-  }, []);
+  }, [clearInvalidSession]);
 
   useEffect(() => {
     let mounted = true;
 
     const init = async () => {
       setLoading(true);
+
       const {
         data: { session: initialSession },
-        error,
+        error: sessionError,
       } = await supabase.auth.getSession();
 
-      if (error) {
-        console.error("Error retrieving session:", error);
-        // Invalid/expired refresh token: clear stored session so user can sign in again
-        const isRefreshTokenError =
-          error.message?.includes("Refresh Token") ||
-          error.message?.includes("refresh_token") ||
-          (error as { status?: number })?.status === 400;
-        if (isRefreshTokenError) {
-          await supabase.auth.signOut({ scope: "local" });
-          if (mounted) {
-            setSession(null);
-            updateUser(null);
-            setProfile(null);
-          }
-          setLoading(false);
-          return;
+      if (sessionError) {
+        console.error("Error retrieving session:", sessionError);
+        if (isUnauthorizedAuthError(sessionError) || isInvalidRefreshTokenError(sessionError)) {
+          await clearInvalidSession();
         }
+        if (mounted) setLoading(false);
+        return;
+      }
+
+      if (!initialSession?.user) {
+        if (mounted) {
+          setSession(null);
+          updateUser(null);
+          setProfile(null);
+          setLoading(false);
+        }
+        return;
       }
 
       if (!mounted) return;
 
       setSession(initialSession);
-      updateUser(initialSession?.user ?? null);
+      updateUser(initialSession.user);
 
-      if (initialSession?.user) {
-        await refreshProfile(initialSession.user.id);
-      } else {
-        setProfile(null);
+      const [{ data: { user: validatedUser }, error: userError }] = await Promise.all([
+        supabase.auth.getUser(),
+        refreshProfile(initialSession.user.id),
+      ]);
+
+      if (userError || !validatedUser) {
+        console.error("Error validating session:", userError);
+        if (isUnauthorizedAuthError(userError) || isInvalidRefreshTokenError(userError)) {
+          await clearInvalidSession();
+        }
       }
 
-      setLoading(false);
+      if (mounted) setLoading(false);
     };
 
     init();
@@ -198,7 +236,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       // Only run redirect logic on SIGNED_IN event, not on TOKEN_REFRESHED or other events
       // This prevents unwanted redirects when switching tabs or window regains focus
       if (newSession?.user && event === "SIGNED_IN") {
-        refreshProfile(newSession.user.id).then(() => {
+        if (signingInRef.current) {
+          return;
+        }
+
+        setLoading(true);
+        refreshProfile(newSession.user.id)
+          .then(async () => {
+            await invalidatePostAuthQueries();
+          })
+          .then(() => {
           // After profile is loaded, check if staff user is on wrong portal and redirect
           setTimeout(() => {
             const currentPath = window.location.pathname;
@@ -249,9 +296,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                 // This allows them to stay on any admin sub-route (e.g., /admin/ota-bookings)
               });
           }, 500); // Small delay to ensure profile is loaded
-        }).catch((error) =>
-          console.error("Error loading profile after auth change:", error),
-        );
+        })
+          .catch((error) =>
+            console.error("Error loading profile after auth change:", error),
+          )
+          .finally(() => {
+            if (mounted) setLoading(false);
+          });
       } else if (!newSession?.user) {
         setProfile(null);
       }
@@ -261,24 +312,35 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [refreshProfile, updateUser]);
+  }, [refreshProfile, updateUser, clearInvalidSession, invalidatePostAuthQueries]);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    signingInRef.current = true;
+    setLoading(true);
 
-    if (error) {
-      console.error("Sign in failed:", error);
-      return { error: error.message };
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        console.error("Sign in failed:", error);
+        return { error: error.message };
+      }
+
+      setSession(data.session);
+      updateUser(data.user);
+      const profileData = await refreshProfile(data.user.id);
+      await invalidatePostAuthQueries();
+
+      const effectiveRole = profileData?.staff_subrole ?? profileData?.role ?? undefined;
+      return { effectiveRole };
+    } finally {
+      signingInRef.current = false;
+      setLoading(false);
     }
-
-    setSession(data.session);
-    updateUser(data.user);
-    await refreshProfile(data.user.id);
-    return {};
-  }, [refreshProfile, updateUser]);
+  }, [refreshProfile, updateUser, invalidatePostAuthQueries]);
 
   const signUp = useCallback(
     async (
@@ -362,13 +424,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, [updateUser]);
 
   const clearSessionIfExpired = useCallback(async (error: unknown): Promise<boolean> => {
-    if (!isInvalidRefreshTokenError(error)) return false;
-    await supabase.auth.signOut({ scope: "local" });
-    setSession(null);
-    updateUser(null);
-    setProfile(null);
+    if (!isInvalidRefreshTokenError(error) && !isUnauthorizedAuthError(error)) return false;
+    await clearInvalidSession();
     return true;
-  }, [updateUser]);
+  }, [clearInvalidSession]);
 
   const value = useMemo(
     () => {

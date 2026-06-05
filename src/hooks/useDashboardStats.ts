@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { isUnauthorizedAuthError } from "@/utils/authErrors";
 
 export type DashboardStats = {
   totalStudents: number;
@@ -88,6 +90,10 @@ const fetchDashboardStats = async (academicYearId?: string): Promise<DashboardSt
     });
 
     if (error) {
+      if (isUnauthorizedAuthError(error)) {
+        throw error;
+      }
+
       const errorDetails = {
         message: error.message,
         details: error.details,
@@ -150,9 +156,11 @@ const fetchDashboardBreakdowns = async (academicYearId?: string): Promise<Dashbo
     ]);
 
   if (studentsError) {
+    if (isUnauthorizedAuthError(studentsError)) throw studentsError;
     console.error("Failed to fetch student profiles for dashboard breakdown:", studentsError);
   }
   if (applicationsError) {
+    if (isUnauthorizedAuthError(applicationsError)) throw applicationsError;
     console.error("Failed to fetch applications for dashboard breakdown:", applicationsError);
   }
 
@@ -224,9 +232,13 @@ const fetchDashboardBreakdowns = async (academicYearId?: string): Promise<Dashbo
 };
 
 export const useDashboardStats = (academicYearId?: string) => {
+  const { session, loading: authLoading } = useAuth();
+  const authReady = !!session && !authLoading;
+
   return useQuery({
     queryKey: ["dashboard-stats", academicYearId],
     queryFn: () => fetchDashboardStats(academicYearId),
+    enabled: authReady,
     refetchInterval: 60000, // Refetch every minute
     staleTime: 60000,
     refetchOnWindowFocus: true,
@@ -236,13 +248,18 @@ export const useDashboardStats = (academicYearId?: string) => {
 };
 
 export const useDashboardBreakdowns = (academicYearId?: string) => {
+  const { session, loading: authLoading } = useAuth();
+  const authReady = !!session && !authLoading;
+
   return useQuery({
     queryKey: ["dashboard-breakdowns", academicYearId],
     queryFn: () => fetchDashboardBreakdowns(academicYearId),
+    enabled: authReady,
     staleTime: 60000,
     refetchInterval: 60000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
+    retry: 1,
   });
 };
 

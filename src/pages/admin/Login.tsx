@@ -51,12 +51,13 @@ const Login = () => {
   }, [faviconUrl]);
 
   useEffect(() => {
-    if (user && profile?.role && profile.role !== "student") {
+    const effectiveRole = profile?.staff_subrole ?? profile?.role;
+    if (user && effectiveRole && effectiveRole !== "student") {
       // Check if user has access to the redirect path, if not, find their default route
       const checkAndRedirect = async () => {
         // If redirecting to /admin, check if they have access
         if (redirectPath === "/admin" || redirectPath.startsWith("/admin")) {
-          const defaultRoute = await getDefaultRouteForRole(profile.role);
+          const defaultRoute = await getDefaultRouteForRole(effectiveRole);
           if (defaultRoute) {
             navigate(defaultRoute, { replace: true });
           } else {
@@ -76,17 +77,20 @@ const Login = () => {
     setError(null);
     setIsSubmitting(true);
 
-    const { error: signInError } = await signIn(email.trim(), password);
+    const { error: signInError, effectiveRole } = await signIn(email.trim(), password);
     if (signInError) {
       setError(signInError);
       setIsSubmitting(false);
       return;
     }
 
+    const roleForRedirect =
+      effectiveRole ?? profile?.staff_subrole ?? profile?.role ?? "";
+
     // After successful login, check if user has access to redirect path
     // If redirecting to /admin and they don't have access, redirect to their default route
     if (redirectPath === "/admin" || redirectPath.startsWith("/admin")) {
-      const defaultRoute = await getDefaultRouteForRole(profile?.role || "");
+      const defaultRoute = await getDefaultRouteForRole(roleForRedirect);
       if (defaultRoute) {
         navigate(defaultRoute, { replace: true });
       } else {
@@ -95,6 +99,8 @@ const Login = () => {
     } else {
       navigate(redirectPath, { replace: true });
     }
+
+    setIsSubmitting(false);
   };
 
   return (

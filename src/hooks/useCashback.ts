@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 export type CashbackCampaign = {
   id: string;
@@ -38,8 +39,12 @@ export const useActiveCashbackCampaigns = (
   appliesTo?: "all" | "new" | "rebooking",
   academicYearId?: string | null
 ) => {
+  const { session, loading: authLoading } = useAuth();
+  const authReady = !!session && !authLoading;
+
   return useQuery<CashbackCampaign[], Error>({
     queryKey: ["active-cashback-campaigns", appliesTo, academicYearId],
+    enabled: authReady,
     queryFn: async () => {
       const today = new Date().toISOString().split("T")[0];
       

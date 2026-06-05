@@ -1,7 +1,7 @@
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, Users, FileText, TrendingUp, AlertCircle, Gift } from "lucide-react";
+import { CheckCircle2, Users, FileText, TrendingUp, AlertCircle, Gift, CreditCard } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDashboardStats, useDashboardBreakdowns } from "@/hooks/useDashboardStats";
 import { useActiveCashbackCampaigns } from "@/hooks/useCashback";
@@ -11,9 +11,11 @@ import { formatCurrency } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 const Dashboard = () => {
-  const { loading, profile } = useAuth();
+  const { loading, profile, role, session } = useAuth();
   const navigate = useNavigate();
   const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string | undefined>(undefined);
   const { data: stats, isLoading: statsLoading } = useDashboardStats(selectedAcademicYearId);
@@ -22,10 +24,23 @@ const Dashboard = () => {
     undefined, 
     selectedAcademicYearId
   );
-  
-  // Only show skeleton while auth is actually loading
-  // Once loading is false, show content (even if profile is null, it will show empty state)
-  const isLoading = loading || statsLoading;
+  const showPaymentRequestQueue = role === "accountant" || role === "staff" || role === "superadmin";
+  const { data: pendingPaymentRequests = 0, isLoading: pendingPaymentRequestsLoading } = useQuery({
+    queryKey: ["manual-payment-requests-pending-count"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("manual_payment_requests")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "pending");
+      if (error) throw error;
+      return count ?? 0;
+    },
+    enabled: showPaymentRequestQueue && !!session && !loading,
+  });
+
+  const authReady = !!session && !loading;
+  // Only show skeleton while auth is loading or dashboard queries are in flight
+  const isLoading = !authReady || statsLoading;
   const otherStatusEntries = Object.entries(breakdowns?.applications.byStatus ?? {})
     .filter(
       ([status]) =>
@@ -51,7 +66,7 @@ const Dashboard = () => {
       </div>
       {isLoading ? (
         <>
-          <section className="grid gap-6 lg:grid-cols-3 mb-10">
+          <section className="grid gap-6 lg:grid-cols-2 xl:grid-cols-4 mb-10">
             {/* Occupancy Overview Skeleton */}
             <Card className="bg-primary text-primary-foreground rounded-3xl shadow-lg">
               <CardHeader>
@@ -110,7 +125,7 @@ const Dashboard = () => {
         </>
       ) : (
         <>
-          <section className="grid gap-6 lg:grid-cols-3 mb-10">
+          <section className="grid gap-6 lg:grid-cols-2 xl:grid-cols-4 mb-10">
             <Card className="bg-primary text-primary-foreground rounded-3xl shadow-lg border border-border/60">
               <CardHeader>
                 <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide">
@@ -264,6 +279,47 @@ const Dashboard = () => {
                 )}
               </CardContent>
             </Card>
+            {showPaymentRequestQueue && (
+              <Card className="rounded-3xl shadow-md border border-border/60">
+                <CardHeader>
+                  <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 md:h-5 md:w-5" />
+                    Payment Approvals
+                  </CardTitle>
+                  <CardDescription>
+                    {pendingPaymentRequestsLoading
+                      ? "Loading payment requests..."
+                      : pendingPaymentRequests > 0
+                        ? `${pendingPaymentRequests} student payment request${pendingPaymentRequests !== 1 ? "s" : ""} awaiting approval`
+                        : "Student bank transfer requests appear here"}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {pendingPaymentRequestsLoading ? (
+                    <div className="space-y-2">
+                      <Skeleton className="h-8 w-12" />
+                      <Skeleton className="h-9 w-36" />
+                    </div>
+                  ) : pendingPaymentRequests > 0 ? (
+                    <div className="space-y-2">
+                      <p className="text-2xl font-bold font-display">{pendingPaymentRequests}</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="rounded-full uppercase tracking-wide"
+                        onClick={() => navigate("/admin/manual-payment-entry")}
+                      >
+                        Review Requests
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No pending student payment requests right now.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </section>
 
           {/* Statistics Grid */}
