@@ -43,25 +43,16 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
-// Status color mapping
-const getStatusColor = (status: string) => {
-  const colors: Record<string, string> = {
-    arriving: "bg-blue-500",
-    expected_arrivals: "bg-green-500",
-    pre_check_in: "bg-purple-500",
-    checked_in: "bg-emerald-500",
-    in_house_guest: "bg-teal-500",
-    day_use: "bg-indigo-500",
-    checked_out: "bg-gray-400",
-    expected_departures: "bg-orange-500",
-    departing: "bg-amber-500",
-    no_show: "bg-red-500",
-    cancelled: "bg-slate-500",
-  };
-  return colors[status] || "bg-gray-300";
-};
+const TERMINAL_STATUSES = ["cancelled", "no_show"] as const;
+
+const isTerminalStatus = (status: string) =>
+  (TERMINAL_STATUSES as readonly string[]).includes(status);
+
+const formatStatusLabel = (status: string) =>
+  status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
 // Channel color mapping - using official brand colors
 const getChannelColor = (channel: string) => {
@@ -74,6 +65,31 @@ const getChannelColor = (channel: string) => {
   };
   return colors[channel] || "bg-gray-300";
 };
+
+const getChannelLetter = (channel: string) => {
+  const letters: Record<string, string> = {
+    airbnb: "A",
+    booking: "B",
+    agoda: "G",
+    expedia: "E",
+    other: "O",
+  };
+  return letters[channel] ?? "O";
+};
+
+const getChannelLabel = (channel: string) => {
+  const labels: Record<string, string> = {
+    airbnb: "Airbnb",
+    booking: "Booking.com",
+    agoda: "Agoda",
+    expedia: "Expedia",
+    other: "Other",
+  };
+  return labels[channel] ?? channel;
+};
+
+const formatBookingTooltip = (booking: OTABookingWithRelations) =>
+  `${booking.guest_name} · ${getChannelLabel(booking.channel)} · ${formatStatusLabel(booking.status)}`;
 
 const OTABookingChartPage = () => {
   const { toast } = useToast();
@@ -101,6 +117,7 @@ const OTABookingChartPage = () => {
   const [channelFilter, setChannelFilter] = useState<string>("all");
   const [studioFilter, setStudioFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [showCancelled, setShowCancelled] = useState(false);
   
   // Details drawer/sheet
   const [selectedBooking, setSelectedBooking] = useState<OTABookingWithRelations | null>(null);
@@ -115,14 +132,9 @@ const OTABookingChartPage = () => {
   const { data: outOfOrderRecords } = useOutOfOrderRecords({ is_active: true });
   const { data: studios } = useAdminStudios({ allocation: "OTA" });
 
-  // Filter bookings
-  const filteredBookings = useMemo(() => {
+  const baseFilteredBookings = useMemo(() => {
     if (!bookings) return [];
     let filtered = bookings;
-
-    if (statusFilter !== "all") {
-      filtered = filtered.filter((b) => b.status === statusFilter);
-    }
 
     if (channelFilter !== "all") {
       filtered = filtered.filter((b) => b.channel === channelFilter);
@@ -138,23 +150,49 @@ const OTABookingChartPage = () => {
         (b) =>
           b.external_ref.toLowerCase().includes(query) ||
           b.guest_name.toLowerCase().includes(query) ||
-          b.studio?.studio_number.toLowerCase().includes(query)
+          b.studio?.studio_number?.toLowerCase().includes(query),
       );
     }
 
     return filtered;
-  }, [bookings, statusFilter, channelFilter, studioFilter, searchQuery]);
+  }, [bookings, channelFilter, studioFilter, searchQuery]);
 
-  // Get bookings for a specific studio and date
+  /** Bookings drawn on the chart grid (cancelled/no-show hidden unless toggled or filtered). */
+  const chartBookings = useMemo(() => {
+    let filtered = baseFilteredBookings;
+
+    if (statusFilter === "cancelled" || statusFilter === "no_show") {
+      return filtered.filter((b) => b.status === statusFilter);
+    }
+
+    if (statusFilter !== "all") {
+      return filtered.filter((b) => b.status === statusFilter);
+    }
+
+    if (!showCancelled) {
+      return filtered.filter((b) => !isTerminalStatus(b.status));
+    }
+
+    return filtered;
+  }, [baseFilteredBookings, statusFilter, showCancelled]);
+
   const getBookingsForStudioDate = (studioId: string, date: Date): OTABookingWithRelations[] => {
     const dateStr = format(date, "yyyy-MM-dd");
-    return filteredBookings.filter((booking) => {
+    const dayBookings = chartBookings.filter((booking) => {
       if (!booking.studio_id || booking.studio_id !== studioId) return false;
       const checkIn = format(parseISO(booking.check_in), "yyyy-MM-dd");
       const checkOut = format(parseISO(booking.check_out), "yyyy-MM-dd");
       return dateStr >= checkIn && dateStr < checkOut;
     });
+
+    return dayBookings.sort((a, b) => {
+      const aTerminal = isTerminalStatus(a.status) ? 1 : 0;
+      const bTerminal = isTerminalStatus(b.status) ? 1 : 0;
+      return aTerminal - bTerminal;
+    });
   };
+
+  const terminalFilterActive = statusFilter === "cancelled" || statusFilter === "no_show";
 
   // Check if studio is out of order on a specific date
   const isStudioOutOfOrder = (studioId: string, date: Date): boolean => {
@@ -301,6 +339,7 @@ const OTABookingChartPage = () => {
                     <SelectItem value="in_house_guest">In House Guest</SelectItem>
                     <SelectItem value="checked_out">Checked Out</SelectItem>
                     <SelectItem value="cancelled">Cancelled</SelectItem>
+                    <SelectItem value="no_show">No Show</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -345,6 +384,24 @@ const OTABookingChartPage = () => {
                   className="rounded-full text-sm md:text-base"
                 />
               </div>
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 mt-4 pt-4 border-t border-border">
+              <div className="flex items-center gap-3">
+                <Switch
+                  id="show-cancelled"
+                  checked={showCancelled || terminalFilterActive}
+                  onCheckedChange={setShowCancelled}
+                  disabled={terminalFilterActive}
+                />
+                <Label htmlFor="show-cancelled" className="text-xs md:text-sm cursor-pointer">
+                  Show cancelled &amp; no-show on chart
+                </Label>
+              </div>
+              <p className="text-xs text-muted-foreground sm:ml-auto">
+                {terminalFilterActive || showCancelled
+                  ? "Inactive bookings appear as striped ghost blocks."
+                  : "Cancelled and no-show bookings are hidden — studio shows as available."}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -424,28 +481,46 @@ const OTABookingChartPage = () => {
                             onClick={() => handleCellClick(studio.id, day)}
                             title={
                               dayBookings.length > 0
-                                ? dayBookings.map((b) => `${b.guest_name} (${b.channel})`).join(", ")
+                                ? dayBookings.map((b) => formatBookingTooltip(b)).join(" | ")
                                 : isOutOfOrder
-                                ? "Out of Order"
-                                : "Available"
+                                  ? "Out of Order"
+                                  : "Available"
                             }
                           >
                             {dayBookings.length > 0 ? (
                               <div className="h-full flex flex-col gap-0.5">
-{dayBookings.slice(0, 2).map((booking, idx) => (
-                                                  <div
-                                                    key={booking.id}
-                                                    className={cn(
-                                                      "rounded text-[8px] md:text-[10px] flex items-center justify-center font-bold overflow-hidden",
-                                                      dayBookings.length === 1 ? "h-full" : "flex-1 min-h-0",
-                                                      getChannelColor(booking.channel),
-                                                      booking.channel !== "expedia" && "text-white",
-                                                      idx === 0 && dayBookings.length > 1 && "border-b border-white/30"
-                                                    )}
-                                                  >
-                                                    {booking.channel === "airbnb" ? "A" : booking.channel === "booking" ? "B" : booking.channel === "agoda" ? "G" : booking.channel === "expedia" ? "E" : "O"}
-                                                  </div>
-                                                ))}
+                                {dayBookings.slice(0, 2).map((booking, idx) => {
+                                  const terminal = isTerminalStatus(booking.status);
+                                  return (
+                                    <div
+                                      key={booking.id}
+                                      className={cn(
+                                        "rounded text-[8px] md:text-[10px] flex items-center justify-center font-bold overflow-hidden",
+                                        dayBookings.length === 1 ? "h-full" : "flex-1 min-h-0",
+                                        terminal
+                                          ? cn(
+                                              "border-2 border-dashed bg-muted/50 text-muted-foreground opacity-80",
+                                              booking.status === "no_show"
+                                                ? "border-red-400 dark:border-red-500"
+                                                : "border-slate-400 dark:border-slate-500",
+                                              "bg-[repeating-linear-gradient(-45deg,transparent,transparent_2px,hsl(var(--muted-foreground)/0.14)_2px,hsl(var(--muted-foreground)/0.14)_5px)]",
+                                            )
+                                          : cn(
+                                              getChannelColor(booking.channel),
+                                              booking.channel !== "expedia" && "text-white",
+                                            ),
+                                        !terminal &&
+                                          idx === 0 &&
+                                          dayBookings.length > 1 &&
+                                          "border-b border-white/30",
+                                      )}
+                                    >
+                                      <span className={cn(terminal && "line-through opacity-90")}>
+                                        {getChannelLetter(booking.channel)}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
                                 {dayBookings.length > 2 && (
                                   <div className="text-[8px] text-center text-muted-foreground">
                                     +{dayBookings.length - 2}
@@ -474,30 +549,15 @@ const OTABookingChartPage = () => {
             <CardTitle className="text-sm md:text-base font-semibold">Legend</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
               <div>
-                <div className="text-xs font-semibold mb-2">Status Colors</div>
-                <div className="space-y-1 text-xs">
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-blue-500 rounded" />
-                    <span>Arriving</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-emerald-500 rounded" />
-                    <span>Checked In</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-teal-500 rounded" />
-                    <span>In House</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-gray-400 rounded" />
-                    <span>Checked Out</span>
-                  </div>
-                </div>
+                <div className="text-xs font-semibold mb-2">Active bookings</div>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Solid blocks use channel colours below. Status is shown in the tooltip and booking details.
+                </p>
               </div>
               <div>
-                <div className="text-xs font-semibold mb-2">Channel Colors</div>
+                <div className="text-xs font-semibold mb-2">Channel colours</div>
                 <div className="space-y-1 text-xs">
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 bg-[#FF5A5F] rounded flex items-center justify-center text-white text-[8px] font-bold">A</div>
@@ -518,6 +578,27 @@ const OTABookingChartPage = () => {
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 bg-gray-500 rounded flex items-center justify-center text-white text-[8px] font-bold">O</div>
                     <span>Other</span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div className="text-xs font-semibold mb-2">Cancelled / no-show</div>
+                <div className="space-y-2 text-xs">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-8 h-4 rounded border-2 border-dashed border-slate-400 bg-muted/50 bg-[repeating-linear-gradient(-45deg,transparent,transparent_2px,hsl(var(--muted-foreground)/0.14)_2px,hsl(var(--muted-foreground)/0.14)_5px)] flex items-center justify-center text-[8px] text-muted-foreground line-through font-bold"
+                    >
+                      A
+                    </div>
+                    <span>Cancelled (ghost, hidden by default)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-8 h-4 rounded border-2 border-dashed border-red-400 bg-muted/50 bg-[repeating-linear-gradient(-45deg,transparent,transparent_2px,hsl(var(--muted-foreground)/0.14)_2px,hsl(var(--muted-foreground)/0.14)_5px)] flex items-center justify-center text-[8px] text-muted-foreground line-through font-bold"
+                    >
+                      B
+                    </div>
+                    <span>No-show (red dashed border)</span>
                   </div>
                 </div>
               </div>
