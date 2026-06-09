@@ -27,7 +27,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CreditCard, Download, Filter, Plus } from "lucide-react";
+import { Download, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 type LedgerRow = ReturnType<typeof useOTAPaymentLedger>["data"] extends (infer R)[] | undefined ? R : never;
@@ -199,13 +199,13 @@ const OTAPaymentsPage = () => {
 
         <Card className="rounded-3xl">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base font-display uppercase">
-              <Filter className="h-4 w-4" />
-              Filters
-            </CardTitle>
+            <CardTitle className="text-base font-display uppercase">Payment ledger</CardTitle>
+            <CardDescription>
+              {financeEligible.length} reservation{financeEligible.length !== 1 ? "s" : ""} with financial data
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col md:flex-row gap-3">
+            <div className="flex flex-col md:flex-row gap-3 mb-6">
               <Input
                 type="date"
                 value={dateFrom}
@@ -238,20 +238,6 @@ const OTAPaymentsPage = () => {
                 className="rounded-full flex-1"
               />
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-3xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base font-display uppercase">
-              <CreditCard className="h-4 w-4" />
-              Payment ledger
-            </CardTitle>
-            <CardDescription>
-              {financeEligible.length} reservation{financeEligible.length !== 1 ? "s" : ""} with financial data
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
             {isLoading ? (
               <div className="space-y-2">
                 {[1, 2, 3, 4].map((i) => (
