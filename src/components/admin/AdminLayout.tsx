@@ -232,6 +232,11 @@ export const navSections: NavSection[] = [
         icon: DollarSign,
       },
       {
+        label: "OTA Payments",
+        to: "/ota-bookings/payments",
+        icon: CreditCard,
+      },
+      {
         label: "OTA Expenses",
         to: "/ota-bookings/expenses",
         icon: Receipt,

@@ -3027,6 +3027,59 @@ export type Database = {
           },
         ]
       }
+      ota_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          id: string
+          notes: string | null
+          ota_booking_id: string
+          payment_date: string
+          payment_type: string
+          received_from: string
+          recorded_by: string
+          reference_number: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency?: string
+          id?: string
+          notes?: string | null
+          ota_booking_id: string
+          payment_date: string
+          payment_type?: string
+          received_from?: string
+          recorded_by: string
+          reference_number: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          notes?: string | null
+          ota_booking_id?: string
+          payment_date?: string
+          payment_type?: string
+          received_from?: string
+          recorded_by?: string
+          reference_number?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ota_payments_ota_booking_id_fkey"
+            columns: ["ota_booking_id"]
+            isOneToOne: false
+            referencedRelation: "ota_bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       out_of_order_records: {
         Row: {
           created_at: string
@@ -6566,6 +6619,31 @@ export type Database = {
           },
         ]
       }
+      ota_bookings_payment_ledger: {
+        Row: {
+          amount_due: number | null
+          booking_id: string | null
+          booking_status: string | null
+          channel: string | null
+          check_in: string | null
+          check_out: string | null
+          commission_amount: number | null
+          currency: string | null
+          external_ref: string | null
+          gross_booking_value: number | null
+          guest_name: string | null
+          last_payment_date: string | null
+          number_of_nights: number | null
+          payment_count: number | null
+          payment_status: string | null
+          price_per_night: number | null
+          remaining_balance: number | null
+          studio_id: string | null
+          total_received: number | null
+          total_revenue: number | null
+        }
+        Relationships: []
+      }
       debug_policies: {
         Row: {
           cmd: string | null
@@ -7347,6 +7425,22 @@ export type Database = {
           p_price_per_night: number
         }
         Returns: number
+      }
+      get_ota_amount_due: {
+        Args: { p_booking_id: string }
+        Returns: number
+      }
+      get_ota_payment_summary: {
+        Args: { p_booking_id: string }
+        Returns: {
+          amount_due: number
+          gross_booking_value: number
+          last_payment_date: string
+          payment_count: number
+          payment_status: string
+          remaining_balance: number
+          total_received: number
+        }[]
       }
       calculate_partner_commission: {
         Args: { p_application_id: string }

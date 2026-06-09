@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useOTABookings, useCreateOTABooking, useUpdateOTABooking, useBulkUpdateOTABookings, type OTABookingWithRelations } from "@/hooks/useOTABookings";
+import OTABookingPaymentsSection from "@/components/admin/ota/OTABookingPaymentsSection";
 import { useActivityLog } from "@/hooks/useActivityLog";
 import { useAdminStudios } from "@/hooks/useAdminStudios";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1313,6 +1314,7 @@ const OTABookingsDashboard = () => {
                       isEditing={detailsEditing}
                       setIsEditing={setDetailsEditing}
                       studios={otaStudios.map((s) => ({ id: s.id, studio_number: s.studio_number }))}
+                      allBookings={bookings ?? []}
                     />
                   </ScrollArea>
                 </DrawerContent>
@@ -1353,6 +1355,7 @@ const OTABookingsDashboard = () => {
                       isEditing={detailsEditing}
                       setIsEditing={setDetailsEditing}
                       studios={otaStudios.map((s) => ({ id: s.id, studio_number: s.studio_number }))}
+                      allBookings={bookings ?? []}
                     />
                   </ScrollArea>
                 </SheetContent>
@@ -1734,6 +1737,7 @@ const OTABookingDetailsContent = ({
   isEditing,
   setIsEditing,
   studios,
+  allBookings,
 }: {
   booking: OTABookingWithRelations;
   activityLog: any[];
@@ -1743,6 +1747,7 @@ const OTABookingDetailsContent = ({
   isEditing?: boolean;
   setIsEditing?: (v: boolean) => void;
   studios?: StudioOption[];
+  allBookings: OTABookingWithRelations[];
 }) => {
   const { toast } = useToast();
   const updateBooking = useUpdateOTABooking();
@@ -2103,19 +2108,22 @@ const OTABookingDetailsContent = ({
                 )}
                 {booking.total_revenue !== null && booking.total_revenue !== undefined && (
                   <div className="col-span-2">
-                    <Label className="text-xs text-muted-foreground">Total Revenue</Label>
-                    <div className="mt-1 text-lg font-bold text-green-600">
+                    <Label className="text-xs text-muted-foreground">Expected payout</Label>
+                    <div className="mt-1 text-lg font-bold text-amber-700">
                       {new Intl.NumberFormat("en-GB", {
                         style: "currency",
                         currency: booking.currency || "GBP",
                       }).format(booking.total_revenue)}
                     </div>
+                    <p className="text-xs text-muted-foreground mt-1">Not cash received — record payments separately.</p>
                   </div>
                 )}
               </div>
             </div>
           </>
         ) : null}
+
+        <OTABookingPaymentsSection booking={booking} allBookings={allBookings} />
 
         {booking.notes && (
           <div>
