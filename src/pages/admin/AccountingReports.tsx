@@ -13,12 +13,38 @@ import {
   useBankReconciliationReport,
   useUpcomingPaidInstallmentsReport,
   useFullyPaidStudentsReport,
+  useStudentPaymentCashFlowApplications,
+  useStudentPaymentCashFlowMonthly,
   type UpcomingPaidInstallmentItem,
   type FullyPaidStudentItem,
 } from "@/hooks/useAccountingReports";
+import {
+  buildCashFlowRows,
+  buildMonthColumns,
+  exportCashFlowToCSV,
+  exportCashFlowToPDF,
+  formatDepositStatus,
+  formatMonthCellText,
+  getCellDisplayAmount,
+  getMonthCellClassName,
+  type CashFlowViewMode,
+} from "@/utils/studentPaymentCashFlowReport";
+import { financeStatusBadgeProps, paymentMethodBadgeProps } from "@/utils/financeStatusStyles";
+import { cn } from "@/lib/utils";
 import { useAdminAcademicYears } from "@/hooks/useAdminAcademicYears";
 import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
-import { Download, FileText, TrendingUp, AlertCircle, CreditCard, Receipt, Calendar, Search, CheckCircle2 } from "lucide-react";
+import {
+  Download,
+  FileText,
+  TrendingUp,
+  AlertCircle,
+  CreditCard,
+  Receipt,
+  Calendar,
+  Search,
+  CheckCircle2,
+  Table2,
+} from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -41,7 +67,8 @@ type ReportType =
   | "deposit-installment"
   | "bank-reconciliation"
   | "upcoming-payments"
-  | "paid-in-full";
+  | "paid-in-full"
+  | "cash-flow";
 
 const AccountingReports = () => {
   const { toast } = useToast();
@@ -51,7 +78,7 @@ const AccountingReports = () => {
   );
   const [endDate, setEndDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
   const [groupBy, setGroupBy] = useState<"month" | "quarter">("month");
-  const [upcomingDueWindow, setUpcomingDueWindow] = useState<"7" | "14" | "30" | "all">("30");
+  const [upcomingDueWindow, setUpcomingDueWindow] = useState<"7" | "14" | "30" | "all">("all");
   const [upcomingStatusFilter, setUpcomingStatusFilter] = useState<"all" | "upcoming" | "overdue" | "paid" | "partially_paid">("all");
   const [upcomingAcademicYearId, setUpcomingAcademicYearId] = useState<string>("all");
 
@@ -62,10 +89,22 @@ const AccountingReports = () => {
   const [breakdownAcademicYearId, setBreakdownAcademicYearId] = useState<string>("all");
   const AR_PER_PAGE = 10;
   const FULLY_PAID_PER_PAGE = 10;
+  const BANK_RECONCILIATION_PER_PAGE = 32;
 
   const [fullyPaidSearchQuery, setFullyPaidSearchQuery] = useState("");
   const [fullyPaidPage, setFullyPaidPage] = useState(1);
   const [fullyPaidAcademicYearId, setFullyPaidAcademicYearId] = useState<string>("all");
+  const [fullyPaidStartDate, setFullyPaidStartDate] = useState("");
+  const [fullyPaidEndDate, setFullyPaidEndDate] = useState("");
+  const [bankPage, setBankPage] = useState(1);
+
+  const [cashFlowAcademicYearId, setCashFlowAcademicYearId] = useState<string>("");
+  const [cashFlowViewMode, setCashFlowViewMode] = useState<CashFlowViewMode>("scheduled");
+  const [cashFlowSearchQuery, setCashFlowSearchQuery] = useState("");
+  const [cashFlowContractType, setCashFlowContractType] = useState<"all" | "standard" | "custom" | "extension">("all");
+  const [cashFlowHideFullyPaid, setCashFlowHideFullyPaid] = useState(false);
+  const [cashFlowPage, setCashFlowPage] = useState(1);
+  const CASH_FLOW_PER_PAGE = 15;
 
   // Fetch data based on selected report
   const { data: arData, isLoading: arLoading } = useAccountsReceivableReport();
@@ -84,10 +123,85 @@ const AccountingReports = () => {
   );
   const { data: fullyPaidData, isLoading: fullyPaidLoading } = useFullyPaidStudentsReport({
     academicYearId: selectedReport === "paid-in-full" && fullyPaidAcademicYearId !== "all" ? fullyPaidAcademicYearId : null,
-    startDate: selectedReport === "paid-in-full" ? startDate : null,
-    endDate: selectedReport === "paid-in-full" ? endDate : null,
+    startDate: selectedReport === "paid-in-full" && fullyPaidStartDate ? fullyPaidStartDate : null,
+    endDate: selectedReport === "paid-in-full" && fullyPaidEndDate ? fullyPaidEndDate : null,
     enabled: selectedReport === "paid-in-full",
   });
+  const cashFlowYearId =
+    selectedReport === "cash-flow" && cashFlowAcademicYearId ? cashFlowAcademicYearId : null;
+  const { data: cashFlowApplications, isLoading: cashFlowAppsLoading } =
+    useStudentPaymentCashFlowApplications(cashFlowYearId);
+  const { data: cashFlowMonthly, isLoading: cashFlowMonthlyLoading } =
+    useStudentPaymentCashFlowMonthly(cashFlowYearId);
+
+  const activeAcademicYearId = useMemo(() => {
+    const active = academicYears?.find((y) => y.is_active);
+    return active?.id ?? academicYears?.[0]?.id ?? "";
+  }, [academicYears]);
+
+  useEffect(() => {
+    if (!cashFlowAcademicYearId && activeAcademicYearId) {
+      setCashFlowAcademicYearId(activeAcademicYearId);
+    }
+  }, [cashFlowAcademicYearId, activeAcademicYearId]);
+
+  const selectedCashFlowYear = useMemo(
+    () => academicYears?.find((y) => y.id === cashFlowAcademicYearId) ?? null,
+    [academicYears, cashFlowAcademicYearId]
+  );
+
+  const cashFlowMonthColumns = useMemo(() => {
+    if (!selectedCashFlowYear?.start_date || !selectedCashFlowYear?.end_date) return [];
+    return buildMonthColumns(selectedCashFlowYear.start_date, selectedCashFlowYear.end_date);
+  }, [selectedCashFlowYear]);
+
+  const cashFlowRows = useMemo(() => {
+    if (!cashFlowApplications || !cashFlowMonthly || cashFlowMonthColumns.length === 0) return [];
+    return buildCashFlowRows(cashFlowApplications, cashFlowMonthly, cashFlowMonthColumns);
+  }, [cashFlowApplications, cashFlowMonthly, cashFlowMonthColumns]);
+
+  const filteredCashFlowRows = useMemo(() => {
+    let list = cashFlowRows;
+    if (cashFlowContractType !== "all") {
+      list = list.filter((row) => row.contract_type === cashFlowContractType);
+    }
+    if (cashFlowHideFullyPaid) {
+      list = list.filter((row) => {
+        const hasOutstandingMonth = Object.values(row.months).some(
+          (cell) => cell.amountRemaining > 0.01
+        );
+        const depositOutstanding =
+          row.deposit_status === "unpaid" || row.deposit_status === "partial";
+        return hasOutstandingMonth || depositOutstanding;
+      });
+    }
+    const q = cashFlowSearchQuery.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (row) =>
+          row.student_name.toLowerCase().includes(q) ||
+          (row.studio_number && row.studio_number.toLowerCase().includes(q)) ||
+          row.contract_name.toLowerCase().includes(q) ||
+          (row.payment_plan && row.payment_plan.toLowerCase().includes(q)) ||
+          row.application_id.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [cashFlowRows, cashFlowContractType, cashFlowHideFullyPaid, cashFlowSearchQuery]);
+
+  const cashFlowTotalPages = Math.max(1, Math.ceil(filteredCashFlowRows.length / CASH_FLOW_PER_PAGE));
+  const paginatedCashFlowRows = useMemo(() => {
+    const start = (cashFlowPage - 1) * CASH_FLOW_PER_PAGE;
+    return filteredCashFlowRows.slice(start, start + CASH_FLOW_PER_PAGE);
+  }, [filteredCashFlowRows, cashFlowPage]);
+
+  useEffect(() => {
+    setCashFlowPage(1);
+  }, [cashFlowSearchQuery, cashFlowAcademicYearId, cashFlowContractType, cashFlowHideFullyPaid, cashFlowViewMode]);
+
+  useEffect(() => {
+    setCashFlowPage((p) => Math.min(p, cashFlowTotalPages));
+  }, [cashFlowTotalPages]);
 
   const formatCurrency = (amount: number | null) => {
     if (!amount && amount !== 0) return "—";
@@ -211,11 +325,26 @@ const AccountingReports = () => {
 
   useEffect(() => {
     setFullyPaidPage(1);
-  }, [fullyPaidSearchQuery, fullyPaidAcademicYearId, startDate, endDate, selectedReport]);
+  }, [fullyPaidSearchQuery, fullyPaidAcademicYearId, fullyPaidStartDate, fullyPaidEndDate, selectedReport]);
 
   useEffect(() => {
     setFullyPaidPage((p) => Math.min(p, fullyPaidTotalPages));
   }, [fullyPaidTotalPages]);
+
+  const bankTotalPages = Math.max(1, Math.ceil((bankData?.length ?? 0) / BANK_RECONCILIATION_PER_PAGE));
+  const paginatedBankData = useMemo(() => {
+    if (!bankData) return [];
+    const start = (bankPage - 1) * BANK_RECONCILIATION_PER_PAGE;
+    return bankData.slice(start, start + BANK_RECONCILIATION_PER_PAGE);
+  }, [bankData, bankPage]);
+
+  useEffect(() => {
+    setBankPage(1);
+  }, [startDate, endDate, selectedReport]);
+
+  useEffect(() => {
+    setBankPage((p) => Math.min(p, bankTotalPages));
+  }, [bankTotalPages]);
 
   const exportToCSV = () => {
     let headers: string[] = [];
@@ -552,6 +681,29 @@ const AccountingReports = () => {
         ]);
         filename = `paid_in_full_${format(new Date(), "yyyy-MM-dd")}.csv`;
         break;
+
+      case "cash-flow":
+        if (!filteredCashFlowRows.length || !selectedCashFlowYear) {
+          toast({
+            title: "No data to export",
+            description: cashFlowAcademicYearId
+              ? "No student payment cash flow records match your filters."
+              : "Select an academic year to export the cash flow report.",
+            variant: "destructive",
+          });
+          return;
+        }
+        exportCashFlowToCSV(
+          filteredCashFlowRows,
+          cashFlowMonthColumns,
+          cashFlowViewMode,
+          selectedCashFlowYear.name
+        );
+        toast({
+          title: "Report exported",
+          description: `Successfully exported ${filteredCashFlowRows.length} records to CSV.`,
+        });
+        return;
     }
 
     const csvContent = [
@@ -598,19 +750,65 @@ const AccountingReports = () => {
     return revenueData.reduce((sum, item) => sum + item.total_revenue, 0);
   };
 
+  const exportCashFlowPdf = () => {
+    if (!filteredCashFlowRows.length || !selectedCashFlowYear) {
+      toast({
+        title: "No data to export",
+        description: cashFlowAcademicYearId
+          ? "No student payment cash flow records match your filters."
+          : "Select an academic year to export the cash flow report.",
+        variant: "destructive",
+      });
+      return;
+    }
+    exportCashFlowToPDF(
+      filteredCashFlowRows,
+      cashFlowMonthColumns,
+      cashFlowViewMode,
+      selectedCashFlowYear.name
+    );
+    toast({
+      title: "Report exported",
+      description: `Successfully exported ${filteredCashFlowRows.length} records to PDF.`,
+    });
+  };
+
+  const cashFlowLoading = cashFlowAppsLoading || cashFlowMonthlyLoading;
+
   return (
     <AdminLayout
       pageTitle="Accounting Reports"
       subtitle="Financial reports for accounting and reconciliation"
       mobileActionButton={
-        <Button
-          size="sm"
-          variant="outline"
-          className="rounded-full p-2 h-9 w-9 flex-shrink-0"
-          onClick={exportToCSV}
-        >
-          <Download className="h-4 w-4" />
-        </Button>
+        selectedReport === "cash-flow" ? (
+          <div className="flex gap-1">
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-full p-2 h-9 w-9 flex-shrink-0"
+              onClick={exportToCSV}
+            >
+              <Download className="h-4 w-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-full p-2 h-9 w-9 flex-shrink-0"
+              onClick={exportCashFlowPdf}
+            >
+              <FileText className="h-4 w-4" />
+            </Button>
+          </div>
+        ) : (
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-full p-2 h-9 w-9 flex-shrink-0"
+            onClick={exportToCSV}
+          >
+            <Download className="h-4 w-4" />
+          </Button>
+        )
       }
     >
       <div className="space-y-6">
@@ -625,7 +823,7 @@ const AccountingReports = () => {
           <CardContent>
             <Tabs value={selectedReport} onValueChange={(value) => setSelectedReport(value as ReportType)}>
               <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 mb-4 scrollbar-hide scroll-smooth">
-                <TabsList className="inline-flex w-auto min-w-full md:grid md:w-full md:grid-cols-7 h-auto gap-1 md:gap-0">
+                <TabsList className="inline-flex w-auto min-w-full md:grid md:w-full md:grid-cols-8 h-auto gap-1 md:gap-0">
                   <TabsTrigger value="accounts-receivable" className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 md:whitespace-normal">
                     <CreditCard className="h-4 w-4 mr-2" />
                     AR Report
@@ -654,6 +852,10 @@ const AccountingReports = () => {
                     <CheckCircle2 className="h-4 w-4 mr-2" />
                     Paid in Full
                   </TabsTrigger>
+                  <TabsTrigger value="cash-flow" className="text-xs md:text-sm whitespace-nowrap flex-shrink-0 md:whitespace-normal">
+                    <Table2 className="h-4 w-4 mr-2" />
+                    Cash Flow
+                  </TabsTrigger>
                 </TabsList>
               </div>
 
@@ -663,26 +865,53 @@ const AccountingReports = () => {
                 selectedReport === "upcoming-payments" ||
                 selectedReport === "paid-in-full") && (
                 <div className="grid gap-4 md:grid-cols-3 mt-4">
-                  <div>
-                    <Label htmlFor="start-date">Start Date</Label>
-                    <Input
-                      id="start-date"
-                      type="date"
-                      value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
-                      className="mt-2"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="end-date">End Date</Label>
-                    <Input
-                      id="end-date"
-                      type="date"
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      className="mt-2"
-                    />
-                  </div>
+                  {selectedReport === "paid-in-full" ? (
+                    <>
+                      <div>
+                        <Label htmlFor="fully-paid-start-date">Start Date</Label>
+                        <Input
+                          id="fully-paid-start-date"
+                          type="date"
+                          value={fullyPaidStartDate}
+                          onChange={(e) => setFullyPaidStartDate(e.target.value)}
+                          className="mt-2"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="fully-paid-end-date">End Date</Label>
+                        <Input
+                          id="fully-paid-end-date"
+                          type="date"
+                          value={fullyPaidEndDate}
+                          onChange={(e) => setFullyPaidEndDate(e.target.value)}
+                          className="mt-2"
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div>
+                        <Label htmlFor="start-date">Start Date</Label>
+                        <Input
+                          id="start-date"
+                          type="date"
+                          value={startDate}
+                          onChange={(e) => setStartDate(e.target.value)}
+                          className="mt-2"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="end-date">End Date</Label>
+                        <Input
+                          id="end-date"
+                          type="date"
+                          value={endDate}
+                          onChange={(e) => setEndDate(e.target.value)}
+                          className="mt-2"
+                        />
+                      </div>
+                    </>
+                  )}
                   {selectedReport === "revenue-summary" && (
                     <div>
                       <Label htmlFor="group-by">Group By</Label>
@@ -771,6 +1000,71 @@ const AccountingReports = () => {
                   To see overdue installments (e.g. first installment already due), set <strong>Due within: All dates</strong> and <strong>Status: Overdue</strong>. Bulk-imported applications need schedule backfill (see docs) if nothing appears.
                 </p>
               )}
+              {selectedReport === "cash-flow" && (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mt-4">
+                  <div>
+                    <Label htmlFor="cash-flow-academic-year">Academic year</Label>
+                    <Select value={cashFlowAcademicYearId} onValueChange={setCashFlowAcademicYearId}>
+                      <SelectTrigger id="cash-flow-academic-year" className="mt-2">
+                        <SelectValue placeholder="Select academic year" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(academicYears ?? []).map((ay) => (
+                          <SelectItem key={ay.id} value={ay.id}>
+                            {ay.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="cash-flow-view-mode">View mode</Label>
+                    <Select
+                      value={cashFlowViewMode}
+                      onValueChange={(v) => setCashFlowViewMode(v as CashFlowViewMode)}
+                    >
+                      <SelectTrigger id="cash-flow-view-mode" className="mt-2">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="scheduled">Scheduled (due amounts)</SelectItem>
+                        <SelectItem value="outstanding">Outstanding (remaining)</SelectItem>
+                        <SelectItem value="collected">Collected (payments received)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="cash-flow-contract-type">Contract type</Label>
+                    <Select
+                      value={cashFlowContractType}
+                      onValueChange={(v) =>
+                        setCashFlowContractType(v as "all" | "standard" | "custom" | "extension")
+                      }
+                    >
+                      <SelectTrigger id="cash-flow-contract-type" className="mt-2">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All types</SelectItem>
+                        <SelectItem value="standard">Standard</SelectItem>
+                        <SelectItem value="custom">Custom</SelectItem>
+                        <SelectItem value="extension">Extension</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-end">
+                    <label className="flex items-center gap-2 text-sm cursor-pointer pb-2">
+                      <input
+                        type="checkbox"
+                        checked={cashFlowHideFullyPaid}
+                        onChange={(e) => setCashFlowHideFullyPaid(e.target.checked)}
+                        className="rounded border-input"
+                      />
+                      Hide fully paid
+                    </label>
+                  </div>
+                </div>
+              )}
             </Tabs>
           </CardContent>
         </Card>
@@ -788,6 +1082,7 @@ const AccountingReports = () => {
                   {selectedReport === "bank-reconciliation" && "Bank Reconciliation Report"}
                   {selectedReport === "upcoming-payments" && "Upcoming & Paid Installments"}
                   {selectedReport === "paid-in-full" && "Paid in Full Applications"}
+                  {selectedReport === "cash-flow" && "Student Payment Cash Flow"}
                 </CardTitle>
                 <CardDescription className="mt-1 text-xs md:text-sm">
                   {selectedReport === "accounts-receivable" &&
@@ -828,15 +1123,32 @@ const AccountingReports = () => {
                     (fullyPaidLoading
                       ? "Loading..."
                       : `${filteredFullyPaidData.length} application${filteredFullyPaidData.length !== 1 ? "s" : ""}${fullyPaidAcademicYearId !== "all" ? ` • ${academicYears?.find((ay) => ay.id === fullyPaidAcademicYearId)?.name ?? "Year"}` : ""}`)}
+                  {selectedReport === "cash-flow" &&
+                    (cashFlowLoading
+                      ? "Loading..."
+                      : `${filteredCashFlowRows.length} application${filteredCashFlowRows.length !== 1 ? "s" : ""}${selectedCashFlowYear ? ` • ${selectedCashFlowYear.name}` : ""} • ${cashFlowViewMode === "scheduled" ? "Scheduled" : cashFlowViewMode === "outstanding" ? "Outstanding" : "Collected"}`)}
                 </CardDescription>
               </div>
-              <Button
-                onClick={exportToCSV}
-                className="rounded-full uppercase tracking-wide gap-2 hidden lg:flex"
-              >
-                <Download className="h-4 w-4" />
-                Export CSV
-              </Button>
+              {selectedReport === "cash-flow" ? (
+                <div className="hidden lg:flex gap-2">
+                  <Button onClick={exportToCSV} variant="secondary" className="rounded-full uppercase tracking-wide gap-2">
+                    <Download className="h-4 w-4" />
+                    Export CSV
+                  </Button>
+                  <Button onClick={exportCashFlowPdf} className="rounded-full uppercase tracking-wide gap-2">
+                    <FileText className="h-4 w-4" />
+                    Export PDF
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  onClick={exportToCSV}
+                  className="rounded-full uppercase tracking-wide gap-2 hidden lg:flex"
+                >
+                  <Download className="h-4 w-4" />
+                  Export CSV
+                </Button>
+              )}
             </div>
           </CardHeader>
           <CardContent>
@@ -1084,7 +1396,7 @@ const AccountingReports = () => {
                                 {item.application_status}
                               </Badge>
                               {item.days_overdue > 0 && (
-                                <Badge variant="destructive" className="text-xs">
+                                <Badge {...financeStatusBadgeProps("overdue", "text-xs normal-case")}>
                                   {item.days_overdue} day{item.days_overdue !== 1 ? "s" : ""} overdue
                                 </Badge>
                               )}
@@ -1242,7 +1554,7 @@ const AccountingReports = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {bankData.map((item, index) => (
+                        {paginatedBankData.map((item, index) => (
                           <tr key={item.payment_id} className={index % 2 === 0 ? "bg-muted/30" : ""}>
                             <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">
                               {formatDateSafe(item.payment_date, "MMM d, yyyy")}
@@ -1250,7 +1562,9 @@ const AccountingReports = () => {
                             <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-medium">{item.student_name || "—"}</td>
                             <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm text-right font-semibold">{formatCurrency(item.amount_paid)}</td>
                             <td className="py-2 md:py-3 px-2 md:px-4">
-                              <Badge variant="outline" className="text-xs">{item.payment_method}</Badge>
+                              <Badge {...paymentMethodBadgeProps(item.payment_method)}>
+                                {item.payment_method}
+                              </Badge>
                             </td>
                             <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">{item.payment_type}</td>
                             <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">{item.payment_plan || "—"}</td>
@@ -1260,6 +1574,70 @@ const AccountingReports = () => {
                       </tbody>
                     </table>
                   </div>
+                  {bankData.length > BANK_RECONCILIATION_PER_PAGE && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t">
+                      <div className="text-sm text-muted-foreground">
+                        Showing {(bankPage - 1) * BANK_RECONCILIATION_PER_PAGE + 1} to{" "}
+                        {Math.min(bankPage * BANK_RECONCILIATION_PER_PAGE, bankData.length)} of {bankData.length}
+                      </div>
+                      <Pagination>
+                        <PaginationContent>
+                          <PaginationItem>
+                            <PaginationPrevious
+                              href="#"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                if (bankPage > 1) setBankPage(bankPage - 1);
+                              }}
+                              className={bankPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                            />
+                          </PaginationItem>
+                          {Array.from({ length: bankTotalPages }, (_, i) => i + 1).map((page) => {
+                            if (
+                              page === 1 ||
+                              page === bankTotalPages ||
+                              (page >= bankPage - 1 && page <= bankPage + 1)
+                            ) {
+                              return (
+                                <PaginationItem key={page}>
+                                  <PaginationLink
+                                    href="#"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      setBankPage(page);
+                                    }}
+                                    isActive={bankPage === page}
+                                    className="cursor-pointer"
+                                  >
+                                    {page}
+                                  </PaginationLink>
+                                </PaginationItem>
+                              );
+                            } else if (page === bankPage - 2 || page === bankPage + 2) {
+                              return (
+                                <PaginationItem key={page}>
+                                  <PaginationEllipsis />
+                                </PaginationItem>
+                              );
+                            }
+                            return null;
+                          })}
+                          <PaginationItem>
+                            <PaginationNext
+                              href="#"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                if (bankPage < bankTotalPages) setBankPage(bankPage + 1);
+                              }}
+                              className={
+                                bankPage === bankTotalPages ? "pointer-events-none opacity-50" : "cursor-pointer"
+                              }
+                            />
+                          </PaginationItem>
+                        </PaginationContent>
+                      </Pagination>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <Card className="rounded-3xl border-dashed">
@@ -1311,18 +1689,7 @@ const AccountingReports = () => {
                                   : "—"}
                             </td>
                             <td className="py-2 md:py-3 px-2 md:px-4">
-                              <Badge
-                                variant={
-                                  item.status === "paid"
-                                    ? "default"
-                                    : item.status === "overdue"
-                                      ? "destructive"
-                                      : item.status === "partially_paid"
-                                        ? "secondary"
-                                        : "outline"
-                                }
-                                className="text-xs capitalize"
-                              >
+                              <Badge {...financeStatusBadgeProps(item.status, "text-xs")}>
                                 {item.status === "partially_paid" ? "Partially paid" : item.status}
                               </Badge>
                             </td>
@@ -1341,6 +1708,185 @@ const AccountingReports = () => {
                       {upcomingData?.length === 0
                         ? "There are no installments in the system for confirmed applications."
                         : "No installments match the selected filters (academic year, due window, or status). Try selecting All academic years or All dates."}
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              ))}
+
+            {/* Student Payment Cash Flow */}
+            {selectedReport === "cash-flow" &&
+              (cashFlowLoading ? (
+                <ReportSkeleton />
+              ) : !cashFlowAcademicYearId ? (
+                <Card className="rounded-3xl border-dashed">
+                  <CardHeader>
+                    <CardTitle>Select Academic Year</CardTitle>
+                    <CardDescription>
+                      Choose an academic year above to view the monthly payment cash flow matrix.
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              ) : filteredCashFlowRows.length > 0 ? (
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+                    <div className="relative flex-1 max-w-md">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search by student, studio, contract..."
+                        value={cashFlowSearchQuery}
+                        onChange={(e) => setCashFlowSearchQuery(e.target.value)}
+                        className="rounded-full pl-9"
+                      />
+                    </div>
+                    <div className="text-xs md:text-sm text-muted-foreground">
+                      {filteredCashFlowRows.length} application{filteredCashFlowRows.length !== 1 ? "s" : ""}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="h-3 w-3 rounded-full bg-emerald-600" /> Paid
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="h-3 w-3 rounded-full bg-amber-500" /> Partial
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="h-3 w-3 rounded-full bg-destructive" /> Overdue
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="h-3 w-3 rounded-full bg-slate-200 dark:bg-slate-700" /> Upcoming
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+                    <table className="w-full min-w-[720px] border-collapse">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left py-2 px-2 text-xs font-semibold uppercase sticky left-0 z-20 min-w-[140px] bg-card border-r border-border shadow-[4px_0_8px_-4px_rgba(0,0,0,0.08)]">
+                            Student
+                          </th>
+                          <th className="text-left py-2 px-2 text-xs font-semibold uppercase min-w-[72px]">Studio</th>
+                          <th className="text-left py-2 px-2 text-xs font-semibold uppercase min-w-[120px]">Contract</th>
+                          <th className="text-left py-2 px-2 text-xs font-semibold uppercase min-w-[72px]">Dep. Status</th>
+                          <th className="text-right py-2 px-2 text-xs font-semibold uppercase min-w-[88px]">Total</th>
+                          {cashFlowMonthColumns.map((col) => (
+                            <th
+                              key={col.monthKey}
+                              className="text-right py-2 px-2 text-xs font-semibold uppercase min-w-[72px]"
+                            >
+                              {col.monthLabel}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paginatedCashFlowRows.map((row, index) => (
+                          <tr key={row.application_id} className={index % 2 === 0 ? "bg-muted/20" : ""}>
+                            <td
+                              className={cn(
+                                "py-2 px-2 text-xs md:text-sm font-medium sticky left-0 z-10 border-r border-border shadow-[4px_0_8px_-4px_rgba(0,0,0,0.08)]",
+                                index % 2 === 0 ? "bg-muted" : "bg-card"
+                              )}
+                            >
+                              <div>{row.student_name}</div>
+                              {row.extension_of_application_id && (
+                                <div className="text-[10px] text-muted-foreground truncate max-w-[130px]">
+                                  Ext. of {row.extension_of_application_id.slice(0, 8)}…
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-2 px-2 text-xs md:text-sm whitespace-nowrap">{row.studio_number ?? "—"}</td>
+                            <td className="py-2 px-2 text-xs md:text-sm">
+                              <div className="truncate max-w-[120px]" title={row.contract_name}>
+                                {row.contract_name}
+                              </div>
+                              <div className="text-[10px] text-muted-foreground">
+                                {formatDateSafe(row.contract_start, "MMM yyyy")} –{" "}
+                                {formatDateSafe(row.contract_end, "MMM yyyy")}
+                              </div>
+                            </td>
+                            <td className="py-2 px-2 text-xs">
+                              <Badge {...financeStatusBadgeProps(row.deposit_status, "text-[10px]")}>
+                                {formatDepositStatus(row.deposit_status)}
+                              </Badge>
+                            </td>
+                            <td className="py-2 px-2 text-xs md:text-sm text-right font-semibold whitespace-nowrap">
+                              {formatCurrency(row.total_installments_due)}
+                            </td>
+                            {cashFlowMonthColumns.map((col) => {
+                              const cell = row.months[col.monthKey];
+                              const amount = getCellDisplayAmount(cell, cashFlowViewMode);
+                              const cellText = formatMonthCellText(cell, cashFlowViewMode, formatCurrency);
+                              return (
+                                <td
+                                  key={`${row.application_id}-${col.monthKey}`}
+                                  className={`py-2 px-2 text-xs text-right align-top whitespace-pre-line ${getMonthCellClassName(cell, cashFlowViewMode)}`}
+                                  title={
+                                    cell && amount > 0
+                                      ? `Due: ${formatCurrency(cell.amountDue)} | Paid: ${formatCurrency(cell.amountPaid)} | Remaining: ${formatCurrency(cell.amountRemaining)}`
+                                      : undefined
+                                  }
+                                >
+                                  {cellText}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {filteredCashFlowRows.length > CASH_FLOW_PER_PAGE && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t">
+                      <div className="text-sm text-muted-foreground">
+                        Showing {(cashFlowPage - 1) * CASH_FLOW_PER_PAGE + 1} to{" "}
+                        {Math.min(cashFlowPage * CASH_FLOW_PER_PAGE, filteredCashFlowRows.length)} of{" "}
+                        {filteredCashFlowRows.length}
+                      </div>
+                      <Pagination>
+                        <PaginationContent>
+                          <PaginationItem>
+                            <PaginationPrevious
+                              href="#"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                if (cashFlowPage > 1) setCashFlowPage(cashFlowPage - 1);
+                              }}
+                              className={cashFlowPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                            />
+                          </PaginationItem>
+                          <PaginationItem>
+                            <PaginationLink href="#" isActive className="cursor-default">
+                              {cashFlowPage} / {cashFlowTotalPages}
+                            </PaginationLink>
+                          </PaginationItem>
+                          <PaginationItem>
+                            <PaginationNext
+                              href="#"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                if (cashFlowPage < cashFlowTotalPages) setCashFlowPage(cashFlowPage + 1);
+                              }}
+                              className={
+                                cashFlowPage === cashFlowTotalPages
+                                  ? "pointer-events-none opacity-50"
+                                  : "cursor-pointer"
+                              }
+                            />
+                          </PaginationItem>
+                        </PaginationContent>
+                      </Pagination>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Card className="rounded-3xl border-dashed">
+                  <CardHeader>
+                    <CardTitle>No Records Found</CardTitle>
+                    <CardDescription>
+                      No applications match the selected academic year and filters. Bulk-imported
+                      applications may need payment schedule backfill if schedules are missing.
                     </CardDescription>
                   </CardHeader>
                 </Card>
@@ -1381,7 +1927,7 @@ const AccountingReports = () => {
                                 <div className="flex-1 space-y-2">
                                   <div className="flex items-center gap-3 flex-wrap">
                                     <h3 className="text-sm md:text-lg font-bold">{studentName}</h3>
-                                    <Badge variant="default" className="text-xs capitalize">
+                                    <Badge {...financeStatusBadgeProps("fully_paid", "text-xs")}>
                                       Paid in full
                                     </Badge>
                                     {item.academic_year_name && (

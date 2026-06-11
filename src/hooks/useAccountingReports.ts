@@ -131,6 +131,43 @@ export type UpcomingPaidInstallmentItem = {
   payment_plan: string | null;
 };
 
+export type StudentPaymentCashFlowApplication = {
+  application_id: string;
+  student_id: string;
+  student_name: string;
+  studio_number: string | null;
+  studio_grade: string | null;
+  contract_id: string;
+  contract_name: string;
+  contract_start: string | null;
+  contract_end: string | null;
+  academic_year_id: string;
+  academic_year_name: string;
+  academic_year_start: string;
+  academic_year_end: string;
+  contract_type: "standard" | "custom" | "extension";
+  extension_of_application_id: string | null;
+  application_status: string;
+  payment_plan: string | null;
+  deposit_due: number;
+  deposit_paid: number;
+  deposit_status: "paid" | "partial" | "unpaid" | "n/a";
+  total_installments_due: number;
+};
+
+export type StudentPaymentCashFlowMonthly = {
+  application_id: string;
+  academic_year_id: string;
+  month_key: string;
+  month_start: string;
+  month_label: string;
+  amount_due: number;
+  amount_paid_on_due: number;
+  amount_remaining: number;
+  amount_collected: number;
+  month_status: "paid" | "partially_paid" | "overdue" | "upcoming" | "empty" | "collected_only";
+};
+
 export type FullyPaidStudentItem = {
   application_id: string;
   student_id: string;
@@ -262,21 +299,33 @@ export const useBankReconciliationReport = (
   return useQuery({
     queryKey: ["bank-reconciliation-report", startDate, endDate],
     queryFn: async (): Promise<BankReconciliationItem[]> => {
-      let query = supabase
-        .from("bank_reconciliation_report")
-        .select("*")
-        .order("payment_date", { ascending: false });
-
-      if (startDate) {
-        query = query.gte("payment_date", startDate);
-      }
-      if (endDate) {
-        query = query.lte("payment_date", endDate);
-      }
-
-      const { data, error } = await query;
+      const { data, error } = await supabase.rpc("get_bank_reconciliation_report", {
+        p_start_date: startDate || null,
+        p_end_date: endDate || null,
+      });
 
       if (error) {
+        if (error.code === "42883" || error.message?.includes("does not exist")) {
+          console.warn("Bank reconciliation RPC not available, falling back to view:", error.message);
+          let query = supabase
+            .from("bank_reconciliation_report")
+            .select("*")
+            .order("payment_date", { ascending: false });
+
+          if (startDate) {
+            query = query.gte("payment_date", startDate);
+          }
+          if (endDate) {
+            query = query.lte("payment_date", endDate);
+          }
+
+          const fallback = await query;
+          if (fallback.error) {
+            console.error("Failed to fetch bank reconciliation report:", fallback.error);
+            throw fallback.error;
+          }
+          return (fallback.data || []) as BankReconciliationItem[];
+        }
         console.error("Failed to fetch bank reconciliation report:", error);
         throw error;
       }
@@ -305,6 +354,58 @@ export const useUpcomingPaidInstallmentsReport = () => {
   });
 };
 
+export const useStudentPaymentCashFlowApplications = (academicYearId?: string | null) => {
+  return useQuery({
+    queryKey: ["student-payment-cash-flow-applications", academicYearId],
+    queryFn: async (): Promise<StudentPaymentCashFlowApplication[]> => {
+      let query = supabase
+        .from("student_payment_cash_flow_applications")
+        .select("*")
+        .order("student_name", { ascending: true });
+
+      if (academicYearId) {
+        query = query.eq("academic_year_id", academicYearId);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error("Failed to fetch student payment cash flow applications:", error);
+        throw error;
+      }
+
+      return (data || []) as StudentPaymentCashFlowApplication[];
+    },
+    enabled: !!academicYearId,
+  });
+};
+
+export const useStudentPaymentCashFlowMonthly = (academicYearId?: string | null) => {
+  return useQuery({
+    queryKey: ["student-payment-cash-flow-monthly", academicYearId],
+    queryFn: async (): Promise<StudentPaymentCashFlowMonthly[]> => {
+      let query = supabase
+        .from("student_payment_cash_flow_monthly")
+        .select("*")
+        .order("month_start", { ascending: true });
+
+      if (academicYearId) {
+        query = query.eq("academic_year_id", academicYearId);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error("Failed to fetch student payment cash flow monthly data:", error);
+        throw error;
+      }
+
+      return (data || []) as StudentPaymentCashFlowMonthly[];
+    },
+    enabled: !!academicYearId,
+  });
+};
+
 export const useFullyPaidStudentsReport = (params?: {
   contractId?: string | null;
   academicYearId?: string | null;
@@ -324,8 +425,8 @@ export const useFullyPaidStudentsReport = (params?: {
       const { data, error } = await supabase.rpc("get_fully_paid_students", {
         p_contract_id: contractId,
         p_academic_year_id: academicYearId,
-        p_start_date: startDate,
-        p_end_date: endDate,
+        p_start_date: startDate?.trim() ? startDate : null,
+        p_end_date: endDate?.trim() ? endDate : null,
       });
 
       if (error) {
