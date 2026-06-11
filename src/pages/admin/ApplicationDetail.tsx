@@ -7,7 +7,7 @@ import { useStudentApplication } from "@/hooks/useStudentApplication";
 import { useUpdateApplicationStatus } from "@/hooks/useAdminApplications";
 import { useAdminStudios } from "@/hooks/useAdminStudios";
 import { ArrowLeft, ArrowUpLeft, User, Mail, Phone, MapPin, Calendar, Building2, CreditCard, FileText, CheckCircle2, XCircle, Download, Send, RotateCcw, Gift, Percent, Handshake, Pencil, Check, ChevronsUpDown, CalendarPlus } from "lucide-react";
-import { format } from "date-fns";
+import { addDays, differenceInCalendarDays, format, isAfter, parseISO } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useMemo, useState } from "react";
@@ -22,6 +22,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import ManualPaymentDialog from "@/components/admin/ManualPaymentDialog";
@@ -52,8 +60,38 @@ import {
   exportSingleApplicationDefaultCSV,
 } from "@/utils/csvTemplateGenerator";
 import { useCreateExtensionApplication } from "@/hooks/useCreateExtensionApplication";
-import { addDays, isAfter, parseISO } from "date-fns";
+function computeExtensionEndDate(
+  startDate: string,
+  weeks: number,
+  days: number,
+): string {
+  if (!startDate) return "";
+  const start = parseISO(startDate);
+  if (Number.isNaN(start.getTime())) return "";
+  return addDays(start, weeks * 7 + days).toISOString().slice(0, 10);
+}
 
+function computeExtensionDuration(
+  startDate: string,
+  endDate: string,
+): { weeks: number; days: number } {
+  if (!startDate || !endDate) {
+    return { weeks: 1, days: 0 };
+  }
+  const start = parseISO(startDate);
+  const end = parseISO(endDate);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return { weeks: 1, days: 0 };
+  }
+  const totalDays = differenceInCalendarDays(end, start);
+  if (totalDays < 7) {
+    return { weeks: 1, days: 0 };
+  }
+  return {
+    weeks: Math.floor(totalDays / 7),
+    days: totalDays % 7,
+  };
+}
 const getStatusBadge = (status: string) => {
   const statusConfig: Record<string, { className: string; label: string }> = {
     draft: {
@@ -117,6 +155,7 @@ const ApplicationDetail = () => {
     "/admin/applications";
   const navigateToApplications = () => navigate(returnTo);
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const { data: application, isLoading } = useStudentApplication(applicationId || "");
   const updateStatus = useUpdateApplicationStatus();
   const createNotification = useCreateNotification();
@@ -149,6 +188,7 @@ const ApplicationDetail = () => {
     extensionDays: 0,
     numInstallments: 4,
     extensionStartDate: "",
+    extensionEndDate: "",
     weeklyPrice: 0,
     depositAmount: 0,
   });
@@ -1303,13 +1343,23 @@ const ApplicationDetail = () => {
                   className="rounded-full uppercase tracking-wide gap-2"
                   onClick={() => {
                     const contract = application?.contract as { contract_end?: string; weekly_price_override?: number } | null;
-                    const endDate = contract?.contract_end ? addDays(new Date(contract.contract_end), 1).toISOString().slice(0, 10) : "";
-                    setExtensionForm((prev) => ({
-                      ...prev,
-                      extensionStartDate: endDate,
-                      weeklyPrice: contract?.weekly_price_override ?? prev.weeklyPrice,
-                      depositAmount: prev.depositAmount,
-                    }));
+                    const extensionStartDate = contract?.contract_end
+                      ? addDays(new Date(contract.contract_end), 1).toISOString().slice(0, 10)
+                      : "";
+                    setExtensionForm((prev) => {
+                      const extensionEndDate = computeExtensionEndDate(
+                        extensionStartDate,
+                        prev.extensionWeeks,
+                        prev.extensionDays,
+                      );
+                      return {
+                        ...prev,
+                        extensionStartDate,
+                        extensionEndDate,
+                        weeklyPrice: contract?.weekly_price_override ?? prev.weeklyPrice,
+                        depositAmount: prev.depositAmount,
+                      };
+                    });
                     setCreateExtensionOpen(true);
                   }}
                 >
@@ -3043,102 +3093,183 @@ const ApplicationDetail = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Create Extension Dialog */}
-      <Dialog open={createExtensionOpen} onOpenChange={setCreateExtensionOpen}>
-        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Create contract extension</DialogTitle>
-            <DialogDescription>
-              Create a new application for an extension period (e.g. 12 weeks 3 days, 4 installments). The student and studio will be copied from the original booking.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-2">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <div>
-                <Label htmlFor="ext-weeks">Extension weeks</Label>
-                <Input
-                  id="ext-weeks"
-                  type="number"
-                  min={1}
-                  max={52}
-                  value={extensionForm.extensionWeeks}
-                  onChange={(e) => setExtensionForm((p) => ({ ...p, extensionWeeks: Math.max(1, parseInt(e.target.value, 10) || 1) }))}
-                  className="rounded-lg"
-                />
-              </div>
-              <div>
-                <Label htmlFor="ext-days">Extension days</Label>
-                <Input
-                  id="ext-days"
-                  type="number"
-                  min={0}
-                  max={6}
-                  value={extensionForm.extensionDays}
-                  onChange={(e) =>
-                    setExtensionForm((p) => ({
-                      ...p,
-                      extensionDays: Math.min(6, Math.max(0, parseInt(e.target.value, 10) || 0)),
-                    }))
-                  }
-                  className="rounded-lg"
-                />
-              </div>
-              <div>
-                <Label htmlFor="ext-instalments">Number of installments</Label>
-                <Input
-                  id="ext-instalments"
-                  type="number"
-                  min={1}
-                  max={12}
-                  value={extensionForm.numInstallments}
-                  onChange={(e) => setExtensionForm((p) => ({ ...p, numInstallments: Math.max(1, parseInt(e.target.value, 10) || 1) }))}
-                  className="rounded-lg"
-                />
-              </div>
-            </div>
-            <div>
+      {/* Create Extension Sheet */}
+      <Sheet open={createExtensionOpen} onOpenChange={setCreateExtensionOpen}>
+        <SheetContent
+          side={isMobile ? "bottom" : "right"}
+          className={cn(
+            "flex flex-col gap-0 overflow-hidden p-4 sm:p-6",
+            isMobile ? "max-h-[90vh] mb-0 rounded-t-2xl" : "h-full w-full sm:max-w-md",
+            "[&>button]:!flex [&>button]:!h-8 [&>button]:!w-8 [&>button]:!items-center [&>button]:!justify-center",
+            "[&>button]:!rounded-full [&>button]:!bg-red-500 [&>button]:!text-white [&>button]:!opacity-100",
+            "[&>button]:!shadow-md [&>button]:transition-colors [&>button]:hover:!bg-red-600",
+            "[&>button]:focus:!ring-2 [&>button]:focus:!ring-white/60 [&>button]:focus:!ring-offset-2 [&>button]:focus:!ring-offset-red-500",
+          )}
+        >
+          <SheetHeader className="flex-shrink-0 text-left space-y-0 pr-10">
+            <SheetTitle className="text-xl font-display uppercase tracking-wide">
+              Create contract extension
+            </SheetTitle>
+          </SheetHeader>
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="space-y-4 px-1.5 py-4">
+            <div className="space-y-2">
               <Label htmlFor="ext-start">Extension start date</Label>
               <Input
                 id="ext-start"
                 type="date"
                 value={extensionForm.extensionStartDate}
-                onChange={(e) => setExtensionForm((p) => ({ ...p, extensionStartDate: e.target.value }))}
-                className="rounded-lg"
+                onChange={(e) => {
+                  const extensionStartDate = e.target.value;
+                  setExtensionForm((p) => ({
+                    ...p,
+                    extensionStartDate,
+                    extensionEndDate: computeExtensionEndDate(
+                      extensionStartDate,
+                      p.extensionWeeks,
+                      p.extensionDays,
+                    ),
+                  }));
+                }}
+                className="rounded-lg w-full focus-visible:ring-offset-0"
               />
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <Label htmlFor="ext-weekly">Weekly price (£)</Label>
-                <Input
-                  id="ext-weekly"
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  value={extensionForm.weeklyPrice || ""}
-                  onChange={(e) => setExtensionForm((p) => ({ ...p, weeklyPrice: parseFloat(e.target.value) || 0 }))}
-                  className="rounded-lg"
-                />
-              </div>
-              <div>
-                <Label htmlFor="ext-deposit">Deposit (£)</Label>
-                <Input
-                  id="ext-deposit"
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  value={extensionForm.depositAmount || ""}
-                  onChange={(e) => setExtensionForm((p) => ({ ...p, depositAmount: parseFloat(e.target.value) || 0 }))}
-                  className="rounded-lg"
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="ext-end">Extension end date</Label>
+              <Input
+                id="ext-end"
+                type="date"
+                value={extensionForm.extensionEndDate}
+                min={
+                  extensionForm.extensionStartDate
+                    ? computeExtensionEndDate(extensionForm.extensionStartDate, 1, 0)
+                    : undefined
+                }
+                disabled={!extensionForm.extensionStartDate}
+                onChange={(e) => {
+                  const extensionEndDate = e.target.value;
+                  setExtensionForm((p) => {
+                    const { weeks, days } = computeExtensionDuration(
+                      p.extensionStartDate,
+                      extensionEndDate,
+                    );
+                    return {
+                      ...p,
+                      extensionEndDate,
+                      extensionWeeks: weeks,
+                      extensionDays: days,
+                    };
+                  });
+                }}
+                className="rounded-lg w-full focus-visible:ring-offset-0"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ext-weeks">Extension weeks</Label>
+              <Input
+                id="ext-weeks"
+                type="number"
+                min={1}
+                max={52}
+                value={extensionForm.extensionWeeks}
+                onChange={(e) => {
+                  const extensionWeeks = Math.max(1, parseInt(e.target.value, 10) || 1);
+                  setExtensionForm((p) => ({
+                    ...p,
+                    extensionWeeks,
+                    extensionEndDate: computeExtensionEndDate(
+                      p.extensionStartDate,
+                      extensionWeeks,
+                      p.extensionDays,
+                    ),
+                  }));
+                }}
+                className="rounded-lg w-full focus-visible:ring-offset-0"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ext-days">Extension days</Label>
+              <Input
+                id="ext-days"
+                type="number"
+                min={0}
+                max={6}
+                value={extensionForm.extensionDays}
+                onChange={(e) => {
+                  const extensionDays = Math.min(
+                    6,
+                    Math.max(0, parseInt(e.target.value, 10) || 0),
+                  );
+                  setExtensionForm((p) => ({
+                    ...p,
+                    extensionDays,
+                    extensionEndDate: computeExtensionEndDate(
+                      p.extensionStartDate,
+                      p.extensionWeeks,
+                      extensionDays,
+                    ),
+                  }));
+                }}
+                className="rounded-lg w-full focus-visible:ring-offset-0"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ext-instalments">Number of installments</Label>
+              <Input
+                id="ext-instalments"
+                type="number"
+                min={1}
+                max={12}
+                value={extensionForm.numInstallments}
+                onChange={(e) =>
+                  setExtensionForm((p) => ({
+                    ...p,
+                    numInstallments: Math.max(1, parseInt(e.target.value, 10) || 1),
+                  }))
+                }
+                className="rounded-lg w-full focus-visible:ring-offset-0"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ext-weekly">Weekly price (£)</Label>
+              <Input
+                id="ext-weekly"
+                type="number"
+                min={0}
+                step={0.01}
+                value={extensionForm.weeklyPrice || ""}
+                onChange={(e) =>
+                  setExtensionForm((p) => ({ ...p, weeklyPrice: parseFloat(e.target.value) || 0 }))
+                }
+                className="rounded-lg w-full focus-visible:ring-offset-0"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ext-deposit">Deposit (£)</Label>
+              <Input
+                id="ext-deposit"
+                type="number"
+                min={0}
+                step={0.01}
+                value={extensionForm.depositAmount || ""}
+                onChange={(e) =>
+                  setExtensionForm((p) => ({ ...p, depositAmount: parseFloat(e.target.value) || 0 }))
+                }
+                className="rounded-lg w-full focus-visible:ring-offset-0"
+              />
+            </div>
             </div>
           </div>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setCreateExtensionOpen(false)} className="rounded-full uppercase tracking-wide">
+          <SheetFooter className="flex-shrink-0 flex-col gap-2 pt-4 mt-0 border-t border-border/60 sm:flex-row sm:justify-end">
+            <Button
+              variant="outline"
+              onClick={() => setCreateExtensionOpen(false)}
+              className="w-full sm:w-auto rounded-full uppercase tracking-wide"
+            >
               Cancel
             </Button>
             <Button
-              className="rounded-full uppercase tracking-wide"
+              className="w-full sm:w-auto rounded-full uppercase tracking-wide"
               disabled={
                 createExtension.isPending ||
                 !extensionForm.extensionStartDate ||
@@ -3184,9 +3315,9 @@ const ApplicationDetail = () => {
                 "Create extension"
               )}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       {/* Upload New Document Dialog */}
       <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
