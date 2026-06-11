@@ -20,7 +20,7 @@ import {
 } from "@/hooks/useAccountingReports";
 import {
   buildCashFlowRows,
-  buildMonthColumns,
+  buildCashFlowMonthColumns,
   exportCashFlowToCSV,
   exportCashFlowToPDF,
   formatDepositStatus,
@@ -152,8 +152,12 @@ const AccountingReports = () => {
 
   const cashFlowMonthColumns = useMemo(() => {
     if (!selectedCashFlowYear?.start_date || !selectedCashFlowYear?.end_date) return [];
-    return buildMonthColumns(selectedCashFlowYear.start_date, selectedCashFlowYear.end_date);
-  }, [selectedCashFlowYear]);
+    return buildCashFlowMonthColumns(
+      selectedCashFlowYear.start_date,
+      selectedCashFlowYear.end_date,
+      cashFlowMonthly ?? []
+    );
+  }, [selectedCashFlowYear, cashFlowMonthly]);
 
   const cashFlowRows = useMemo(() => {
     if (!cashFlowApplications || !cashFlowMonthly || cashFlowMonthColumns.length === 0) return [];
@@ -1756,6 +1760,11 @@ const AccountingReports = () => {
                     <span className="inline-flex items-center gap-1.5">
                       <span className="h-3 w-3 rounded-full bg-slate-200 dark:bg-slate-700" /> Upcoming
                     </span>
+                    {cashFlowMonthColumns.some((col) => col.isOutsideAcademicYear) && (
+                      <span className="text-muted-foreground/90">
+                        Italic months are outside the academic year (e.g. pre-tenancy instalments).
+                      </span>
+                    )}
                   </div>
 
                   <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
@@ -1772,7 +1781,10 @@ const AccountingReports = () => {
                           {cashFlowMonthColumns.map((col) => (
                             <th
                               key={col.monthKey}
-                              className="text-right py-2 px-2 text-xs font-semibold uppercase min-w-[72px]"
+                              className={cn(
+                                "text-right py-2 px-2 text-xs font-semibold uppercase min-w-[72px]",
+                                col.isOutsideAcademicYear && "italic text-muted-foreground"
+                              )}
                             >
                               {col.monthLabel}
                             </th>

@@ -12,6 +12,8 @@ export type MonthColumn = {
   monthKey: string;
   monthLabel: string;
   monthStart: string;
+  /** True when the column falls outside the academic year tenancy window. */
+  isOutsideAcademicYear?: boolean;
 };
 
 export type CashFlowMonthCell = {
@@ -36,26 +38,78 @@ const formatCurrencyValue = (amount: number) =>
     maximumFractionDigits: 2,
   }).format(amount);
 
+/** Months that should extend the matrix beyond the academic year tenancy window. */
+const monthExtendsColumnRange = (row: StudentPaymentCashFlowMonthly): boolean =>
+  Number(row.amount_due ?? 0) > 0 || Number(row.amount_remaining ?? 0) > 0;
+
+const buildMonthColumnRange = (
+  rangeStart: Date,
+  rangeEnd: Date,
+  academicYearStart: Date,
+  academicYearEnd: Date
+): MonthColumn[] => {
+  const columns: MonthColumn[] = [];
+  let cursor = rangeStart;
+
+  while (cursor <= rangeEnd) {
+    columns.push({
+      monthKey: format(cursor, "yyyy-MM"),
+      monthLabel: "",
+      monthStart: format(cursor, "yyyy-MM-dd"),
+      isOutsideAcademicYear: cursor < academicYearStart || cursor > academicYearEnd,
+    });
+    cursor = addMonths(cursor, 1);
+  }
+
+  const needsYearSuffix =
+    columns.length > 0 &&
+    (format(rangeStart, "yyyy") !== format(rangeEnd, "yyyy") ||
+      new Set(columns.map((col) => format(parseISO(col.monthStart), "MMM").toUpperCase())).size !==
+        columns.length);
+
+  return columns.map((col) => ({
+    ...col,
+    monthLabel: format(parseISO(col.monthStart), needsYearSuffix ? "MMM ''yy" : "MMM").toUpperCase(),
+  }));
+};
+
+/** Academic year month range only (legacy helper). */
 export const buildMonthColumns = (
   academicYearStart: string,
   academicYearEnd: string
 ): MonthColumn[] => {
   const start = startOfMonth(parseISO(academicYearStart));
   const end = startOfMonth(parseISO(academicYearEnd));
-  const columns: MonthColumn[] = [];
-  let cursor = start;
+  return buildMonthColumnRange(start, end, start, end);
+};
 
-  while (cursor <= end) {
-    const monthStart = format(cursor, "yyyy-MM-dd");
-    columns.push({
-      monthKey: format(cursor, "yyyy-MM"),
-      monthLabel: format(cursor, "MMM").toUpperCase(),
-      monthStart,
-    });
-    cursor = addMonths(cursor, 1);
+/**
+ * Cash flow columns: academic year window plus any months with instalment or collection data
+ * (e.g. August instalment 1 before a September academic year start).
+ */
+export const buildCashFlowMonthColumns = (
+  academicYearStart: string,
+  academicYearEnd: string,
+  monthlyData: StudentPaymentCashFlowMonthly[] = []
+): MonthColumn[] => {
+  const ayStart = startOfMonth(parseISO(academicYearStart));
+  const ayEnd = startOfMonth(parseISO(academicYearEnd));
+
+  let rangeStart = ayStart;
+  let rangeEnd = ayEnd;
+
+  const dataMonths = monthlyData
+    .filter(monthExtendsColumnRange)
+    .map((row) => startOfMonth(parseISO(row.month_start)));
+
+  if (dataMonths.length > 0) {
+    const dataStart = dataMonths.reduce((min, date) => (date < min ? date : min));
+    const dataEnd = dataMonths.reduce((max, date) => (date > max ? date : max));
+    if (dataStart < rangeStart) rangeStart = dataStart;
+    if (dataEnd > rangeEnd) rangeEnd = dataEnd;
   }
 
-  return columns;
+  return buildMonthColumnRange(rangeStart, rangeEnd, ayStart, ayEnd);
 };
 
 export const getCellDisplayAmount = (
