@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { logActivity } from "@/utils/auditLog";
+import { copyApplicationJourneyFromSource } from "@/utils/copyApplicationJourney";
 
 export type CreateExtensionPayload = {
   /** Original application being extended */
@@ -250,6 +251,8 @@ async function createExtensionApplication(
       .eq("id", newApplicationId);
   }
 
+  await copyApplicationJourneyFromSource(newApplicationId, originalApplicationId);
+
   await logActivity({
     action: "create",
     entityType: "application",
@@ -276,8 +279,9 @@ export function useCreateExtensionApplication() {
 
   return useMutation({
     mutationFn: createExtensionApplication,
-    onSuccess: (_, variables) => {
+    onSuccess: (result, variables) => {
       queryClient.invalidateQueries({ queryKey: ["student-application", variables.originalApplicationId] });
+      queryClient.invalidateQueries({ queryKey: ["student-application", result.applicationId] });
       queryClient.invalidateQueries({ queryKey: ["student-application-extensions", variables.originalApplicationId] });
       queryClient.invalidateQueries({ queryKey: ["admin-applications"] });
       queryClient.invalidateQueries({ queryKey: ["admin-contracts"] });

@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { notifyBookingEvent } from "@/utils/notifyBookingEvent";
+import { copyApplicationJourneyFromSource } from "@/utils/copyApplicationJourney";
 import { useAuth } from "@/contexts/AuthContext";
 import { useContract } from "@/hooks/useContract";
 import { useToast } from "@/hooks/use-toast";
@@ -506,9 +507,16 @@ const ContractDetail = () => {
       if (insertError) throw insertError;
       if (!inserted) throw new Error("Failed to create rebooking application");
 
+      if (rebookingCheck.previous_application_id) {
+        await copyApplicationJourneyFromSource(
+          inserted.id,
+          rebookingCheck.previous_application_id,
+        );
+      }
+
       toast({
         title: "Rebooking started",
-        description: "Your previous application data will be used to pre-fill this form.",
+        description: "Your previous application data has been copied to this booking.",
       });
 
       navigate(

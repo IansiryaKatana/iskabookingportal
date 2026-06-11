@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { copyApplicationJourneyFromSource } from "@/utils/copyApplicationJourney";
 
 export type RebookingCheck = {
   can_rebook: boolean;
@@ -49,23 +50,41 @@ export const useCanRebook = (contractId: string | undefined) => {
 };
 
 /**
- * Get rebooking data from previous application
+ * Resolve which application supplies journey pre-fill data (rebooker or extension).
  */
-export const useRebookingData = (previousApplicationId: string | null) => {
+export const resolveApplicationPrefillSourceId = (application: {
+  is_rebooking?: boolean | null;
+  previous_application_id?: string | null;
+  extension_of_application_id?: string | null;
+} | null | undefined): string | null => {
+  if (!application) return null;
+  if (application.is_rebooking && application.previous_application_id) {
+    return application.previous_application_id;
+  }
+  if (application.extension_of_application_id) {
+    return application.extension_of_application_id;
+  }
+  return null;
+};
+
+/**
+ * Get journey step data from a source application (rebooker or extension pre-fill).
+ */
+export const useRebookingData = (sourceApplicationId: string | null) => {
   return useQuery({
-    queryKey: ["rebooking-data", previousApplicationId],
+    queryKey: ["rebooking-data", sourceApplicationId],
     queryFn: async () => {
-      if (!previousApplicationId) return null;
+      if (!sourceApplicationId) return null;
 
       const { data, error } = await supabase
         .rpc("get_rebooking_data", {
-          p_previous_application_id: previousApplicationId,
+          p_previous_application_id: sourceApplicationId,
         });
 
       if (error) throw error;
       return (data?.[0] || null) as RebookingData | null;
     },
-    enabled: !!previousApplicationId,
+    enabled: !!sourceApplicationId,
   });
 };
 
@@ -97,6 +116,8 @@ export const useMarkAsRebooking = () => {
         .eq("id", applicationId);
 
       if (error) throw error;
+
+      await copyApplicationJourneyFromSource(applicationId, previousApplicationId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["student-application"] });

@@ -21,7 +21,10 @@ import {
   useSaveApplicationStep,
   useStudentApplication,
 } from "@/hooks/useStudentApplication";
-import { useRebookingData } from "@/hooks/useRebooking";
+import {
+  resolveApplicationPrefillSourceId,
+  useRebookingData,
+} from "@/hooks/useRebooking";
 import { useValidateReferralCode } from "@/hooks/useReferralCode";
 import { useVerifyPayment } from "@/hooks/useVerifyPayment";
 import { useLinkPaymentToApplication } from "@/hooks/useManualPayment";
@@ -36,6 +39,7 @@ import {
   FileText,
   RotateCcw,
   Info,
+  CalendarPlus,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
@@ -377,12 +381,12 @@ const StudentApplicationWizard = () => {
     applicationId ?? "",
   );
 
-  // Fetch rebooking data if this is a rebooking
-  const { data: rebookingData, isLoading: loadingRebookingData } = useRebookingData(
-    application?.is_rebooking && application?.previous_application_id 
-      ? application.previous_application_id 
-      : null
+  const prefillSourceApplicationId = useMemo(
+    () => resolveApplicationPrefillSourceId(application),
+    [application],
   );
+
+  const { data: rebookingData } = useRebookingData(prefillSourceApplicationId);
 
   const [currentStep, setCurrentStep] = useState(() =>
     readStoredStep(applicationId),
@@ -5227,8 +5231,16 @@ useEffect(() => {
       hideNav={true}
     >
       <section className="space-y-8">
-        {/* Rebooking Notice */}
-        {application?.is_rebooking && rebookingData && (
+        {application?.extension_of_application_id && rebookingData && (
+          <Alert className="border-primary/50 bg-primary/5">
+            <CalendarPlus className="h-4 w-4" />
+            <AlertTitle className="font-semibold">Contract Extension</AlertTitle>
+            <AlertDescription className="text-sm mt-1">
+              Your details have been pre-filled from your current booking. Please review and update anything that has changed.
+            </AlertDescription>
+          </Alert>
+        )}
+        {application?.is_rebooking && !application?.extension_of_application_id && rebookingData && (
           <Alert className="border-primary/50 bg-primary/5">
             <RotateCcw className="h-4 w-4" />
             <AlertTitle className="font-semibold">Rebooking Application</AlertTitle>

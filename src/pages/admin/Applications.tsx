@@ -52,6 +52,7 @@ import { CreateCustomContractSheet } from "@/components/admin/CreateCustomContra
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FilePlus2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { copyApplicationJourneyFromSource } from "@/utils/copyApplicationJourney";
 import { notifyBookingEvent } from "@/utils/notifyBookingEvent";
 import { cn } from "@/lib/utils";
 import {
@@ -509,9 +510,25 @@ const Applications = () => {
         status: "draft",
         booking_source: createBookingSource || null,
       };
+      let rebookerSourceApplicationId: string | null = null;
       if (createBookingSource === "rebooker") {
         payload.is_rebooking = true;
         payload.rebooking_reason = "Created by staff as rebooker";
+
+        const { data: sourceApplicationId, error: sourceLookupError } = await supabase.rpc(
+          "get_student_prefill_source_application",
+          {
+            p_student_id: studentId,
+            p_exclude_application_id: null,
+          },
+        );
+
+        if (sourceLookupError) {
+          console.warn("Could not resolve prior application for rebooker pre-fill:", sourceLookupError);
+        } else if (sourceApplicationId) {
+          rebookerSourceApplicationId = sourceApplicationId as string;
+          payload.previous_application_id = rebookerSourceApplicationId;
+        }
       }
       if (createStudioId) {
         payload.assigned_studio_id = createStudioId;
@@ -525,6 +542,11 @@ const Applications = () => {
 
       if (error) throw error;
       if (!inserted) throw new Error("Failed to create application");
+
+      if (rebookerSourceApplicationId) {
+        await copyApplicationJourneyFromSource(inserted.id, rebookerSourceApplicationId);
+      }
+
       return { id: inserted.id, isExisting: false, isNewStudent: studentMode === "new", recoveredExistingUserByEmail };
     },
     onSuccess: (result) => {
