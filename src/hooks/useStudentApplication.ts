@@ -21,6 +21,8 @@ type StudentApplication = ApplicationRow & {
     contract_start: string;
     contract_end: string;
     weeks: number;
+    extra_days?: number | null;
+    weekly_price_override?: number | null;
     payment_plan_id: string | null;
     studio_grade: { id: string; name: string } | null;
     contract_payment_plans: {
@@ -58,6 +60,8 @@ const fetchApplication = async (
           contract_start,
           contract_end,
           weeks,
+          extra_days,
+          weekly_price_override,
           is_custom_duration_placeholder,
           studio_grade:studio_grades ( id, name ),
           contract_payment_plans:contract_payment_plans (

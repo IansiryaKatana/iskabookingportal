@@ -46,6 +46,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { invokeCreatePayment } from "@/utils/invokeCreatePayment";
 import { useToast } from "@/hooks/use-toast";
 import { useBrandingSettings } from "@/hooks/useBranding";
+import {
+  getActiveEnvelopeForType,
+  isEnvelopeCompleted,
+} from "@/utils/envelopeStatus";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -228,13 +232,12 @@ const formatEnvelopeStatus = (status?: string | null) => {
       return "Scheduled";
     case "declined":
       return "Declined";
+    case "superseded":
+      return "Superseded";
     default:
       return normalized.replace(/_/g, " ");
   }
 };
-
-const isEnvelopeCompleted = (status?: string | null) =>
-  (status ?? "").toLowerCase() === "completed";
 
 const isImagePath = (value: string) =>
   /\.(png|jpe?g|gif|webp|svg)$/i.test(value);
@@ -2708,11 +2711,11 @@ useEffect(() => {
   // Make them safe to call even when application is null/undefined
   const docusignEnvelopes = application?.docusign_envelopes ?? [];
   const tenancyEnvelope = useMemo(
-    () => docusignEnvelopes.find((item) => item.envelope_type === "tenancy"),
+    () => getActiveEnvelopeForType(docusignEnvelopes, "tenancy"),
     [docusignEnvelopes],
   );
   const guarantorEnvelope = useMemo(
-    () => docusignEnvelopes.find((item) => item.envelope_type === "guarantor"),
+    () => getActiveEnvelopeForType(docusignEnvelopes, "guarantor"),
     [docusignEnvelopes],
   );
   const effectiveTenancyEnvelope = tenancyEnvelope ?? pendingEnvelopes.tenancy;

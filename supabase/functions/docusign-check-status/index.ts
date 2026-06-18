@@ -5,6 +5,7 @@ import {
   importPKCS8,
 } from "https://esm.sh/jose@4.15.5?target=deno";
 import { getCorsHeaders, handleCorsPrelight } from "../_shared/cors.ts";
+import { areAllActiveEnvelopesCompleted } from "../_shared/envelopeStatus.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -142,10 +143,7 @@ const updateApplicationStatus = async (applicationId: string) => {
     return;
   }
 
-  // Check if all envelopes are completed (case-insensitive check)
-  const allCompleted = envelopes.every(
-    (env) => env.status?.toLowerCase() === "completed",
-  );
+  const allCompleted = areAllActiveEnvelopesCompleted(envelopes);
   
   console.log("Envelope status check", {
     applicationId,
@@ -241,7 +239,7 @@ serve(async (req) => {
     if (envelopeIdsToCheck.length === 0) {
       const { data: envelopes, error } = await supabaseAdmin
         .from("docusign_envelopes")
-        .select("envelope_id")
+        .select("envelope_id, status")
         .eq("application_id", applicationId)
         .not("envelope_id", "is", null);
 
@@ -250,6 +248,7 @@ serve(async (req) => {
       }
 
       envelopeIdsToCheck = (envelopes || [])
+        .filter((e) => e.status?.toLowerCase() !== "superseded")
         .map((e) => e.envelope_id)
         .filter((id): id is string => Boolean(id));
     }
@@ -274,6 +273,11 @@ serve(async (req) => {
           .select("envelope_type, status")
           .eq("envelope_id", envelopeId)
           .single();
+
+        if (envelopeInfo?.status?.toLowerCase() === "superseded") {
+          console.log(`Skipping DocuSign poll for superseded envelope ${envelopeId}`);
+          continue;
+        }
         
         console.log("Envelope status from DocuSign", {
           envelopeId,

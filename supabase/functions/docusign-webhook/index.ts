@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { crypto } from "https://deno.land/std@0.190.0/crypto/mod.ts";
+import { areAllActiveEnvelopesCompleted } from "../_shared/envelopeStatus.ts";
 
 // Webhooks use wildcard CORS since they're server-to-server
 const corsHeaders = {
@@ -99,6 +100,11 @@ const updateEnvelopeStatus = async (
     return null;
   }
 
+  if (existingEnvelope.status?.toLowerCase() === "superseded") {
+    console.log(`Ignoring webhook update for superseded envelope ${envelopeId}`);
+    return existingEnvelope;
+  }
+
   // Only update if status actually changed (idempotent)
   if (existingEnvelope.status?.toLowerCase() === normalizedStatus) {
     console.log(
@@ -175,10 +181,7 @@ const updateApplicationStatus = async (applicationId: string) => {
     return;
   }
 
-  // Check if all envelopes are completed
-  const allCompleted = envelopes.every(
-    (env) => env.status?.toLowerCase() === "completed",
-  );
+  const allCompleted = areAllActiveEnvelopesCompleted(envelopes);
 
   if (allCompleted) {
     // Only update to awaiting_verification if currently awaiting_signature or earlier

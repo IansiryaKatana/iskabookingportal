@@ -60,38 +60,22 @@ import {
   exportSingleApplicationDefaultCSV,
 } from "@/utils/csvTemplateGenerator";
 import { useCreateExtensionApplication } from "@/hooks/useCreateExtensionApplication";
-function computeExtensionEndDate(
-  startDate: string,
-  weeks: number,
-  days: number,
-): string {
-  if (!startDate) return "";
-  const start = parseISO(startDate);
-  if (Number.isNaN(start.getTime())) return "";
-  return addDays(start, weeks * 7 + days).toISOString().slice(0, 10);
-}
-
-function computeExtensionDuration(
-  startDate: string,
-  endDate: string,
-): { weeks: number; days: number } {
-  if (!startDate || !endDate) {
-    return { weeks: 1, days: 0 };
-  }
-  const start = parseISO(startDate);
-  const end = parseISO(endDate);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-    return { weeks: 1, days: 0 };
-  }
-  const totalDays = differenceInCalendarDays(end, start);
-  if (totalDays < 7) {
-    return { weeks: 1, days: 0 };
-  }
-  return {
-    weeks: Math.floor(totalDays / 7),
-    days: totalDays % 7,
-  };
-}
+import { AmendBookingDialog } from "@/components/admin/AmendBookingDialog";
+import { isApplicationAmendable } from "@/hooks/useAmendStudentApplicationBooking";
+import { useResendAgreements } from "@/hooks/useResendAgreements";
+import {
+  computeContractEndDate,
+  datesToWeeksAndExtraDays,
+} from "@/utils/contractDuration";
+import {
+  canDownloadEnvelope,
+  formatEnvelopeStatus,
+  getActiveEnvelopeForType,
+  isEnvelopeCompleted,
+  isEnvelopeSuperseded,
+  allActiveEnvelopesCompleted,
+} from "@/utils/envelopeStatus";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 const getStatusBadge = (status: string) => {
   const statusConfig: Record<string, { className: string; label: string }> = {
     draft: {
@@ -157,6 +141,7 @@ const ApplicationDetail = () => {
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const { data: application, isLoading } = useStudentApplication(applicationId || "");
+  const resendAgreements = useResendAgreements(applicationId);
   const updateStatus = useUpdateApplicationStatus();
   const createNotification = useCreateNotification();
   const queryClient = useQueryClient();
@@ -183,6 +168,7 @@ const ApplicationDetail = () => {
   const [customScheduleOpen, setCustomScheduleOpen] = useState(false);
   const [customInstallments, setCustomInstallments] = useState<CustomInstallmentInput[]>([]);
   const [createExtensionOpen, setCreateExtensionOpen] = useState(false);
+  const [amendBookingOpen, setAmendBookingOpen] = useState(false);
   const [extensionForm, setExtensionForm] = useState({
     extensionWeeks: 12,
     extensionDays: 0,
@@ -399,6 +385,43 @@ const ApplicationDetail = () => {
   const isFlexiblePlaceholderContract = Boolean(
     (application as any)?.contract?.is_custom_duration_placeholder,
   );
+
+  const amendEligibility = isApplicationAmendable(
+    application?.status,
+    hasInstalmentPayments,
+  );
+
+  const agreementEnvelopeState = useMemo(() => {
+    const envelopes = application?.docusign_envelopes ?? [];
+    const hasSuperseded = envelopes.some((e) => isEnvelopeSuperseded(e.status));
+    const activeComplete = allActiveEnvelopesCompleted(envelopes);
+    const canResend =
+      !!application &&
+      ["draft", "awaiting_deposit", "awaiting_signature", "awaiting_verification"].includes(
+        application.status,
+      );
+    const needsAttention =
+      hasSuperseded ||
+      (application?.status === "awaiting_signature" && envelopes.length > 0 && !activeComplete);
+    return { hasSuperseded, activeComplete, canResend, needsAttention };
+  }, [application]);
+
+  const handleResendAgreements = async () => {
+    if (!applicationId) return;
+    try {
+      await resendAgreements.mutateAsync();
+      toast({
+        title: "Agreements resent",
+        description: "Updated DocuSign envelopes were sent for the new contract terms.",
+      });
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Could not resend agreements",
+        description: err instanceof Error ? err.message : "Please try again.",
+      });
+    }
+  };
 
   // Verify document mutation
   const verifyDocument = useMutation({
@@ -876,28 +899,6 @@ const ApplicationDetail = () => {
     return format(parsed, "dd MMM yyyy");
   };
 
-  const canDownloadEnvelope = (envelope: { envelope_id?: string | null; signed_document_path?: string | null; status?: string | null }) =>
-    (envelope?.status ?? "").toLowerCase() === "completed" &&
-    (Boolean(envelope.envelope_id) || Boolean(envelope.signed_document_path));
-
-  const formatEnvelopeStatus = (status?: string | null) => {
-    if (!status) return "Not sent";
-    const normalized = status.toLowerCase();
-    switch (normalized) {
-      case "completed":
-        return "Completed";
-      case "sent":
-      case "delivered":
-        return "Awaiting signature";
-      case "created":
-        return "Scheduled";
-      case "declined":
-        return "Declined";
-      default:
-        return normalized.replace(/_/g, " ");
-    }
-  };
-
   const unpaidInstallments =
     installmentBreakdown?.filter(
       (inst) => inst.payment_status === "unpaid" || inst.payment_status === "partial",
@@ -943,9 +944,6 @@ const ApplicationDetail = () => {
       setSendingInstallmentInvoice(false);
     }
   };
-
-  const isEnvelopeCompleted = (status?: string | null) =>
-    (status ?? "").toLowerCase() === "completed";
 
   const handleStaffUploadSignedDocument = async (envelopeType: "tenancy" | "guarantor", file: File) => {
     if (!applicationId || !application?.id) return;
@@ -1347,7 +1345,7 @@ const ApplicationDetail = () => {
                       ? addDays(new Date(contract.contract_end), 1).toISOString().slice(0, 10)
                       : "";
                     setExtensionForm((prev) => {
-                      const extensionEndDate = computeExtensionEndDate(
+                      const extensionEndDate = computeContractEndDate(
                         extensionStartDate,
                         prev.extensionWeeks,
                         prev.extensionDays,
@@ -1873,7 +1871,36 @@ const ApplicationDetail = () => {
               </div>
               <div>
                 <p className="text-xs sm:text-sm text-muted-foreground mb-1">Contract</p>
-                <p className="font-medium text-sm sm:text-base break-words">{application.contract?.slug || "—"}</p>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-medium text-sm sm:text-base break-words">{application.contract?.slug || "—"}</p>
+                  {amendEligibility.allowed ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full uppercase tracking-wide text-xs gap-1"
+                      onClick={() => setAmendBookingOpen(true)}
+                    >
+                      <Pencil className="h-3 w-3" />
+                      Amend booking
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full uppercase tracking-wide text-xs gap-1 opacity-60"
+                      disabled
+                      title={amendEligibility.reason}
+                    >
+                      <Pencil className="h-3 w-3" />
+                      Amend booking
+                    </Button>
+                  )}
+                </div>
+                {!amendEligibility.allowed && amendEligibility.reason && (
+                  <p className="mt-1 text-[10px] text-muted-foreground italic">{amendEligibility.reason}</p>
+                )}
                 <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm">
                   <div className="rounded-xl border border-border/60 px-3 py-2 bg-muted/30">
                     <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Check-in</p>
@@ -2250,9 +2277,9 @@ const ApplicationDetail = () => {
                   Flexible stay request
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2 text-sm">
+              <CardContent className="space-y-3 text-sm">
                 <p className="text-xs sm:text-sm text-muted-foreground">
-                  This application was started from a flexible stay placeholder contract. The student requested the dates below; use them when creating the specific custom contract for this booking.
+                  This application was started from a flexible stay placeholder contract. The student requested the dates below; use Amend booking to set the real contract dates and grade.
                 </p>
                 <p>
                   <span className="font-semibold">Requested start:</span>{" "}
@@ -2262,6 +2289,18 @@ const ApplicationDetail = () => {
                   <span className="font-semibold">Requested end:</span>{" "}
                   {requestedFlexibleEnd || "—"}
                 </p>
+                {amendEligibility.allowed && (
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="sm"
+                    className="rounded-full uppercase tracking-wide text-xs mt-2"
+                    onClick={() => setAmendBookingOpen(true)}
+                  >
+                    <Pencil className="h-3 w-3 mr-1" />
+                    Amend booking from request
+                  </Button>
+                )}
               </CardContent>
             </Card>
           )}
@@ -2277,13 +2316,51 @@ const ApplicationDetail = () => {
             <CardContent className="space-y-6">
               {/* Agreements block */}
               <div className="space-y-3">
-                <h3 className="text-xs sm:text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                  Agreements
-                </h3>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <h3 className="text-xs sm:text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                    Agreements
+                  </h3>
+                  {agreementEnvelopeState.canResend && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full uppercase tracking-wide text-xs w-full sm:w-auto"
+                      onClick={() => void handleResendAgreements()}
+                      disabled={resendAgreements.isPending}
+                    >
+                      {resendAgreements.isPending ? (
+                        <>
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          Sending…
+                        </>
+                      ) : (
+                        <>
+                          <Send className="h-3 w-3 mr-1" />
+                          Resend agreements (updated terms)
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
+
+                {agreementEnvelopeState.needsAttention && (
+                  <Alert className="rounded-2xl border-amber-200 bg-amber-50/80">
+                    <AlertTitle className="text-sm text-amber-900">
+                      Agreements may be outdated
+                    </AlertTitle>
+                    <AlertDescription className="text-xs text-amber-800">
+                      Booking terms were changed. Resend agreements for signature or upload new
+                      signed PDFs so documents match the current contract.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {["tenancy", "guarantor"].map((type) => {
-                    const envelope = (application.docusign_envelopes || []).find(
-                      (e) => e.envelope_type === type
+                    const envelope = getActiveEnvelopeForType(
+                      application.docusign_envelopes,
+                      type,
                     );
                     const isTenancy = type === "tenancy";
                     const downloadKey = envelope?.envelope_id ?? `${application.id}-${type}`;
@@ -2401,14 +2478,23 @@ const ApplicationDetail = () => {
                           </div>
                           <div>
                             {hasEnvelope ? (
-                              isEnvelopeCompleted(envelope?.status) ? (
+                              isEnvelopeSuperseded(envelope?.status) ? (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[11px] sm:text-xs border-amber-300 text-amber-800 bg-amber-50"
+                                >
+                                  Superseded
+                                </Badge>
+                              ) : isEnvelopeCompleted(envelope?.status) ? (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-green-600 px-3 py-1 text-[11px] sm:text-xs font-semibold text-white uppercase tracking-wide">
                                   <CheckCircle2 className="h-3 w-3" />
                                   Completed
                                 </span>
                               ) : (
                                 <Badge variant="secondary" className="text-[11px] sm:text-xs">
-                                  {formatEnvelopeStatus(envelope?.status)}
+                                  {envelope?.status
+                                    ? formatEnvelopeStatus(envelope.status)
+                                    : "Not sent"}
                                 </Badge>
                               )
                             ) : (
@@ -3124,7 +3210,7 @@ const ApplicationDetail = () => {
                   setExtensionForm((p) => ({
                     ...p,
                     extensionStartDate,
-                    extensionEndDate: computeExtensionEndDate(
+                    extensionEndDate: computeContractEndDate(
                       extensionStartDate,
                       p.extensionWeeks,
                       p.extensionDays,
@@ -3142,14 +3228,14 @@ const ApplicationDetail = () => {
                 value={extensionForm.extensionEndDate}
                 min={
                   extensionForm.extensionStartDate
-                    ? computeExtensionEndDate(extensionForm.extensionStartDate, 1, 0)
+                    ? computeContractEndDate(extensionForm.extensionStartDate, 1, 0)
                     : undefined
                 }
                 disabled={!extensionForm.extensionStartDate}
                 onChange={(e) => {
                   const extensionEndDate = e.target.value;
                   setExtensionForm((p) => {
-                    const { weeks, days } = computeExtensionDuration(
+                    const { weeks, extraDays: days } = datesToWeeksAndExtraDays(
                       p.extensionStartDate,
                       extensionEndDate,
                     );
@@ -3177,7 +3263,7 @@ const ApplicationDetail = () => {
                   setExtensionForm((p) => ({
                     ...p,
                     extensionWeeks,
-                    extensionEndDate: computeExtensionEndDate(
+                    extensionEndDate: computeContractEndDate(
                       p.extensionStartDate,
                       extensionWeeks,
                       p.extensionDays,
@@ -3203,7 +3289,7 @@ const ApplicationDetail = () => {
                   setExtensionForm((p) => ({
                     ...p,
                     extensionDays,
-                    extensionEndDate: computeExtensionEndDate(
+                    extensionEndDate: computeContractEndDate(
                       p.extensionStartDate,
                       p.extensionWeeks,
                       extensionDays,
@@ -3498,6 +3584,25 @@ const ApplicationDetail = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {applicationId && application?.contract && (
+        <AmendBookingDialog
+          open={amendBookingOpen}
+          onOpenChange={setAmendBookingOpen}
+          applicationId={applicationId}
+          academicYearId={application.contract.academic_year_id}
+          contractStart={application.contract.contract_start}
+          contractEnd={application.contract.contract_end}
+          weeks={application.contract.weeks}
+          extraDays={application.contract.extra_days ?? 0}
+          studioGradeId={application.studio_grade_id}
+          weeklyPrice={application.contract.weekly_price_override ?? undefined}
+          requestedStart={requestedFlexibleStart}
+          requestedEnd={requestedFlexibleEnd}
+          isFlexiblePlaceholder={isFlexiblePlaceholderContract}
+          docusignEnvelopes={application.docusign_envelopes}
+        />
+      )}
     </AdminLayout>
   );
 };
