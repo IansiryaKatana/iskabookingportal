@@ -354,27 +354,55 @@ export const useUpcomingPaidInstallmentsReport = () => {
   });
 };
 
+const fetchAllCashFlowRows = async <T>(
+  table: "student_payment_cash_flow_applications" | "student_payment_cash_flow_monthly",
+  academicYearId: string,
+  orderColumn: string,
+  ascending: boolean
+): Promise<T[]> => {
+  const pageSize = 1000;
+  let offset = 0;
+  const allRows: T[] = [];
+
+  while (true) {
+    const { data, error } = await supabase
+      .from(table)
+      .select("*")
+      .eq("academic_year_id", academicYearId)
+      .order(orderColumn, { ascending })
+      .range(offset, offset + pageSize - 1);
+
+    if (error) {
+      throw error;
+    }
+
+    const pageRows = (data || []) as T[];
+    allRows.push(...pageRows);
+
+    if (pageRows.length < pageSize) break;
+    offset += pageSize;
+  }
+
+  return allRows;
+};
+
 export const useStudentPaymentCashFlowApplications = (academicYearId?: string | null) => {
   return useQuery({
     queryKey: ["student-payment-cash-flow-applications", academicYearId],
     queryFn: async (): Promise<StudentPaymentCashFlowApplication[]> => {
-      let query = supabase
-        .from("student_payment_cash_flow_applications")
-        .select("*")
-        .order("student_name", { ascending: true });
+      if (!academicYearId) return [];
 
-      if (academicYearId) {
-        query = query.eq("academic_year_id", academicYearId);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
+      try {
+        return await fetchAllCashFlowRows<StudentPaymentCashFlowApplication>(
+          "student_payment_cash_flow_applications",
+          academicYearId,
+          "student_name",
+          true
+        );
+      } catch (error) {
         console.error("Failed to fetch student payment cash flow applications:", error);
         throw error;
       }
-
-      return (data || []) as StudentPaymentCashFlowApplication[];
     },
     enabled: !!academicYearId,
   });
@@ -384,23 +412,19 @@ export const useStudentPaymentCashFlowMonthly = (academicYearId?: string | null)
   return useQuery({
     queryKey: ["student-payment-cash-flow-monthly", academicYearId],
     queryFn: async (): Promise<StudentPaymentCashFlowMonthly[]> => {
-      let query = supabase
-        .from("student_payment_cash_flow_monthly")
-        .select("*")
-        .order("month_start", { ascending: true });
+      if (!academicYearId) return [];
 
-      if (academicYearId) {
-        query = query.eq("academic_year_id", academicYearId);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
+      try {
+        return await fetchAllCashFlowRows<StudentPaymentCashFlowMonthly>(
+          "student_payment_cash_flow_monthly",
+          academicYearId,
+          "month_start",
+          true
+        );
+      } catch (error) {
         console.error("Failed to fetch student payment cash flow monthly data:", error);
         throw error;
       }
-
-      return (data || []) as StudentPaymentCashFlowMonthly[];
     },
     enabled: !!academicYearId,
   });
