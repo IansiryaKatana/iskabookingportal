@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, handleCorsPrelight } from "../_shared/cors.ts";
+import { resolvePortalUrl } from "../_shared/recovery-link.ts";
 
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -198,7 +199,7 @@ serve(async (req) => {
         // If already linked to this partner, just send password reset
         if (existingUserProfile.partner_id === partner_id && existingUserProfile.role === "partner") {
           // Send password reset email (this actually sends the email)
-          const portalUrl = Deno.env.get("PORTAL_URL") || "https://portal.urbanhub.uk";
+          const portalUrl = await resolvePortalUrl(supabaseAdmin);
           const { error: resetError } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
             redirectTo: `${portalUrl}/partner/reset-password`,
           });
@@ -272,7 +273,7 @@ serve(async (req) => {
         }
 
         // Send password reset email (this actually sends the email)
-        const portalUrl = Deno.env.get("PORTAL_URL") || "https://iskabookingportal.netlify.app";
+        const portalUrl = await resolvePortalUrl(supabaseAdmin);
         const { error: resetError } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
           redirectTo: `${portalUrl}/partner/reset-password`,
         });
@@ -337,9 +338,9 @@ serve(async (req) => {
     }
 
     // Send password reset email (this actually sends the email)
-    const portalUrl = Deno.env.get("PORTAL_URL") || "https://iskabookingportal.netlify.app";
+    const portalUrl = await resolvePortalUrl(supabaseAdmin);
     const { error: resetError } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
-      redirectTo: `https://portal.urbanhub.uk/partner/reset-password`,
+      redirectTo: `${portalUrl}/partner/reset-password`,
     });
 
     if (resetError) {

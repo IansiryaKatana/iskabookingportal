@@ -114,7 +114,7 @@ serve(async (req) => {
 
     // Generate confirmation token via Supabase Admin API
     let confirmationLink = "";
-    const portalUrl = resolvePortalUrl();
+    const portalUrl = await resolvePortalUrl(supabaseClient);
     const redirectUrl = redirect_to || `${portalUrl}/portal/reset-password`;
 
     if (type === "signup") {

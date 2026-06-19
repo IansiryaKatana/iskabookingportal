@@ -1,5 +1,6 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { getCredential } from "./get-credential.ts";
+import { PRODUCTION_PORTAL_URL, normalizePortalUrl } from "./recovery-link.ts";
 import {
   getCompanyName,
   getStaffEmailsByRoles,
@@ -64,10 +65,12 @@ async function loadApplicationContext(
   }
 
   const companyName = await getCompanyName(supabase);
-  const portalUrl = await getCredential("PORTAL_URL", {
-    supabase,
-    fallback: Deno.env.get("PORTAL_URL") ?? "",
-  });
+  const portalUrl = normalizePortalUrl(
+    await getCredential("portal_url", {
+      supabase,
+      fallback: PRODUCTION_PORTAL_URL,
+    }),
+  );
 
   let studentName = "Student";
   let studentEmail: string | null = null;

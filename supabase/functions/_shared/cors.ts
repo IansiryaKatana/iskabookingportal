@@ -3,15 +3,12 @@
  *
  * Allowed Origins:
  * - Production: https://portal.urbanhub.uk
- * - Netlify: https://iskabookingportal.netlify.app
  * - Development: any localhost / 127.0.0.1 (any port)
  */
 
 const ALLOWED_ORIGINS = [
   "https://portal.urbanhub.uk",
   "https://www.portal.urbanhub.uk",
-  "https://iskabookingportal.netlify.app",
-  "https://www.iskabookingportal.netlify.app",
   "http://localhost:8080",
   "http://localhost:8081",
   "http://localhost:5173",

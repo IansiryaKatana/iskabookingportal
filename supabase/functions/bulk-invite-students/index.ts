@@ -245,7 +245,7 @@ serve(async (req) => {
       console.log(`Resend API key: present (${fromDbKey?.trim() ? "database" : "env"}, length ${resendApiKey.length})`);
     }
 
-    const portalUrl = resolvePortalUrl();
+    const portalUrl = await resolvePortalUrl(supabaseAdmin);
 
     // Get branding settings (company name) for template replacement
     const { data: brandingSettings } = await supabaseAdmin

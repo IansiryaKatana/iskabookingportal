@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { getCorsHeaders, handleCorsPrelight } from "../_shared/cors.ts";
+import { resolvePortalUrl } from "../_shared/recovery-link.ts";
 
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -470,6 +471,9 @@ serve(async (req) => {
             });
           }
 
+          const portalBaseUrl = await resolvePortalUrl(supabaseClient);
+          const portalAppUrl = `${portalBaseUrl}/portal`;
+
           // Function to replace template variables for a specific student
           // Uses comprehensive replacement logic consistent with other email functions
           const replaceVariables = (text: string, studentId: string): string => {
@@ -486,9 +490,7 @@ serve(async (req) => {
               ? new Date(application.contracts.end_date).toLocaleDateString()
               : "TBA";
             const applicationId = application?.id || "";
-            // Use PORTAL_URL secret if available, otherwise construct from SUPABASE_URL
-            const portalUrl = Deno.env.get("PORTAL_URL") || 
-              `${Deno.env.get("SUPABASE_URL")?.replace("/rest/v1", "") || "https://portal.urbanhub.uk"}/portal`;
+            const portalUrl = portalAppUrl;
 
             // Build comprehensive variables object (keys without braces for flexible replacement)
             const vars: Record<string, string> = {
@@ -637,9 +639,7 @@ serve(async (req) => {
               }
               
               // Replace logo URL placeholder with actual logo URL
-              const baseUrl = Deno.env.get("PORTAL_URL")?.replace("/portal", "") || 
-                Deno.env.get("SUPABASE_URL")?.replace("/rest/v1", "") || 
-                "https://portal.urbanhub.uk";
+              const baseUrl = portalBaseUrl;
               const logoUrl = `${baseUrl}/storage/v1/object/public/studio-media/favicon.png`;
               emailBodyHtml = emailBodyHtml.replace(/{logo_url}/gi, logoUrl);
               
