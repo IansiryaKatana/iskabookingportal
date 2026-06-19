@@ -31,6 +31,7 @@ import {
 } from "@/utils/studentPaymentCashFlowReport";
 import { financeStatusBadgeProps, paymentMethodBadgeProps } from "@/utils/financeStatusStyles";
 import { cn } from "@/lib/utils";
+import { useDragToScroll } from "@/hooks/useDragToScroll";
 import { useAdminAcademicYears } from "@/hooks/useAdminAcademicYears";
 import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
 import {
@@ -778,6 +779,9 @@ const AccountingReports = () => {
   };
 
   const cashFlowLoading = cashFlowAppsLoading || cashFlowMonthlyLoading;
+  const cashFlowTableScroll = useDragToScroll<HTMLDivElement>(
+    selectedReport === "cash-flow" && !cashFlowLoading
+  );
 
   return (
     <AdminLayout
@@ -1765,9 +1769,19 @@ const AccountingReports = () => {
                         Italic months are outside the academic year (e.g. pre-tenancy instalments).
                       </span>
                     )}
+                    <span className="text-muted-foreground/90">
+                      Drag the table or scroll with your mouse wheel to move across months.
+                    </span>
                   </div>
 
-                  <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+                  <div
+                    ref={cashFlowTableScroll.ref}
+                    onMouseDown={cashFlowTableScroll.onMouseDown}
+                    onMouseMove={cashFlowTableScroll.onMouseMove}
+                    onMouseUp={cashFlowTableScroll.onMouseUp}
+                    onMouseLeave={cashFlowTableScroll.onMouseLeave}
+                    className="overflow-x-auto cursor-grab -mx-4 px-4 md:mx-0 md:px-0 touch-pan-x"
+                  >
                     <table className="w-full min-w-[720px] border-collapse">
                       <thead>
                         <tr className="border-b">

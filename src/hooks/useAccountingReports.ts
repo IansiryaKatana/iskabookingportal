@@ -357,20 +357,23 @@ export const useUpcomingPaidInstallmentsReport = () => {
 const fetchAllCashFlowRows = async <T>(
   table: "student_payment_cash_flow_applications" | "student_payment_cash_flow_monthly",
   academicYearId: string,
-  orderColumn: string,
-  ascending: boolean
+  orderBy: Array<{ column: string; ascending?: boolean }>
 ): Promise<T[]> => {
   const pageSize = 1000;
   let offset = 0;
   const allRows: T[] = [];
 
   while (true) {
-    const { data, error } = await supabase
+    let query = supabase
       .from(table)
       .select("*")
-      .eq("academic_year_id", academicYearId)
-      .order(orderColumn, { ascending })
-      .range(offset, offset + pageSize - 1);
+      .eq("academic_year_id", academicYearId);
+
+    orderBy.forEach(({ column, ascending = true }) => {
+      query = query.order(column, { ascending });
+    });
+
+    const { data, error } = await query.range(offset, offset + pageSize - 1);
 
     if (error) {
       throw error;
@@ -388,7 +391,7 @@ const fetchAllCashFlowRows = async <T>(
 
 export const useStudentPaymentCashFlowApplications = (academicYearId?: string | null) => {
   return useQuery({
-    queryKey: ["student-payment-cash-flow-applications", academicYearId],
+    queryKey: ["student-payment-cash-flow-applications", academicYearId, "paged-v2"],
     queryFn: async (): Promise<StudentPaymentCashFlowApplication[]> => {
       if (!academicYearId) return [];
 
@@ -396,8 +399,10 @@ export const useStudentPaymentCashFlowApplications = (academicYearId?: string | 
         return await fetchAllCashFlowRows<StudentPaymentCashFlowApplication>(
           "student_payment_cash_flow_applications",
           academicYearId,
-          "student_name",
-          true
+          [
+            { column: "student_name", ascending: true },
+            { column: "application_id", ascending: true },
+          ]
         );
       } catch (error) {
         console.error("Failed to fetch student payment cash flow applications:", error);
@@ -410,7 +415,7 @@ export const useStudentPaymentCashFlowApplications = (academicYearId?: string | 
 
 export const useStudentPaymentCashFlowMonthly = (academicYearId?: string | null) => {
   return useQuery({
-    queryKey: ["student-payment-cash-flow-monthly", academicYearId],
+    queryKey: ["student-payment-cash-flow-monthly", academicYearId, "paged-v2"],
     queryFn: async (): Promise<StudentPaymentCashFlowMonthly[]> => {
       if (!academicYearId) return [];
 
@@ -418,8 +423,11 @@ export const useStudentPaymentCashFlowMonthly = (academicYearId?: string | null)
         return await fetchAllCashFlowRows<StudentPaymentCashFlowMonthly>(
           "student_payment_cash_flow_monthly",
           academicYearId,
-          "month_start",
-          true
+          [
+            { column: "month_start", ascending: true },
+            { column: "application_id", ascending: true },
+            { column: "month_key", ascending: true },
+          ]
         );
       } catch (error) {
         console.error("Failed to fetch student payment cash flow monthly data:", error);
