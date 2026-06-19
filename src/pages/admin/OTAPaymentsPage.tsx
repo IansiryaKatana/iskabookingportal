@@ -5,7 +5,8 @@ import RecordOTAPaymentDialog from "@/components/admin/ota/RecordOTAPaymentDialo
 import { useOTABookings } from "@/hooks/useOTABookings";
 import { useOTAPaymentLedger } from "@/hooks/useOTAPayments";
 import type { OTAPaymentStatus } from "@/utils/otaPayment";
-import { formatOTACurrency, OTA_PAYMENT_STATUS_LABELS } from "@/utils/otaPayment";
+import { formatOTACurrency } from "@/utils/otaPayment";
+import { OTAPaymentStatusBadge } from "@/components/finance/FinanceStatusBadge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -115,21 +116,9 @@ const OTAPaymentsPage = () => {
     setRecordOpen(true);
   };
 
-  const paymentStatusBadge = (status: OTAPaymentStatus) => {
-    const variant =
-      status === "fully_paid"
-        ? "default"
-        : status === "partially_paid"
-          ? "secondary"
-          : status === "overpaid"
-            ? "destructive"
-            : "outline";
-    return (
-      <Badge variant={variant} className="text-xs capitalize">
-        {OTA_PAYMENT_STATUS_LABELS[status]}
-      </Badge>
-    );
-  };
+  const paymentStatusBadge = (status: OTAPaymentStatus) => (
+    <OTAPaymentStatusBadge status={status} />
+  );
 
   return (
     <AdminLayout
@@ -143,28 +132,28 @@ const OTAPaymentsPage = () => {
             onValueChange={(v) => setStatusFilter(v as OTAPaymentStatus | "all")}
             className="w-full sm:w-auto"
           >
-            <TabsList className="rounded-full flex flex-wrap h-auto">
-              <TabsTrigger value="all" className="rounded-full text-xs">
+            <TabsList className="rounded-md flex flex-wrap h-auto">
+              <TabsTrigger value="all" className="rounded-md text-xs">
                 All
               </TabsTrigger>
-              <TabsTrigger value="unpaid" className="rounded-full text-xs">
+              <TabsTrigger value="unpaid" className="rounded-md text-xs">
                 Unpaid ({stats.unpaid})
               </TabsTrigger>
-              <TabsTrigger value="partially_paid" className="rounded-full text-xs">
+              <TabsTrigger value="partially_paid" className="rounded-md text-xs">
                 Partial ({stats.partial})
               </TabsTrigger>
-              <TabsTrigger value="fully_paid" className="rounded-full text-xs">
+              <TabsTrigger value="fully_paid" className="rounded-md text-xs">
                 Paid ({stats.paid})
               </TabsTrigger>
             </TabsList>
           </Tabs>
           <div className="flex gap-2">
-            <Button variant="outline" className="rounded-full gap-2" onClick={exportCsv}>
+            <Button variant="outline" className="rounded-md gap-2" onClick={exportCsv}>
               <Download className="h-4 w-4" />
               Export
             </Button>
             <Button
-              className="rounded-full gap-2"
+              className="rounded-md gap-2"
               onClick={() => {
                 setPreselectedBookingId(null);
                 setRecordOpen(true);
@@ -210,16 +199,16 @@ const OTAPaymentsPage = () => {
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="rounded-full md:max-w-[160px]"
+                className="rounded-md md:max-w-[160px]"
               />
               <Input
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="rounded-full md:max-w-[160px]"
+                className="rounded-md md:max-w-[160px]"
               />
               <Select value={channelFilter} onValueChange={setChannelFilter}>
-                <SelectTrigger className="rounded-full md:max-w-[180px]">
+                <SelectTrigger className="rounded-md md:max-w-[180px]">
                   <SelectValue placeholder="Channel" />
                 </SelectTrigger>
                 <SelectContent>
@@ -235,7 +224,7 @@ const OTAPaymentsPage = () => {
                 placeholder="Search ref or guest..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="rounded-full flex-1"
+                className="rounded-md flex-1"
               />
             </div>
             {isLoading ? (
@@ -295,7 +284,7 @@ const OTAPaymentsPage = () => {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="rounded-full text-xs h-8"
+                                className="rounded-md text-xs h-8"
                                 onClick={() => openRecordForBooking(row.booking_id)}
                               >
                                 Add payment

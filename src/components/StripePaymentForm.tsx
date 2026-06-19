@@ -174,7 +174,7 @@ const StripePaymentForm = ({
       </div>
       <Button
         type="button"
-        className="w-full rounded-full uppercase tracking-wide"
+        className="w-full rounded-md uppercase tracking-wide"
         size="lg"
         disabled={!isReady || isProcessing}
         onClick={handleSubmit}

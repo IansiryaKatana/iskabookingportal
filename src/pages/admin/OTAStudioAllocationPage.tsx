@@ -286,7 +286,7 @@ const OTAStudioAllocationPage = () => {
                   type="date"
                   value={checkInDate}
                   onChange={(e) => setCheckInDate(e.target.value)}
-                  className="rounded-full"
+                  className="rounded-md"
                 />
               </div>
               <div className="space-y-2">
@@ -295,7 +295,7 @@ const OTAStudioAllocationPage = () => {
                   type="date"
                   value={checkOutDate}
                   onChange={(e) => setCheckOutDate(e.target.value)}
-                  className="rounded-full"
+                  className="rounded-md"
                 />
               </div>
             </div>
@@ -315,7 +315,7 @@ const OTAStudioAllocationPage = () => {
               <div className="space-y-2">
                 <Label className="text-xs md:text-sm">Availability</Label>
                 <Select value={conflictFilter} onValueChange={setConflictFilter}>
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger className="rounded-md">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -328,7 +328,7 @@ const OTAStudioAllocationPage = () => {
               <div className="space-y-2">
                 <Label className="text-xs md:text-sm">Studio Grade</Label>
                 <Select value={studioGradeFilter} onValueChange={setStudioGradeFilter}>
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger className="rounded-md">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -347,7 +347,7 @@ const OTAStudioAllocationPage = () => {
                   placeholder="Studio number..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="rounded-full text-sm md:text-base"
+                  className="rounded-md text-sm md:text-base"
                 />
               </div>
             </div>
@@ -408,12 +408,12 @@ const OTAStudioAllocationPage = () => {
                             )}
                           </div>
                           {studio.isAvailable ? (
-                            <Badge className="bg-green-500 hover:bg-green-600 text-white rounded-full">
+                            <Badge className="bg-green-500 hover:bg-green-600 text-white rounded-md">
                               <CheckCircle2 className="h-3 w-3 mr-1" />
                               Available
                             </Badge>
                           ) : (
-                            <Badge variant="destructive" className="rounded-full">
+                            <Badge variant="destructive" className="rounded-md">
                               <XCircle className="h-3 w-3 mr-1" />
                               Conflicts
                             </Badge>
@@ -488,7 +488,7 @@ const OTAStudioAllocationPage = () => {
                                 check_in: booking.check_in,
                                 check_out: booking.check_out,
                               })}
-                              className="rounded-full text-xs"
+                              className="rounded-md text-xs"
                               size="sm"
                             >
                               <MapPin className="h-3 w-3 mr-1" />
@@ -561,13 +561,13 @@ const OTAStudioAllocationPage = () => {
               </div>
             </ScrollArea>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setAllocationDialogOpen(false)} className="rounded-full">
+              <Button variant="outline" onClick={() => setAllocationDialogOpen(false)} className="rounded-md">
                 Cancel
               </Button>
               <Button
                 onClick={handleAllocateStudio}
                 disabled={!selectedStudioId}
-                className="rounded-full"
+                className="rounded-md"
               >
                 Allocate
               </Button>

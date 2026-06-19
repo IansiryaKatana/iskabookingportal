@@ -68,7 +68,7 @@ const StudioDetail = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 flex-wrap">
           <Button
             onClick={() => navigate("/admin/studios")}
-            className="rounded-full uppercase tracking-wide gap-2 bg-black text-white hover:bg-accent hover:text-accent-foreground w-full sm:w-auto order-2 sm:order-1"
+            className="rounded-md uppercase tracking-wide gap-2 bg-black text-white hover:bg-accent hover:text-accent-foreground w-full sm:w-auto order-2 sm:order-1"
           >
             <ArrowUpLeft className="h-4 w-4" />
             Back to Studios
@@ -80,7 +80,7 @@ const StudioDetail = () => {
               className="w-full sm:w-64"
             />
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-48 rounded-full">
+              <SelectTrigger className="w-full sm:w-48 rounded-md">
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
               <SelectContent>
@@ -106,18 +106,18 @@ const StudioDetail = () => {
                   Studio {studio.studio_number}
                 </span>
                 {studio.studio_grade?.name && (
-                  <Badge variant="outline" className="rounded-full text-xs uppercase tracking-wide">
+                  <Badge variant="outline" className="rounded-md text-xs uppercase tracking-wide">
                     {studio.studio_grade.name}
                   </Badge>
                 )}
                 {studio.floor && (
-                  <Badge variant="secondary" className="rounded-full text-xs uppercase tracking-wide">
+                  <Badge variant="secondary" className="rounded-md text-xs uppercase tracking-wide">
                     Floor {studio.floor}
                   </Badge>
                 )}
                 {studio.status && (
                   <Badge
-                    className={`rounded-full text-xs uppercase tracking-wide ${
+                    className={`rounded-md text-xs uppercase tracking-wide ${
                       studio.status === "available"
                         ? "bg-green-500 hover:bg-green-600 text-white"
                         : studio.status === "reserved"
@@ -136,7 +136,7 @@ const StudioDetail = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="rounded-full uppercase tracking-wide gap-2 w-full sm:w-auto sm:ml-auto"
+                    className="rounded-md uppercase tracking-wide gap-2 w-full sm:w-auto sm:ml-auto"
                     disabled={updateStudio.isPending}
                     onClick={async () => {
                       try {
@@ -219,7 +219,7 @@ const StudioDetail = () => {
                         >
                           Application #{app.id.slice(0, 8)}
                         </Button>
-                        <Badge className={badgeClass + " rounded-full px-2.5 py-0.5 text-xs font-medium uppercase tracking-wide"}>
+                        <Badge className={badgeClass + " rounded-md px-2.5 py-0.5 text-xs font-medium uppercase tracking-wide"}>
                           {label}
                         </Badge>
                       </div>
@@ -270,11 +270,11 @@ const StudioDetail = () => {
                   className="rounded-2xl border border-border/60 px-4 py-3 flex flex-col gap-1"
                 >
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline" className="rounded-full text-xs uppercase tracking-wide">
+                    <Badge variant="outline" className="rounded-md text-xs uppercase tracking-wide">
                       {(entry.previous_allocation ?? "Unallocated")} {"->"} {(entry.new_allocation ?? "Unallocated")}
                     </Badge>
                     {entry.policy && (
-                      <Badge variant="secondary" className="rounded-full text-xs uppercase tracking-wide">
+                      <Badge variant="secondary" className="rounded-md text-xs uppercase tracking-wide">
                         Policy: {entry.policy}
                       </Badge>
                     )}

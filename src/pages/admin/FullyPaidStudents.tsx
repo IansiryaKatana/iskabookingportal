@@ -169,7 +169,7 @@ const FullyPaidStudents = () => {
         <Button
           size="sm"
           variant="outline"
-          className="rounded-full p-2 h-9 w-9 flex-shrink-0"
+          className="rounded-md p-2 h-9 w-9 flex-shrink-0"
           onClick={exportToCSV}
           disabled={!students || students.length === 0}
         >
@@ -182,7 +182,7 @@ const FullyPaidStudents = () => {
           <Button
             onClick={exportToCSV}
             disabled={!students || students.length === 0}
-            className="rounded-full uppercase tracking-wide gap-2"
+            className="rounded-md uppercase tracking-wide gap-2"
           >
             <Download className="h-4 w-4" />
             Export CSV
@@ -356,7 +356,7 @@ const FullyPaidStudents = () => {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="rounded-full p-2 h-9 w-9 flex-shrink-0"
+                        className="rounded-md p-2 h-9 w-9 flex-shrink-0"
                         onClick={() => downloadPaymentHistoryPDF(
                           student.application_id,
                           `${student.first_name} ${student.last_name}`

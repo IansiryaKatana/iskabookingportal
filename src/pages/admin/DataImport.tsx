@@ -369,7 +369,7 @@ const DataImport = () => {
       variant="secondary"
       size="sm"
       onClick={() => setExportDialogOpen(true)}
-      className="rounded-full gap-2 font-medium"
+      className="rounded-md gap-2 font-medium"
     >
       <Download className="h-4 w-4" />
       <span className="hidden sm:inline">Bulk export applications</span>

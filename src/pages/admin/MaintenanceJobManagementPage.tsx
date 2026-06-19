@@ -88,7 +88,7 @@ const getStatusBadge = (status: string) => {
   const Icon = config.icon;
 
   return (
-    <Badge className={`uppercase ${config.className} rounded-full px-2.5 py-0.5 text-xs font-medium flex items-center gap-1`}>
+    <Badge className={`uppercase ${config.className} rounded-md px-2.5 py-0.5 text-xs font-medium flex items-center gap-1`}>
       <Icon className="h-3 w-3" />
       {config.label}
     </Badge>
@@ -119,7 +119,7 @@ const getUrgencyBadge = (urgency: string | null) => {
   const label = compactLabelByBand[info.band] || compactLabelByBand.P3;
 
   return (
-    <Badge className={`${config.className} rounded-full px-2 py-0.5 text-xs font-medium flex items-center`}>
+    <Badge className={`${config.className} rounded-md px-2 py-0.5 text-xs font-medium flex items-center`}>
       {label}
     </Badge>
   );
@@ -421,7 +421,7 @@ const MaintenanceJobManagementPage = () => {
               <div className="space-y-2">
                 <Label className="text-xs md:text-sm">Status</Label>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger className="rounded-md">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -440,7 +440,7 @@ const MaintenanceJobManagementPage = () => {
               <div className="space-y-2">
                 <Label className="text-xs md:text-sm">Urgency</Label>
                 <Select value={urgencyFilter} onValueChange={setUrgencyFilter}>
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger className="rounded-md">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -455,7 +455,7 @@ const MaintenanceJobManagementPage = () => {
               <div className="space-y-2">
                 <Label className="text-xs md:text-sm">Category</Label>
                 <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger className="rounded-md">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -475,7 +475,7 @@ const MaintenanceJobManagementPage = () => {
               <div className="space-y-2">
                 <Label className="text-xs md:text-sm">Assigned To</Label>
                 <Select value={assignedFilter} onValueChange={setAssignedFilter}>
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger className="rounded-md">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -496,7 +496,7 @@ const MaintenanceJobManagementPage = () => {
                   placeholder="Title, description, studio..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="rounded-full text-sm md:text-base"
+                  className="rounded-md text-sm md:text-base"
                 />
               </div>
             </div>
@@ -700,7 +700,7 @@ const MaintenanceJobManagementPage = () => {
                     <Button
                       variant="outline"
                       onClick={() => setDetailsOpen(false)}
-                      className="rounded-full"
+                      className="rounded-md"
                     >
                       Close
                     </Button>
@@ -732,7 +732,7 @@ const MaintenanceJobManagementPage = () => {
                     <Button
                       variant="outline"
                       onClick={() => setDetailsOpen(false)}
-                      className="rounded-full"
+                      className="rounded-md"
                     >
                       Close
                     </Button>
@@ -759,7 +759,7 @@ const MaintenanceJobManagementPage = () => {
                   value={selectedOfficerId || "none"} 
                   onValueChange={(value) => setSelectedOfficerId(value === "none" ? null : value)}
                 >
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger className="rounded-md">
                     <SelectValue placeholder="Select officer..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -774,10 +774,10 @@ const MaintenanceJobManagementPage = () => {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setAssignDialogOpen(false)} className="rounded-full">
+              <Button variant="outline" onClick={() => setAssignDialogOpen(false)} className="rounded-md">
                 Cancel
               </Button>
-              <Button onClick={handleAssign} className="rounded-full">
+              <Button onClick={handleAssign} className="rounded-md">
                 Assign
               </Button>
             </DialogFooter>
@@ -963,7 +963,7 @@ const MaintenanceRequestDetails = ({
           <Button
             onClick={() => setExpectedDialogOpen(true)}
             variant="outline"
-            className="rounded-full w-full"
+            className="rounded-md w-full"
           >
             <Calendar className="h-4 w-4 mr-2" />
             Set Expected Resolve Date
@@ -973,7 +973,7 @@ const MaintenanceRequestDetails = ({
           <Button
             onClick={onAssignClick}
             variant="outline"
-            className="rounded-full w-full"
+            className="rounded-md w-full"
           >
             <UserCheck className="h-4 w-4 mr-2" />
             {request.assigned_to_user_id ? "Reassign Officer" : "Assign Officer"}
@@ -987,7 +987,7 @@ const MaintenanceRequestDetails = ({
             <Button
               onClick={() => onStatusUpdate("in_progress")}
               variant="outline"
-              className="rounded-full w-full"
+              className="rounded-md w-full"
             >
               <Loader2 className="h-4 w-4 mr-2" />
               Mark In Progress
@@ -1002,7 +1002,7 @@ const MaintenanceRequestDetails = ({
               />
               <Button
                 onClick={handleComplete}
-                className="rounded-full w-full"
+                className="rounded-md w-full"
               >
                 <CheckCircle2 className="h-4 w-4 mr-2" />
                 Mark Complete
@@ -1038,7 +1038,7 @@ const MaintenanceRequestDetails = ({
                   });
                 }
               }}
-              className="rounded-full bg-green-600 hover:bg-green-700"
+              className="rounded-md bg-green-600 hover:bg-green-700"
             >
               <CheckCircle2 className="h-4 w-4 mr-2" />
               Approve
@@ -1067,7 +1067,7 @@ const MaintenanceRequestDetails = ({
                   });
                 }
               }}
-              className="rounded-full"
+              className="rounded-md"
             >
               <XCircle className="h-4 w-4 mr-2" />
               Reject
@@ -1092,7 +1092,7 @@ const MaintenanceRequestDetails = ({
                 type="datetime-local"
                 value={expectedResolveDate}
                 onChange={(e) => setExpectedResolveDate(e.target.value)}
-                className="rounded-full"
+                className="rounded-md"
               />
             </div>
           </div>
@@ -1100,7 +1100,7 @@ const MaintenanceRequestDetails = ({
             <Button
               variant="outline"
               onClick={() => setExpectedDialogOpen(false)}
-              className="rounded-full"
+              className="rounded-md"
             >
               Cancel
             </Button>
@@ -1128,7 +1128,7 @@ const MaintenanceRequestDetails = ({
                   });
                 }
               }}
-              className="rounded-full"
+              className="rounded-md"
             >
               Set Date
             </Button>

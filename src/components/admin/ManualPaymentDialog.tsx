@@ -577,13 +577,13 @@ const ManualPaymentDialog = ({
           />
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-full uppercase tracking-wide">
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-md uppercase tracking-wide">
             Cancel
           </Button>
           <Button
             onClick={handleSubmit}
             disabled={createPayment.isPending}
-            className="rounded-full uppercase tracking-wide"
+            className="rounded-md uppercase tracking-wide"
           >
             {createPayment.isPending ? (
               <>

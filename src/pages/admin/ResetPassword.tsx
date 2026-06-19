@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { establishRecoverySession } from "@/utils/recoverySession";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,93 +33,18 @@ const AdminResetPassword = () => {
 
   // Preload favicon
   useEffect(() => {
-    setFaviconLoaded(false);
-    if (faviconUrl) {
-      const img = new Image();
-      img.onload = () => setFaviconLoaded(true);
-      img.onerror = () => setFaviconLoaded(true);
-      img.src = faviconUrl;
-    }
-  }, [faviconUrl]);
-
-  useEffect(() => {
-    // Check if we have a valid reset token in the URL
     const checkToken = async () => {
-      const hash = window.location.hash;
-      const hasRecoveryToken = hash && hash.includes("type=recovery");
-      
-      // Also check query params (some email clients strip hash)
-      const queryType = searchParams.get("type");
-      const hasQueryRecovery = queryType === "recovery";
-      
-      if (!hasRecoveryToken && !hasQueryRecovery) {
-        setError("Invalid or missing token. Please request a new link.");
+      const result = await establishRecoverySession(supabase, { allowSignup: false });
+
+      if (!result.ok) {
+        setError(
+          result.error ?? "Invalid or expired token. Please request a new link.",
+        );
         setIsValidating(false);
         return;
       }
 
-      // Wait a moment for Supabase to process the hash automatically
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // Check if Supabase has automatically set a session
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      if (session && !sessionError) {
-        // Session exists - token is valid
-        setIsValidToken(true);
-        setIsValidating(false);
-        return;
-      }
-
-      // If no session, try to manually extract and set it
-      if (hasRecoveryToken) {
-        try {
-          const hashParams = new URLSearchParams(hash.substring(1));
-          const accessToken = hashParams.get("access_token");
-          const refreshToken = hashParams.get("refresh_token");
-          
-          if (accessToken && refreshToken) {
-            const { error: setSessionError } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
-            
-            if (!setSessionError) {
-              setIsValidToken(true);
-              setIsValidating(false);
-              return;
-            }
-          }
-        } catch (err) {
-          console.error("Error parsing token:", err);
-        }
-      }
-
-      // Try query params
-      if (hasQueryRecovery) {
-        try {
-          const accessToken = searchParams.get("access_token");
-          const refreshToken = searchParams.get("refresh_token");
-          
-          if (accessToken && refreshToken) {
-            const { error: setSessionError } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
-            
-            if (!setSessionError) {
-              setIsValidToken(true);
-              setIsValidating(false);
-              return;
-            }
-          }
-        } catch (err) {
-          console.error("Error setting session from query params:", err);
-        }
-      }
-      
-      // If we get here, token is invalid or expired
-      setError("Invalid or expired token. Please request a new link.");
+      setIsValidToken(true);
       setIsValidating(false);
     };
 
@@ -200,7 +126,7 @@ const AdminResetPassword = () => {
       <div className="min-h-screen flex items-center justify-center px-4 py-12" style={{ backgroundColor: '#fbb37c' }}>
         <Card className="w-full max-w-lg rounded-3xl shadow-xl border border-border/50 bg-background">
           <CardHeader className="space-y-3 text-center">
-            <div className="mx-auto h-12 w-12 flex items-center justify-center rounded-full bg-green-100">
+            <div className="mx-auto h-12 w-12 flex items-center justify-center rounded-md bg-green-100">
               <CheckCircle2 className="h-8 w-8 text-green-600" />
             </div>
             <CardTitle className="text-2xl font-display font-black uppercase tracking-wide">
@@ -230,7 +156,7 @@ const AdminResetPassword = () => {
           <CardContent>
             <Button
               onClick={() => navigate("/admin/login")}
-              className="w-full rounded-full uppercase tracking-wide"
+              className="w-full rounded-md uppercase tracking-wide"
             >
               Go to Login
             </Button>

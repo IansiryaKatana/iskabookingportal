@@ -23,8 +23,8 @@ import {
   canRecordOTAPayment,
   formatOTACurrency,
   getOTAAmountDue,
-  OTA_PAYMENT_STATUS_LABELS,
 } from "@/utils/otaPayment";
+import { OTAPaymentStatusBadge } from "@/components/finance/FinanceStatusBadge";
 import RecordOTAPaymentDialog from "@/components/admin/ota/RecordOTAPaymentDialog";
 import { CreditCard, Plus } from "lucide-react";
 
@@ -60,15 +60,6 @@ const OTABookingPaymentsSection = ({ booking, allBookings }: OTABookingPaymentsS
       ? Math.min(100, (summary.total_received / summary.amount_due) * 100)
       : 0;
 
-  const statusBadgeVariant =
-    paymentStatus === "fully_paid"
-      ? "default"
-      : paymentStatus === "partially_paid"
-        ? "secondary"
-        : paymentStatus === "overpaid"
-          ? "destructive"
-          : "outline";
-
   return (
     <>
       <Separator />
@@ -78,15 +69,13 @@ const OTABookingPaymentsSection = ({ booking, allBookings }: OTABookingPaymentsS
             <CreditCard className="h-4 w-4 text-muted-foreground" />
             <Label className="text-sm font-semibold">Payment settlement</Label>
             {!summaryLoading && summary && (
-              <Badge variant={statusBadgeVariant} className="text-xs">
-                {OTA_PAYMENT_STATUS_LABELS[summary.payment_status]}
-              </Badge>
+              <OTAPaymentStatusBadge status={summary.payment_status} />
             )}
           </div>
           {canRecord && (
             <Button
               size="sm"
-              className="rounded-full gap-1 self-end sm:self-auto"
+              className="rounded-md gap-1 self-end sm:self-auto"
               onClick={() => setRecordOpen(true)}
             >
               <Plus className="h-3.5 w-3.5" />

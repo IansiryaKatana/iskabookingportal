@@ -431,7 +431,7 @@ export function CreateCustomContractSheet({
               }}
             >
               <FormControl>
-                <SelectTrigger className="rounded-full">
+                <SelectTrigger className="rounded-md">
                   <SelectValue placeholder="Select academic year" />
                 </SelectTrigger>
               </FormControl>
@@ -455,7 +455,7 @@ export function CreateCustomContractSheet({
             <FormLabel>Studio grade</FormLabel>
             <Select value={field.value} onValueChange={field.onChange}>
               <FormControl>
-                <SelectTrigger className="rounded-full">
+                <SelectTrigger className="rounded-md">
                   <SelectValue placeholder="Select studio grade" />
                 </SelectTrigger>
               </FormControl>
@@ -478,7 +478,7 @@ export function CreateCustomContractSheet({
           <FormItem>
             <FormLabel>Contract name</FormLabel>
             <FormControl>
-              <Input placeholder="e.g. Silver 21 weeks (custom)" className="rounded-full px-3 min-w-0" {...field} />
+              <Input placeholder="e.g. Silver 21 weeks (custom)" className="rounded-md px-3 min-w-0" {...field} />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -495,7 +495,7 @@ export function CreateCustomContractSheet({
                 <Input
                   type="number"
                   min={1}
-                  className="rounded-full px-3 min-w-0"
+                  className="rounded-md px-3 min-w-0"
                   value={field.value ?? ""}
                   onChange={(e) => field.onChange(e.target.value === "" ? 0 : Number(e.target.value))}
                 />
@@ -515,7 +515,7 @@ export function CreateCustomContractSheet({
                   type="number"
                   min={0}
                   max={6}
-                  className="rounded-full px-3 min-w-0"
+                  className="rounded-md px-3 min-w-0"
                   value={field.value ?? 0}
                   onChange={(e) => field.onChange(e.target.value === "" ? 0 : Number(e.target.value))}
                 />
@@ -531,7 +531,7 @@ export function CreateCustomContractSheet({
             <FormItem>
               <FormLabel>Start date</FormLabel>
               <FormControl>
-                <Input type="date" className="rounded-full px-3 min-w-0" {...field} />
+                <Input type="date" className="rounded-md px-3 min-w-0" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -547,7 +547,7 @@ export function CreateCustomContractSheet({
             <FormControl>
               <Input
                 type="date"
-                className="rounded-full bg-muted/50 px-3 min-w-0"
+                className="rounded-md bg-muted/50 px-3 min-w-0"
                 readOnly
                 value={computedEndDate || field.value || ""}
                 onChange={() => {}}
@@ -583,7 +583,7 @@ export function CreateCustomContractSheet({
                 <Input
                   type="number"
                   step="0.01"
-                  className="rounded-full px-3 min-w-0"
+                  className="rounded-md px-3 min-w-0"
                   value={field.value ?? ""}
                   onChange={(e) =>
                     field.onChange(e.target.value === "" ? "" : Number(e.target.value))
@@ -604,7 +604,7 @@ export function CreateCustomContractSheet({
                 <Input
                   type="number"
                   step="0.01"
-                  className="rounded-full px-3 min-w-0"
+                  className="rounded-md px-3 min-w-0"
                   value={field.value ?? ""}
                   onChange={(e) =>
                     field.onChange(e.target.value === "" ? "" : Number(e.target.value))
@@ -626,7 +626,7 @@ export function CreateCustomContractSheet({
           type="button"
           variant={planSource === "existing" ? "default" : "outline"}
           size="sm"
-          className="rounded-full flex-1"
+          className="rounded-md flex-1"
           onClick={() => setPlanSource("existing")}
         >
           Use existing plans
@@ -635,7 +635,7 @@ export function CreateCustomContractSheet({
           type="button"
           variant={planSource === "new" ? "default" : "outline"}
           size="sm"
-          className="rounded-full flex-1"
+          className="rounded-md flex-1"
           onClick={() => setPlanSource("new")}
         >
           Create new plan here
@@ -696,7 +696,7 @@ export function CreateCustomContractSheet({
             <div className="space-y-2">
               <Label>Plan name</Label>
               <Input
-                className="rounded-full px-3 min-w-0"
+                className="rounded-md px-3 min-w-0"
                 placeholder="e.g. 21 weeks plan 5 inst"
                 value={newPlanName}
                 onChange={(e) => setNewPlanName(e.target.value)}
@@ -707,7 +707,7 @@ export function CreateCustomContractSheet({
               <Input
                 type="number"
                 min={1}
-                className="rounded-full px-3 min-w-0"
+                className="rounded-md px-3 min-w-0"
                 value={numInstallments}
                 onChange={(e) => setNumInstallments(Math.max(1, Number(e.target.value) || 1))}
               />
@@ -719,7 +719,7 @@ export function CreateCustomContractSheet({
               <Input
                 type="number"
                 min={0}
-                className="rounded-full px-3 min-w-0"
+                className="rounded-md px-3 min-w-0"
                 value={firstDueDaysBeforeStart}
                 onChange={(e) =>
                   setFirstDueDaysBeforeStart(Math.max(0, Number(e.target.value) || 0))
@@ -731,7 +731,7 @@ export function CreateCustomContractSheet({
               <Input
                 type="number"
                 min={1}
-                className="rounded-full px-3 min-w-0"
+                className="rounded-md px-3 min-w-0"
                 value={intervalWeeks}
                 onChange={(e) => setIntervalWeeks(Math.max(1, Number(e.target.value) || 1))}
               />
@@ -740,7 +740,7 @@ export function CreateCustomContractSheet({
           <Button
             type="button"
             variant="secondary"
-            className="rounded-full w-full bg-amber-400 hover:bg-amber-500 text-amber-950 border-amber-500/50"
+            className="rounded-md w-full bg-amber-400 hover:bg-amber-500 text-amber-950 border-amber-500/50"
             onClick={handleGenerateInstallments}
           >
             Generate instalments
@@ -773,7 +773,7 @@ export function CreateCustomContractSheet({
                         <tr key={i} className="border-b border-border/40 last:border-0">
                           <td className="p-2 pl-3">
                             <Input
-                              className="h-8 rounded-full text-xs px-3 min-w-0 w-full"
+                              className="h-8 rounded-md text-xs px-3 min-w-0 w-full"
                               value={row.label}
                               onChange={(e) => {
                                 setGeneratedInstallments((prev) => {
@@ -787,7 +787,7 @@ export function CreateCustomContractSheet({
                           <td className="p-2">
                             <Input
                               type="number"
-                              className="h-8 w-20 rounded-full text-xs px-3"
+                              className="h-8 w-20 rounded-md text-xs px-3"
                               value={row.due_date_offset_days}
                               onChange={(e) =>
                                 updateGeneratedInstallment(
@@ -808,7 +808,7 @@ export function CreateCustomContractSheet({
                                 updateGeneratedInstallment(i, "amount_type", v)
                               }
                             >
-                              <SelectTrigger className="h-8 rounded-full text-xs w-[100px]">
+                              <SelectTrigger className="h-8 rounded-md text-xs w-[100px]">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -824,7 +824,7 @@ export function CreateCustomContractSheet({
                                 min={0}
                                 max={100}
                                 step={0.01}
-                                className="h-8 w-16 rounded-full text-xs px-3"
+                                className="h-8 w-16 rounded-md text-xs px-3"
                                 value={row.amount_value}
                                 onChange={(e) =>
                                   updateGeneratedInstallment(
@@ -839,7 +839,7 @@ export function CreateCustomContractSheet({
                                 type="number"
                                 min={0}
                                 step={0.01}
-                                className="h-8 w-20 rounded-full text-xs px-3"
+                                className="h-8 w-20 rounded-md text-xs px-3"
                                 value={row.amount_value > 0 ? row.amount_value : ""}
                                 placeholder="0"
                                 onChange={(e) =>
@@ -914,7 +914,7 @@ export function CreateCustomContractSheet({
           <Button
             type="button"
             variant="outline"
-            className="rounded-full"
+            className="rounded-md"
             onClick={() => setCurrentStep((s) => s - 1)}
           >
             <ChevronLeft className="h-4 w-4 mr-1" />
@@ -924,7 +924,7 @@ export function CreateCustomContractSheet({
         {currentStep < TOTAL_STEPS && (
           <Button
             type="button"
-            className="rounded-full"
+            className="rounded-md"
             onClick={() => setCurrentStep((s) => s + 1)}
             disabled={!canGoNext()}
           >
@@ -934,14 +934,14 @@ export function CreateCustomContractSheet({
         )}
       </div>
       <div className="flex gap-2">
-        <Button type="button" variant="outline" className="rounded-full" onClick={() => onOpenChange(false)}>
+        <Button type="button" variant="outline" className="rounded-md" onClick={() => onOpenChange(false)}>
           Cancel
         </Button>
         {currentStep === TOTAL_STEPS && (
           <div className="flex flex-col items-end gap-1">
             <Button
               type="button"
-              className="rounded-full"
+              className="rounded-md"
               onClick={handleSubmit}
               disabled={
                 createContract.isPending ||

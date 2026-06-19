@@ -289,7 +289,7 @@ const PaymentPlans = () => {
             <Button
               variant="outline"
               size="sm"
-              className="rounded-full uppercase tracking-wide gap-2 flex-shrink-0 h-7 px-2 text-xs"
+              className="rounded-md uppercase tracking-wide gap-2 flex-shrink-0 h-7 px-2 text-xs"
               onClick={() => setDuplicateDialogOpen(true)}
               disabled={!selectedAcademicYear || duplicatePlans.isPending}
             >
@@ -298,7 +298,7 @@ const PaymentPlans = () => {
           )}
           <Button
             size="sm"
-            className="rounded-full uppercase tracking-wide gap-2 flex-shrink-0 h-7 px-2 text-xs"
+            className="rounded-md uppercase tracking-wide gap-2 flex-shrink-0 h-7 px-2 text-xs"
             onClick={handleCreate}
             disabled={!selectedAcademicYear}
           >
@@ -368,7 +368,7 @@ const PaymentPlans = () => {
                 variant="outline"
                 onClick={() => setDuplicateDialogOpen(true)}
                 disabled={!selectedAcademicYear || duplicatePlans.isPending}
-                className="rounded-full uppercase tracking-wide gap-2"
+                className="rounded-md uppercase tracking-wide gap-2"
               >
                 <Copy className="h-4 w-4" />
                 Duplicate from year
@@ -500,7 +500,7 @@ const PaymentPlans = () => {
         >
           {(createPlan.isPending || updatePlan.isPending) && (
             <div className="absolute top-0 left-0 right-0 z-10 h-0.5 overflow-hidden rounded-t-lg bg-muted">
-              <div className="h-full w-full min-w-[40%] animate-pulse rounded-full bg-primary" />
+              <div className="h-full w-full min-w-[40%] animate-pulse rounded-md bg-primary" />
             </div>
           )}
           <SheetHeader className="flex-shrink-0 text-left">
@@ -760,13 +760,13 @@ const PaymentPlans = () => {
               </div>
 
               <SheetFooter className="flex-shrink-0 gap-2 pt-4 mt-0 border-t border-border/60 sm:justify-end">
-                <Button type="button" variant="outline" onClick={closeDialog} className="rounded-full uppercase tracking-wide">
+                <Button type="button" variant="outline" onClick={closeDialog} className="rounded-md uppercase tracking-wide">
                   Cancel
                 </Button>
                 <Button
                   type="submit"
                   disabled={createPlan.isPending || updatePlan.isPending}
-                  className="rounded-full uppercase tracking-wide"
+                  className="rounded-md uppercase tracking-wide"
                 >
                   {createPlan.isPending || updatePlan.isPending ? (
                     <>
@@ -832,7 +832,7 @@ const PaymentPlans = () => {
             )}
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-full uppercase tracking-wide">
+            <AlertDialogCancel className="rounded-md uppercase tracking-wide">
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
@@ -859,7 +859,7 @@ const PaymentPlans = () => {
                 }
               }}
               disabled={!sourceYearId || duplicatePlans.isPending}
-              className="rounded-full uppercase tracking-wide"
+              className="rounded-md uppercase tracking-wide"
             >
               {duplicatePlans.isPending ? (
                 <>
@@ -896,7 +896,7 @@ const PaymentPlans = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-full uppercase tracking-wide">
+            <AlertDialogCancel className="rounded-md uppercase tracking-wide">
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
@@ -917,7 +917,7 @@ const PaymentPlans = () => {
                 }
               }}
               disabled={deletePlan.isPending}
-              className="rounded-full uppercase tracking-wide bg-destructive hover:bg-destructive/90"
+              className="rounded-md uppercase tracking-wide bg-destructive hover:bg-destructive/90"
             >
               {deletePlan.isPending ? (
                 <>

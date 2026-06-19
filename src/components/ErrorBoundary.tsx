@@ -93,7 +93,7 @@ class ErrorBoundary extends Component<Props, State> {
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Button
                   onClick={this.handleReset}
-                  className="rounded-full uppercase tracking-wide gap-2"
+                  className="rounded-md uppercase tracking-wide gap-2"
                   variant="default"
                 >
                   <RefreshCw className="h-4 w-4" />
@@ -101,7 +101,7 @@ class ErrorBoundary extends Component<Props, State> {
                 </Button>
                 <Button
                   onClick={() => (window.location.href = "/")}
-                  className="rounded-full uppercase tracking-wide gap-2"
+                  className="rounded-md uppercase tracking-wide gap-2"
                   variant="outline"
                 >
                   <Home className="h-4 w-4" />

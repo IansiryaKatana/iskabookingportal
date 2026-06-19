@@ -62,13 +62,13 @@ const NotificationBell = () => {
         <Button
           variant="ghost"
           size="icon"
-          className="relative rounded-full h-10 w-10"
+          className="relative rounded-md h-10 w-10"
         >
           <div className="relative flex items-center justify-center">
             <Bell className="h-5 w-5" />
             {unreadCount !== undefined && (
               <Badge
-                className="absolute -top-2 -right-2 h-5 px-1.5 bg-orange-500 hover:bg-orange-600 text-white text-[10px] font-semibold rounded-full min-w-[20px] flex items-center justify-center shadow-sm border-2 border-background"
+                className="absolute -top-2 -right-2 h-5 px-1.5 bg-orange-500 hover:bg-orange-600 text-white text-[10px] font-semibold rounded-md min-w-[20px] flex items-center justify-center shadow-sm border-2 border-background"
               >
                 {unreadCount > 9 ? "9+" : unreadCount}
               </Badge>
@@ -84,7 +84,7 @@ const NotificationBell = () => {
               variant="ghost"
               size="sm"
               onClick={handleMarkAllRead}
-              className="text-xs h-auto p-1 rounded-full uppercase tracking-wide"
+              className="text-xs h-auto p-1 rounded-md uppercase tracking-wide"
               disabled={markAllRead.isPending}
             >
               Mark all read
@@ -121,7 +121,7 @@ const NotificationBell = () => {
                       onClick={() => handleNotificationClick(notification)}
                     >
                       <div className="flex items-start gap-2">
-                        <div className={clsx("h-2 w-2 rounded-full mt-2 flex-shrink-0", getTypeColor(notification.type))} />
+                        <div className={clsx("h-2 w-2 rounded-md mt-2 flex-shrink-0", getTypeColor(notification.type))} />
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-sm">{notification.title}</p>
                           <p className="text-xs text-muted-foreground mt-1 line-clamp-2">

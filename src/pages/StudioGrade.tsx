@@ -448,7 +448,7 @@ const StudioGradePage = () => {
   if (redirecting) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6 text-center">
-        <Skeleton className="h-10 w-10 rounded-full mb-4" />
+        <Skeleton className="h-10 w-10 rounded-md mb-4" />
         <p className="text-muted-foreground">
           Loading the {companyName} studio experience...
         </p>
@@ -466,7 +466,7 @@ const StudioGradePage = () => {
           <p className="text-muted-foreground">{redirectError}</p>
           <Button
             variant="outline"
-            className="rounded-full uppercase tracking-wide"
+            className="rounded-md uppercase tracking-wide"
             onClick={() => navigate(0)}
           >
             Retry
@@ -487,14 +487,14 @@ const StudioGradePage = () => {
           <div className="absolute inset-0 bg-gradient-to-br from-black via-slate-900 to-slate-800 animate-pulse" />
           <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/60 to-black/80" />
           <div className="relative z-10 h-full flex flex-col items-center justify-center px-6 text-center text-white space-y-4">
-            <Skeleton className="h-12 w-64 rounded-full bg-white/15" />
-            <Skeleton className="h-6 w-40 rounded-full bg-white/15" />
+            <Skeleton className="h-12 w-64 rounded-md bg-white/15" />
+            <Skeleton className="h-6 w-40 rounded-md bg-white/15" />
             <div className="space-y-2 w-full max-w-xl">
               {[...Array(4)].map((_, idx) => (
                 <Skeleton
                   // eslint-disable-next-line react/no-array-index-key
                   key={idx}
-                  className="h-3 w-full rounded-full bg-white/10"
+                  className="h-3 w-full rounded-md bg-white/10"
                 />
               ))}
             </div>
@@ -523,43 +523,43 @@ const StudioGradePage = () => {
                   className="rounded-3xl border border-border/60 bg-muted/20 p-5 space-y-5"
                 >
                   <div className="flex flex-col gap-2">
-                    <Skeleton className="h-3 w-32 rounded-full" />
-                    <Skeleton className="h-6 w-48 rounded-full" />
-                    <Skeleton className="h-3 w-24 rounded-full" />
+                    <Skeleton className="h-3 w-32 rounded-md" />
+                    <Skeleton className="h-6 w-48 rounded-md" />
+                    <Skeleton className="h-3 w-24 rounded-md" />
                   </div>
                   <div className="grid gap-3">
-                    <Skeleton className="h-4 w-40 rounded-full" />
+                    <Skeleton className="h-4 w-40 rounded-md" />
                     <Skeleton className="h-16 w-full rounded-2xl" />
                   </div>
-                  <Skeleton className="h-12 w-full rounded-full" />
+                  <Skeleton className="h-12 w-full rounded-md" />
                 </div>
               ))}
             </div>
           </section>
 
-          <section className="rounded-full border border-accent-yellow/50 bg-accent-yellow/20 px-6 py-5 flex flex-wrap items-center gap-3">
+          <section className="rounded-md border border-accent-yellow/50 bg-accent-yellow/20 px-6 py-5 flex flex-wrap items-center gap-3">
             {[...Array(4)].map((_, idx) => (
               <Skeleton
                 // eslint-disable-next-line react/no-array-index-key
                 key={idx}
-                className="h-8 w-40 rounded-full bg-accent-yellow/60"
+                className="h-8 w-40 rounded-md bg-accent-yellow/60"
               />
             ))}
           </section>
 
           <section className="rounded-3xl bg-black text-white px-6 py-12 space-y-4">
-            <Skeleton className="h-8 w-64 rounded-full bg-white/15" />
+            <Skeleton className="h-8 w-64 rounded-md bg-white/15" />
             {[...Array(5)].map((_, idx) => (
               <Skeleton
                 // eslint-disable-next-line react/no-array-index-key
                 key={idx}
-                className="h-3 w-full rounded-full bg-white/10"
+                className="h-3 w-full rounded-md bg-white/10"
               />
             ))}
           </section>
 
           <section className="rounded-3xl bg-muted/20 px-6 py-10 space-y-6">
-            <Skeleton className="h-6 w-48 rounded-full bg-muted/40" />
+            <Skeleton className="h-6 w-48 rounded-md bg-muted/40" />
             <div className="grid gap-4 md:grid-cols-2">
               {[...Array(6)].map((_, idx) => (
                 <Skeleton
@@ -592,7 +592,7 @@ const StudioGradePage = () => {
           </p>
           <Button
             variant="outline"
-            className="rounded-full uppercase tracking-wide"
+            className="rounded-md uppercase tracking-wide"
             onClick={() => navigate("/")}
           >
             <ArrowLeft className="mr-2 h-4 w-4" />

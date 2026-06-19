@@ -120,7 +120,7 @@ const Dashboard = () => {
             </div>
             <div className="flex items-center gap-2">
               <Skeleton className="h-4 w-12" />
-              <Skeleton className="h-6 w-24 rounded-full" />
+              <Skeleton className="h-6 w-24 rounded-md" />
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -128,7 +128,7 @@ const Dashboard = () => {
               <Skeleton className="h-4 w-20" />
               <Skeleton className="h-4 w-32" />
             </div>
-            <Skeleton className="h-10 w-full rounded-full" />
+            <Skeleton className="h-10 w-full rounded-md" />
           </CardContent>
         </Card>
       ))}
@@ -154,7 +154,7 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent>
             <Button
-              className="rounded-full uppercase tracking-wide"
+              className="rounded-md uppercase tracking-wide"
               onClick={() => navigate("/")}
             >
               Explore Studios
@@ -238,7 +238,7 @@ const Dashboard = () => {
                   <span className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
                     Status
                   </span>
-                  <span className={`rounded-full px-4 py-1 text-xs font-semibold uppercase tracking-wide ${
+                  <span className={`rounded-md px-4 py-1 text-xs font-semibold uppercase tracking-wide ${
                     isConfirmed
                       ? "bg-green-600 text-white"
                       : "bg-primary/10 text-primary"
@@ -273,7 +273,7 @@ const Dashboard = () => {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       <Button
                         variant="outline"
-                        className="rounded-full uppercase tracking-wide gap-2"
+                        className="rounded-md uppercase tracking-wide gap-2"
                         onClick={() => navigate("/portal/payments")}
                       >
                         <CreditCard className="h-4 w-4" />
@@ -281,7 +281,7 @@ const Dashboard = () => {
                       </Button>
                       <Button
                         variant="outline"
-                        className="rounded-full uppercase tracking-wide gap-2"
+                        className="rounded-md uppercase tracking-wide gap-2"
                         onClick={() => navigate("/portal/contracts")}
                       >
                         <FileText className="h-4 w-4" />
@@ -289,7 +289,7 @@ const Dashboard = () => {
                       </Button>
                       <Button
                         variant="outline"
-                        className="rounded-full uppercase tracking-wide gap-2"
+                        className="rounded-md uppercase tracking-wide gap-2"
                         onClick={() => navigate("/portal/documents")}
                       >
                         <FolderOpen className="h-4 w-4" />
@@ -299,7 +299,7 @@ const Dashboard = () => {
                   </div>
                 ) : (
                   <Button
-                    className="rounded-full uppercase tracking-wide gap-2"
+                    className="rounded-md uppercase tracking-wide gap-2"
                     onClick={() => navigate(primaryActionDestination)}
                   >
                     {primaryActionLabel}

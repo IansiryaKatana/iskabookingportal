@@ -214,7 +214,7 @@ const BulkInvitations = () => {
     // If status is pending_activation, show pending
     if (status === "pending_activation") {
       return (
-        <Badge className="bg-yellow-500 hover:bg-yellow-600 text-white rounded-full px-2.5 py-0.5 text-xs font-medium flex items-center gap-1">
+        <Badge className="bg-yellow-500 hover:bg-yellow-600 text-white rounded-md px-2.5 py-0.5 text-xs font-medium flex items-center gap-1">
           <Clock className="h-3 w-3" />
           Pending
         </Badge>
@@ -224,7 +224,7 @@ const BulkInvitations = () => {
     // If status is invited, show invited
     if (status === "invited") {
       return (
-        <Badge className="bg-blue-500 hover:bg-blue-600 text-white rounded-full px-2.5 py-0.5 text-xs font-medium flex items-center gap-1">
+        <Badge className="bg-blue-500 hover:bg-blue-600 text-white rounded-md px-2.5 py-0.5 text-xs font-medium flex items-center gap-1">
           <Mail className="h-3 w-3" />
           Invited
         </Badge>
@@ -233,7 +233,7 @@ const BulkInvitations = () => {
     
     // Everything else (activated, active, undefined, null, etc.) is considered activated
     return (
-      <Badge className="bg-green-500 hover:bg-green-600 text-white rounded-full px-2.5 py-0.5 text-xs font-medium flex items-center gap-1">
+      <Badge className="bg-green-500 hover:bg-green-600 text-white rounded-md px-2.5 py-0.5 text-xs font-medium flex items-center gap-1">
         <CheckCircle2 className="h-3 w-3" />
         Activated
       </Badge>
@@ -443,12 +443,12 @@ const BulkInvitations = () => {
                         </TableCell>
                         <TableCell>
                           {app.invitation_sent_at ? (
-                            <Badge className="bg-green-500 hover:bg-green-600 text-white rounded-full px-2.5 py-0.5 text-xs font-medium">
+                            <Badge className="bg-green-500 hover:bg-green-600 text-white rounded-md px-2.5 py-0.5 text-xs font-medium">
                               <CheckCircle2 className="h-3 w-3 mr-1" />
                               Sent
                             </Badge>
                           ) : (
-                            <Badge className="bg-gray-400 hover:bg-gray-500 text-white rounded-full px-2.5 py-0.5 text-xs font-medium">
+                            <Badge className="bg-gray-400 hover:bg-gray-500 text-white rounded-md px-2.5 py-0.5 text-xs font-medium">
                               <XCircle className="h-3 w-3 mr-1" />
                               Not Sent
                             </Badge>

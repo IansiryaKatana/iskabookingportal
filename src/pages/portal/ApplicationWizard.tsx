@@ -2619,7 +2619,7 @@ useEffect(() => {
                 </>
               ) : (
                 <>
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full border border-dashed border-border/60 text-muted-foreground">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-md border border-dashed border-border/60 text-muted-foreground">
                     <Upload className="h-5 w-5" />
                   </div>
                   <div className="space-y-1">
@@ -3153,7 +3153,7 @@ useEffect(() => {
               dashboard and start again.
             </p>
             <Button
-              className="mt-6 rounded-full uppercase tracking-wide"
+              className="mt-6 rounded-md uppercase tracking-wide"
               onClick={() => navigate("/studios")}
             >
               Back to studios
@@ -3434,7 +3434,7 @@ useEffect(() => {
             <div className="flex items-center justify-end gap-2">
               <Button
                 type="submit"
-                className="rounded-full uppercase tracking-wide"
+                className="rounded-md uppercase tracking-wide"
                 disabled={isSaving}
               >
                 {isSaving ? (
@@ -3557,14 +3557,14 @@ useEffect(() => {
               <Button
                 type="button"
                 variant="outline"
-                className="rounded-full uppercase tracking-wide"
+                className="rounded-md uppercase tracking-wide"
                 onClick={() => setCurrentStep(1)}
               >
                 Back
               </Button>
               <Button
                 type="submit"
-                className="rounded-full uppercase tracking-wide"
+                className="rounded-md uppercase tracking-wide"
                 disabled={isSaving}
               >
                 {isSaving ? (
@@ -3741,14 +3741,14 @@ useEffect(() => {
               <Button
                 type="button"
                 variant="outline"
-                className="rounded-full uppercase tracking-wide"
+                className="rounded-md uppercase tracking-wide"
                 onClick={() => setCurrentStep(2)}
               >
                 Back
               </Button>
               <Button
                 type="submit"
-                className="rounded-full uppercase tracking-wide"
+                className="rounded-md uppercase tracking-wide"
                 disabled={isSaving}
               >
                 {isSaving ? (
@@ -3857,14 +3857,14 @@ useEffect(() => {
               <Button
                 type="button"
                 variant="outline"
-                className="rounded-full uppercase tracking-wide"
+                className="rounded-md uppercase tracking-wide"
                 onClick={() => setCurrentStep(3)}
               >
                 Back
               </Button>
               <Button
                 type="submit"
-                className="rounded-full uppercase tracking-wide"
+                className="rounded-md uppercase tracking-wide"
                 disabled={isSaving}
               >
                 {isSaving ? (
@@ -3908,12 +3908,12 @@ useEffect(() => {
                   className="w-full"
                 >
                   <div className="overflow-x-auto scroll-smooth -mx-1 px-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                    <TabsList className="bg-muted/60 rounded-full p-1 flex gap-1 w-max min-w-full">
+                    <TabsList className="bg-muted/60 rounded-md p-1 flex gap-1 w-max min-w-full">
                     {resolvedPlans.map((plan) => (
                       <TabsTrigger
                         key={plan.planId}
                         value={plan.planId}
-                        className="rounded-full px-4 py-1 text-xs uppercase tracking-wide data-[state=active]:bg-background whitespace-nowrap flex-shrink-0 snap-start"
+                        className="rounded-md px-4 py-1 text-xs uppercase tracking-wide data-[state=active]:bg-background whitespace-nowrap flex-shrink-0 snap-start"
                       >
                         {plan.plan.name}
                       </TabsTrigger>
@@ -4469,7 +4469,7 @@ useEffect(() => {
                 ) : (
                   <Button
                     type="button"
-                    className="rounded-full uppercase tracking-wide"
+                    className="rounded-md uppercase tracking-wide"
                     onClick={createDepositPaymentIntent}
                     disabled={creatingIntent || !stripePromise}
                   >
@@ -4485,14 +4485,14 @@ useEffect(() => {
               <Button
                 type="button"
                 variant="outline"
-                className="rounded-full uppercase tracking-wide"
+                className="rounded-md uppercase tracking-wide"
                 onClick={() => setCurrentStep(4)}
               >
                 Back
               </Button>
               <Button
                 type="submit"
-                className="rounded-full uppercase tracking-wide"
+                className="rounded-md uppercase tracking-wide"
                 disabled={
                   isSaving || 
                   sendingAgreements || 
@@ -4524,7 +4524,7 @@ useEffect(() => {
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="mt-3 rounded-full border-destructive/50 text-destructive hover:bg-destructive/10"
+                  className="mt-3 rounded-md border-destructive/50 text-destructive hover:bg-destructive/10"
                   onClick={() => sendAgreements()}
                   disabled={sendingAgreements}
                 >
@@ -4562,12 +4562,12 @@ useEffect(() => {
                       <span className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
                         Signing method
                       </span>
-                      <div className="inline-flex rounded-full border border-border/60 bg-muted/40 p-1">
+                      <div className="inline-flex rounded-md border border-border/60 bg-muted/40 p-1">
                         <Button
                           type="button"
                           variant={staffSigningMode === "docusign" ? "default" : "ghost"}
                           size="sm"
-                          className="h-7 rounded-full px-3 text-xs uppercase tracking-wide"
+                          className="h-7 rounded-md px-3 text-xs uppercase tracking-wide"
                           onClick={() => handleStaffSigningModeChange("docusign")}
                         >
                           DocuSign
@@ -4576,7 +4576,7 @@ useEffect(() => {
                           type="button"
                           variant={staffSigningMode === "manual_upload" ? "default" : "ghost"}
                           size="sm"
-                          className="h-7 rounded-full px-3 text-xs uppercase tracking-wide"
+                          className="h-7 rounded-md px-3 text-xs uppercase tracking-wide"
                           onClick={() => handleStaffSigningModeChange("manual_upload")}
                         >
                           Manual upload
@@ -4603,7 +4603,7 @@ useEffect(() => {
                             disabled={uploadingTenancy || tenancyDone}
                           />
                           {tenancyDone ? (
-                            <span className="inline-flex items-center gap-2 rounded-full bg-green-600 px-3 py-1 text-sm font-semibold text-white uppercase">
+                            <span className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-1 text-sm font-semibold text-white uppercase">
                               <CheckCircle2 className="h-4 w-4" /> Completed
                             </span>
                           ) : uploadingTenancy ? (
@@ -4627,7 +4627,7 @@ useEffect(() => {
                               disabled={uploadingGuarantor || guarantorDone}
                             />
                             {guarantorDone ? (
-                              <span className="inline-flex items-center gap-2 rounded-full bg-green-600 px-3 py-1 text-sm font-semibold text-white uppercase">
+                              <span className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-1 text-sm font-semibold text-white uppercase">
                                 <CheckCircle2 className="h-4 w-4" /> Completed
                               </span>
                             ) : uploadingGuarantor ? (
@@ -4673,7 +4673,7 @@ useEffect(() => {
                           {!effectiveTenancyEnvelope && depositPaid && (
                             <Button
                               type="button"
-                              className="rounded-full uppercase tracking-wide"
+                              className="rounded-md uppercase tracking-wide"
                               onClick={() => sendAgreements().catch(() => undefined)}
                               disabled={sendingAgreements}
                             >
@@ -4691,7 +4691,7 @@ useEffect(() => {
                             <>
                               <Button
                                 type="button"
-                                className="rounded-full uppercase tracking-wide"
+                                className="rounded-md uppercase tracking-wide"
                                 onClick={() =>
                                   sendAgreements({ allowResend: true }).catch(() => undefined)
                                 }
@@ -4710,7 +4710,7 @@ useEffect(() => {
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                className="rounded-full uppercase tracking-wide"
+                                className="rounded-md uppercase tracking-wide"
                                 onClick={checkEnvelopeStatus}
                                 disabled={checkingStatus}
                               >
@@ -4791,7 +4791,7 @@ useEffect(() => {
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="mt-3 rounded-full border-destructive/50 text-destructive hover:bg-destructive/10"
+                      className="mt-3 rounded-md border-destructive/50 text-destructive hover:bg-destructive/10"
                       onClick={() => sendAgreements()}
                       disabled={sendingAgreements}
                     >
@@ -4844,7 +4844,7 @@ useEffect(() => {
                       Status
                     </p>
                     {isEnvelopeCompleted(effectiveTenancyEnvelope?.status) ? (
-                      <span className="inline-flex items-center rounded-full bg-green-600 px-3 py-1 text-sm font-semibold text-white uppercase tracking-wide">
+                      <span className="inline-flex items-center rounded-md bg-green-600 px-3 py-1 text-sm font-semibold text-white uppercase tracking-wide">
                         {formatEnvelopeStatus(effectiveTenancyEnvelope?.status)}
                       </span>
                     ) : (
@@ -4857,7 +4857,7 @@ useEffect(() => {
                   <div className="ml-auto flex flex-col items-end gap-2">
                       <Button
                         type="button"
-                        className="rounded-full uppercase tracking-wide"
+                        className="rounded-md uppercase tracking-wide"
                         onClick={
                           agreementSendError && !effectiveTenancyEnvelope && depositPaid
                             ? () => sendAgreements()
@@ -4899,7 +4899,7 @@ useEffect(() => {
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="rounded-full text-xs uppercase tracking-wide"
+                            className="rounded-md text-xs uppercase tracking-wide"
                             onClick={() => {
                               const retried = window.open(
                                 latestSigningUrl,
@@ -4945,7 +4945,7 @@ useEffect(() => {
                   <p className="text-sm">
                     Status:{" "}
                     {isEnvelopeCompleted(effectiveGuarantorEnvelope?.status) ? (
-                      <span className="inline-flex items-center rounded-full bg-green-600 px-3 py-1 text-sm font-semibold text-white uppercase tracking-wide">
+                      <span className="inline-flex items-center rounded-md bg-green-600 px-3 py-1 text-sm font-semibold text-white uppercase tracking-wide">
                         {formatEnvelopeStatus(effectiveGuarantorEnvelope?.status)}
                       </span>
                     ) : (
@@ -5002,7 +5002,7 @@ useEffect(() => {
               <Button
                 type="button"
                 variant="outline"
-                className="rounded-full uppercase tracking-wide"
+                className="rounded-md uppercase tracking-wide"
                 onClick={() => setCurrentStep(5)}
               >
                 Back
@@ -5011,7 +5011,7 @@ useEffect(() => {
                 <Button
                   type="button"
                   variant="outline"
-                  className="rounded-full uppercase tracking-wide"
+                  className="rounded-md uppercase tracking-wide"
                   onClick={checkEnvelopeStatus}
                   disabled={checkingStatus}
                 >
@@ -5026,7 +5026,7 @@ useEffect(() => {
                 </Button>
                 <Button
                   type="button"
-                  className="rounded-full uppercase tracking-wide"
+                  className="rounded-md uppercase tracking-wide"
                   onClick={() => {
                     // Navigate based on user role
                     if (profile?.role === "staff" || profile?.role === "superadmin") {
@@ -5278,7 +5278,7 @@ useEffect(() => {
               </h2>
             </div>
             <div className="flex flex-col items-start md:items-end gap-1.5 md:gap-2 flex-shrink-0">
-              <div className="inline-flex items-center gap-2 rounded-full bg-primary-foreground/10 px-3 py-1 text-[10px] md:text-xs font-semibold uppercase tracking-wide text-primary-foreground/90">
+              <div className="inline-flex items-center gap-2 rounded-md bg-primary-foreground/10 px-3 py-1 text-[10px] md:text-xs font-semibold uppercase tracking-wide text-primary-foreground/90">
                 {isSaving ? (
                   <>
                     <Loader2 className="h-3 w-3 md:h-3.5 md:w-3.5 animate-spin" />
@@ -5292,7 +5292,7 @@ useEffect(() => {
                 )}
               </div>
               <div className="w-full md:w-48">
-                <div className="relative h-2 w-full overflow-hidden rounded-full bg-white">
+                <div className="relative h-2 w-full overflow-hidden rounded-md bg-white">
                   <div 
                     className="h-full transition-all bg-black"
                     style={{ width: `${progress}%` }}
@@ -5319,7 +5319,7 @@ useEffect(() => {
                   key={step.number}
                   type="button"
                   onClick={() => setCurrentStep(step.number)}
-                  className={`px-3 py-1.5 md:px-4 md:py-2 rounded-full text-xs md:text-sm font-semibold uppercase tracking-wide transition-all hover:opacity-80 ${
+                  className={`px-3 py-1.5 md:px-4 md:py-2 rounded-md text-xs md:text-sm font-semibold uppercase tracking-wide transition-all hover:opacity-80 ${
                     isActive
                       ? "bg-primary-foreground text-primary shadow-lg scale-105"
                       : isComplete

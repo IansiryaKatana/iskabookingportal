@@ -417,7 +417,7 @@ const Contracts = () => {
             <Button
               variant="outline"
               size="sm"
-              className="rounded-full uppercase tracking-wide gap-2 flex-shrink-0 h-7 px-2 text-xs"
+              className="rounded-md uppercase tracking-wide gap-2 flex-shrink-0 h-7 px-2 text-xs"
               onClick={() => setDuplicateDialogOpen(true)}
               disabled={duplicateContracts.isPending}
             >
@@ -434,7 +434,7 @@ const Contracts = () => {
             <DialogTrigger asChild>
               <Button
                 size="sm"
-                className="rounded-full uppercase tracking-wide gap-2 flex-shrink-0 h-7 px-2 text-xs"
+                className="rounded-md uppercase tracking-wide gap-2 flex-shrink-0 h-7 px-2 text-xs"
                 onClick={handleCreate}
               >
                 <Plus className="h-4 w-4" />
@@ -459,7 +459,7 @@ const Contracts = () => {
               variant="outline"
               onClick={() => setDuplicateDialogOpen(true)}
               disabled={duplicateContracts.isPending}
-              className="rounded-full uppercase tracking-wide gap-2"
+              className="rounded-md uppercase tracking-wide gap-2"
             >
               <Copy className="h-4 w-4" />
               Duplicate from year
@@ -474,7 +474,7 @@ const Contracts = () => {
           }}>
             <DialogTrigger asChild>
               <Button
-                className="rounded-full uppercase tracking-wide"
+                className="rounded-md uppercase tracking-wide"
                 onClick={handleCreate}
               >
                 <Plus className="h-4 w-4 mr-2" />
@@ -555,16 +555,16 @@ const Contracts = () => {
                             {contract.academic_year?.name ?? "Academic year"}
                           </p>
                           {(contract as { student_application_id?: string | null }).student_application_id && (
-                            <Badge variant="secondary" className="rounded-full text-[10px] uppercase">
+                            <Badge variant="secondary" className="rounded-md text-[10px] uppercase">
                               Custom
                             </Badge>
                           )}
                           {(contract as { visible_on_portal?: boolean }).visible_on_portal === true ? (
-                            <Badge variant="outline" className="rounded-full text-[10px] uppercase border-green-500/60 text-green-700 dark:text-green-400 bg-green-500/10">
+                            <Badge variant="outline" className="rounded-md text-[10px] uppercase border-green-500/60 text-green-700 dark:text-green-400 bg-green-500/10">
                               On portal
                             </Badge>
                           ) : (
-                            <Badge variant="secondary" className="rounded-full text-[10px] uppercase text-muted-foreground">
+                            <Badge variant="secondary" className="rounded-md text-[10px] uppercase text-muted-foreground">
                               Staff only
                             </Badge>
                           )}
@@ -611,7 +611,7 @@ const Contracts = () => {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="rounded-full uppercase tracking-wide gap-2"
+                          className="rounded-md uppercase tracking-wide gap-2"
                           onClick={() => handleEdit(contract.id)}
                         >
                           <Pencil className="h-4 w-4" />
@@ -620,7 +620,7 @@ const Contracts = () => {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="rounded-full uppercase tracking-wide gap-2"
+                          className="rounded-md uppercase tracking-wide gap-2"
                           onClick={async () => {
                             try {
                               const result = await duplicateSingleContract.mutateAsync(contract.id);
@@ -646,7 +646,7 @@ const Contracts = () => {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="rounded-full uppercase tracking-wide gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            className="rounded-md uppercase tracking-wide gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
                             onClick={() => setContractToDelete({ id: contract.id, name: contract.name })}
                             disabled={deleteContract.isPending}
                           >
@@ -1006,14 +1006,14 @@ const Contracts = () => {
                 <Button
                   type="button"
                   variant="outline"
-                  className="rounded-full uppercase tracking-wide"
+                  className="rounded-md uppercase tracking-wide"
                   onClick={resetState}
                 >
                   Cancel
                 </Button>
                 <Button
                   type="submit"
-                  className="rounded-full uppercase tracking-wide"
+                  className="rounded-md uppercase tracking-wide"
                   disabled={createContract.isPending || updateContract.isPending}
                 >
                   {(createContract.isPending || updateContract.isPending) ? (
@@ -1104,7 +1104,7 @@ const Contracts = () => {
             )}
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-full uppercase tracking-wide">
+            <AlertDialogCancel className="rounded-md uppercase tracking-wide">
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
@@ -1132,7 +1132,7 @@ const Contracts = () => {
                 }
               }}
               disabled={!sourceYearId || !targetYearId || duplicateContracts.isPending}
-              className="rounded-full uppercase tracking-wide"
+              className="rounded-md uppercase tracking-wide"
             >
               {duplicateContracts.isPending ? (
                 <>
@@ -1164,7 +1164,7 @@ const Contracts = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-full uppercase tracking-wide" onClick={() => setContractToDelete(null)}>
+            <AlertDialogCancel className="rounded-md uppercase tracking-wide" onClick={() => setContractToDelete(null)}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
@@ -1184,7 +1184,7 @@ const Contracts = () => {
                 }
               }}
               disabled={deleteContract.isPending || !contractToDelete}
-              className="rounded-full uppercase tracking-wide bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="rounded-md uppercase tracking-wide bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteContract.isPending ? (
                 <>

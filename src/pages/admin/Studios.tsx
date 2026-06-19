@@ -384,11 +384,11 @@ const Studios = () => {
             placeholder="Search studios..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 rounded-full h-10"
+            className="pl-9 rounded-md h-10"
           />
         </div>
         <Select value={gradeFilter} onValueChange={setGradeFilter}>
-          <SelectTrigger className="w-full sm:w-48 md:w-64 rounded-full">
+          <SelectTrigger className="w-full sm:w-48 md:w-64 rounded-md">
             <SelectValue placeholder="Filter by grade" />
           </SelectTrigger>
           <SelectContent>
@@ -401,7 +401,7 @@ const Studios = () => {
           </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full sm:w-40 md:w-56 rounded-full">
+          <SelectTrigger className="w-full sm:w-40 md:w-56 rounded-md">
             <SelectValue placeholder="Filter by status" />
           </SelectTrigger>
           <SelectContent>
@@ -415,7 +415,7 @@ const Studios = () => {
           </SelectContent>
         </Select>
         <Select value={allocationFilter} onValueChange={setAllocationFilter}>
-          <SelectTrigger className="w-full sm:w-40 md:w-56 rounded-full">
+          <SelectTrigger className="w-full sm:w-40 md:w-56 rounded-md">
             <SelectValue placeholder="Filter by allocation" />
           </SelectTrigger>
           <SelectContent>
@@ -427,7 +427,7 @@ const Studios = () => {
           </SelectContent>
         </Select>
         <Select value={floorFilter} onValueChange={setFloorFilter}>
-          <SelectTrigger className="w-full sm:w-40 md:w-56 rounded-full">
+          <SelectTrigger className="w-full sm:w-40 md:w-56 rounded-md">
             <SelectValue placeholder="Filter by floor" />
           </SelectTrigger>
           <SelectContent>
@@ -448,7 +448,7 @@ const Studios = () => {
             <div className="flex items-center gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="rounded-full uppercase tracking-wide">
+                  <Button variant="outline" size="sm" className="rounded-md uppercase tracking-wide">
                     <MoreVertical className="h-4 w-4 mr-2" />
                     Bulk Actions
                   </Button>
@@ -472,7 +472,7 @@ const Studios = () => {
                   <DropdownMenuItem onClick={() => handleBulkAction("status", "maintenance")}>
                     Set Status to Maintenance
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleBulkAction("grade", "")}>
+                  <DropdownMenuItem onClick={() => handleBulkAction("grade")}>
                     Set grade to…
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -481,7 +481,7 @@ const Studios = () => {
                 variant="ghost"
                 size="sm"
                 onClick={() => setSelectedStudios(new Set())}
-                className="rounded-full uppercase tracking-wide"
+                className="rounded-md uppercase tracking-wide"
               >
                 Clear
               </Button>
@@ -547,7 +547,7 @@ const Studios = () => {
                         value={studio.studio_grade_id}
                         onValueChange={(value) => handleGradeChange(studio.id, value)}
                       >
-                        <SelectTrigger className="w-auto max-w-[180px] h-8 rounded-full text-xs">
+                        <SelectTrigger className="w-auto max-w-[180px] h-8 rounded-md text-xs">
                           <SelectValue placeholder="Grade" />
                         </SelectTrigger>
                         <SelectContent>
@@ -589,7 +589,7 @@ const Studios = () => {
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                     <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                       <Badge
-                        className={`uppercase tracking-wide rounded-full px-2.5 py-0.5 text-xs font-medium flex-shrink-0 ${
+                        className={`uppercase tracking-wide rounded-md px-2.5 py-0.5 text-xs font-medium flex-shrink-0 ${
                           studio.status === "available"
                             ? "bg-green-500 hover:bg-green-600 text-white"
                             : studio.status === "reserved"
@@ -609,7 +609,7 @@ const Studios = () => {
                         onValueChange={(value) => handleStatusChange(studio.id, value)}
                         defaultValue={studio.status}
                       >
-                        <SelectTrigger className="w-full sm:w-40 rounded-full">
+                        <SelectTrigger className="w-full sm:w-40 rounded-md">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -624,7 +624,7 @@ const Studios = () => {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="rounded-full uppercase tracking-wide gap-2 w-full sm:w-auto"
+                      className="rounded-md uppercase tracking-wide gap-2 w-full sm:w-auto"
                       onClick={async () => {
                         const canRelease = studio.status === "occupied" && studioCanReleaseMap.get(studio.id);
                         if (!canRelease) {
@@ -735,7 +735,7 @@ const Studios = () => {
               <div className="space-y-2">
                 <label className="text-sm font-medium">Reassignment policy</label>
                 <Select value={allocationPolicy} onValueChange={(v) => setAllocationPolicy(v as AllocationPolicy)}>
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger className="rounded-md">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -748,7 +748,7 @@ const Studios = () => {
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Target OTA studio</label>
                   <Select value={targetOtaStudioId} onValueChange={setTargetOtaStudioId}>
-                    <SelectTrigger className="rounded-full">
+                    <SelectTrigger className="rounded-md">
                       <SelectValue placeholder="Select target OTA studio" />
                     </SelectTrigger>
                     <SelectContent>
@@ -772,7 +772,7 @@ const Studios = () => {
                   value={allocationReason}
                   onChange={(e) => setAllocationReason(e.target.value)}
                   placeholder="e.g. Term strategy update / OTA rebalance"
-                  className="rounded-full"
+                  className="rounded-md"
                 />
               </div>
             </div>
@@ -781,7 +781,7 @@ const Studios = () => {
             <div className="space-y-2 py-2">
               <label className="text-sm font-medium">Studio grade</label>
               <Select value={bulkGradeId} onValueChange={setBulkGradeId}>
-                <SelectTrigger className="rounded-full">
+                <SelectTrigger className="rounded-md">
                   <SelectValue placeholder="Select grade" />
                 </SelectTrigger>
                 <SelectContent>
@@ -802,7 +802,7 @@ const Studios = () => {
                 setBulkAction(null);
                 setBulkGradeId("");
               }}
-              className="rounded-full uppercase tracking-wide w-full sm:w-auto"
+              className="rounded-md uppercase tracking-wide w-full sm:w-auto"
             >
               Cancel
             </Button>
@@ -816,7 +816,7 @@ const Studios = () => {
                   allocationPolicy === "move" &&
                   (!targetOtaStudioId || selectedStudios.size !== 1))
               }
-              className="rounded-full uppercase tracking-wide w-full sm:w-auto"
+              className="rounded-md uppercase tracking-wide w-full sm:w-auto"
             >
               {bulkUpdateStudios.isPending || reassignStudioAllocation.isPending ? (
                 <>

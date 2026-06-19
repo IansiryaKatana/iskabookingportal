@@ -990,7 +990,7 @@ const ManualPaymentEntry = () => {
                     <div className="flex items-center gap-2 shrink-0">
                       <Button
                         size="sm"
-                        className="rounded-full"
+                        className="rounded-md"
                         disabled={approvingId === req.id || rejectingId === req.id}
                         onClick={() => {
                           setApprovingId(req.id);
@@ -1009,7 +1009,7 @@ const ManualPaymentEntry = () => {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="rounded-full"
+                        className="rounded-md"
                         disabled={approvingId === req.id || rejectingId === req.id}
                         onClick={() => {
                           setRejectRequestId(req.id);
@@ -1155,7 +1155,7 @@ const ManualPaymentEntry = () => {
             <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:justify-end">
               <Button
                 variant="outline"
-                className="rounded-full"
+                className="rounded-md"
                 onClick={() => {
                   setRejectDialogOpen(false);
                   setRejectRequestId(null);
@@ -1166,7 +1166,7 @@ const ManualPaymentEntry = () => {
               </Button>
               <Button
                 variant="destructive"
-                className="rounded-full"
+                className="rounded-md"
                 disabled={!rejectRequestId || rejectingId === rejectRequestId}
                 onClick={() => {
                   if (!rejectRequestId) return;
@@ -1199,7 +1199,7 @@ const ManualPaymentEntry = () => {
               </div>
               <Button
                 variant={showForm ? "outline" : "default"}
-                className="rounded-full uppercase tracking-wide"
+                className="rounded-md uppercase tracking-wide"
                 onClick={() => setShowForm(!showForm)}
               >
                 {showForm ? (
@@ -1245,7 +1245,7 @@ const ManualPaymentEntry = () => {
                         role="combobox"
                         aria-expanded={linkAppDropdownOpen}
                         className={cn(
-                          "mt-2 w-full justify-between rounded-full font-normal",
+                          "mt-2 w-full justify-between rounded-md font-normal",
                           !linkApplicationId && "text-muted-foreground"
                         )}
                       >
@@ -1333,14 +1333,14 @@ const ManualPaymentEntry = () => {
                                       {app.contract_slug && (
                                         <Badge
                                           variant="outline"
-                                          className="px-2 py-0 text-[10px] rounded-full"
+                                          className="px-2 py-0 text-[10px] rounded-md"
                                         >
                                           {(app as { contract_slug?: string | null }).contract_slug}
                                         </Badge>
                                       )}
                                       {academicYear && (
                                         <Badge
-                                          className="px-2 py-0 text-[10px] rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-100"
+                                          className="px-2 py-0 text-[10px] rounded-md bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-100"
                                         >
                                           {academicYear}
                                         </Badge>
@@ -1469,14 +1469,14 @@ const ManualPaymentEntry = () => {
                       setLinkApplicationId("");
                       setLinkInstalmentId("");
                     }}
-                    className="rounded-full uppercase tracking-wide"
+                    className="rounded-md uppercase tracking-wide"
                   >
                     Cancel
                   </Button>
                   <Button
                     onClick={handleSubmit}
                     disabled={createPayment.isPending}
-                    className="rounded-full uppercase tracking-wide"
+                    className="rounded-md uppercase tracking-wide"
                   >
                     {createPayment.isPending ? (
                       <>
@@ -1511,7 +1511,7 @@ const ManualPaymentEntry = () => {
                   placeholder="Search by receipt number..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 rounded-full"
+                  className="pl-9 rounded-md"
                 />
               </div>
             </div>
@@ -1532,7 +1532,7 @@ const ManualPaymentEntry = () => {
                     <div className="space-y-1 flex-1">
                       <div className="flex items-center gap-3 flex-wrap">
                         <Badge
-                          className={`uppercase rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                          className={`uppercase rounded-md px-2.5 py-0.5 text-xs font-medium ${
                             payment.payment_type === "deposit"
                               ? "bg-blue-500 hover:bg-blue-600 text-white"
                               : "bg-purple-500 hover:bg-purple-600 text-white"
@@ -1568,7 +1568,7 @@ const ManualPaymentEntry = () => {
                       <Button
                         variant="outline"
                         size="icon"
-                        className="rounded-full bg-primary/10 hover:bg-primary/20 text-primary"
+                        className="rounded-md bg-primary/10 hover:bg-primary/20 text-primary"
                         onClick={() => {
                           setLinkingPayment(payment);
                           setLinkDialogApplicationId("");
@@ -1584,7 +1584,7 @@ const ManualPaymentEntry = () => {
                       <Button
                         variant="outline"
                         size="icon"
-                        className="rounded-full bg-muted/80 hover:bg-muted text-foreground"
+                        className="rounded-md bg-muted/80 hover:bg-muted text-foreground"
                         onClick={() => setEditingPayment(payment)}
                         disabled={
                           updateOrphanedPayment.isPending &&
@@ -1597,7 +1597,7 @@ const ManualPaymentEntry = () => {
                       <Button
                         variant="outline"
                         size="icon"
-                        className="rounded-full bg-red-50 hover:bg-red-100 text-red-600"
+                        className="rounded-md bg-red-50 hover:bg-red-100 text-red-600"
                         disabled={deleteOrphanedPayment.isPending}
                         onClick={() => setPaymentToDelete({ id: payment.id })}
                         aria-label="Delete payment"
@@ -1620,7 +1620,7 @@ const ManualPaymentEntry = () => {
                     variant="outline"
                     size="sm"
                     onClick={() => setSearchTerm("")}
-                    className="rounded-full uppercase tracking-wide"
+                    className="rounded-md uppercase tracking-wide"
                   >
                     Clear Search
                   </Button>
@@ -1653,7 +1653,7 @@ const ManualPaymentEntry = () => {
               <div className="space-y-4 py-2">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Badge
-                    className={`uppercase rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                    className={`uppercase rounded-md px-2.5 py-0.5 text-xs font-medium ${
                       linkingPayment.payment_type === "deposit"
                         ? "bg-blue-500 hover:bg-blue-600 text-white"
                         : "bg-purple-500 hover:bg-purple-600 text-white"
@@ -1757,14 +1757,14 @@ const ManualPaymentEntry = () => {
                                           {app.contract_slug && (
                                             <Badge
                                               variant="outline"
-                                              className="px-2 py-0 text-[10px] rounded-full"
+                                              className="px-2 py-0 text-[10px] rounded-md"
                                             >
                                               {app.contract_slug}
                                             </Badge>
                                           )}
                                           {academicYear && (
                                             <Badge
-                                              className="px-2 py-0 text-[10px] rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-100"
+                                              className="px-2 py-0 text-[10px] rounded-md bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-100"
                                             >
                                               {academicYear}
                                             </Badge>
@@ -1806,11 +1806,11 @@ const ManualPaymentEntry = () => {
               </div>
             )}
             <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:justify-end">
-              <Button variant="outline" className="rounded-full" onClick={() => { setLinkingPayment(null); setLinkDialogApplicationId(""); setLinkDialogInstalmentId(""); setLinkDialogAppSearch(""); }}>
+              <Button variant="outline" className="rounded-md" onClick={() => { setLinkingPayment(null); setLinkDialogApplicationId(""); setLinkDialogInstalmentId(""); setLinkDialogAppSearch(""); }}>
                 Cancel
               </Button>
               <Button
-                className="rounded-full"
+                className="rounded-md"
                 disabled={
                   !linkingPayment ||
                   !linkDialogApplicationId ||
@@ -1868,7 +1868,7 @@ const ManualPaymentEntry = () => {
                 <>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Badge
-                      className={`uppercase rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                      className={`uppercase rounded-md px-2.5 py-0.5 text-xs font-medium ${
                         editingPayment.payment_type === "deposit"
                           ? "bg-blue-500 hover:bg-blue-600 text-white"
                           : "bg-purple-500 hover:bg-purple-600 text-white"
@@ -1954,13 +1954,13 @@ const ManualPaymentEntry = () => {
             <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:justify-end">
               <Button
                 variant="outline"
-                className="rounded-full"
+                className="rounded-md"
                 onClick={() => setEditingPayment(null)}
               >
                 Cancel
               </Button>
               <Button
-                className="rounded-full"
+                className="rounded-md"
                 disabled={
                   updateOrphanedPayment.isPending ||
                   !editingPayment ||
@@ -2011,11 +2011,11 @@ const ManualPaymentEntry = () => {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter className="gap-2">
-              <AlertDialogCancel className="rounded-full uppercase tracking-wide" onClick={() => setPaymentToDelete(null)}>
+              <AlertDialogCancel className="rounded-md uppercase tracking-wide" onClick={() => setPaymentToDelete(null)}>
                 Cancel
               </AlertDialogCancel>
               <AlertDialogAction
-                className="rounded-full uppercase tracking-wide bg-destructive hover:bg-destructive/90"
+                className="rounded-md uppercase tracking-wide bg-destructive hover:bg-destructive/90"
                 onClick={() => {
                   if (paymentToDelete) {
                     deleteOrphanedPayment.mutate(paymentToDelete.id);

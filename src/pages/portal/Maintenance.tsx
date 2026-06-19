@@ -246,7 +246,7 @@ const Maintenance = () => {
     const Icon = config.icon;
 
     return (
-      <Badge className={`uppercase ${config.className} rounded-full px-2.5 py-0.5 text-xs font-medium flex items-center gap-1`}>
+      <Badge className={`uppercase ${config.className} rounded-md px-2.5 py-0.5 text-xs font-medium flex items-center gap-1`}>
         <Icon className="h-3 w-3" />
         {config.label}
       </Badge>
@@ -265,7 +265,7 @@ const Maintenance = () => {
     const config = colorByBand[info.band] || colorByBand.P3;
 
     return (
-      <Badge className={`uppercase ${config.className} rounded-full px-2.5 py-0.5 text-xs font-medium flex flex-col items-start`}>
+      <Badge className={`uppercase ${config.className} rounded-md px-2.5 py-0.5 text-xs font-medium flex flex-col items-start`}>
         <span>{info.label}</span>
         <span className="normal-case text-[10px] opacity-90">
           {info.targetWindowLabel}
@@ -428,7 +428,7 @@ const Maintenance = () => {
           <Skeleton className="h-9 w-48" />
           <Skeleton className="h-4 w-96" />
         </div>
-        <Skeleton className="h-10 w-40 rounded-full" />
+        <Skeleton className="h-10 w-40 rounded-md" />
       </div>
       <Card className="rounded-3xl border border-border/60 shadow-xl">
         <CardHeader>
@@ -442,8 +442,8 @@ const Maintenance = () => {
                 <div className="flex-1 space-y-2">
                   <Skeleton className="h-6 w-64" />
                   <div className="flex flex-wrap items-center gap-4">
-                    <Skeleton className="h-5 w-20 rounded-full" />
-                    <Skeleton className="h-5 w-20 rounded-full" />
+                    <Skeleton className="h-5 w-20 rounded-md" />
+                    <Skeleton className="h-5 w-20 rounded-md" />
                     <Skeleton className="h-4 w-32" />
                   </div>
                 </div>
@@ -469,7 +469,7 @@ const Maintenance = () => {
         <Button
           onClick={() => setCreateDialogOpen(true)}
           size="sm"
-          className="rounded-full h-9 w-9 p-0 bg-primary hover:bg-primary/90 text-primary-foreground flex-shrink-0"
+          className="rounded-md h-9 w-9 p-0 bg-primary hover:bg-primary/90 text-primary-foreground flex-shrink-0"
         >
           <Plus className="h-4 w-4" />
         </Button>
@@ -485,7 +485,7 @@ const Maintenance = () => {
           </div>
           <Button
             onClick={() => setCreateDialogOpen(true)}
-            className="rounded-full uppercase tracking-wide gap-2 hidden md:flex"
+            className="rounded-md uppercase tracking-wide gap-2 hidden md:flex"
           >
             <Plus className="h-4 w-4" />
             New Request
@@ -495,7 +495,7 @@ const Maintenance = () => {
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-4">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[180px] rounded-full">
+            <SelectTrigger className="w-[180px] rounded-md">
               <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
             <SelectContent>
@@ -524,7 +524,7 @@ const Maintenance = () => {
               </p>
               <Button
                 onClick={() => setCreateDialogOpen(true)}
-                className="rounded-full uppercase tracking-wide gap-2"
+                className="rounded-md uppercase tracking-wide gap-2"
               >
                 <Plus className="h-4 w-4" />
                 Create First Request
@@ -579,7 +579,7 @@ const Maintenance = () => {
                           )}
                         </TableCell>
                         <TableCell className="align-middle text-center">
-                          <Badge variant="outline" className="rounded-full text-xs">
+                          <Badge variant="outline" className="rounded-md text-xs">
                             {getTypeLabel(request.request_type)}
                           </Badge>
                         </TableCell>
@@ -622,11 +622,11 @@ const Maintenance = () => {
                               | "high"
                               | "emergency"
                           )}
-                          <Badge variant="outline" className="rounded-full text-xs">
+                          <Badge variant="outline" className="rounded-md text-xs">
                             {getTypeLabel(request.request_type)}
                           </Badge>
                           {request.studio && (
-                            <Badge variant="outline" className="rounded-full text-xs">
+                            <Badge variant="outline" className="rounded-md text-xs">
                               Studio {request.studio.studio_number}
                             </Badge>
                           )}
@@ -661,7 +661,7 @@ const Maintenance = () => {
                     setFormData((prev) => ({ ...prev, request_type: value }))
                   }
                 >
-                  <SelectTrigger id="request_type" className="rounded-full">
+                  <SelectTrigger id="request_type" className="rounded-md">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -690,7 +690,7 @@ const Maintenance = () => {
                       | "other"
                   ) => setFormData((prev) => ({ ...prev, category: value }))}
                 >
-                  <SelectTrigger id="category" className="rounded-full">
+                  <SelectTrigger id="category" className="rounded-md">
                     <SelectValue placeholder="Select a category" />
                   </SelectTrigger>
                   <SelectContent>
@@ -714,7 +714,7 @@ const Maintenance = () => {
                   value={formData.title}
                   onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
                   placeholder="Brief description of the issue"
-                  className="rounded-full"
+                  className="rounded-md"
                 />
               </div>
 
@@ -738,7 +738,7 @@ const Maintenance = () => {
                     setFormData((prev) => ({ ...prev, urgency: value }))
                   }
                 >
-                  <SelectTrigger id="urgency" className="rounded-full">
+                  <SelectTrigger id="urgency" className="rounded-md">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -783,7 +783,7 @@ const Maintenance = () => {
                             <button
                               type="button"
                               onClick={() => removeImage(idx)}
-                              className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 z-10"
+                              className="absolute top-1 right-1 bg-red-500 text-white rounded-md p-1 hover:bg-red-600 z-10"
                             >
                               <X className="h-3 w-3" />
                             </button>
@@ -805,7 +805,7 @@ const Maintenance = () => {
                       <Button
                         type="button"
                         variant="outline"
-                        className="w-full rounded-full gap-2"
+                        className="w-full rounded-md gap-2"
                         onClick={() => {
                           const input = document.getElementById("images") as HTMLInputElement;
                           if (input) {
@@ -833,14 +833,14 @@ const Maintenance = () => {
               <Button
                 variant="outline"
                 onClick={() => setCreateDialogOpen(false)}
-                className="rounded-full"
+                className="rounded-md"
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleSubmit}
                 disabled={createRequest.isPending || uploadingImages.length > 0}
-                className="rounded-full uppercase tracking-wide gap-2"
+                className="rounded-md uppercase tracking-wide gap-2"
               >
                 {createRequest.isPending || uploadingImages.length > 0 ? (
                   <>
@@ -903,7 +903,7 @@ const Maintenance = () => {
                           <div>
                             <Label className="text-xs text-muted-foreground">Type</Label>
                             <div className="mt-1">
-                              <Badge variant="outline" className="rounded-full text-xs">
+                              <Badge variant="outline" className="rounded-md text-xs">
                                 {getTypeLabel(selectedRequest.request_type)}
                               </Badge>
                             </div>
@@ -998,7 +998,7 @@ const Maintenance = () => {
                     <Button
                       variant="outline"
                       onClick={() => setDetailsOpen(false)}
-                      className="rounded-full"
+                      className="rounded-md"
                     >
                       Close
                     </Button>
@@ -1039,7 +1039,7 @@ const Maintenance = () => {
                           <div>
                             <Label className="text-xs text-muted-foreground">Type</Label>
                             <div className="mt-1">
-                              <Badge variant="outline" className="rounded-full text-xs">
+                              <Badge variant="outline" className="rounded-md text-xs">
                                 {getTypeLabel(selectedRequest.request_type)}
                               </Badge>
                             </div>
@@ -1134,7 +1134,7 @@ const Maintenance = () => {
                     <Button
                       variant="outline"
                       onClick={() => setDetailsOpen(false)}
-                      className="rounded-full"
+                      className="rounded-md"
                     >
                       Close
                     </Button>

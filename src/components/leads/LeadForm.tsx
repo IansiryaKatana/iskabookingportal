@@ -101,7 +101,7 @@ export const LeadForm = ({ formType, onSuccess, onCancel }: LeadFormProps) => {
   if (isSubmitted) {
     return (
       <div className="flex flex-col items-center justify-center py-12 px-4 text-center space-y-6">
-        <div className="bg-green-100 p-4 rounded-full">
+        <div className="bg-green-100 p-4 rounded-md">
           <CheckCircle2 className="h-12 w-12 text-green-600" />
         </div>
         <div className="space-y-2">
@@ -114,7 +114,7 @@ export const LeadForm = ({ formType, onSuccess, onCancel }: LeadFormProps) => {
         </div>
         <Button 
           onClick={onSuccess}
-          className="bg-accent-yellow text-black hover:bg-accent-yellow/90 rounded-full px-8 uppercase tracking-wider text-xs font-semibold"
+          className="bg-accent-yellow text-black hover:bg-accent-yellow/90 rounded-md px-8 uppercase tracking-wider text-xs font-semibold"
         >
           Close
         </Button>
@@ -250,14 +250,14 @@ export const LeadForm = ({ formType, onSuccess, onCancel }: LeadFormProps) => {
             type="button"
             variant="outline"
             onClick={onCancel}
-            className="w-full md:w-auto rounded-full uppercase tracking-wider text-xs font-semibold"
+            className="w-full md:w-auto rounded-md uppercase tracking-wider text-xs font-semibold"
           >
             Cancel
           </Button>
           <Button
             type="submit"
             disabled={isSubmitting}
-            className="w-full md:w-auto bg-accent-yellow text-black hover:bg-accent-yellow/90 rounded-full uppercase tracking-wider text-xs font-semibold"
+            className="w-full md:w-auto bg-accent-yellow text-black hover:bg-accent-yellow/90 rounded-md uppercase tracking-wider text-xs font-semibold"
           >
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {formType === "booking" ? "Confirm Booking" : "Request Callback"}

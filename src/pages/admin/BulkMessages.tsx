@@ -53,7 +53,7 @@ const BulkMessages = () => {
       if (template.body_text) {
         // Use body_text if available (cleaner)
         plainText = template.body_text.replace(/{[^}]+}/g, (match) => {
-          const varName = match.replace(/[{}]/g, "");
+          const varName = match.replace(/[{}]/g);
           return varName === "student_name" ? "Student" : varName.replace(/_/g, " ");
         }).substring(0, 200);
       } else if (template.body_html) {
@@ -63,7 +63,7 @@ const BulkMessages = () => {
         plainText = tempDiv.textContent || tempDiv.innerText || "";
         // Replace variables with readable placeholders
         plainText = plainText.replace(/{[^}]+}/g, (match) => {
-          const varName = match.replace(/[{}]/g, "");
+          const varName = match.replace(/[{}]/g);
           return varName === "student_name" ? "Student" : varName.replace(/_/g, " ");
         });
         // Clean up whitespace
@@ -74,7 +74,7 @@ const BulkMessages = () => {
         ...formData,
         email_template_id: templateId,
         title: formData.title || template.subject.replace(/{[^}]+}/g, (match) => {
-          const varName = match.replace(/[{}]/g, "");
+          const varName = match.replace(/[{}]/g);
           return varName === "student_name" ? "Student" : varName.replace(/_/g, " ");
         }),
         message: formData.message || plainText,
@@ -162,7 +162,7 @@ const BulkMessages = () => {
     };
 
     return (
-      <Badge className={`uppercase ${config.className} rounded-full px-2.5 py-0.5 text-xs font-medium`}>
+      <Badge className={`uppercase ${config.className} rounded-md px-2.5 py-0.5 text-xs font-medium`}>
         {config.label}
       </Badge>
     );
@@ -193,7 +193,7 @@ const BulkMessages = () => {
         <Button
           onClick={() => setDialogOpen(true)}
           size="sm"
-          className="rounded-full h-9 w-9 p-0 bg-red-600 hover:bg-red-700 text-white flex-shrink-0"
+          className="rounded-md h-9 w-9 p-0 bg-red-600 hover:bg-red-700 text-white flex-shrink-0"
         >
           <Plus className="h-4 w-4" />
         </Button>
@@ -211,7 +211,7 @@ const BulkMessages = () => {
           </div>
           <Button
             onClick={() => setDialogOpen(true)}
-            className="rounded-full uppercase tracking-wide gap-2"
+            className="rounded-md uppercase tracking-wide gap-2"
           >
             <Plus className="h-4 w-4" />
             New Message
@@ -277,7 +277,7 @@ const BulkMessages = () => {
             <CardContent>
               <Button
                 onClick={() => setDialogOpen(true)}
-                className="rounded-full uppercase tracking-wide gap-2"
+                className="rounded-md uppercase tracking-wide gap-2"
               >
                 <Plus className="h-4 w-4" />
                 Send Message
@@ -388,7 +388,7 @@ const BulkMessages = () => {
                   type="button"
                   variant="outline"
                   onClick={() => setPreviewOpen(true)}
-                  className="rounded-full uppercase tracking-wide gap-2 w-full"
+                  className="rounded-md uppercase tracking-wide gap-2 w-full"
                 >
                   <Eye className="h-4 w-4" />
                   Preview Email
@@ -397,13 +397,13 @@ const BulkMessages = () => {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)} className="rounded-full uppercase tracking-wide">
+            <Button variant="outline" onClick={() => setDialogOpen(false)} className="rounded-md uppercase tracking-wide">
               Cancel
             </Button>
             <Button
               onClick={handleSubmit}
               disabled={sendMessage.isPending || !formData.email_template_id}
-              className="rounded-full uppercase tracking-wide gap-2"
+              className="rounded-md uppercase tracking-wide gap-2"
             >
               <Send className="h-4 w-4" />
               {sendMessage.isPending ? "Sending..." : "Send Message"}
@@ -426,12 +426,12 @@ const BulkMessages = () => {
           </DialogHeader>
           {selectedTemplate && (
             <Tabs defaultValue="email" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 rounded-full">
-                <TabsTrigger value="email" className="rounded-full uppercase tracking-wide">
+              <TabsList className="grid w-full grid-cols-2 rounded-md">
+                <TabsTrigger value="email" className="rounded-md uppercase tracking-wide">
                   <Mail className="h-4 w-4 mr-2" />
                   Email
                 </TabsTrigger>
-                <TabsTrigger value="notification" className="rounded-full uppercase tracking-wide">
+                <TabsTrigger value="notification" className="rounded-md uppercase tracking-wide">
                   <Bell className="h-4 w-4 mr-2" />
                   Notification
                 </TabsTrigger>
@@ -442,7 +442,7 @@ const BulkMessages = () => {
                     <CardTitle className="text-sm font-medium">Email Subject</CardTitle>
                     <CardDescription className="font-mono text-xs">
                       {selectedTemplate.subject.replace(/{[^}]+}/g, (match) => {
-                        const varName = match.replace(/[{}]/g, "");
+                        const varName = match.replace(/[{}]/g);
                         return `[${varName}]`;
                       })}
                     </CardDescription>
@@ -453,7 +453,7 @@ const BulkMessages = () => {
                         dangerouslySetInnerHTML={{
                           __html: selectedTemplate.body_html
                             ? selectedTemplate.body_html.replace(/{[^}]+}/g, (match) => {
-                                const varName = match.replace(/[{}]/g, "");
+                                const varName = match.replace(/[{}]/g);
                                 return `<span class="bg-yellow-100 px-1 rounded font-mono text-xs">[${varName}]</span>`;
                               })
                             : selectedTemplate.body_text || "",
@@ -482,7 +482,7 @@ const BulkMessages = () => {
                     </div>
                     <div>
                       <Label className="text-xs text-muted-foreground">Type</Label>
-                      <Badge className="uppercase rounded-full px-2.5 py-0.5 text-xs font-medium mt-1">
+                      <Badge className="uppercase rounded-md px-2.5 py-0.5 text-xs font-medium mt-1">
                         {formData.notification_type}
                       </Badge>
                     </div>
@@ -492,7 +492,7 @@ const BulkMessages = () => {
             </Tabs>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPreviewOpen(false)} className="rounded-full uppercase tracking-wide">
+            <Button variant="outline" onClick={() => setPreviewOpen(false)} className="rounded-md uppercase tracking-wide">
               Close
             </Button>
           </DialogFooter>

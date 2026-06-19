@@ -8,6 +8,7 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { FinanceStatusBadge } from "@/components/finance/FinanceStatusBadge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -963,7 +964,7 @@ const PaymentHistory = () => {
       mobileActionButton={
         <div className="flex items-center gap-2">
           <Select value={selectedYear} onValueChange={setSelectedYear}>
-            <SelectTrigger id="year-mobile" className="h-9 w-[140px] rounded-full">
+            <SelectTrigger id="year-mobile" className="h-9 w-[140px] rounded-md">
               <SelectValue placeholder="Academic Year" />
             </SelectTrigger>
             <SelectContent>
@@ -978,7 +979,7 @@ const PaymentHistory = () => {
           <Button
             size="sm"
             variant="outline"
-            className="rounded-full p-2 h-9 w-9 flex-shrink-0"
+            className="rounded-md p-2 h-9 w-9 flex-shrink-0"
             onClick={exportToCSV}
             disabled={!filteredPayments || filteredPayments.length === 0}
           >
@@ -990,7 +991,7 @@ const PaymentHistory = () => {
       <div className="space-y-6">
         <div className="hidden lg:flex items-center justify-end gap-3">
           <Select value={selectedYear} onValueChange={setSelectedYear}>
-            <SelectTrigger id="year-header" className="w-[180px] rounded-full">
+            <SelectTrigger id="year-header" className="w-[180px] rounded-md">
               <SelectValue placeholder="Academic Year" />
             </SelectTrigger>
             <SelectContent>
@@ -1006,7 +1007,7 @@ const PaymentHistory = () => {
             <DropdownMenuTrigger asChild>
               <Button
                 disabled={!filteredPayments || filteredPayments.length === 0}
-                className="rounded-full uppercase tracking-wide gap-2"
+                className="rounded-md uppercase tracking-wide gap-2"
               >
                 <Download className="h-4 w-4" />
                 Download CSV
@@ -1092,7 +1093,7 @@ const PaymentHistory = () => {
                     placeholder="e.g. John Smith"
                     value={searchByName}
                     onChange={(e) => setSearchByName(e.target.value)}
-                    className="pl-9 rounded-full"
+                    className="pl-9 rounded-md"
                   />
                 </div>
               </div>
@@ -1198,7 +1199,7 @@ const PaymentHistory = () => {
                   onClick={handleSyncPayments}
                   disabled={isSyncing || isBulkSyncingAwaitingDeposit}
                   variant="outline"
-                  className="rounded-full uppercase tracking-wide gap-2"
+                  className="rounded-md uppercase tracking-wide gap-2"
                 >
                   <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
                   {isSyncing ? "Syncing..." : "Sync Missing Payments"}
@@ -1207,7 +1208,7 @@ const PaymentHistory = () => {
                   onClick={handleBulkSyncAwaitingDeposit}
                   disabled={isBulkSyncingAwaitingDeposit || isSyncing}
                   variant="outline"
-                  className="rounded-full uppercase tracking-wide gap-2"
+                  className="rounded-md uppercase tracking-wide gap-2"
                 >
                   <RefreshCw className={`h-4 w-4 ${isBulkSyncingAwaitingDeposit ? "animate-spin" : ""}`} />
                   {isBulkSyncingAwaitingDeposit ? "Syncing Awaiting..." : "Sync All Awaiting Deposit"}
@@ -1220,7 +1221,7 @@ const PaymentHistory = () => {
                           onClick={handleBulkDownloadReceipts}
                           disabled={isGeneratingReceipts}
                           variant="outline"
-                          className="rounded-full uppercase tracking-wide gap-2"
+                          className="rounded-md uppercase tracking-wide gap-2"
                         >
                           <Download className="h-4 w-4" />
                           Download {selectedPayments.size} Receipt{selectedPayments.size !== 1 ? "s" : ""}
@@ -1230,7 +1231,7 @@ const PaymentHistory = () => {
                             onClick={() => setBulkDeleteDialogOpen(true)}
                             disabled={bulkDeleteManualPayments.isPending}
                             variant="outline"
-                            className="rounded-full uppercase tracking-wide gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            className="rounded-md uppercase tracking-wide gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
                           >
                             <Trash className="h-4 w-4" />
                             Bulk delete ({selectedManualCount})
@@ -1242,7 +1243,7 @@ const PaymentHistory = () => {
                       <DropdownMenuTrigger asChild>
                         <Button
                           variant="outline"
-                          className="rounded-full uppercase tracking-wide gap-2"
+                          className="rounded-md uppercase tracking-wide gap-2"
                           disabled={!filteredPayments || filteredPayments.length === 0}
                         >
                           <Download className="h-4 w-4" />
@@ -1268,7 +1269,7 @@ const PaymentHistory = () => {
                       onClick={toggleSelectAll}
                       variant="ghost"
                       size="sm"
-                      className="rounded-full"
+                      className="rounded-md"
                     >
                       {allInCurrentTabSelected ? "Deselect all in tab" : "Select all in tab"}
                     </Button>
@@ -1298,10 +1299,10 @@ const PaymentHistory = () => {
                 onValueChange={setActivePaymentTab}
                 className="w-full"
               >
-                <TabsList className="grid w-full grid-cols-3 rounded-full bg-muted border border-border p-1 mb-4">
+                <TabsList className="grid w-full grid-cols-3 rounded-md bg-muted border border-border p-1 mb-4">
                   <TabsTrigger
                     value="all"
-                    className="group rounded-full data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+                    className="group rounded-md data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
                   >
                     All Payments
                     {allPayments.length > 0 && (
@@ -1315,7 +1316,7 @@ const PaymentHistory = () => {
                   </TabsTrigger>
                   <TabsTrigger
                     value="deposits"
-                    className="group rounded-full data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+                    className="group rounded-md data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
                   >
                     Deposits
                     {deposits.length > 0 && (
@@ -1329,7 +1330,7 @@ const PaymentHistory = () => {
                   </TabsTrigger>
                   <TabsTrigger
                     value="installments"
-                    className="group rounded-full data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+                    className="group rounded-md data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
                   >
                     Installments
                     {installments.length > 0 && (
@@ -1421,7 +1422,7 @@ const PaymentHistory = () => {
                 min="0"
                 value={editAmount}
                 onChange={(e) => setEditAmount(e.target.value)}
-                className="rounded-full"
+                className="rounded-md"
               />
             </div>
             <div className="space-y-1">
@@ -1431,7 +1432,7 @@ const PaymentHistory = () => {
                 type="date"
                 value={editPaymentDate}
                 onChange={(e) => setEditPaymentDate(e.target.value)}
-                className="rounded-full"
+                className="rounded-md"
               />
             </div>
             <div className="space-y-1">
@@ -1442,7 +1443,7 @@ const PaymentHistory = () => {
                   setEditPaymentMethod(value as "cash" | "card" | "bank_transfer" | "cheque")
                 }
               >
-                <SelectTrigger id="edit-method" className="rounded-full">
+                <SelectTrigger id="edit-method" className="rounded-md">
                   <SelectValue placeholder="Select method" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1459,7 +1460,7 @@ const PaymentHistory = () => {
                 id="edit-receipt"
                 value={editReceiptNumber}
                 onChange={(e) => setEditReceiptNumber(e.target.value)}
-                className="rounded-full"
+                className="rounded-md"
               />
             </div>
             <div className="space-y-1">
@@ -1477,14 +1478,14 @@ const PaymentHistory = () => {
             <Button
               variant="outline"
               onClick={() => setEditingPayment(null)}
-              className="rounded-full uppercase tracking-wide"
+              className="rounded-md uppercase tracking-wide"
             >
               Cancel
             </Button>
             <Button
               onClick={handleSaveEdit}
               disabled={updateManualPayment.isPending}
-              className="rounded-full uppercase tracking-wide"
+              className="rounded-md uppercase tracking-wide"
             >
               {updateManualPayment.isPending ? "Saving..." : "Save changes"}
             </Button>
@@ -1511,7 +1512,7 @@ const PaymentHistory = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2">
-            <AlertDialogCancel className="rounded-full text-xs md:text-sm">
+            <AlertDialogCancel className="rounded-md text-xs md:text-sm">
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
@@ -1520,7 +1521,7 @@ const PaymentHistory = () => {
                 deleteManualPayment.mutate(paymentToDelete);
               }}
               disabled={deleteManualPayment.isPending}
-              className="rounded-full bg-destructive hover:bg-destructive/90 text-xs md:text-sm"
+              className="rounded-md bg-destructive hover:bg-destructive/90 text-xs md:text-sm"
             >
               {deleteManualPayment.isPending ? "Deleting..." : "Delete payment"}
             </AlertDialogAction>
@@ -1544,13 +1545,13 @@ const PaymentHistory = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2">
-            <AlertDialogCancel className="rounded-full text-xs md:text-sm">
+            <AlertDialogCancel className="rounded-md text-xs md:text-sm">
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => bulkDeleteManualPayments.mutate(selectedManualPayments)}
               disabled={bulkDeleteManualPayments.isPending}
-              className="rounded-full bg-destructive hover:bg-destructive/90 text-xs md:text-sm"
+              className="rounded-md bg-destructive hover:bg-destructive/90 text-xs md:text-sm"
             >
               {bulkDeleteManualPayments.isPending ? "Deleting..." : `Delete ${selectedManualCount} payment(s)`}
             </AlertDialogAction>
@@ -1637,26 +1638,13 @@ const PaymentList = ({
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Badge
-                variant={
-                  payment.payment_status === "succeeded" || payment.payment_status === "completed"
-                    ? "default"
-                    : "outline"
-                }
-                className={
-                  payment.payment_status === "succeeded" || payment.payment_status === "completed"
-                    ? "bg-green-600 hover:bg-green-700 text-white"
-                    : ""
-                }
-              >
-                {payment.payment_status}
-              </Badge>
+              <FinanceStatusBadge status={payment.payment_status} />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="rounded-full p-1"
+                    className="rounded-md p-1"
                     aria-label="Payment actions"
                   >
                     <MoreVertical className="h-4 w-4" />

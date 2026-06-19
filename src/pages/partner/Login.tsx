@@ -202,7 +202,7 @@ const PartnerLogin = () => {
                     {[1, 2].map((i) => (
                       <div key={i} className="bg-white/10 rounded-lg p-3">
                         <Skeleton className="h-3 w-16 mb-2 bg-white/30" />
-                        <Skeleton className="h-2 w-full mb-1 bg-white/30 rounded-full" />
+                        <Skeleton className="h-2 w-full mb-1 bg-white/30 rounded-md" />
                         <Skeleton className="h-3 w-8 bg-white/30" />
                       </div>
                     ))}
@@ -239,14 +239,14 @@ const PartnerLogin = () => {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-white/10 rounded-lg p-3">
                       <div className="text-xs mb-2 text-white/80">Referrals</div>
-                      <div className="h-2 bg-white/20 rounded-full overflow-hidden">
+                      <div className="h-2 bg-white/20 rounded-md overflow-hidden">
                         <div className="h-full bg-white w-[75%]"></div>
                       </div>
                       <div className="text-xs mt-1 text-white/80">75%</div>
                     </div>
                     <div className="bg-white/10 rounded-lg p-3">
                       <div className="text-xs mb-2 text-white/80">Commissions</div>
-                      <div className="h-2 bg-white/20 rounded-full overflow-hidden">
+                      <div className="h-2 bg-white/20 rounded-md overflow-hidden">
                         <div className="h-full bg-white w-[90%]"></div>
                       </div>
                       <div className="text-xs mt-1 text-white/80">90%</div>

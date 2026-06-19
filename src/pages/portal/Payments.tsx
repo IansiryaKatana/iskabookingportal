@@ -13,6 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { FinanceStatusBadge } from "@/components/finance/FinanceStatusBadge";
 import {
   Tooltip,
   TooltipContent,
@@ -436,14 +437,14 @@ const Payments = () => {
                 <div className="flex-1 space-y-2">
                   <div className="flex items-center gap-3">
                     <Skeleton className="h-6 w-32" />
-                    <Skeleton className="h-5 w-20 rounded-full" />
+                    <Skeleton className="h-5 w-20 rounded-md" />
                   </div>
                   <div className="flex flex-wrap items-center gap-6">
                     <Skeleton className="h-4 w-28" />
                     <Skeleton className="h-4 w-24" />
                   </div>
                 </div>
-                <Skeleton className="h-10 w-24 rounded-full" />
+                <Skeleton className="h-10 w-24 rounded-md" />
               </div>
             </div>
           ))}
@@ -474,7 +475,7 @@ const Payments = () => {
           </CardHeader>
           <CardContent>
             <Button
-              className="rounded-full uppercase tracking-wide"
+              className="rounded-md uppercase tracking-wide"
               onClick={() => navigate("/portal")}
             >
               View Applications
@@ -764,14 +765,14 @@ const PaymentCard = ({
                 <div className="flex-1 space-y-2">
                   <div className="flex items-center gap-3">
                     <Skeleton className="h-6 w-32" />
-                    <Skeleton className="h-5 w-20 rounded-full" />
+                    <Skeleton className="h-5 w-20 rounded-md" />
                   </div>
                   <div className="flex flex-wrap items-center gap-6">
                     <Skeleton className="h-4 w-28" />
                     <Skeleton className="h-4 w-24" />
                   </div>
                 </div>
-                <Skeleton className="h-10 w-24 rounded-full" />
+                <Skeleton className="h-10 w-24 rounded-md" />
               </div>
             </div>
           ))}
@@ -954,9 +955,7 @@ const PaymentCard = ({
                     <h3 className="font-semibold text-lg">
                       {instalment.label || `Instalment ${instalment.sequence}`}
                     </h3>
-                    <Badge variant={status.color as "default" | "destructive" | "secondary"}>
-                      {status.label}
-                    </Badge>
+                    <FinanceStatusBadge status={status.status} label={status.label} />
                   </div>
                   <div className="flex flex-wrap items-center gap-6 text-sm text-muted-foreground">
                     <div className="flex items-center gap-2">
@@ -998,7 +997,7 @@ const PaymentCard = ({
                 {!isPaying && !isPaid && !isPendingRequest && (
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                     <Button
-                      className="rounded-full uppercase tracking-wide"
+                      className="rounded-md uppercase tracking-wide"
                       onClick={() =>
                         onPayInstalment(
                           application.id,
@@ -1021,7 +1020,7 @@ const PaymentCard = ({
                     <Button
                       variant="outline"
                       size="sm"
-                      className="rounded-full uppercase tracking-wide text-xs"
+                      className="rounded-md uppercase tracking-wide text-xs"
                       onClick={() =>
                         setManualRequestInstalment({
                           instalmentId: instalment.id,
@@ -1036,19 +1035,15 @@ const PaymentCard = ({
                   </div>
                 )}
                 {isPendingRequest && (
-                  <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
-                    <Clock className="h-3 w-3 mr-1" />
-                    Pending approval
-                  </Badge>
+                  <FinanceStatusBadge status="pending" label="Pending approval" />
                 )}
                 {rejectedRequest && !isPaid && !isPendingRequest && (
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Badge variant="secondary" className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200 cursor-help">
-                          <XCircle className="h-3 w-3 mr-1" />
-                          Request rejected
-                        </Badge>
+                        <span className="cursor-help">
+                          <FinanceStatusBadge status="rejected" label="Request rejected" />
+                        </span>
                       </TooltipTrigger>
                       <TooltipContent side="bottom" className="max-w-xs">
                         <p className="font-medium">Your request was declined.</p>
@@ -1067,10 +1062,7 @@ const PaymentCard = ({
                   </TooltipProvider>
                 )}
                 {isPaid && (
-                  <Badge className="bg-green-600 text-white">
-                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                    Paid
-                  </Badge>
+                  <FinanceStatusBadge status="paid" label="Paid" />
                 )}
               </div>
 
@@ -1081,7 +1073,7 @@ const PaymentCard = ({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="rounded-full"
+                      className="rounded-md"
                       onClick={onCancelPayment}
                     >
                       Cancel
@@ -1142,22 +1134,13 @@ const PaymentCard = ({
                       {format(new Date(req.submitted_at), "d MMM yyyy, HH:mm")}
                     </span>
                     {req.status === "pending" && (
-                      <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200 text-xs">
-                        <Clock className="h-3 w-3 mr-1" />
-                        Pending approval
-                      </Badge>
+                      <FinanceStatusBadge status="pending" label="Pending approval" className="text-xs" />
                     )}
                     {req.status === "rejected" && (
-                      <Badge variant="secondary" className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200 text-xs">
-                        <XCircle className="h-3 w-3 mr-1" />
-                        Rejected
-                      </Badge>
+                      <FinanceStatusBadge status="rejected" label="Rejected" className="text-xs" />
                     )}
                     {req.status === "approved" && (
-                      <Badge className="bg-green-600 text-white text-xs">
-                        <CheckCircle2 className="h-3 w-3 mr-1" />
-                        Approved
-                      </Badge>
+                      <FinanceStatusBadge status="paid" label="Approved" className="text-xs" />
                     )}
                   </div>
                   {req.status === "rejected" && req.rejection_reason && (
@@ -1251,7 +1234,7 @@ const PaymentHistorySection = ({ applications }: PaymentHistorySectionProps) => 
                 key={app.id}
                 variant={selectedApplicationId === app.id ? "default" : "outline"}
                 size="sm"
-                className="rounded-full"
+                className="rounded-md"
                 onClick={() => setSelectedApplicationId(app.id)}
               >
                 {app.contract?.name || "Application"}
@@ -1274,8 +1257,8 @@ const PaymentHistorySection = ({ applications }: PaymentHistorySectionProps) => 
           </div>
         ) : (
           <Tabs defaultValue="all" className="w-full">
-            <TabsList className="grid w-full grid-cols-3 rounded-full bg-muted/50">
-              <TabsTrigger value="all" className="rounded-full">
+            <TabsList className="grid w-full grid-cols-3 rounded-md bg-muted/50">
+              <TabsTrigger value="all" className="rounded-md">
                 All Payments
                 {allPayments.length > 0 && (
                   <Badge variant="secondary" className="ml-2 text-xs">
@@ -1283,7 +1266,7 @@ const PaymentHistorySection = ({ applications }: PaymentHistorySectionProps) => 
                   </Badge>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="deposits" className="rounded-full">
+              <TabsTrigger value="deposits" className="rounded-md">
                 Deposits
                 {deposits.length > 0 && (
                   <Badge variant="secondary" className="ml-2 text-xs">
@@ -1291,7 +1274,7 @@ const PaymentHistorySection = ({ applications }: PaymentHistorySectionProps) => 
                   </Badge>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="installments" className="rounded-full">
+              <TabsTrigger value="installments" className="rounded-md">
                 Installments
                 {installments.length > 0 && (
                   <Badge variant="secondary" className="ml-2 text-xs">
@@ -1440,10 +1423,7 @@ const PaymentList = ({ payments }: PaymentListProps) => {
                   {payment.payment_source === "stripe" ? "Stripe" : "Manual"}
                 </Badge>
                 {isPaid && (
-                  <Badge className="bg-green-600 text-white text-xs">
-                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                    Completed
-                  </Badge>
+                  <FinanceStatusBadge status="completed" label="Completed" className="text-xs" />
                 )}
               </div>
               <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
@@ -1476,7 +1456,7 @@ const PaymentList = ({ payments }: PaymentListProps) => {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="rounded-full"
+                  className="rounded-md"
                   onClick={() => handleDownloadReceipt(payment)}
                   disabled={isDownloading}
                   title="Download Receipt"

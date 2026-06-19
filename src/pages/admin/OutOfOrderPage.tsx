@@ -373,7 +373,7 @@ const OutOfOrderPage = () => {
                     setFormMaintenanceRequestId(null);
                     setCreateDialogOpen(true);
                   }}
-                  className="rounded-full"
+                  className="rounded-md"
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   New Out of Order
@@ -386,7 +386,7 @@ const OutOfOrderPage = () => {
               <div className="space-y-2">
                 <Label className="text-xs md:text-sm">Status</Label>
                 <Select value={activeFilter} onValueChange={setActiveFilter}>
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger className="rounded-md">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -402,7 +402,7 @@ const OutOfOrderPage = () => {
                   placeholder="Studio, reason, maintenance request..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="rounded-full text-sm md:text-base"
+                  className="rounded-md text-sm md:text-base"
                 />
               </div>
             </div>
@@ -495,22 +495,22 @@ const OutOfOrderPage = () => {
                             </TableCell>
                             <TableCell>
                               {record.is_active ? (
-                                <Badge className="bg-red-500 hover:bg-red-600 text-white rounded-full">
+                                <Badge className="bg-red-500 hover:bg-red-600 text-white rounded-md">
                                   Active
                                 </Badge>
                               ) : (
-                                <Badge className="bg-gray-500 hover:bg-gray-600 text-white rounded-full">
+                                <Badge className="bg-gray-500 hover:bg-gray-600 text-white rounded-md">
                                   Closed
                                 </Badge>
                               )}
                             </TableCell>
                             <TableCell>
                               {record.is_blocking ? (
-                                <Badge variant="destructive" className="rounded-full text-xs">
+                                <Badge variant="destructive" className="rounded-md text-xs">
                                   Blocking
                                 </Badge>
                               ) : (
-                                <Badge variant="outline" className="rounded-full text-xs">
+                                <Badge variant="outline" className="rounded-md text-xs">
                                   Non-blocking
                                 </Badge>
                               )}
@@ -523,7 +523,7 @@ const OutOfOrderPage = () => {
                                       onClick={() => handleEdit(record)}
                                       variant="outline"
                                       size="sm"
-                                      className="rounded-full text-xs"
+                                      className="rounded-md text-xs"
                                     >
                                       Edit
                                     </Button>
@@ -532,7 +532,7 @@ const OutOfOrderPage = () => {
                                         onClick={() => handleCloseRecord(record)}
                                         variant="destructive"
                                         size="sm"
-                                        className="rounded-full text-xs"
+                                        className="rounded-md text-xs"
                                       >
                                         Close
                                       </Button>
@@ -541,7 +541,7 @@ const OutOfOrderPage = () => {
                                         onClick={() => handleReopenRecord(record)}
                                         variant="outline"
                                         size="sm"
-                                        className="rounded-full text-xs"
+                                        className="rounded-md text-xs"
                                       >
                                         Reopen
                                       </Button>
@@ -580,11 +580,11 @@ const OutOfOrderPage = () => {
                                 <p className="text-xs text-muted-foreground">{record.reason}</p>
                               </div>
                               {record.is_active ? (
-                                <Badge className="bg-red-500 hover:bg-red-600 text-white rounded-full">
+                                <Badge className="bg-red-500 hover:bg-red-600 text-white rounded-md">
                                   Active
                                 </Badge>
                               ) : (
-                                <Badge className="bg-gray-500 hover:bg-gray-600 text-white rounded-full">
+                                <Badge className="bg-gray-500 hover:bg-gray-600 text-white rounded-md">
                                   Closed
                                 </Badge>
                               )}
@@ -617,7 +617,7 @@ const OutOfOrderPage = () => {
                             </div>
                             <div className="flex gap-2">
                               {record.is_blocking && (
-                                <Badge variant="destructive" className="rounded-full text-xs">
+                                <Badge variant="destructive" className="rounded-md text-xs">
                                   Blocking
                                 </Badge>
                               )}
@@ -628,7 +628,7 @@ const OutOfOrderPage = () => {
                                   onClick={() => handleEdit(record)}
                                   variant="outline"
                                   size="sm"
-                                  className="rounded-full text-xs flex-1"
+                                  className="rounded-md text-xs flex-1"
                                 >
                                   Edit
                                 </Button>
@@ -637,7 +637,7 @@ const OutOfOrderPage = () => {
                                     onClick={() => handleCloseRecord(record)}
                                     variant="destructive"
                                     size="sm"
-                                    className="rounded-full text-xs flex-1"
+                                    className="rounded-md text-xs flex-1"
                                   >
                                     Close
                                   </Button>
@@ -646,7 +646,7 @@ const OutOfOrderPage = () => {
                                     onClick={() => handleReopenRecord(record)}
                                     variant="outline"
                                     size="sm"
-                                    className="rounded-full text-xs flex-1"
+                                    className="rounded-md text-xs flex-1"
                                   >
                                     Reopen
                                   </Button>
@@ -678,7 +678,7 @@ const OutOfOrderPage = () => {
                 <div className="space-y-2">
                   <Label>Studio <span className="text-red-500">*</span></Label>
                   <Select value={formStudioId} onValueChange={setFormStudioId}>
-                    <SelectTrigger className="rounded-full">
+                    <SelectTrigger className="rounded-md">
                       <SelectValue placeholder="Select studio..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -705,7 +705,7 @@ const OutOfOrderPage = () => {
                     value={formMaintenanceRequestId || "none"} 
                     onValueChange={(value) => setFormMaintenanceRequestId(value === "none" ? null : value)}
                   >
-                    <SelectTrigger className="rounded-full">
+                    <SelectTrigger className="rounded-md">
                       <SelectValue placeholder="Select maintenance request..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -724,7 +724,7 @@ const OutOfOrderPage = () => {
                     type="datetime-local"
                     value={formStartAt}
                     onChange={(e) => setFormStartAt(e.target.value)}
-                    className="rounded-full"
+                    className="rounded-md"
                   />
                 </div>
                 <div className="space-y-2">
@@ -733,7 +733,7 @@ const OutOfOrderPage = () => {
                     type="datetime-local"
                     value={formExpectedEndAt}
                     onChange={(e) => setFormExpectedEndAt(e.target.value)}
-                    className="rounded-full"
+                    className="rounded-md"
                   />
                 </div>
                 <div className="flex items-center space-x-2">
@@ -749,10 +749,10 @@ const OutOfOrderPage = () => {
               </div>
             </ScrollArea>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setCreateDialogOpen(false)} className="rounded-full">
+              <Button variant="outline" onClick={() => setCreateDialogOpen(false)} className="rounded-md">
                 Cancel
               </Button>
-              <Button onClick={handleCreate} className="rounded-full">
+              <Button onClick={handleCreate} className="rounded-md">
                 Create
               </Button>
             </DialogFooter>
@@ -775,7 +775,7 @@ const OutOfOrderPage = () => {
                   <Input
                     value={selectedRecord?.studio?.studio_number || "N/A"}
                     disabled
-                    className="rounded-full"
+                    className="rounded-md"
                   />
                 </div>
                 <div className="space-y-2">
@@ -793,7 +793,7 @@ const OutOfOrderPage = () => {
                     value={formMaintenanceRequestId || "none"} 
                     onValueChange={(value) => setFormMaintenanceRequestId(value === "none" ? null : value)}
                   >
-                    <SelectTrigger className="rounded-full">
+                    <SelectTrigger className="rounded-md">
                       <SelectValue placeholder="Select maintenance request..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -812,7 +812,7 @@ const OutOfOrderPage = () => {
                     type="datetime-local"
                     value={formStartAt}
                     onChange={(e) => setFormStartAt(e.target.value)}
-                    className="rounded-full"
+                    className="rounded-md"
                   />
                 </div>
                 <div className="space-y-2">
@@ -821,7 +821,7 @@ const OutOfOrderPage = () => {
                     type="datetime-local"
                     value={formExpectedEndAt}
                     onChange={(e) => setFormExpectedEndAt(e.target.value)}
-                    className="rounded-full"
+                    className="rounded-md"
                   />
                 </div>
                 <div className="flex items-center space-x-2">
@@ -837,10 +837,10 @@ const OutOfOrderPage = () => {
               </div>
             </ScrollArea>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setEditDialogOpen(false)} className="rounded-full">
+              <Button variant="outline" onClick={() => setEditDialogOpen(false)} className="rounded-md">
                 Cancel
               </Button>
-              <Button onClick={handleUpdate} className="rounded-full">
+              <Button onClick={handleUpdate} className="rounded-md">
                 Update
               </Button>
             </DialogFooter>

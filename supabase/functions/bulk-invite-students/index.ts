@@ -1,7 +1,8 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+﻿import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { getCorsHeaders, handleCorsPrelight } from "../_shared/cors.ts";
 import { getCredential } from "../_shared/get-credential.ts";
+import { buildPortalRecoveryLink, resolvePortalUrl } from "../_shared/recovery-link.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -244,8 +245,7 @@ serve(async (req) => {
       console.log(`Resend API key: present (${fromDbKey?.trim() ? "database" : "env"}, length ${resendApiKey.length})`);
     }
 
-    // Get portal URL
-    const portalUrl = Deno.env.get("PORTAL_URL") || "https://portal.urbanhub.uk";
+    const portalUrl = resolvePortalUrl();
 
     // Get branding settings (company name) for template replacement
     const { data: brandingSettings } = await supabaseAdmin
@@ -295,7 +295,7 @@ serve(async (req) => {
                 ? parseInt(retryAfter) * 1000 
                 : Math.min(1000 * Math.pow(2, attempt), 10000); // Exponential backoff, max 10s
               
-              console.warn(`⚠ Rate limit hit for ${email}. Waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
+              console.warn(`âš  Rate limit hit for ${email}. Waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
               await delay(waitTime);
               continue; // Retry
             }
@@ -306,7 +306,7 @@ serve(async (req) => {
         } catch (fetchError: any) {
           if (attempt < maxRetries - 1) {
             const waitTime = 1000 * Math.pow(2, attempt); // Exponential backoff
-            console.warn(`⚠ Network error for ${email} (attempt ${attempt + 1}). Waiting ${waitTime}ms before retry`);
+            console.warn(`âš  Network error for ${email} (attempt ${attempt + 1}). Waiting ${waitTime}ms before retry`);
             await delay(waitTime);
           } else {
             throw fetchError;
@@ -395,17 +395,37 @@ serve(async (req) => {
           type: "recovery",
           email: email.toLowerCase().trim(),
           options: {
-          redirectTo: `https://portal.urbanhub.uk/portal/reset-password`,
+          redirectTo: `${portalUrl}/portal/reset-password`,
         },
       });
 
-        if (linkError || !linkData) {
+        if (linkError || !linkData?.properties) {
           results.failed++;
           results.errors.push({
             email,
             error: linkError?.message || "Failed to generate invitation link",
           });
           // Still add delay to maintain rate limit even for failed
+          if (i < applications.length - 1) {
+            await delay(RATE_LIMIT_DELAY_MS);
+          }
+          continue;
+        }
+
+        let invitationLink: string;
+        try {
+          invitationLink = buildPortalRecoveryLink(
+            portalUrl,
+            "/portal/reset-password",
+            linkData.properties,
+            "recovery",
+          );
+        } catch (linkBuildError: any) {
+          results.failed++;
+          results.errors.push({
+            email,
+            error: linkBuildError?.message || "Failed to build invitation link",
+          });
           if (i < applications.length - 1) {
             await delay(RATE_LIMIT_DELAY_MS);
           }
@@ -427,7 +447,6 @@ serve(async (req) => {
         const contractName = app.contract?.name || "Your Contract";
         const academicYear = app.contract?.academic_years?.name || "";
         const expirationDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString();
-        const invitationLink = linkData.properties.action_link;
 
         const vars: Record<string, string> = {
           student_name: firstName,
@@ -490,7 +509,7 @@ serve(async (req) => {
 <p style="color: #666; font-size: 14px;">Or copy this link: ${invitationLink}</p>
 <p style="color: #666; font-size: 14px;">This link expires on ${expirationDate}.</p>
 <p>Portal: <a href="${portalUrl}">${portalUrl}</a></p>
-<p>— ${companyName}</p>
+<p>â€” ${companyName}</p>
 </body></html>`;
           console.log(`Using built-in default invitation email for ${email}`);
         } else {

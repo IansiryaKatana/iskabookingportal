@@ -286,7 +286,7 @@ const OTABookingChartPage = () => {
                   variant="outline"
                   size="icon"
                   onClick={() => setCurrentDate(subMonths(currentDate, 1))}
-                  className="rounded-full"
+                  className="rounded-md"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
@@ -299,7 +299,7 @@ const OTABookingChartPage = () => {
                   variant="outline"
                   size="icon"
                   onClick={() => setCurrentDate(addMonths(currentDate, 1))}
-                  className="rounded-full"
+                  className="rounded-md"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -307,7 +307,7 @@ const OTABookingChartPage = () => {
                   variant="ghost"
                   size="sm"
                   onClick={() => setCurrentDate(new Date())}
-                  className="rounded-full"
+                  className="rounded-md"
                 >
                   Today
                 </Button>
@@ -329,7 +329,7 @@ const OTABookingChartPage = () => {
               <div className="space-y-2">
                 <Label className="text-xs md:text-sm">Status</Label>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger className="rounded-md">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -346,7 +346,7 @@ const OTABookingChartPage = () => {
               <div className="space-y-2">
                 <Label className="text-xs md:text-sm">Channel</Label>
                 <Select value={channelFilter} onValueChange={setChannelFilter}>
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger className="rounded-md">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -362,7 +362,7 @@ const OTABookingChartPage = () => {
               <div className="space-y-2">
                 <Label className="text-xs md:text-sm">Studio</Label>
                 <Select value={studioFilter} onValueChange={setStudioFilter}>
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger className="rounded-md">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -381,7 +381,7 @@ const OTABookingChartPage = () => {
                   placeholder="Booking ref, guest, studio..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="rounded-full text-sm md:text-base"
+                  className="rounded-md text-sm md:text-base"
                 />
               </div>
             </div>
@@ -645,7 +645,7 @@ const OTABookingChartPage = () => {
                       <Button
                         variant="outline"
                         onClick={() => setDetailsEditing(false)}
-                        className="rounded-full"
+                        className="rounded-md"
                       >
                         Cancel
                       </Button>
@@ -653,7 +653,7 @@ const OTABookingChartPage = () => {
                       <Button
                         variant="default"
                         onClick={() => setDetailsEditing(true)}
-                        className="rounded-full"
+                        className="rounded-md"
                       >
                         <Pencil className="h-4 w-4 mr-2" />
                         Edit booking
@@ -662,7 +662,7 @@ const OTABookingChartPage = () => {
                     <Button
                       variant="outline"
                       onClick={() => setDetailsOpen(false)}
-                      className="rounded-full"
+                      className="rounded-md"
                     >
                       Close
                     </Button>
@@ -692,7 +692,7 @@ const OTABookingChartPage = () => {
                       <Button
                         variant="outline"
                         onClick={() => setDetailsEditing(false)}
-                        className="rounded-full"
+                        className="rounded-md"
                       >
                         Cancel
                       </Button>
@@ -700,7 +700,7 @@ const OTABookingChartPage = () => {
                       <Button
                         variant="default"
                         onClick={() => setDetailsEditing(true)}
-                        className="rounded-full"
+                        className="rounded-md"
                       >
                         <Pencil className="h-4 w-4 mr-2" />
                         Edit booking
@@ -709,7 +709,7 @@ const OTABookingChartPage = () => {
                     <Button
                       variant="outline"
                       onClick={() => setDetailsOpen(false)}
-                      className="rounded-full"
+                      className="rounded-md"
                     >
                       Close
                     </Button>
@@ -796,7 +796,7 @@ const OTABookingDetails = ({
     };
     const config = configs[status] || configs.arriving;
     return (
-      <Badge className={`${config.className} rounded-full`}>
+      <Badge className={`${config.className} rounded-md`}>
         {config.label}
       </Badge>
     );
@@ -812,7 +812,7 @@ const OTABookingDetails = ({
     };
     const config = configs[channel] || configs.other;
     return (
-      <Badge className={`${config.className} rounded-full`}>
+      <Badge className={`${config.className} rounded-md`}>
         {config.label}
       </Badge>
     );
@@ -863,7 +863,7 @@ const OTABookingDetails = ({
           <Button
             variant="outline"
             size="sm"
-            className="rounded-full"
+            className="rounded-md"
             onClick={() => setIsEditing(true)}
           >
             <Pencil className="h-4 w-4 mr-2" />
@@ -871,12 +871,12 @@ const OTABookingDetails = ({
           </Button>
         ) : (
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" className="rounded-full" onClick={() => setIsEditing(false)}>
+            <Button variant="outline" size="sm" className="rounded-md" onClick={() => setIsEditing(false)}>
               Cancel
             </Button>
             <Button
               size="sm"
-              className="rounded-full"
+              className="rounded-md"
               disabled={updateBooking.isPending || !form.guest_name.trim() || !form.external_ref.trim()}
               onClick={handleSave}
             >
@@ -895,13 +895,13 @@ const OTABookingDetails = ({
                 <Input
                   value={form.external_ref}
                   onChange={(e) => setForm((f) => ({ ...f, external_ref: e.target.value }))}
-                  className="rounded-full"
+                  className="rounded-md"
                 />
               </div>
               <div className="space-y-2">
                 <Label>Channel</Label>
                 <Select value={form.channel} onValueChange={(v) => setForm((f) => ({ ...f, channel: v }))}>
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger className="rounded-md">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -916,7 +916,7 @@ const OTABookingDetails = ({
                 <Input
                   value={form.guest_name}
                   onChange={(e) => setForm((f) => ({ ...f, guest_name: e.target.value }))}
-                  className="rounded-full"
+                  className="rounded-md"
                 />
               </div>
               <div className="space-y-2">
@@ -925,7 +925,7 @@ const OTABookingDetails = ({
                   type="email"
                   value={form.guest_email}
                   onChange={(e) => setForm((f) => ({ ...f, guest_email: e.target.value }))}
-                  className="rounded-full"
+                  className="rounded-md"
                 />
               </div>
               <div className="space-y-2">
@@ -933,13 +933,13 @@ const OTABookingDetails = ({
                 <Input
                   value={form.guest_phone}
                   onChange={(e) => setForm((f) => ({ ...f, guest_phone: e.target.value }))}
-                  className="rounded-full"
+                  className="rounded-md"
                 />
               </div>
               <div className="space-y-2">
                 <Label>Studio</Label>
                 <Select value={form.studio_id || "none"} onValueChange={(v) => setForm((f) => ({ ...f, studio_id: v === "none" ? "" : v }))}>
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger className="rounded-md">
                     <SelectValue placeholder="Unallocated" />
                   </SelectTrigger>
                   <SelectContent>
@@ -953,7 +953,7 @@ const OTABookingDetails = ({
               <div className="space-y-2">
                 <Label>Status</Label>
                 <Select value={form.status} onValueChange={(v) => setForm((f) => ({ ...f, status: v }))}>
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger className="rounded-md">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -969,7 +969,7 @@ const OTABookingDetails = ({
                   type="date"
                   value={form.check_in}
                   onChange={(e) => setForm((f) => ({ ...f, check_in: e.target.value }))}
-                  className="rounded-full"
+                  className="rounded-md"
                 />
               </div>
               <div className="space-y-2">
@@ -978,7 +978,7 @@ const OTABookingDetails = ({
                   type="date"
                   value={form.check_out}
                   onChange={(e) => setForm((f) => ({ ...f, check_out: e.target.value }))}
-                  className="rounded-full"
+                  className="rounded-md"
                 />
               </div>
               <div className="space-y-2">
@@ -988,7 +988,7 @@ const OTABookingDetails = ({
                   step="0.01"
                   value={form.price_per_night}
                   onChange={(e) => setForm((f) => ({ ...f, price_per_night: e.target.value }))}
-                  className="rounded-full"
+                  className="rounded-md"
                 />
               </div>
               <div className="space-y-2">
@@ -998,7 +998,7 @@ const OTABookingDetails = ({
                   step="0.01"
                   value={form.commission_amount}
                   onChange={(e) => setForm((f) => ({ ...f, commission_amount: e.target.value }))}
-                  className="rounded-full"
+                  className="rounded-md"
                 />
               </div>
               <div className="space-y-2">
@@ -1006,7 +1006,7 @@ const OTABookingDetails = ({
                 <Input
                   value={form.currency}
                   onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}
-                  className="rounded-full"
+                  className="rounded-md"
                 />
               </div>
             </div>

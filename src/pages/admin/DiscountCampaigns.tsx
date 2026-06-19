@@ -290,7 +290,7 @@ const DiscountCampaigns = () => {
           <DialogTrigger asChild>
             <Button
               size="sm"
-              className="rounded-full uppercase tracking-wide gap-2 flex-shrink-0 h-7 px-2 text-xs"
+              className="rounded-md uppercase tracking-wide gap-2 flex-shrink-0 h-7 px-2 text-xs"
               onClick={() => setEditingCampaign(null)}
             >
               <Plus className="h-4 w-4" />
@@ -330,7 +330,7 @@ const DiscountCampaigns = () => {
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="rounded-full uppercase tracking-wide" onClick={() => setEditingCampaign(null)}>
+              <Button className="rounded-md uppercase tracking-wide" onClick={() => setEditingCampaign(null)}>
                 <Plus className="h-4 w-4 mr-2" />
                 New Campaign
               </Button>
@@ -516,12 +516,12 @@ const DiscountCampaigns = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2">
-            <AlertDialogCancel className="rounded-full uppercase tracking-wide" onClick={() => setConfirmAction(null)}>
+            <AlertDialogCancel className="rounded-md uppercase tracking-wide" onClick={() => setConfirmAction(null)}>
               Cancel
             </AlertDialogCancel>
             {confirmAction?.action === "deactivate" ? (
               <AlertDialogAction
-                className="rounded-full uppercase tracking-wide bg-destructive hover:bg-destructive/90"
+                className="rounded-md uppercase tracking-wide bg-destructive hover:bg-destructive/90"
                 onClick={() => {
                   if (confirmAction?.campaign.id) {
                     deleteMutation.mutate(confirmAction.campaign.id);
@@ -534,7 +534,7 @@ const DiscountCampaigns = () => {
               </AlertDialogAction>
             ) : (
               <AlertDialogAction
-                className="rounded-full uppercase tracking-wide bg-green-600 hover:bg-green-700"
+                className="rounded-md uppercase tracking-wide bg-green-600 hover:bg-green-700"
                 onClick={() => {
                   if (confirmAction?.campaign.id) {
                     reactivateMutation.mutate(confirmAction.campaign.id);
@@ -748,10 +748,10 @@ const CampaignForm = ({ campaign, onSubmit, onCancel, isSubmitting }: CampaignFo
         </Select>
       </div>
       <DialogFooter>
-        <Button type="button" variant="outline" onClick={onCancel} className="rounded-full uppercase tracking-wide">
+        <Button type="button" variant="outline" onClick={onCancel} className="rounded-md uppercase tracking-wide">
           Cancel
         </Button>
-        <Button type="submit" disabled={isSubmitting} className="rounded-full uppercase tracking-wide">
+        <Button type="submit" disabled={isSubmitting} className="rounded-md uppercase tracking-wide">
           {isSubmitting ? "Saving..." : campaign ? "Update Campaign" : "Create Campaign"}
         </Button>
       </DialogFooter>

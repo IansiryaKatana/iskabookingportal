@@ -48,7 +48,8 @@ const formatRoleName = (role: string): string => {
 const Permissions = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { role: currentUserRole } = useAuth();
+  const { profile: currentUserProfile } = useAuth();
+  const accountRole = currentUserProfile?.role;
   const [permissions, setPermissions] = useState<PermissionMap>({});
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -101,7 +102,12 @@ const Permissions = () => {
     routePermissions.forEach((perm) => {
       roleSet.add(perm.role);
     });
-    return Array.from(roleSet).sort((a, b) => {
+    const allRoles = Array.from(roleSet);
+    const filteredRoles =
+      accountRole === "admin"
+        ? allRoles.filter((role) => role !== "superadmin" && role !== "admin")
+        : allRoles;
+    return filteredRoles.sort((a, b) => {
       // Sort: superadmin, admin, staff, then sub-roles, then student, partner
       const order: Record<string, number> = {
         superadmin: 0,
@@ -118,7 +124,7 @@ const Permissions = () => {
       };
       return (order[a] ?? 99) - (order[b] ?? 99);
     });
-  }, [routePermissions]);
+  }, [routePermissions, accountRole]);
 
   // Update permission locally
   const togglePermission = (routePath: string, role: string, allowed: boolean) => {
@@ -273,7 +279,7 @@ const Permissions = () => {
             <Button
               variant="outline"
               onClick={() => queryClient.invalidateQueries({ queryKey: ["route-permissions"] })}
-              className="rounded-full uppercase tracking-wide gap-2"
+              className="rounded-md uppercase tracking-wide gap-2"
             >
               <RefreshCw className="h-4 w-4" />
               Refresh
@@ -281,7 +287,7 @@ const Permissions = () => {
             <Button
               onClick={() => saveMutation.mutate()}
               disabled={!hasChanges || saveMutation.isPending}
-              className="rounded-full uppercase tracking-wide gap-2"
+              className="rounded-md uppercase tracking-wide gap-2"
             >
               <Save className="h-4 w-4" />
               {saveMutation.isPending ? "Saving..." : "Save Changes"}

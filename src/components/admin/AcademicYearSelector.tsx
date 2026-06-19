@@ -128,7 +128,7 @@ export const AcademicYearSelector = ({
   return (
     <div className={className}>
       <Select value={controlledValue} onValueChange={handleValueChange}>
-        <SelectTrigger className="w-full rounded-full">
+        <SelectTrigger className="w-full rounded-md">
           <SelectValue placeholder={label} />
         </SelectTrigger>
         <SelectContent>

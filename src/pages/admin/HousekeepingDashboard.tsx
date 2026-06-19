@@ -84,7 +84,7 @@ const getStatusBadge = (status: string) => {
   const Icon = config.icon;
 
   return (
-    <Badge className={`uppercase ${config.className} rounded-full px-2.5 py-0.5 text-xs font-medium flex items-center gap-1`}>
+    <Badge className={`uppercase ${config.className} rounded-md px-2.5 py-0.5 text-xs font-medium flex items-center gap-1`}>
       <Icon className="h-3 w-3" />
       {config.label}
     </Badge>
@@ -381,7 +381,7 @@ const HousekeepingDashboard = () => {
             <button
               key={status.value}
               onClick={() => setStatusFilter(status.value)}
-              className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+              className={`flex-shrink-0 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 statusFilter === status.value
                   ? "bg-primary text-primary-foreground"
                   : "bg-muted hover:bg-muted/80"
@@ -448,7 +448,7 @@ const HousekeepingDashboard = () => {
                   placeholder="Studio number..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="rounded-full text-sm md:text-base"
+                  className="rounded-md text-sm md:text-base"
                 />
               </div>
               {isOpsManager && selectedStudios.size > 0 && (
@@ -457,7 +457,7 @@ const HousekeepingDashboard = () => {
                     <Button
                       onClick={() => setAssignCleanerDialogOpen(true)}
                       variant="outline"
-                      className="rounded-full w-full"
+                      className="rounded-md w-full"
                     >
                       <UserCheck className="h-4 w-4 mr-2" />
                       Assign Cleaner ({selectedStudios.size})
@@ -467,7 +467,7 @@ const HousekeepingDashboard = () => {
                     <Button
                       onClick={() => setSetDateDialogOpen(true)}
                       variant="outline"
-                      className="rounded-full w-full"
+                      className="rounded-md w-full"
                     >
                       <Calendar className="h-4 w-4 mr-2" />
                       Set Date ({selectedStudios.size})
@@ -477,7 +477,7 @@ const HousekeepingDashboard = () => {
                     <Button
                       onClick={handleBulkMarkDirty}
                       variant="destructive"
-                      className="rounded-full w-full"
+                      className="rounded-md w-full"
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
                       Mark Dirty ({selectedStudios.size})
@@ -490,7 +490,7 @@ const HousekeepingDashboard = () => {
                   <Button
                     onClick={() => setSelectedStudios(new Set())}
                     variant="ghost"
-                    className="rounded-full w-full"
+                    className="rounded-md w-full"
                   >
                     Clear Selection
                   </Button>
@@ -703,7 +703,7 @@ const HousekeepingDashboard = () => {
               <div className="space-y-2">
                 <Label>Cleaner</Label>
                 <Select value={selectedCleanerId} onValueChange={setSelectedCleanerId}>
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger className="rounded-md">
                     <SelectValue placeholder="Select cleaner..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -717,10 +717,10 @@ const HousekeepingDashboard = () => {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setAssignCleanerDialogOpen(false)} className="rounded-full">
+              <Button variant="outline" onClick={() => setAssignCleanerDialogOpen(false)} className="rounded-md">
                 Cancel
               </Button>
-              <Button onClick={handleBulkAssignCleaner} className="rounded-full">
+              <Button onClick={handleBulkAssignCleaner} className="rounded-md">
                 Assign
               </Button>
             </DialogFooter>
@@ -743,15 +743,15 @@ const HousekeepingDashboard = () => {
                   type="date"
                   value={bulkDateValue}
                   onChange={(e) => setBulkDateValue(e.target.value)}
-                  className="rounded-full"
+                  className="rounded-md"
                 />
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setSetDateDialogOpen(false)} className="rounded-full">
+              <Button variant="outline" onClick={() => setSetDateDialogOpen(false)} className="rounded-md">
                 Cancel
               </Button>
-              <Button onClick={handleBulkSetDate} className="rounded-full">
+              <Button onClick={handleBulkSetDate} className="rounded-md">
                 Set Date
               </Button>
             </DialogFooter>
@@ -896,7 +896,7 @@ const HousekeepingDetailsContent = ({
           ) : (
             activityLog.map((log) => (
               <div key={log.id} className="flex gap-3 text-xs">
-                <div className="flex-shrink-0 w-2 h-2 rounded-full bg-primary mt-1.5" />
+                <div className="flex-shrink-0 w-2 h-2 rounded-md bg-primary mt-1.5" />
                 <div className="flex-1">
                   <p className="font-medium">{log.message}</p>
                   <p className="text-muted-foreground">
@@ -917,7 +917,7 @@ const HousekeepingDetailsContent = ({
           <div className="grid grid-cols-2 gap-3">
             <Button
               onClick={() => onStatusUpdate("clean", "approved")}
-              className="rounded-full bg-green-600 hover:bg-green-700"
+              className="rounded-md bg-green-600 hover:bg-green-700"
             >
               <CheckCircle2 className="h-4 w-4 mr-2" />
               Approve
@@ -925,7 +925,7 @@ const HousekeepingDetailsContent = ({
             <Button
               variant="destructive"
               onClick={() => onStatusUpdate("dirty", "rejected")}
-              className="rounded-full"
+              className="rounded-md"
             >
               <XCircle className="h-4 w-4 mr-2" />
               Reject
@@ -938,7 +938,7 @@ const HousekeepingDetailsContent = ({
          status.status === "dirty" && (
           <Button
             onClick={() => onStatusUpdate("clean_pending_approval")}
-            className="rounded-full w-full"
+            className="rounded-md w-full"
           >
             <CheckCircle2 className="h-4 w-4 mr-2" />
             Request Clean Approval
@@ -950,7 +950,7 @@ const HousekeepingDetailsContent = ({
             <Button
               onClick={() => setAssignDialogOpen(true)}
               variant="outline"
-              className="rounded-full w-full"
+              className="rounded-md w-full"
             >
               <UserCheck className="h-4 w-4 mr-2" />
               {status.assigned_cleaner_id ? "Change Cleaner" : "Assign Cleaner"}
@@ -958,7 +958,7 @@ const HousekeepingDetailsContent = ({
             <Button
               onClick={() => setDateDialogOpen(true)}
               variant="outline"
-              className="rounded-full w-full"
+              className="rounded-md w-full"
             >
               <Calendar className="h-4 w-4 mr-2" />
               Set Next Clean Date
@@ -966,7 +966,7 @@ const HousekeepingDetailsContent = ({
             {status.status !== "clean" && (
               <Button
                 onClick={() => onStatusUpdate("clean")}
-                className="rounded-full w-full bg-green-600 hover:bg-green-700"
+                className="rounded-md w-full bg-green-600 hover:bg-green-700"
               >
                 <CheckCircle2 className="h-4 w-4 mr-2" />
                 Mark as Clean
@@ -975,7 +975,7 @@ const HousekeepingDetailsContent = ({
             <Button
               onClick={() => onStatusUpdate("dirty")}
               variant="destructive"
-              className="rounded-full w-full"
+              className="rounded-md w-full"
             >
               <Trash2 className="h-4 w-4 mr-2" />
               Mark as Dirty
@@ -989,7 +989,7 @@ const HousekeepingDetailsContent = ({
         <Button
           variant="outline"
           onClick={onClose}
-          className="rounded-full w-full"
+          className="rounded-md w-full"
         >
           Close
         </Button>
@@ -1011,7 +1011,7 @@ const HousekeepingDetailsContent = ({
                 value={selectedCleanerId || "none"} 
                 onValueChange={(value) => setSelectedCleanerId(value === "none" ? null : value)}
               >
-                <SelectTrigger className="rounded-full">
+                <SelectTrigger className="rounded-md">
                   <SelectValue placeholder="Select cleaner..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -1026,10 +1026,10 @@ const HousekeepingDetailsContent = ({
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAssignDialogOpen(false)} className="rounded-full">
+            <Button variant="outline" onClick={() => setAssignDialogOpen(false)} className="rounded-md">
               Cancel
             </Button>
-            <Button onClick={handleAssign} className="rounded-full">
+            <Button onClick={handleAssign} className="rounded-md">
               Assign
             </Button>
           </DialogFooter>
@@ -1052,15 +1052,15 @@ const HousekeepingDetailsContent = ({
                 type="date"
                 value={nextCleanDate}
                 onChange={(e) => setNextCleanDate(e.target.value)}
-                className="rounded-full"
+                className="rounded-md"
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDateDialogOpen(false)} className="rounded-full">
+            <Button variant="outline" onClick={() => setDateDialogOpen(false)} className="rounded-md">
               Cancel
             </Button>
-            <Button onClick={handleSetDate} className="rounded-full">
+            <Button onClick={handleSetDate} className="rounded-md">
               Set Date
             </Button>
           </DialogFooter>

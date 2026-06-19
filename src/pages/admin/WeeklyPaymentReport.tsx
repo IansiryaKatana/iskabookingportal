@@ -149,7 +149,7 @@ const WeeklyPaymentReport = () => {
         <Button
           size="sm"
           variant="outline"
-          className="rounded-full p-2 h-9 w-9 flex-shrink-0"
+          className="rounded-md p-2 h-9 w-9 flex-shrink-0"
           onClick={exportToCSV}
           disabled={!reportData}
         >
@@ -194,7 +194,7 @@ const WeeklyPaymentReport = () => {
             <Button
               onClick={fetchReport}
               disabled={loading || !weekStartDate}
-              className="rounded-full uppercase tracking-wide gap-2"
+              className="rounded-md uppercase tracking-wide gap-2"
             >
               {loading ? (
                 <>
@@ -239,7 +239,7 @@ const WeeklyPaymentReport = () => {
                 <Button
                   onClick={exportToCSV}
                   variant="outline"
-                  className="rounded-full uppercase tracking-wide gap-2 hidden lg:flex"
+                  className="rounded-md uppercase tracking-wide gap-2 hidden lg:flex"
                   disabled={!reportData}
                 >
                   <Download className="h-4 w-4" />

@@ -93,7 +93,7 @@ const MessageCard = ({
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <div className={clsx(
-              "p-2 rounded-full flex-shrink-0",
+              "p-2 rounded-md flex-shrink-0",
               type === "success" && "bg-green-100 dark:bg-green-900",
               type === "warning" && "bg-yellow-100 dark:bg-yellow-900",
               type === "error" && "bg-red-100 dark:bg-red-900",
@@ -106,7 +106,7 @@ const MessageCard = ({
                 {title}
               </h3>
               <div className="flex items-center gap-2 mt-1">
-                <Badge className={clsx("uppercase text-xs rounded-full px-2 py-0.5", getTypeBadgeColor())}>
+                <Badge className={clsx("uppercase text-xs rounded-md px-2 py-0.5", getTypeBadgeColor())}>
                   {getTypeLabel()}
                 </Badge>
                 <span className="text-xs text-muted-foreground">
@@ -118,7 +118,7 @@ const MessageCard = ({
           {isTop && (
             <button
               onClick={onDismiss}
-              className="ml-2 p-1.5 rounded-full hover:bg-muted transition-colors flex-shrink-0"
+              className="ml-2 p-1.5 rounded-md hover:bg-muted transition-colors flex-shrink-0"
               aria-label="Dismiss message"
             >
               <X className="h-4 w-4 text-muted-foreground" />

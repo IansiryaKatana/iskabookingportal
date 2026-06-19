@@ -154,7 +154,7 @@ const RequestPasswordReset = () => {
             </div>
 
             <div>
-              <div className="mx-auto h-16 w-16 flex items-center justify-center rounded-full bg-green-100 mb-6">
+              <div className="mx-auto h-16 w-16 flex items-center justify-center rounded-md bg-green-100 mb-6">
                 <CheckCircle2 className="h-10 w-10 text-green-600" />
               </div>
               <h2 className="text-3xl md:text-4xl font-display font-black uppercase tracking-wide text-foreground mb-2 text-center">

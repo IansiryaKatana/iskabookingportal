@@ -445,7 +445,7 @@ const CashbackCampaigns = () => {
           <DialogTrigger asChild>
             <Button
               size="sm"
-              className="rounded-full uppercase tracking-wide gap-2 flex-shrink-0 h-7 px-2 text-xs"
+              className="rounded-md uppercase tracking-wide gap-2 flex-shrink-0 h-7 px-2 text-xs"
               onClick={() => setEditingCampaign(null)}
             >
               <Plus className="h-4 w-4" />
@@ -488,7 +488,7 @@ const CashbackCampaigns = () => {
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button
-                className="rounded-full uppercase tracking-wide"
+                className="rounded-md uppercase tracking-wide"
                 onClick={() => setEditingCampaign(null)}
               >
                 <Plus className="h-4 w-4 mr-2" />
@@ -730,7 +730,7 @@ const CashbackCampaigns = () => {
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  className="rounded-full uppercase tracking-wide text-xs"
+                                  className="rounded-md uppercase tracking-wide text-xs"
                                   disabled={removeCashback.isPending}
                                   onClick={async () => {
                                     if (!app?.id) return;
@@ -757,7 +757,7 @@ const CashbackCampaigns = () => {
               <DrawerFooter className="px-4 pb-6">
                 <Button
                   variant="outline"
-                  className="rounded-full uppercase tracking-wide"
+                  className="rounded-md uppercase tracking-wide"
                   onClick={() => setUsageCampaign(null)}
                 >
                   Close
@@ -819,7 +819,7 @@ const CashbackCampaigns = () => {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="rounded-full uppercase tracking-wide text-xs"
+                                className="rounded-md uppercase tracking-wide text-xs"
                                 disabled={removeCashback.isPending}
                                 onClick={async () => {
                                   if (!app?.id) return;
@@ -845,7 +845,7 @@ const CashbackCampaigns = () => {
               <SheetFooter className="mt-4">
                 <Button
                   variant="outline"
-                  className="rounded-full uppercase tracking-wide"
+                  className="rounded-md uppercase tracking-wide"
                   onClick={() => setUsageCampaign(null)}
                 >
                   Close
@@ -874,12 +874,12 @@ const CashbackCampaigns = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2">
-            <AlertDialogCancel className="rounded-full uppercase tracking-wide" onClick={() => setConfirmAction(null)}>
+            <AlertDialogCancel className="rounded-md uppercase tracking-wide" onClick={() => setConfirmAction(null)}>
               Cancel
             </AlertDialogCancel>
             {confirmAction?.action === "deactivate" ? (
               <AlertDialogAction
-                className="rounded-full uppercase tracking-wide bg-destructive hover:bg-destructive/90"
+                className="rounded-md uppercase tracking-wide bg-destructive hover:bg-destructive/90"
                 onClick={() => {
                   if (confirmAction?.campaign.id) {
                     deleteMutation.mutate(confirmAction.campaign.id);
@@ -892,7 +892,7 @@ const CashbackCampaigns = () => {
               </AlertDialogAction>
             ) : (
               <AlertDialogAction
-                className="rounded-full uppercase tracking-wide bg-green-600 hover:bg-green-700"
+                className="rounded-md uppercase tracking-wide bg-green-600 hover:bg-green-700"
                 onClick={() => {
                   if (confirmAction?.campaign.id) {
                     reactivateMutation.mutate(confirmAction.campaign.id);
@@ -1086,14 +1086,14 @@ const CampaignForm = ({ campaign, onSubmit, onCancel, isSubmitting }: CampaignFo
           type="button"
           variant="outline"
           onClick={onCancel}
-          className="rounded-full uppercase tracking-wide"
+          className="rounded-md uppercase tracking-wide"
         >
           Cancel
         </Button>
         <Button
           type="submit"
           disabled={isSubmitting}
-          className="rounded-full uppercase tracking-wide"
+          className="rounded-md uppercase tracking-wide"
         >
           {isSubmitting ? "Saving..." : campaign ? "Update Campaign" : "Create Campaign"}
         </Button>

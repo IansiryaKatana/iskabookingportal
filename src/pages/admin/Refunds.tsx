@@ -76,7 +76,7 @@ const Refunds = () => {
           if (isManualPayment) {
             try {
               // Extract ID from 'manual-{id}' format
-              const manualId = app.deposit_payment_intent_id.replace("manual-", "").trim();
+              const manualId = app.deposit_payment_intent_id.replace("manual-").trim();
 
               // Try to find manual payment by ID first (for manually entered payments)
               let { data: manualPayment, error: manualError } = await supabase
@@ -493,7 +493,7 @@ const Refunds = () => {
                         </TableCell>
                         <TableCell>
                           <Badge
-                            className={`uppercase rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                            className={`uppercase rounded-md px-2.5 py-0.5 text-xs font-medium ${
                               refund.status === "succeeded"
                                 ? "bg-green-500 hover:bg-green-600 text-white"
                                 : refund.status === "failed"
@@ -549,7 +549,7 @@ const Refunds = () => {
                           {formatCurrency(refund.amount_pence)}
                         </span>
                         <Badge
-                          className={`uppercase rounded-full px-2.5 py-0.5 text-[10px] font-medium ${
+                          className={`uppercase rounded-md px-2.5 py-0.5 text-[10px] font-medium ${
                             refund.status === "succeeded"
                               ? "bg-green-500 hover:bg-green-600 text-white"
                               : refund.status === "failed"
@@ -667,7 +667,7 @@ const Refunds = () => {
                           <Button
                             variant="outline"
                             size="sm"
-                            className="rounded-full uppercase tracking-wide gap-2"
+                            className="rounded-md uppercase tracking-wide gap-2"
                             onClick={() => handleRefund(payment)}
                           >
                             <DollarSign className="h-4 w-4" />
@@ -731,7 +731,7 @@ const Refunds = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="w-full rounded-full uppercase tracking-wide gap-2"
+                        className="w-full rounded-md uppercase tracking-wide gap-2"
                         onClick={() => handleRefund(payment)}
                       >
                         <DollarSign className="h-4 w-4" />
@@ -798,13 +798,13 @@ const Refunds = () => {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRefundDialogOpen(false)} className="rounded-full uppercase tracking-wide">
+            <Button variant="outline" onClick={() => setRefundDialogOpen(false)} className="rounded-md uppercase tracking-wide">
               Cancel
             </Button>
             <Button
               onClick={handleSubmitRefund}
               disabled={processRefund.isPending}
-              className="rounded-full uppercase tracking-wide"
+              className="rounded-md uppercase tracking-wide"
             >
               {processRefund.isPending ? "Processing..." : "Process Refund"}
             </Button>
@@ -868,13 +868,13 @@ const Refunds = () => {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setManualRefundDialogOpen(false)} className="rounded-full uppercase tracking-wide">
+            <Button variant="outline" onClick={() => setManualRefundDialogOpen(false)} className="rounded-md uppercase tracking-wide">
               Cancel
             </Button>
             <Button
               onClick={handleSubmitManualRefund}
               disabled={processManualRefund.isPending}
-              className="rounded-full uppercase tracking-wide"
+              className="rounded-md uppercase tracking-wide"
             >
               {processManualRefund.isPending ? "Recording..." : "Record Refund"}
             </Button>

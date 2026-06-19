@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { establishRecoverySession } from "@/utils/recoverySession";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,101 +32,27 @@ const PortalResetPassword = () => {
 
   // Preload favicon
   useEffect(() => {
-    setFaviconLoaded(false);
-    if (faviconUrl) {
-      const img = new Image();
-      img.onload = () => setFaviconLoaded(true);
-      img.onerror = () => setFaviconLoaded(true);
-      img.src = faviconUrl;
-    }
-  }, [faviconUrl]);
-
-  useEffect(() => {
-    // Check if we have a valid reset token or confirmation token in the URL
     const checkToken = async () => {
-      // Check for confirmation token (type=signup)
       const hash = window.location.hash;
-      const hasConfirmationToken = hash && hash.includes("type=signup");
-      const hasRecoveryToken = hash && hash.includes("type=recovery");
-      
-      // Also check query params (some email clients strip hash)
       const queryType = searchParams.get("type");
-      const hasQueryConfirmation = queryType === "signup";
-      const hasQueryRecovery = queryType === "recovery";
-      
-      if (!hasConfirmationToken && !hasRecoveryToken && !hasQueryConfirmation && !hasQueryRecovery) {
-        setError("Invalid or missing token. Please request a new link.");
-        setIsValidating(false);
-        return;
-      }
+      const hashParams = hash ? new URLSearchParams(hash.startsWith("#") ? hash.slice(1) : hash) : null;
+      const linkType = queryType ?? (hashParams ? hashParams.get("type") : null);
 
-      // Set flag if this is a confirmation (signup) flow
-      if (hasConfirmationToken || hasQueryConfirmation) {
+      if (linkType === "signup") {
         setIsConfirmation(true);
       }
 
-      // Wait a moment for Supabase to process the hash automatically
-      await new Promise(resolve => setTimeout(resolve, 100));
+      const result = await establishRecoverySession(supabase);
 
-      // Check if Supabase has automatically set a session
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      if (session && !sessionError) {
-        // Session exists - token is valid
-        setIsValidToken(true);
+      if (!result.ok) {
+        setError(
+          result.error ?? "Invalid or expired token. Please request a new link.",
+        );
         setIsValidating(false);
         return;
       }
 
-      // If no session, try to manually extract and set it
-      if (hasConfirmationToken || hasRecoveryToken) {
-        try {
-          const hashParams = new URLSearchParams(hash.substring(1));
-          const accessToken = hashParams.get("access_token");
-          const refreshToken = hashParams.get("refresh_token");
-          
-          if (accessToken && refreshToken) {
-            const { error: setSessionError } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
-            
-            if (!setSessionError) {
-              setIsValidToken(true);
-              setIsValidating(false);
-              return;
-            }
-          }
-        } catch (err) {
-          console.error("Error parsing token:", err);
-        }
-      }
-
-      // Try query params
-      if (hasQueryConfirmation || hasQueryRecovery) {
-        try {
-          const accessToken = searchParams.get("access_token");
-          const refreshToken = searchParams.get("refresh_token");
-          
-          if (accessToken && refreshToken) {
-            const { error: setSessionError } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
-            
-            if (!setSessionError) {
-              setIsValidToken(true);
-              setIsValidating(false);
-              return;
-            }
-          }
-        } catch (err) {
-          console.error("Error setting session from query params:", err);
-        }
-      }
-      
-      // If we get here, token is invalid or expired
-      setError("Invalid or expired token. Please request a new link.");
+      setIsValidToken(true);
       setIsValidating(false);
     };
 
@@ -221,7 +148,7 @@ const PortalResetPassword = () => {
       <div className="min-h-screen bg-primary flex items-center justify-center px-4 py-12">
         <Card className="w-full max-w-lg rounded-3xl shadow-xl border border-border/50 bg-background">
           <CardHeader className="space-y-3 text-center">
-            <div className="mx-auto h-12 w-12 flex items-center justify-center rounded-full bg-green-100">
+            <div className="mx-auto h-12 w-12 flex items-center justify-center rounded-md bg-green-100">
               <CheckCircle2 className="h-8 w-8 text-green-600" />
             </div>
             <CardTitle className="text-2xl font-display font-black uppercase tracking-wide">
@@ -254,7 +181,7 @@ const PortalResetPassword = () => {
           <CardContent>
             <Button
               onClick={() => navigate("/portal/login")}
-              className="w-full rounded-full uppercase tracking-wide"
+              className="w-full rounded-md uppercase tracking-wide"
             >
               Go to Login
             </Button>

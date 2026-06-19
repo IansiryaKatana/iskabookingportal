@@ -90,19 +90,19 @@ const Navigation = ({ compactLogo = false }: NavigationProps) => {
           className={cn(
             "font-medium text-xs gap-2 text-white hover:bg-accent-yellow hover:text-black focus-visible:ring-accent-yellow/50",
             isMobileNav
-              ? "h-9 w-9 min-h-9 min-w-9 rounded-full border border-white/25 hover:border-accent-yellow/60 p-0 shrink-0"
-              : "rounded-full pl-3 pr-1.5 py-1.5 border border-white/20 hover:border-accent-yellow/50 bg-transparent",
+              ? "h-9 w-9 min-h-9 min-w-9 rounded-md border border-white/25 hover:border-accent-yellow/60 p-0 shrink-0"
+              : "rounded-md pl-3 pr-1.5 py-1.5 border border-white/20 hover:border-accent-yellow/50 bg-transparent",
             buttonClasses ?? ""
           )}
         >
           {!isMobileNav && <span className="hidden xl:inline text-white">{accountButtonLabel}</span>}
           {user ? (
             <Avatar className={cn(
-              "shrink-0 rounded-full",
+              "shrink-0 rounded-md",
               isMobileNav ? "h-8 w-8 bg-white/20 text-white" : "h-8 w-8 bg-white/15 text-white border border-white/20"
             )}>
               <AvatarFallback className={cn(
-                "text-xs font-semibold uppercase rounded-full",
+                "text-xs font-semibold uppercase rounded-md",
                 isMobileNav ? "bg-white/20 text-white" : "bg-white/15 text-white"
               )}>
                 {initials}
@@ -226,7 +226,7 @@ const Navigation = ({ compactLogo = false }: NavigationProps) => {
               <Button 
                 variant="default" 
                 size="icon"
-                className="h-9 w-9 shrink-0 rounded-full md:h-10 md:w-10"
+                className="h-9 w-9 shrink-0 rounded-md md:h-10 md:w-10"
                 onClick={() => setCallbackDialogOpen(true)}
                 aria-label="Get a callback"
               >

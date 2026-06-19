@@ -148,7 +148,7 @@ const AcademicYears = () => {
           <DialogTrigger asChild>
             <Button
               size="sm"
-              className="rounded-full uppercase tracking-wide gap-2 flex-shrink-0 h-7 px-2 text-xs"
+              className="rounded-md uppercase tracking-wide gap-2 flex-shrink-0 h-7 px-2 text-xs"
               onClick={() => {
                 setEditingId(null);
                 form.reset({
@@ -177,7 +177,7 @@ const AcademicYears = () => {
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button
-              className="rounded-full uppercase tracking-wide"
+              className="rounded-md uppercase tracking-wide"
               onClick={() => {
                 setEditingId(null);
                 form.reset({
@@ -265,14 +265,14 @@ const AcademicYears = () => {
                   <Button
                     type="button"
                     variant="outline"
-                    className="rounded-full uppercase tracking-wide"
+                    className="rounded-md uppercase tracking-wide"
                     onClick={() => setOpen(false)}
                   >
                     Cancel
                   </Button>
                   <Button
                     type="submit"
-                    className="rounded-full uppercase tracking-wide"
+                    className="rounded-md uppercase tracking-wide"
                     disabled={createYear.isLoading || updateYear.isLoading}
                   >
                     {(createYear.isLoading || updateYear.isLoading) ? (
@@ -362,7 +362,7 @@ const AcademicYears = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="rounded-full uppercase tracking-wide gap-2"
+                          className="rounded-md uppercase tracking-wide gap-2"
                           onClick={() => handleSetActive(year.id)}
                           disabled={setActiveYear.isLoading}
                         >
@@ -373,7 +373,7 @@ const AcademicYears = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="rounded-full uppercase tracking-wide gap-2"
+                        className="rounded-md uppercase tracking-wide gap-2"
                         onClick={() => handleEdit(year.id)}
                       >
                         <Pencil className="h-4 w-4" />

@@ -379,9 +379,17 @@ type AdminLayoutProps = {
   pageTitle?: string;
   subtitle?: string;
   mobileActionButton?: React.ReactNode;
+  /** Hides the desktop sticky page header (e.g. dashboard provides its own). */
+  hideDesktopHeader?: boolean;
 };
 
-const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: AdminLayoutProps) => {
+const AdminLayout = ({
+  children,
+  pageTitle,
+  subtitle,
+  mobileActionButton,
+  hideDesktopHeader = false,
+}: AdminLayoutProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { profile, signOut, loading } = useAuth();
@@ -709,7 +717,7 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
               <Button
                 variant="outline"
                 size="sm"
-                className="rounded-full uppercase tracking-wide gap-2 flex-shrink-0"
+                className="rounded-md uppercase tracking-wide gap-2 flex-shrink-0"
                 onClick={() => setCommandPaletteOpen(true)}
               >
                 <Search className="h-4 w-4" />
@@ -718,7 +726,7 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
               <Button
                 variant="outline"
                 size="sm"
-                className="rounded-full uppercase tracking-wide gap-2 flex-shrink-0"
+                className="rounded-md uppercase tracking-wide gap-2 flex-shrink-0"
                 onClick={() => setMobileNavOpen(!mobileNavOpen)}
               >
                 <Menu className="h-4 w-4" />
@@ -827,7 +835,7 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
                 <Button
                   variant="outline"
                   size="sm"
-                  className="w-full rounded-full flex justify-between items-center bg-black hover:bg-black/90 text-white hover:text-white border-0"
+                  className="w-full rounded-md flex justify-between items-center bg-black hover:bg-black/90 text-white hover:text-white border-0"
                   onClick={() => setShowSignOutDialog(true)}
                 >
                   <span>Sign out</span>
@@ -841,29 +849,31 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
 
       {/* Main Content - Scrollable */}
       <div className="flex-1 w-full lg:ml-0 min-h-screen lg:overflow-y-auto">
-        <header className="hidden lg:block sticky top-0 z-20 bg-background/90 backdrop-blur border-b border-border px-4 py-4 md:px-8 flex-shrink-0">
-          <div className="flex items-center justify-between">
-            <div>
-              {loading ? (
-                <>
-                  <div className="h-7 w-48 bg-muted animate-pulse rounded" />
-                  <div className="h-4 w-64 bg-muted animate-pulse rounded mt-2" />
-                </>
-              ) : (
-                <>
-                  <h2 className="text-2xl md:text-3xl font-display font-black uppercase tracking-wide">
-                    {pageTitle ?? "Dashboard"}
-                  </h2>
-                  {subtitle && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {subtitle}
-                    </p>
-                  )}
-                </>
-              )}
+        {!hideDesktopHeader && (
+          <header className="hidden lg:block sticky top-0 z-20 bg-background/90 backdrop-blur border-b border-border px-4 py-4 md:px-8 flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div>
+                {loading ? (
+                  <>
+                    <div className="h-7 w-48 bg-muted animate-pulse rounded" />
+                    <div className="h-4 w-64 bg-muted animate-pulse rounded mt-2" />
+                  </>
+                ) : (
+                  <>
+                    <h2 className="text-2xl md:text-3xl font-display font-black uppercase tracking-wide">
+                      {pageTitle ?? "Dashboard"}
+                    </h2>
+                    {subtitle && (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {subtitle}
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
-          </div>
-        </header>
+          </header>
+        )}
         <main className="px-4 py-6 md:px-8 md:py-10">{children}</main>
       </div>
 
@@ -886,12 +896,12 @@ const AdminLayout = ({ children, pageTitle, subtitle, mobileActionButton }: Admi
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-full uppercase tracking-wide">
+            <AlertDialogCancel className="rounded-md uppercase tracking-wide">
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleSignOut}
-              className="rounded-full uppercase tracking-wide bg-primary hover:bg-primary/90"
+              className="rounded-md uppercase tracking-wide bg-primary hover:bg-primary/90"
             >
               Sign Out
             </AlertDialogAction>

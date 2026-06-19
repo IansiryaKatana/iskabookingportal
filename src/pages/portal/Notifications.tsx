@@ -218,7 +218,7 @@ const NotificationDetailView = ({
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto [&>button]:!bg-red-500 [&>button]:!text-white [&>button]:hover:!bg-red-600 [&>button]:!rounded-full [&>button]:!h-8 [&>button]:!w-8 [&>button]:!flex [&>button]:!items-center [&>button]:!justify-center [&>button]:!opacity-100 [&>button]:!shadow-md [&>button]:transition-colors">
+      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto [&>button]:!bg-red-500 [&>button]:!text-white [&>button]:hover:!bg-red-600 [&>button]:!rounded-md [&>button]:!h-8 [&>button]:!w-8 [&>button]:!flex [&>button]:!items-center [&>button]:!justify-center [&>button]:!opacity-100 [&>button]:!shadow-md [&>button]:transition-colors">
         <SheetHeader>
           <div className="flex items-start justify-between pr-12">
             <div className="flex-1 min-w-0">
@@ -230,7 +230,7 @@ const NotificationDetailView = ({
                   variant="ghost"
                   size="icon"
                   className={clsx(
-                    "h-9 w-9 rounded-full flex-shrink-0",
+                    "h-9 w-9 rounded-md flex-shrink-0",
                     notification.is_starred && "text-yellow-500"
                   )}
                   onClick={onToggleStar}
@@ -309,7 +309,7 @@ const NotificationDetailView = ({
                   </Badge>
                   <div className="prose prose-sm max-w-none">
                     <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-                      {notification.message?.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim() || ""}
+                      {notification.message?.replace(/<[^>]*>/g).replace(/\s+/g, " ").trim() || ""}
                     </p>
                   </div>
                 </div>
@@ -318,7 +318,7 @@ const NotificationDetailView = ({
                 {notification.link && (
                   <Button
                     variant="outline"
-                    className="flex-1 rounded-full uppercase tracking-wide"
+                    className="flex-1 rounded-md uppercase tracking-wide"
                     onClick={() => {
                       navigate(notification.link!);
                       onOpenChange(false);
@@ -330,7 +330,7 @@ const NotificationDetailView = ({
                 {!notification.is_read && (
                   <Button
                     variant="default"
-                    className="flex-1 rounded-full uppercase tracking-wide gap-2"
+                    className="flex-1 rounded-md uppercase tracking-wide gap-2"
                     onClick={onMarkRead}
                     disabled={markReadPending}
                   >
@@ -348,14 +348,14 @@ const NotificationDetailView = ({
                 </Badge>
                 <div className="prose prose-sm max-w-none">
                   <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-                    {notification.message?.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim() || ""}
+                    {notification.message?.replace(/<[^>]*>/g).replace(/\s+/g, " ").trim() || ""}
                   </p>
                 </div>
               </div>
               {notification.link && (
                 <Button
                   variant="outline"
-                  className="w-full rounded-full uppercase tracking-wide"
+                  className="w-full rounded-md uppercase tracking-wide"
                   onClick={() => {
                     navigate(notification.link!);
                     onOpenChange(false);
@@ -367,7 +367,7 @@ const NotificationDetailView = ({
               {!notification.is_read && (
                 <Button
                   variant="default"
-                  className="w-full rounded-full uppercase tracking-wide gap-2"
+                  className="w-full rounded-md uppercase tracking-wide gap-2"
                   onClick={onMarkRead}
                   disabled={markReadPending}
                 >
@@ -557,13 +557,13 @@ const Notifications = () => {
               placeholder="Search notifications..."
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
-              className="pl-10 rounded-full text-sm"
+              className="pl-10 rounded-md text-sm"
             />
             {searchQuery && (
               <Button
                 variant="ghost"
                 size="icon"
-                className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 w-7 rounded-full"
+                className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 w-7 rounded-md"
                 onClick={() => handleSearchChange("")}
               >
                 <X className="h-4 w-4" />
@@ -578,11 +578,11 @@ const Notifications = () => {
             variant={filter === "all" ? "default" : "ghost"}
             size="sm"
             onClick={() => handleFilterChange("all")}
-            className="rounded-full uppercase tracking-wide gap-1.5 sm:gap-2 text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
+            className="rounded-md uppercase tracking-wide gap-1.5 sm:gap-2 text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
           >
             All
             {(notifications?.length || 0) > 0 && (
-              <Badge className="h-5 px-1.5 sm:px-2 bg-blue-500 hover:bg-blue-600 text-white text-[10px] sm:text-xs font-medium rounded-full">
+              <Badge className="h-5 px-1.5 sm:px-2 bg-blue-500 hover:bg-blue-600 text-white text-[10px] sm:text-xs font-medium rounded-md">
                 {notifications?.length || 0}
               </Badge>
             )}
@@ -591,11 +591,11 @@ const Notifications = () => {
             variant={filter === "unread" ? "default" : "ghost"}
             size="sm"
             onClick={() => handleFilterChange("unread")}
-            className="rounded-full uppercase tracking-wide gap-1.5 sm:gap-2 text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
+            className="rounded-md uppercase tracking-wide gap-1.5 sm:gap-2 text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
           >
             Unread
             {(unreadCount || 0) > 0 && (
-              <Badge className="h-5 px-1.5 sm:px-2 bg-orange-500 hover:bg-orange-600 text-white text-[10px] sm:text-xs font-medium rounded-full">
+              <Badge className="h-5 px-1.5 sm:px-2 bg-orange-500 hover:bg-orange-600 text-white text-[10px] sm:text-xs font-medium rounded-md">
                 {unreadCount || 0}
               </Badge>
             )}
@@ -604,11 +604,11 @@ const Notifications = () => {
             variant={filter === "read" ? "default" : "ghost"}
             size="sm"
             onClick={() => handleFilterChange("read")}
-            className="rounded-full uppercase tracking-wide gap-1.5 sm:gap-2 text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
+            className="rounded-md uppercase tracking-wide gap-1.5 sm:gap-2 text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
           >
             Read
             {readNotifications.length > 0 && (
-              <Badge className="h-5 px-1.5 sm:px-2 bg-green-500 hover:bg-green-600 text-white text-[10px] sm:text-xs font-medium rounded-full">
+              <Badge className="h-5 px-1.5 sm:px-2 bg-green-500 hover:bg-green-600 text-white text-[10px] sm:text-xs font-medium rounded-md">
                 {readNotifications.length}
               </Badge>
             )}
@@ -617,11 +617,11 @@ const Notifications = () => {
             variant={filter === "starred" ? "default" : "ghost"}
             size="sm"
             onClick={() => handleFilterChange("starred")}
-            className="rounded-full uppercase tracking-wide gap-1.5 sm:gap-2 text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
+            className="rounded-md uppercase tracking-wide gap-1.5 sm:gap-2 text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
           >
             Starred
             {starredNotifications.length > 0 && (
-              <Badge className="h-5 px-1.5 sm:px-2 bg-yellow-500 hover:bg-yellow-600 text-white text-[10px] sm:text-xs font-medium rounded-full">
+              <Badge className="h-5 px-1.5 sm:px-2 bg-yellow-500 hover:bg-yellow-600 text-white text-[10px] sm:text-xs font-medium rounded-md">
                 {starredNotifications.length}
               </Badge>
             )}
@@ -640,7 +640,7 @@ const Notifications = () => {
                 size="sm"
                 onClick={handleBulkMarkRead}
                 disabled={bulkMarkRead.isPending}
-                className="rounded-full uppercase tracking-wide gap-1.5 sm:gap-2 text-[10px] sm:text-xs font-medium h-8 sm:h-9 px-2.5 sm:px-4 flex-1 sm:flex-initial whitespace-nowrap"
+                className="rounded-md uppercase tracking-wide gap-1.5 sm:gap-2 text-[10px] sm:text-xs font-medium h-8 sm:h-9 px-2.5 sm:px-4 flex-1 sm:flex-initial whitespace-nowrap"
               >
                 <Check className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                 <span className="hidden min-[375px]:inline">Mark as read</span>
@@ -651,7 +651,7 @@ const Notifications = () => {
                 size="sm"
                 onClick={() => handleBulkStar(true)}
                 disabled={bulkStar.isPending}
-                className="rounded-full uppercase tracking-wide gap-1.5 sm:gap-2 text-[10px] sm:text-xs font-medium h-8 sm:h-9 px-2.5 sm:px-4 flex-1 sm:flex-initial whitespace-nowrap"
+                className="rounded-md uppercase tracking-wide gap-1.5 sm:gap-2 text-[10px] sm:text-xs font-medium h-8 sm:h-9 px-2.5 sm:px-4 flex-1 sm:flex-initial whitespace-nowrap"
               >
                 <Star className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                 Star
@@ -661,7 +661,7 @@ const Notifications = () => {
                 size="sm"
                 onClick={() => handleBulkStar(false)}
                 disabled={bulkStar.isPending}
-                className="rounded-full uppercase tracking-wide gap-1.5 sm:gap-2 text-[10px] sm:text-xs font-medium h-8 sm:h-9 px-2.5 sm:px-4 flex-1 sm:flex-initial whitespace-nowrap"
+                className="rounded-md uppercase tracking-wide gap-1.5 sm:gap-2 text-[10px] sm:text-xs font-medium h-8 sm:h-9 px-2.5 sm:px-4 flex-1 sm:flex-initial whitespace-nowrap"
               >
                 <Star className="h-3 w-3 sm:h-3.5 sm:w-3.5 fill-current" />
                 Unstar
@@ -670,7 +670,7 @@ const Notifications = () => {
                 variant="ghost"
                 size="sm"
                 onClick={() => setSelectedIds(new Set())}
-                className="rounded-full uppercase tracking-wide text-[10px] sm:text-xs font-medium h-8 sm:h-9 px-2.5 sm:px-4 flex-1 sm:flex-initial whitespace-nowrap"
+                className="rounded-md uppercase tracking-wide text-[10px] sm:text-xs font-medium h-8 sm:h-9 px-2.5 sm:px-4 flex-1 sm:flex-initial whitespace-nowrap"
               >
                 Cancel
               </Button>
@@ -725,7 +725,7 @@ const Notifications = () => {
                                 {notification.title}
                               </span>
                               {isUnread && (
-                                <div className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-primary flex-shrink-0" />
+                                <div className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-md bg-primary flex-shrink-0" />
                               )}
                             </div>
                             <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
@@ -740,7 +740,7 @@ const Notifications = () => {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 sm:h-8 sm:w-8 rounded-full"
+                                className="h-7 w-7 sm:h-8 sm:w-8 rounded-md"
                                 onClick={async (e) => {
                                   e.stopPropagation();
                                   await markRead.mutateAsync(notification.id);
@@ -753,7 +753,7 @@ const Notifications = () => {
                                 variant="ghost"
                                 size="icon"
                                 className={clsx(
-                                  "h-7 w-7 sm:h-8 sm:w-8 rounded-full",
+                                  "h-7 w-7 sm:h-8 sm:w-8 rounded-md",
                                   notification.is_starred && "text-yellow-500"
                                 )}
                                 onClick={async (e) => {
@@ -813,7 +813,7 @@ const Notifications = () => {
                 size="sm"
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
-                className="rounded-full uppercase tracking-wide gap-1 sm:gap-2 text-xs sm:text-sm"
+                className="rounded-md uppercase tracking-wide gap-1 sm:gap-2 text-xs sm:text-sm"
               >
                 <ChevronLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline">Previous</span>
@@ -823,7 +823,7 @@ const Notifications = () => {
                 size="sm"
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
-                className="rounded-full uppercase tracking-wide gap-1 sm:gap-2 text-xs sm:text-sm"
+                className="rounded-md uppercase tracking-wide gap-1 sm:gap-2 text-xs sm:text-sm"
               >
                 <span className="hidden sm:inline">Next</span>
                 <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />

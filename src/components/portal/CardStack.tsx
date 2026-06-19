@@ -86,7 +86,7 @@ const CardStack = ({ messages, onAllDismissed, onSkip }: CardStackProps) => {
     <div className="relative w-full max-w-md mx-auto">
       {/* Progress Indicator */}
       <div className="absolute -top-12 left-0 right-0 text-center z-50">
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-background/80 backdrop-blur-sm rounded-full border border-border/60 shadow-sm">
+        <div className="inline-flex items-center gap-2 px-4 py-2 bg-background/80 backdrop-blur-sm rounded-md border border-border/60 shadow-sm">
           <span className="text-sm font-medium text-foreground">
             Message {currentMessageNumber} of {totalMessages}
           </span>
@@ -124,7 +124,7 @@ const CardStack = ({ messages, onAllDismissed, onSkip }: CardStackProps) => {
         <Button
           variant="outline"
           onClick={handleSkip}
-          className="flex-1 rounded-full uppercase tracking-wide gap-2"
+          className="flex-1 rounded-md uppercase tracking-wide gap-2"
         >
           <ExternalLink className="h-4 w-4" />
           View All Messages
@@ -132,7 +132,7 @@ const CardStack = ({ messages, onAllDismissed, onSkip }: CardStackProps) => {
         <Button
           onClick={handleDismiss}
           disabled={isAnimating}
-          className="flex-1 rounded-full uppercase tracking-wide gap-2"
+          className="flex-1 rounded-md uppercase tracking-wide gap-2"
         >
           <X className="h-4 w-4" />
           {currentIndex >= messages.length - 1 ? "Close" : "Next"}

@@ -90,7 +90,7 @@ const TargetedMessages = () => {
       let plainText = "";
       if (template.body_text) {
         plainText = template.body_text.replace(/{[^}]+}/g, (match) => {
-          const varName = match.replace(/[{}]/g, "");
+          const varName = match.replace(/[{}]/g);
           return varName === "student_name" ? "Student" : varName.replace(/_/g, " ");
         }).substring(0, 200);
       } else if (template.body_html) {
@@ -98,7 +98,7 @@ const TargetedMessages = () => {
         tempDiv.innerHTML = template.body_html;
         plainText = tempDiv.textContent || tempDiv.innerText || "";
         plainText = plainText.replace(/{[^}]+}/g, (match) => {
-          const varName = match.replace(/[{}]/g, "");
+          const varName = match.replace(/[{}]/g);
           return varName === "student_name" ? "Student" : varName.replace(/_/g, " ");
         });
         plainText = plainText.replace(/\s+/g, " ").trim().substring(0, 200);
@@ -108,7 +108,7 @@ const TargetedMessages = () => {
         ...formData,
         email_template_id: templateId,
         title: formData.title || template.subject.replace(/{[^}]+}/g, (match) => {
-          const varName = match.replace(/[{}]/g, "");
+          const varName = match.replace(/[{}]/g);
           return varName === "student_name" ? "Student" : varName.replace(/_/g, " ");
         }),
         message: formData.message || plainText,
@@ -240,7 +240,7 @@ const TargetedMessages = () => {
     };
 
     return (
-      <Badge className={`uppercase ${config.className} rounded-full px-2.5 py-0.5 text-xs font-medium`}>
+      <Badge className={`uppercase ${config.className} rounded-md px-2.5 py-0.5 text-xs font-medium`}>
         {config.label}
       </Badge>
     );
@@ -281,7 +281,7 @@ const TargetedMessages = () => {
         <Button
           onClick={() => setDialogOpen(true)}
           size="sm"
-          className="rounded-full h-9 w-9 p-0 bg-red-600 hover:bg-red-700 text-white flex-shrink-0"
+          className="rounded-md h-9 w-9 p-0 bg-red-600 hover:bg-red-700 text-white flex-shrink-0"
         >
           <Plus className="h-4 w-4" />
         </Button>
@@ -299,7 +299,7 @@ const TargetedMessages = () => {
           </div>
           <Button
             onClick={() => setDialogOpen(true)}
-            className="rounded-full uppercase tracking-wide gap-2"
+            className="rounded-md uppercase tracking-wide gap-2"
           >
             <Plus className="h-4 w-4" />
             New Message
@@ -365,7 +365,7 @@ const TargetedMessages = () => {
             <CardContent>
               <Button
                 onClick={() => setDialogOpen(true)}
-                className="rounded-full uppercase tracking-wide gap-2"
+                className="rounded-md uppercase tracking-wide gap-2"
               >
                 <Plus className="h-4 w-4" />
                 Send Message
@@ -387,12 +387,12 @@ const TargetedMessages = () => {
           </DialogHeader>
           <div className="space-y-6 py-4">
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "select" | "filter")}>
-              <TabsList className="grid w-full grid-cols-2 rounded-full">
-                <TabsTrigger value="select" className="rounded-full uppercase tracking-wide">
+              <TabsList className="grid w-full grid-cols-2 rounded-md">
+                <TabsTrigger value="select" className="rounded-md uppercase tracking-wide">
                   <Users className="h-4 w-4 mr-2" />
                   Select Students
                 </TabsTrigger>
-                <TabsTrigger value="filter" className="rounded-full uppercase tracking-wide">
+                <TabsTrigger value="filter" className="rounded-md uppercase tracking-wide">
                   <Filter className="h-4 w-4 mr-2" />
                   Filter by Category
                 </TabsTrigger>
@@ -406,7 +406,7 @@ const TargetedMessages = () => {
                       <Button
                         variant="outline"
                         role="combobox"
-                        className="w-full mt-2 justify-between rounded-full"
+                        className="w-full mt-2 justify-between rounded-md"
                       >
                         <span className="truncate">
                           {selectedStudentIds.length > 0
@@ -467,12 +467,12 @@ const TargetedMessages = () => {
                         <Badge
                           key={student.student_id}
                           variant="secondary"
-                          className="rounded-full px-3 py-1 flex items-center gap-2"
+                          className="rounded-md px-3 py-1 flex items-center gap-2"
                         >
                           {student.profile?.first_name} {student.profile?.last_name}
                           <button
                             onClick={() => removeStudent(student.student_id)}
-                            className="ml-1 hover:bg-destructive/20 rounded-full p-0.5"
+                            className="ml-1 hover:bg-destructive/20 rounded-md p-0.5"
                           >
                             <X className="h-3 w-3" />
                           </button>
@@ -496,7 +496,7 @@ const TargetedMessages = () => {
                         });
                       }}
                     >
-                      <SelectTrigger className="mt-2 rounded-full">
+                      <SelectTrigger className="mt-2 rounded-md">
                         <SelectValue placeholder="All statuses" />
                       </SelectTrigger>
                       <SelectContent>
@@ -523,7 +523,7 @@ const TargetedMessages = () => {
                         });
                       }}
                     >
-                      <SelectTrigger className="mt-2 rounded-full">
+                      <SelectTrigger className="mt-2 rounded-md">
                         <SelectValue placeholder="All grades" />
                       </SelectTrigger>
                       <SelectContent>
@@ -548,7 +548,7 @@ const TargetedMessages = () => {
                         });
                       }}
                     >
-                      <SelectTrigger className="mt-2 rounded-full">
+                      <SelectTrigger className="mt-2 rounded-md">
                         <SelectValue placeholder="All years" />
                       </SelectTrigger>
                       <SelectContent>
@@ -573,7 +573,7 @@ const TargetedMessages = () => {
                     value={formData.email_template_id || undefined}
                     onValueChange={handleTemplateChange}
                   >
-                    <SelectTrigger id="email_template" className="mt-2 rounded-full">
+                    <SelectTrigger id="email_template" className="mt-2 rounded-md">
                       <SelectValue placeholder="Select an email template" />
                     </SelectTrigger>
                     <SelectContent>
@@ -592,7 +592,7 @@ const TargetedMessages = () => {
                       id="email_template"
                       value="No active templates available"
                       disabled
-                      className="rounded-full"
+                      className="rounded-md"
                     />
                     <p className="text-xs text-muted-foreground mt-1">
                       Create an email template first in the Email Templates section.
@@ -607,7 +607,7 @@ const TargetedMessages = () => {
                   id="title"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="mt-2 rounded-full"
+                  className="mt-2 rounded-md"
                   placeholder="e.g., Important Update"
                 />
               </div>
@@ -632,7 +632,7 @@ const TargetedMessages = () => {
                     setFormData({ ...formData, notification_type: value as typeof formData.notification_type })
                   }
                 >
-                  <SelectTrigger id="notification_type" className="mt-2 rounded-full">
+                  <SelectTrigger id="notification_type" className="mt-2 rounded-md">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -646,13 +646,13 @@ const TargetedMessages = () => {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)} className="rounded-full uppercase tracking-wide">
+            <Button variant="outline" onClick={() => setDialogOpen(false)} className="rounded-md uppercase tracking-wide">
               Cancel
             </Button>
             <Button
               onClick={handleSubmit}
               disabled={sendMessage.isPending || !formData.email_template_id}
-              className="rounded-full uppercase tracking-wide gap-2"
+              className="rounded-md uppercase tracking-wide gap-2"
             >
               <Send className="h-4 w-4" />
               {sendMessage.isPending ? "Sending..." : "Send Message"}

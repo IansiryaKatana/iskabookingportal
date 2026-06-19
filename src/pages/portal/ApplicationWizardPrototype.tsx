@@ -209,7 +209,7 @@ const StudentApplicationWizardPrototype = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button variant="outline" onClick={() => navigate("/portal")} className="rounded-full uppercase tracking-wide">
+            <Button variant="outline" onClick={() => navigate("/portal")} className="rounded-md uppercase tracking-wide">
               Back to dashboard
             </Button>
           </CardContent>
@@ -237,7 +237,7 @@ const StudentApplicationWizardPrototype = () => {
                   key={step}
                   variant={currentStep === step ? "default" : "outline"}
                   onClick={() => setCurrentStep(step)}
-                  className="rounded-full uppercase tracking-wide"
+                  className="rounded-md uppercase tracking-wide"
                 >
                   Step {step}
                 </Button>
@@ -282,7 +282,7 @@ const StudentApplicationWizardPrototype = () => {
                 <div className="flex justify-end">
                   <Button
                     onClick={() => saveStep(1, personal)}
-                    className="rounded-full uppercase tracking-wide"
+                    className="rounded-md uppercase tracking-wide"
                     disabled={saving}
                   >
                     {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Step 1"}
@@ -380,7 +380,7 @@ const StudentApplicationWizardPrototype = () => {
                 <div className="flex justify-end">
                   <Button
                     onClick={() => saveStep(2, contact)}
-                    className="rounded-full uppercase tracking-wide"
+                    className="rounded-md uppercase tracking-wide"
                     disabled={saving}
                   >
                     {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Step 2"}
@@ -392,10 +392,10 @@ const StudentApplicationWizardPrototype = () => {
         </Card>
 
         <div className="flex justify-end gap-2">
-          <Button variant="outline" className="rounded-full uppercase tracking-wide" onClick={() => navigate(-1)}>
+          <Button variant="outline" className="rounded-md uppercase tracking-wide" onClick={() => navigate(-1)}>
             Back
           </Button>
-          <Button className="rounded-full uppercase tracking-wide" onClick={handleSubmit} disabled={saving}>
+          <Button className="rounded-md uppercase tracking-wide" onClick={handleSubmit} disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save all"}
           </Button>
         </div>

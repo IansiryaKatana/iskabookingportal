@@ -183,7 +183,7 @@ const RebookingCarousel = ({ contracts, onNavigate }: RebookingCarouselProps) =>
                     
                     {/* Bottom Section - Button */}
                     <Button
-                      className="w-full rounded-full uppercase tracking-wide bg-primary hover:bg-primary/90 text-white shadow-lg font-semibold text-xs sm:text-sm"
+                      className="w-full rounded-md uppercase tracking-wide bg-primary hover:bg-primary/90 text-white shadow-lg font-semibold text-xs sm:text-sm"
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -201,8 +201,8 @@ const RebookingCarousel = ({ contracts, onNavigate }: RebookingCarouselProps) =>
         </CarouselContent>
         
         {/* Navigation Arrows - Hidden on mobile, visible on larger screens */}
-        <CarouselPrevious className="hidden md:flex -left-4 lg:-left-12 h-10 w-10 rounded-full bg-background/80 backdrop-blur-sm border-2 hover:bg-background" />
-        <CarouselNext className="hidden md:flex -right-4 lg:-right-12 h-10 w-10 rounded-full bg-background/80 backdrop-blur-sm border-2 hover:bg-background" />
+        <CarouselPrevious className="hidden md:flex -left-4 lg:-left-12 h-10 w-10 rounded-md bg-background/80 backdrop-blur-sm border-2 hover:bg-background" />
+        <CarouselNext className="hidden md:flex -right-4 lg:-right-12 h-10 w-10 rounded-md bg-background/80 backdrop-blur-sm border-2 hover:bg-background" />
       </Carousel>
     </div>
   );

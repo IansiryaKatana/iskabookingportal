@@ -49,7 +49,7 @@ const FloatingContactRail = () => {
 
   return (
     <div className="fixed right-4 top-1/2 z-30 -translate-y-1/2 hidden flex-col items-center gap-2 xl:flex">
-      <div className="flex flex-col items-center gap-2 rounded-full border border-border/60 bg-background/90 px-3 py-4 shadow-lg backdrop-blur">
+      <div className="flex flex-col items-center gap-2 rounded-md border border-border/60 bg-background/90 px-3 py-4 shadow-lg backdrop-blur">
         {socials.map((social) => (
           <a
             key={social.name}
@@ -57,7 +57,7 @@ const FloatingContactRail = () => {
             target="_blank"
             rel="noopener noreferrer"
             aria-label={social.name}
-            className={`flex h-10 w-10 items-center justify-center rounded-full text-white transition-transform duration-200 hover:scale-110 ${social.bg}`}
+            className={`flex h-10 w-10 items-center justify-center rounded-md text-white transition-transform duration-200 hover:scale-110 ${social.bg}`}
           >
             {social.icon}
           </a>

@@ -112,7 +112,7 @@ const Footer = () => {
             <h4 className="text-lg font-display font-black mb-4 uppercase">CONTACT</h4>
             <ul className="space-y-2 text-white/80">
               <li>
-                <a href={`tel:${contactPhone.replace(/\s/g, "")}`} className="hover:text-white transition-colors">
+                <a href={`tel:${contactPhone.replace(/\s/g)}`} className="hover:text-white transition-colors">
                   {contactPhone}
                 </a>
               </li>

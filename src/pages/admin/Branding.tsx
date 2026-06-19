@@ -750,7 +750,7 @@ const Branding = () => {
             <Button
               onClick={() => saveSettingsMutation.mutate()}
               disabled={saveSettingsMutation.isPending}
-              className="rounded-full uppercase tracking-wide text-xs md:text-sm h-9 md:h-10 px-4 md:px-6 gap-2"
+              className="rounded-md uppercase tracking-wide text-xs md:text-sm h-9 md:h-10 px-4 md:px-6 gap-2"
             >
               {saveSettingsMutation.isPending ? (
                 <>
@@ -814,7 +814,7 @@ const Branding = () => {
             <Button
               onClick={() => saveSettingsMutation.mutate()}
               disabled={saveSettingsMutation.isPending}
-              className="rounded-full uppercase tracking-wide text-xs md:text-sm h-9 md:h-10 px-4 md:px-6 gap-2"
+              className="rounded-md uppercase tracking-wide text-xs md:text-sm h-9 md:h-10 px-4 md:px-6 gap-2"
             >
               {saveSettingsMutation.isPending ? (
                 <>
@@ -1369,7 +1369,7 @@ const Branding = () => {
             <Button
               onClick={() => saveSettingsMutation.mutate()}
               disabled={saveSettingsMutation.isPending}
-              className="rounded-full uppercase tracking-wide text-xs md:text-sm h-9 md:h-10 px-4 md:px-6 gap-2"
+              className="rounded-md uppercase tracking-wide text-xs md:text-sm h-9 md:h-10 px-4 md:px-6 gap-2"
             >
               {saveSettingsMutation.isPending ? (
                 <>
@@ -1460,7 +1460,7 @@ const Branding = () => {
             <Button
               onClick={() => saveSettingsMutation.mutate()}
               disabled={saveSettingsMutation.isPending}
-              className="rounded-full uppercase tracking-wide text-xs md:text-sm h-9 md:h-10 px-4 md:px-6 gap-2"
+              className="rounded-md uppercase tracking-wide text-xs md:text-sm h-9 md:h-10 px-4 md:px-6 gap-2"
             >
               {saveSettingsMutation.isPending ? (
                 <>
@@ -1525,7 +1525,7 @@ const Branding = () => {
                       variant="ghost"
                       size="sm"
                       onClick={() => setDeleteNavItemId(item.id)}
-                      className="rounded-full h-7 w-7 p-0"
+                      className="rounded-md h-7 w-7 p-0"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -1537,7 +1537,7 @@ const Branding = () => {
               <Button 
                 variant="outline" 
                 onClick={() => addNavItem("header")}
-                className="rounded-full uppercase tracking-wide text-xs h-9 px-4 gap-2"
+                className="rounded-md uppercase tracking-wide text-xs h-9 px-4 gap-2"
               >
                 <Plus className="h-4 w-4" />
                 <span className="hidden sm:inline">Add Header Item</span>
@@ -1549,7 +1549,7 @@ const Branding = () => {
                   saveNavItemsMutation.mutate(payload);
                 }}
                 disabled={saveNavItemsMutation.isPending}
-                className="rounded-full uppercase tracking-wide text-xs h-9 px-4 gap-2"
+                className="rounded-md uppercase tracking-wide text-xs h-9 px-4 gap-2"
               >
                 {saveNavItemsMutation.isPending ? (
                   <>
@@ -1615,7 +1615,7 @@ const Branding = () => {
                       variant="ghost"
                       size="sm"
                       onClick={() => setDeleteNavItemId(item.id)}
-                      className="rounded-full h-7 w-7 p-0"
+                      className="rounded-md h-7 w-7 p-0"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -1627,7 +1627,7 @@ const Branding = () => {
               <Button 
                 variant="outline" 
                 onClick={() => addNavItem("footer")}
-                className="rounded-full uppercase tracking-wide text-xs h-9 px-4 gap-2"
+                className="rounded-md uppercase tracking-wide text-xs h-9 px-4 gap-2"
               >
                 <Plus className="h-4 w-4" />
                 <span className="hidden sm:inline">Add Footer Link</span>
@@ -1639,7 +1639,7 @@ const Branding = () => {
                   saveNavItemsMutation.mutate(payload);
                 }}
                 disabled={saveNavItemsMutation.isPending}
-                className="rounded-full uppercase tracking-wide text-xs h-9 px-4 gap-2"
+                className="rounded-md uppercase tracking-wide text-xs h-9 px-4 gap-2"
               >
                 {saveNavItemsMutation.isPending ? (
                   <>
@@ -1681,7 +1681,7 @@ const Branding = () => {
                       const weekdays = openingHoursState.filter(h => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].includes(h.day_name));
                       setSelectedDays(weekdays.map(h => h.id));
                     }}
-                    className="rounded-full uppercase tracking-wide text-xs h-8 px-3 gap-2"
+                    className="rounded-md uppercase tracking-wide text-xs h-8 px-3 gap-2"
                   >
                     Select Weekdays
                   </Button>
@@ -1693,7 +1693,7 @@ const Branding = () => {
                       const weekend = openingHoursState.filter(h => ['Saturday', 'Sunday'].includes(h.day_name));
                       setSelectedDays(weekend.map(h => h.id));
                     }}
-                    className="rounded-full uppercase tracking-wide text-xs h-8 px-3 gap-2"
+                    className="rounded-md uppercase tracking-wide text-xs h-8 px-3 gap-2"
                   >
                     Select Weekend
                   </Button>
@@ -1702,7 +1702,7 @@ const Branding = () => {
                     variant="outline"
                     size="sm"
                     onClick={() => setSelectedDays([])}
-                    className="rounded-full uppercase tracking-wide text-xs h-8 px-3 gap-2"
+                    className="rounded-md uppercase tracking-wide text-xs h-8 px-3 gap-2"
                   >
                     Clear
                   </Button>
@@ -1808,7 +1808,7 @@ const Branding = () => {
                         });
                       }}
                       disabled={!bulkIsClosed && (!bulkOpenTime || !bulkCloseTime)}
-                      className="rounded-full uppercase tracking-wide text-xs h-9 px-4 gap-2 w-full"
+                      className="rounded-md uppercase tracking-wide text-xs h-9 px-4 gap-2 w-full"
                     >
                       Apply to Selected ({selectedDays.length})
                     </Button>
@@ -1894,7 +1894,7 @@ const Branding = () => {
             <Button
               onClick={() => saveHoursMutation.mutate(openingHoursState)}
               disabled={saveHoursMutation.isPending}
-              className="rounded-full uppercase tracking-wide text-xs md:text-sm h-9 md:h-10 px-4 md:px-6 gap-2 w-full sm:w-auto"
+              className="rounded-md uppercase tracking-wide text-xs md:text-sm h-9 md:h-10 px-4 md:px-6 gap-2 w-full sm:w-auto"
             >
               {saveHoursMutation.isPending ? (
                 <>
@@ -1946,7 +1946,7 @@ const Branding = () => {
             <Button
               onClick={() => saveSettingsMutation.mutate()}
               disabled={saveSettingsMutation.isPending}
-              className="rounded-full uppercase tracking-wide text-xs md:text-sm h-9 md:h-10 px-4 md:px-6 gap-2"
+              className="rounded-md uppercase tracking-wide text-xs md:text-sm h-9 md:h-10 px-4 md:px-6 gap-2"
             >
               {saveSettingsMutation.isPending ? (
                 <>

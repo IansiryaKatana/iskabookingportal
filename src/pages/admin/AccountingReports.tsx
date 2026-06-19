@@ -789,7 +789,7 @@ const AccountingReports = () => {
             <Button
               size="sm"
               variant="outline"
-              className="rounded-full p-2 h-9 w-9 flex-shrink-0"
+              className="rounded-md p-2 h-9 w-9 flex-shrink-0"
               onClick={exportToCSV}
             >
               <Download className="h-4 w-4" />
@@ -797,7 +797,7 @@ const AccountingReports = () => {
             <Button
               size="sm"
               variant="outline"
-              className="rounded-full p-2 h-9 w-9 flex-shrink-0"
+              className="rounded-md p-2 h-9 w-9 flex-shrink-0"
               onClick={exportCashFlowPdf}
             >
               <FileText className="h-4 w-4" />
@@ -807,7 +807,7 @@ const AccountingReports = () => {
           <Button
             size="sm"
             variant="outline"
-            className="rounded-full p-2 h-9 w-9 flex-shrink-0"
+            className="rounded-md p-2 h-9 w-9 flex-shrink-0"
             onClick={exportToCSV}
           >
             <Download className="h-4 w-4" />
@@ -1135,11 +1135,11 @@ const AccountingReports = () => {
               </div>
               {selectedReport === "cash-flow" ? (
                 <div className="hidden lg:flex gap-2">
-                  <Button onClick={exportToCSV} variant="secondary" className="rounded-full uppercase tracking-wide gap-2">
+                  <Button onClick={exportToCSV} variant="secondary" className="rounded-md uppercase tracking-wide gap-2">
                     <Download className="h-4 w-4" />
                     Export CSV
                   </Button>
-                  <Button onClick={exportCashFlowPdf} className="rounded-full uppercase tracking-wide gap-2">
+                  <Button onClick={exportCashFlowPdf} className="rounded-md uppercase tracking-wide gap-2">
                     <FileText className="h-4 w-4" />
                     Export PDF
                   </Button>
@@ -1147,7 +1147,7 @@ const AccountingReports = () => {
               ) : (
                 <Button
                   onClick={exportToCSV}
-                  className="rounded-full uppercase tracking-wide gap-2 hidden lg:flex"
+                  className="rounded-md uppercase tracking-wide gap-2 hidden lg:flex"
                 >
                   <Download className="h-4 w-4" />
                   Export CSV
@@ -1170,7 +1170,7 @@ const AccountingReports = () => {
                           placeholder="Search by student, contract, studio, status..."
                           value={arSearchQuery}
                           onChange={(e) => setArSearchQuery(e.target.value)}
-                          className="rounded-full pl-9"
+                          className="rounded-md pl-9"
                         />
                       </div>
                       <div className="w-full sm:w-56">
@@ -1179,7 +1179,7 @@ const AccountingReports = () => {
                           onValueChange={(id) => setArAcademicYearId(id ?? "all")}
                           allowEmpty
                           label="Academic year"
-                          className="[&_button]:rounded-full"
+                          className="[&_button]:rounded-md"
                         />
                       </div>
                       <div className="text-sm text-muted-foreground self-center shrink-0">
@@ -1372,7 +1372,7 @@ const AccountingReports = () => {
                         onValueChange={(id) => setOutstandingAcademicYearId(id ?? "all")}
                         allowEmpty
                         label="Academic year"
-                        className="[&_button]:rounded-full"
+                        className="[&_button]:rounded-md"
                       />
                     </div>
                     <div className="text-xs md:text-sm text-muted-foreground">
@@ -1461,7 +1461,7 @@ const AccountingReports = () => {
                         onValueChange={(id) => setBreakdownAcademicYearId(id ?? "all")}
                         allowEmpty
                         label="Academic year"
-                        className="[&_button]:rounded-full"
+                        className="[&_button]:rounded-md"
                       />
                     </div>
                     <div className="text-xs md:text-sm text-muted-foreground">
@@ -1739,7 +1739,7 @@ const AccountingReports = () => {
                         placeholder="Search by student, studio, contract..."
                         value={cashFlowSearchQuery}
                         onChange={(e) => setCashFlowSearchQuery(e.target.value)}
-                        className="rounded-full pl-9"
+                        className="rounded-md pl-9"
                       />
                     </div>
                     <div className="text-xs md:text-sm text-muted-foreground">
@@ -1749,16 +1749,16 @@ const AccountingReports = () => {
 
                   <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
                     <span className="inline-flex items-center gap-1.5">
-                      <span className="h-3 w-3 rounded-full bg-emerald-600" /> Paid
+                      <span className="h-3 w-3 rounded-md bg-emerald-600" /> Paid
                     </span>
                     <span className="inline-flex items-center gap-1.5">
-                      <span className="h-3 w-3 rounded-full bg-amber-500" /> Partial
+                      <span className="h-3 w-3 rounded-md bg-amber-500" /> Partial
                     </span>
                     <span className="inline-flex items-center gap-1.5">
-                      <span className="h-3 w-3 rounded-full bg-destructive" /> Overdue
+                      <span className="h-3 w-3 rounded-md bg-destructive" /> Overdue
                     </span>
                     <span className="inline-flex items-center gap-1.5">
-                      <span className="h-3 w-3 rounded-full bg-slate-200 dark:bg-slate-700" /> Upcoming
+                      <span className="h-3 w-3 rounded-md bg-slate-200 dark:bg-slate-700" /> Upcoming
                     </span>
                     {cashFlowMonthColumns.some((col) => col.isOutsideAcademicYear) && (
                       <span className="text-muted-foreground/90">
@@ -1918,7 +1918,7 @@ const AccountingReports = () => {
                           placeholder="Search by student, email, contract, studio..."
                           value={fullyPaidSearchQuery}
                           onChange={(e) => setFullyPaidSearchQuery(e.target.value)}
-                          className="rounded-full pl-9"
+                          className="rounded-md pl-9"
                         />
                       </div>
                       <div className="text-sm text-muted-foreground self-center shrink-0">

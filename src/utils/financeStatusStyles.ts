@@ -1,22 +1,75 @@
 import { cn } from "@/lib/utils";
 
-/** Semantic badge colours for payment / instalment status across finance reports. */
+const GREEN =
+  "border-transparent bg-emerald-600 text-white hover:bg-emerald-600 dark:bg-emerald-600 dark:text-white";
+const RED =
+  "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive";
+const AMBER =
+  "border-transparent bg-amber-500 text-white hover:bg-amber-500 dark:bg-amber-600 dark:text-white";
+const BLUE =
+  "border-transparent bg-blue-600 text-white hover:bg-blue-600 dark:bg-blue-600 dark:text-white";
+const SLATE =
+  "border-transparent bg-slate-100 text-slate-700 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-200";
+const MUTED =
+  "border-transparent bg-muted text-muted-foreground hover:bg-muted";
+const PURPLE =
+  "border-transparent bg-violet-600 text-white hover:bg-violet-600 dark:bg-violet-600 dark:text-white";
+
+/** Semantic badge colours for payment / instalment status across finance modules. */
 const FINANCE_STATUS_BADGE: Record<string, string> = {
-  paid: "border-transparent bg-emerald-600 text-white hover:bg-emerald-600 dark:bg-emerald-600 dark:text-white",
-  fully_paid: "border-transparent bg-emerald-600 text-white hover:bg-emerald-600 dark:bg-emerald-600 dark:text-white",
-  overdue: "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive",
-  partially_paid: "border-transparent bg-amber-500 text-white hover:bg-amber-500 dark:bg-amber-600 dark:text-white",
-  partial: "border-transparent bg-amber-500 text-white hover:bg-amber-500 dark:bg-amber-600 dark:text-white",
-  unpaid: "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive",
-  upcoming: "border-transparent bg-slate-100 text-slate-700 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-200",
-  n_a: "border-transparent bg-muted text-muted-foreground hover:bg-muted",
+  // Paid / received
+  paid: GREEN,
+  fully_paid: GREEN,
+  succeeded: GREEN,
+  completed: GREEN,
+
+  // Unpaid / failed / overdue
+  unpaid: RED,
+  failed: RED,
+  overdue: RED,
+  not_paid: RED,
+  rejected: RED,
+
+  // Partial / in progress
+  partially_paid: AMBER,
+  partial: AMBER,
+  pending: AMBER,
+  processing: AMBER,
+  due: AMBER,
+  due_today: AMBER,
+
+  // OTA / finance edge cases
+  overpaid: BLUE,
+  approved: BLUE,
+  refunded: PURPLE,
+  refund: PURPLE,
+
+  // Neutral / N/A
+  void: MUTED,
+  no_amount_due: SLATE,
+  upcoming: SLATE,
+  n_a: MUTED,
+  cancelled: MUTED,
+  canceled: MUTED,
+};
+
+export const normalizeFinanceStatusKey = (status: string | null | undefined): string => {
+  if (!status) return "upcoming";
+  const key = status.toLowerCase().replace(/\s+/g, "_").replace(/-/g, "_");
+  if (key === "n/a" || key === "na") return "n_a";
+  return key;
 };
 
 export const getFinanceStatusBadgeClass = (status: string | null | undefined): string => {
-  if (!status) return FINANCE_STATUS_BADGE.upcoming;
-  const key = status.toLowerCase().replace(/\s+/g, "_");
-  if (key === "n/a" || key === "na") return FINANCE_STATUS_BADGE.n_a;
-  return FINANCE_STATUS_BADGE[key] ?? FINANCE_STATUS_BADGE.upcoming;
+  const key = normalizeFinanceStatusKey(status);
+  return FINANCE_STATUS_BADGE[key] ?? SLATE;
+};
+
+export const formatFinanceStatusLabel = (status: string | null | undefined): string => {
+  if (!status) return "—";
+  return status
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 };
 
 export const financeStatusBadgeProps = (

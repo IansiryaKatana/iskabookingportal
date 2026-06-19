@@ -1,7 +1,7 @@
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, Users, FileText, TrendingUp, AlertCircle, Gift, CreditCard } from "lucide-react";
+import { CheckCircle2, Users, FileText, TrendingUp, AlertCircle, Gift, CreditCard, Info } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDashboardStats, useDashboardBreakdowns } from "@/hooks/useDashboardStats";
 import { useActiveCashbackCampaigns } from "@/hooks/useCashback";
@@ -13,6 +13,38 @@ import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
+
+function MetricLabelWithTooltip({
+  label,
+  tooltip,
+  className,
+}: {
+  label: string;
+  tooltip: string;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex items-center gap-1.5 min-w-0", className)}>
+      <span className="truncate">{label}</span>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground shrink-0"
+            aria-label={`About ${label}`}
+          >
+            <Info className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-xs text-xs">
+          {tooltip}
+        </TooltipContent>
+      </Tooltip>
+    </div>
+  );
+}
 
 const Dashboard = () => {
   const { loading, profile, role, session } = useAuth();
@@ -52,10 +84,7 @@ const Dashboard = () => {
     .sort((a, b) => b[1] - a[1]);
 
   return (
-    <AdminLayout
-      pageTitle="Overview"
-      subtitle="Monitor performance and jump into the modules you need."
-    >
+    <AdminLayout hideDesktopHeader>
       <div className="mb-6 flex items-center justify-start md:justify-end">
         <AcademicYearSelector
           value={selectedAcademicYearId}
@@ -116,7 +145,7 @@ const Dashboard = () => {
                   <CardContent className="space-y-4">
                     <div className="h-4 w-full bg-muted animate-pulse rounded" />
                     <div className="h-4 w-5/6 bg-muted animate-pulse rounded" />
-                    <div className="h-10 w-full bg-muted animate-pulse rounded-full" />
+                    <div className="h-10 w-full bg-muted animate-pulse rounded-md" />
                   </CardContent>
                 </Card>
               ))}
@@ -124,6 +153,7 @@ const Dashboard = () => {
           </section>
         </>
       ) : (
+        <TooltipProvider delayDuration={200}>
         <>
           <section className="grid gap-6 lg:grid-cols-2 xl:grid-cols-4 mb-10">
             <Card className="bg-primary text-primary-foreground rounded-3xl shadow-lg border border-border/60">
@@ -197,9 +227,9 @@ const Dashboard = () => {
                               {campaign.max_uses ? ` / ${campaign.max_uses}` : ""} uses
                             </p>
                             {campaign.max_uses && (
-                              <div className="mt-1 w-20 h-1.5 bg-yellow-200 dark:bg-yellow-900/50 rounded-full overflow-hidden">
+                              <div className="mt-1 w-20 h-1.5 bg-yellow-200 dark:bg-yellow-900/50 rounded-md overflow-hidden">
                                 <div
-                                  className="h-full bg-yellow-500 dark:bg-yellow-400 rounded-full transition-all"
+                                  className="h-full bg-yellow-500 dark:bg-yellow-400 rounded-md transition-all"
                                   style={{
                                     width: `${Math.min((campaign.current_uses / campaign.max_uses) * 100, 100)}%`,
                                   }}
@@ -232,7 +262,7 @@ const Dashboard = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="rounded-full uppercase tracking-wide border-yellow-300 dark:border-yellow-700 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-100 dark:hover:bg-yellow-900/30"
+                      className="rounded-md uppercase tracking-wide border-yellow-300 dark:border-yellow-700 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-100 dark:hover:bg-yellow-900/30"
                       onClick={() => navigate("/admin/cashback-campaigns")}
                     >
                       Create Campaign
@@ -266,7 +296,7 @@ const Dashboard = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="rounded-full uppercase tracking-wide"
+                      className="rounded-md uppercase tracking-wide"
                       onClick={() => navigate("/admin/applications")}
                     >
                       Review Documents
@@ -306,7 +336,7 @@ const Dashboard = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="rounded-full uppercase tracking-wide"
+                        className="rounded-md uppercase tracking-wide"
                         onClick={() => navigate("/admin/manual-payment-entry")}
                       >
                         Review Requests
@@ -327,35 +357,38 @@ const Dashboard = () => {
             <Card className="rounded-3xl border border-border/60 shadow-md">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-display uppercase tracking-wide">
-                  Total Students
+                  <MetricLabelWithTooltip
+                    label="Total Students"
+                    tooltip="Registered students in scope for the selected academic year."
+                  />
                 </CardTitle>
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold font-display">{stats?.totalStudents ?? 0}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Registered students
-                </p>
               </CardContent>
             </Card>
             <Card className="rounded-3xl border border-border/60 shadow-md">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-display uppercase tracking-wide">
-                  Total Applications
+                  <MetricLabelWithTooltip
+                    label="Total Applications"
+                    tooltip="All applications for the selected academic year, including confirmed, pending, and other statuses."
+                  />
                 </CardTitle>
                 <FileText className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold font-display">{stats?.totalApplications ?? 0}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {stats?.confirmedApplications ? `${stats.confirmedApplications} confirmed` : "All applications"}
-                </p>
               </CardContent>
             </Card>
             <Card className="rounded-3xl border border-border/60 shadow-md">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-display uppercase tracking-wide">
-                  Total Revenue
+                  <MetricLabelWithTooltip
+                    label="Total Revenue"
+                    tooltip="Total collected from completed payments."
+                  />
                 </CardTitle>
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
@@ -363,23 +396,20 @@ const Dashboard = () => {
                 <div className="text-2xl font-bold font-display">
                   {formatCurrency(stats?.totalRevenue ?? 0)}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  From completed payments
-                </p>
               </CardContent>
             </Card>
             <Card className="rounded-3xl border border-border/60 shadow-md">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-display uppercase tracking-wide">
-                  Recent Applications
+                  <MetricLabelWithTooltip
+                    label="Recent Applications"
+                    tooltip="Applications created in the last 7 days."
+                  />
                 </CardTitle>
                 <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold font-display">{stats?.recentApplications ?? 0}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Last 7 days
-                </p>
               </CardContent>
             </Card>
           </section>
@@ -403,37 +433,52 @@ const Dashboard = () => {
               <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-5">
                 <Card className="rounded-3xl border border-border/60 shadow-sm">
                   <CardContent className="p-4">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Total Students</p>
+                    <MetricLabelWithTooltip
+                      label="Total Students"
+                      tooltip="All registered student profiles."
+                      className="text-xs uppercase tracking-wide text-muted-foreground"
+                    />
                     <p className="text-2xl font-bold font-display mt-2">{breakdowns?.students.total ?? 0}</p>
-                    <p className="text-xs text-muted-foreground mt-1">All registered student profiles</p>
                   </CardContent>
                 </Card>
                 <Card className="rounded-3xl border border-border/60 shadow-sm">
                   <CardContent className="p-4">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">With Applications</p>
+                    <MetricLabelWithTooltip
+                      label="With Applications"
+                      tooltip="Students who submitted at least one application."
+                      className="text-xs uppercase tracking-wide text-muted-foreground"
+                    />
                     <p className="text-2xl font-bold font-display mt-2">{breakdowns?.students.withApplication ?? 0}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Students who submitted at least one application</p>
                   </CardContent>
                 </Card>
                 <Card className="rounded-3xl border border-border/60 shadow-sm">
                   <CardContent className="p-4">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Confirmed Students</p>
+                    <MetricLabelWithTooltip
+                      label="Confirmed Students"
+                      tooltip="Unique students with a confirmed booking."
+                      className="text-xs uppercase tracking-wide text-muted-foreground"
+                    />
                     <p className="text-2xl font-bold font-display mt-2">{breakdowns?.students.confirmed ?? 0}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Unique students with a confirmed booking</p>
                   </CardContent>
                 </Card>
                 <Card className="rounded-3xl border border-border/60 shadow-sm">
                   <CardContent className="p-4">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">In Pipeline</p>
+                    <MetricLabelWithTooltip
+                      label="In Pipeline"
+                      tooltip="Awaiting signature or awaiting deposit."
+                      className="text-xs uppercase tracking-wide text-muted-foreground"
+                    />
                     <p className="text-2xl font-bold font-display mt-2">{breakdowns?.students.inPipeline ?? 0}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Awaiting signature or awaiting deposit</p>
                   </CardContent>
                 </Card>
                 <Card className="rounded-3xl border border-border/60 shadow-sm">
                   <CardContent className="p-4">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Without Applications</p>
+                    <MetricLabelWithTooltip
+                      label="Without Applications"
+                      tooltip="Registered students with no application yet."
+                      className="text-xs uppercase tracking-wide text-muted-foreground"
+                    />
                     <p className="text-2xl font-bold font-display mt-2">{breakdowns?.students.withoutApplication ?? 0}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Registered students with no application yet</p>
                   </CardContent>
                 </Card>
               </div>
@@ -524,6 +569,7 @@ const Dashboard = () => {
             )}
           </section>
         </>
+        </TooltipProvider>
       )}
     </AdminLayout>
   );

@@ -50,7 +50,7 @@ const extractEmailsFromFileContent = (content: string) => {
 const splitCsvLine = (line: string) =>
   line
     .split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/g)
-    .map((part) => part.trim().replace(/^"|"$/g, ""));
+    .map((part) => part.trim().replace(/^"|"$/g));
 
 const parseTagsValue = (value: string) =>
   value
@@ -625,7 +625,7 @@ const MarketingCampaigns = () => {
       pageTitle="Marketing Campaigns"
       subtitle="Upload lead lists and send template-based campaigns"
       mobileActionButton={
-        <Button onClick={() => setCampaignDialogOpen(true)} size="sm" className="rounded-full h-9 w-9 p-0">
+        <Button onClick={() => setCampaignDialogOpen(true)} size="sm" className="rounded-md h-9 w-9 p-0">
           <Plus className="h-4 w-4" />
         </Button>
       }
@@ -637,13 +637,13 @@ const MarketingCampaigns = () => {
             <p className="text-sm text-muted-foreground mt-1">Dedicated lead/outreach campaigns, isolated from student messaging.</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" className="rounded-full h-10 w-10 p-0" onClick={downloadCsvTemplate} aria-label="Download CSV template">
+            <Button variant="outline" className="rounded-md h-10 w-10 p-0" onClick={downloadCsvTemplate} aria-label="Download CSV template">
               <Download className="h-4 w-4" />
             </Button>
-            <Button variant="outline" className="rounded-full h-10 w-10 p-0" onClick={openCreateTemplateDialog} aria-label="Create new template">
+            <Button variant="outline" className="rounded-md h-10 w-10 p-0" onClick={openCreateTemplateDialog} aria-label="Create new template">
               <Mail className="h-4 w-4" />
             </Button>
-            <Button className="rounded-full h-10 w-10 p-0" onClick={() => setCampaignDialogOpen(true)} aria-label="Create new campaign">
+            <Button className="rounded-md h-10 w-10 p-0" onClick={() => setCampaignDialogOpen(true)} aria-label="Create new campaign">
               <Send className="h-4 w-4" />
             </Button>
           </div>
@@ -673,24 +673,24 @@ const MarketingCampaigns = () => {
         <Card className="rounded-3xl">
           <CardContent className="pt-6">
             <Tabs defaultValue="campaigns" className="w-full">
-              <TabsList className="grid w-full grid-cols-3 rounded-full">
+              <TabsList className="grid w-full grid-cols-3 rounded-md">
                 <TabsTrigger
                   value="campaigns"
-                  className="rounded-full uppercase tracking-wide data-[state=active]:text-primary"
+                  className="rounded-md uppercase tracking-wide data-[state=active]:text-primary"
                 >
                   <Send className="h-4 w-4 mr-2" />
                   Recent Campaigns
                 </TabsTrigger>
                 <TabsTrigger
                   value="contacts"
-                  className="rounded-full uppercase tracking-wide data-[state=active]:text-primary"
+                  className="rounded-md uppercase tracking-wide data-[state=active]:text-primary"
                 >
                   <Users className="h-4 w-4 mr-2" />
                   Uploaded Contacts
                 </TabsTrigger>
                 <TabsTrigger
                   value="templates"
-                  className="rounded-full uppercase tracking-wide data-[state=active]:text-primary"
+                  className="rounded-md uppercase tracking-wide data-[state=active]:text-primary"
                 >
                   <Mail className="h-4 w-4 mr-2" />
                   Templates
@@ -703,7 +703,7 @@ const MarketingCampaigns = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="rounded-full"
+                      className="rounded-md"
                       onClick={async () => {
                         await bulkDeleteCampaigns.mutateAsync(selectedCampaignIds);
                         setSelectedCampaignIds([]);
@@ -744,7 +744,7 @@ const MarketingCampaigns = () => {
                           <Button
                             variant="outline"
                             size="sm"
-                            className="rounded-full text-destructive"
+                            className="rounded-md text-destructive"
                             onClick={async () => {
                               await deleteCampaign.mutateAsync(campaign.id);
                               toast({ title: "Campaign deleted", description: "Campaign has been removed." });
@@ -765,7 +765,7 @@ const MarketingCampaigns = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="rounded-full"
+                      className="rounded-md"
                       onClick={() => {
                         if (areAllCurrentPageContactsSelected) {
                           setSelectedContactIds((prev) =>
@@ -783,7 +783,7 @@ const MarketingCampaigns = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="rounded-full"
+                      className="rounded-md"
                       onClick={() => {
                         if (areAllContactsSelected) {
                           setSelectedContactIds([]);
@@ -795,7 +795,7 @@ const MarketingCampaigns = () => {
                       {areAllContactsSelected ? "Clear All" : "Select All"}
                     </Button>
                   </div>
-                  <Button size="sm" className="rounded-full h-9 w-9 p-0" onClick={() => setContactsDialogOpen(true)} aria-label="Manage uploaded contacts">
+                  <Button size="sm" className="rounded-md h-9 w-9 p-0" onClick={() => setContactsDialogOpen(true)} aria-label="Manage uploaded contacts">
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
@@ -805,7 +805,7 @@ const MarketingCampaigns = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="rounded-full"
+                      className="rounded-md"
                       onClick={async () => {
                         await bulkUpdateContactsSubscription.mutateAsync({
                           contactIds: selectedContactIds,
@@ -819,7 +819,7 @@ const MarketingCampaigns = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="rounded-full"
+                      className="rounded-md"
                       onClick={async () => {
                         await bulkUpdateContactsSubscription.mutateAsync({
                           contactIds: selectedContactIds,
@@ -833,7 +833,7 @@ const MarketingCampaigns = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="rounded-full text-destructive"
+                      className="rounded-md text-destructive"
                       onClick={async () => {
                         await bulkDeleteContacts.mutateAsync(selectedContactIds);
                         setSelectedContactIds([]);
@@ -882,7 +882,7 @@ const MarketingCampaigns = () => {
                           <Button
                             variant="outline"
                             size="sm"
-                            className="rounded-full uppercase tracking-wide"
+                            className="rounded-md uppercase tracking-wide"
                             onClick={() => openEditContact(contact)}
                           >
                             <Pencil className="h-3 w-3 mr-1" />
@@ -891,7 +891,7 @@ const MarketingCampaigns = () => {
                           <Button
                             variant="outline"
                             size="sm"
-                            className="rounded-full text-destructive"
+                            className="rounded-md text-destructive"
                             onClick={async () => {
                               await deleteContact.mutateAsync(contact.id);
                               toast({ title: "Contact deleted", description: "Contact removed." });
@@ -914,7 +914,7 @@ const MarketingCampaigns = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="rounded-full"
+                        className="rounded-md"
                         disabled={contactsPage <= 1}
                         onClick={() => setContactsPage((prev) => Math.max(1, prev - 1))}
                       >
@@ -923,7 +923,7 @@ const MarketingCampaigns = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="rounded-full"
+                        className="rounded-md"
                         disabled={contactsPage >= totalContactsPages}
                         onClick={() => setContactsPage((prev) => Math.min(totalContactsPages, prev + 1))}
                       >
@@ -935,7 +935,7 @@ const MarketingCampaigns = () => {
               </TabsContent>
               <TabsContent value="templates" className="mt-4">
                 <div className="flex justify-end mb-3">
-                  <Button size="sm" className="rounded-full h-9 w-9 p-0" onClick={openCreateTemplateDialog} aria-label="Create marketing template">
+                  <Button size="sm" className="rounded-md h-9 w-9 p-0" onClick={openCreateTemplateDialog} aria-label="Create marketing template">
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
@@ -945,7 +945,7 @@ const MarketingCampaigns = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="rounded-full"
+                      className="rounded-md"
                       onClick={async () => {
                         await bulkUpdateTemplatesActive.mutateAsync({
                           templateIds: selectedTemplateIds,
@@ -959,7 +959,7 @@ const MarketingCampaigns = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="rounded-full"
+                      className="rounded-md"
                       onClick={async () => {
                         await bulkUpdateTemplatesActive.mutateAsync({
                           templateIds: selectedTemplateIds,
@@ -973,7 +973,7 @@ const MarketingCampaigns = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="rounded-full text-destructive"
+                      className="rounded-md text-destructive"
                       onClick={async () => {
                         try {
                           await bulkDeleteTemplates.mutateAsync(selectedTemplateIds);
@@ -1023,15 +1023,15 @@ const MarketingCampaigns = () => {
                           <Badge variant={template.is_active ? "secondary" : "outline"}>
                             {template.is_active ? "Active" : "Inactive"}
                           </Badge>
-                          <Button variant="outline" size="sm" className="rounded-full" onClick={() => setPreviewTemplateId(template.id)}>
+                          <Button variant="outline" size="sm" className="rounded-md" onClick={() => setPreviewTemplateId(template.id)}>
                             <Eye className="h-3 w-3 mr-1" />
                             Preview
                           </Button>
-                          <Button variant="outline" size="sm" className="rounded-full" onClick={() => openEditTemplateDialog(template.id)}>
+                          <Button variant="outline" size="sm" className="rounded-md" onClick={() => openEditTemplateDialog(template.id)}>
                             <Pencil className="h-3 w-3 mr-1" />
                             Edit
                           </Button>
-                          <Button variant="outline" size="sm" className="rounded-full text-destructive" onClick={() => void handleDeleteTemplate(template.id)}>
+                          <Button variant="outline" size="sm" className="rounded-md text-destructive" onClick={() => void handleDeleteTemplate(template.id)}>
                             <Trash2 className="h-3 w-3 mr-1" />
                             Delete
                           </Button>
@@ -1077,7 +1077,7 @@ const MarketingCampaigns = () => {
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="rounded-full uppercase tracking-wide"
+                  className="rounded-md uppercase tracking-wide"
                   onClick={() => templateImageInputRef.current?.click()}
                   disabled={uploadingTemplateImage}
                 >
@@ -1113,7 +1113,7 @@ const MarketingCampaigns = () => {
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="rounded-full uppercase tracking-wide"
+                    className="rounded-md uppercase tracking-wide"
                     onClick={insertClickableImage}
                   >
                     Insert Clickable Image
@@ -1141,8 +1141,8 @@ const MarketingCampaigns = () => {
             </div>
           </div>
           <div className="flex justify-end gap-2 mt-4">
-            <Button variant="outline" onClick={() => setTemplateDialogOpen(false)} className="rounded-full uppercase tracking-wide">Cancel</Button>
-            <Button onClick={handleTemplateSubmit} disabled={createTemplate.isPending || updateTemplate.isPending} className="rounded-full uppercase tracking-wide">
+            <Button variant="outline" onClick={() => setTemplateDialogOpen(false)} className="rounded-md uppercase tracking-wide">Cancel</Button>
+            <Button onClick={handleTemplateSubmit} disabled={createTemplate.isPending || updateTemplate.isPending} className="rounded-md uppercase tracking-wide">
               {createTemplate.isPending || updateTemplate.isPending ? "Saving..." : "Save Template"}
             </Button>
           </div>
@@ -1296,8 +1296,8 @@ const MarketingCampaigns = () => {
             <p className="text-xs text-muted-foreground mt-1">Detected {validEmailCount} valid email(s).</p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCampaignDialogOpen(false)} className="rounded-full uppercase tracking-wide">Cancel</Button>
-            <Button onClick={handleCampaignSubmit} disabled={createCampaign.isPending} className="rounded-full uppercase tracking-wide">
+            <Button variant="outline" onClick={() => setCampaignDialogOpen(false)} className="rounded-md uppercase tracking-wide">Cancel</Button>
+            <Button onClick={handleCampaignSubmit} disabled={createCampaign.isPending} className="rounded-md uppercase tracking-wide">
               <Send className="h-4 w-4 mr-2" />
               {createCampaign.isPending ? "Sending..." : "Send Campaign"}
             </Button>
@@ -1312,10 +1312,10 @@ const MarketingCampaigns = () => {
             <DialogDescription>Add contacts directly, bulk upload lists, or maintain test email contacts.</DialogDescription>
           </DialogHeader>
           <Tabs defaultValue="upload" className="w-full">
-            <TabsList className="grid w-full grid-cols-3 rounded-full">
-              <TabsTrigger value="upload" className="rounded-full uppercase tracking-wide">Bulk Upload</TabsTrigger>
-              <TabsTrigger value="single" className="rounded-full uppercase tracking-wide">Add / Edit</TabsTrigger>
-              <TabsTrigger value="test" className="rounded-full uppercase tracking-wide">Test Emails</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-3 rounded-md">
+              <TabsTrigger value="upload" className="rounded-md uppercase tracking-wide">Bulk Upload</TabsTrigger>
+              <TabsTrigger value="single" className="rounded-md uppercase tracking-wide">Add / Edit</TabsTrigger>
+              <TabsTrigger value="test" className="rounded-md uppercase tracking-wide">Test Emails</TabsTrigger>
             </TabsList>
 
             <TabsContent value="upload" className="space-y-4 mt-4">
@@ -1347,7 +1347,7 @@ const MarketingCampaigns = () => {
                   }}
                 />
               </div>
-              <Button className="rounded-full uppercase tracking-wide" onClick={handleSaveUploadedContacts} disabled={bulkSaveContacts.isPending}>
+              <Button className="rounded-md uppercase tracking-wide" onClick={handleSaveUploadedContacts} disabled={bulkSaveContacts.isPending}>
                 {bulkSaveContacts.isPending ? "Saving..." : "Save Contacts"}
               </Button>
             </TabsContent>
@@ -1390,7 +1390,7 @@ const MarketingCampaigns = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <Button className="rounded-full uppercase tracking-wide" onClick={handleSaveSingleContact} disabled={updateContact.isPending || bulkSaveContacts.isPending}>
+              <Button className="rounded-md uppercase tracking-wide" onClick={handleSaveSingleContact} disabled={updateContact.isPending || bulkSaveContacts.isPending}>
                 {singleContactForm.id ? "Update Contact" : "Add Contact"}
               </Button>
             </TabsContent>
@@ -1406,13 +1406,13 @@ const MarketingCampaigns = () => {
                 />
                 <p className="text-xs text-muted-foreground mt-1">These are saved in contacts with source `test_email`.</p>
               </div>
-              <Button className="rounded-full uppercase tracking-wide" onClick={handleSaveTestEmails} disabled={bulkSaveContacts.isPending}>
+              <Button className="rounded-md uppercase tracking-wide" onClick={handleSaveTestEmails} disabled={bulkSaveContacts.isPending}>
                 Save Test Emails
               </Button>
             </TabsContent>
           </Tabs>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setContactsDialogOpen(false)} className="rounded-full uppercase tracking-wide">
+            <Button variant="outline" onClick={() => setContactsDialogOpen(false)} className="rounded-md uppercase tracking-wide">
               Close
             </Button>
           </DialogFooter>

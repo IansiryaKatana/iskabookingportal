@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { getCorsHeaders, handleCorsPrelight } from "../_shared/cors.ts";
+import { buildPortalRecoveryLink, resolvePortalUrl } from "../_shared/recovery-link.ts";
 
 // Helper function to parse Resend API response
 async function parseResendResponse(response: Response) {
@@ -113,11 +114,10 @@ serve(async (req) => {
 
     // Generate confirmation token via Supabase Admin API
     let confirmationLink = "";
-    const baseUrl = Deno.env.get("SUPABASE_URL")?.replace(/\/$/, "") || "";
-    const redirectUrl = redirect_to || `${baseUrl}/portal/reset-password`;
+    const portalUrl = resolvePortalUrl();
+    const redirectUrl = redirect_to || `${portalUrl}/portal/reset-password`;
 
     if (type === "signup") {
-      // Generate email confirmation link
       const { data: linkData, error: linkError } = await supabaseClient.auth.admin.generateLink({
         type: "signup",
         email: email,
@@ -126,7 +126,7 @@ serve(async (req) => {
         },
       });
 
-      if (linkError || !linkData?.properties?.action_link) {
+      if (linkError || !linkData?.properties) {
         console.error("Error generating confirmation link:", linkError);
         return new Response(
           JSON.stringify({ error: "Failed to generate confirmation link" }),
@@ -137,9 +137,24 @@ serve(async (req) => {
         );
       }
 
-      confirmationLink = linkData.properties.action_link;
+      try {
+        confirmationLink = buildPortalRecoveryLink(
+          portalUrl,
+          "/portal/reset-password",
+          linkData.properties,
+          "signup",
+        );
+      } catch (buildError: any) {
+        console.error("Error building confirmation link:", buildError);
+        return new Response(
+          JSON.stringify({ error: buildError?.message || "Failed to build confirmation link" }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
     } else if (type === "recovery") {
-      // Generate password reset link
       const { data: linkData, error: linkError } = await supabaseClient.auth.admin.generateLink({
         type: "recovery",
         email: email,
@@ -148,7 +163,7 @@ serve(async (req) => {
         },
       });
 
-      if (linkError || !linkData?.properties?.action_link) {
+      if (linkError || !linkData?.properties) {
         console.error("Error generating recovery link:", linkError);
         return new Response(
           JSON.stringify({ error: "Failed to generate recovery link" }),
@@ -159,7 +174,29 @@ serve(async (req) => {
         );
       }
 
-      confirmationLink = linkData.properties.action_link;
+      const recoveryPath = redirectUrl.includes("/partner/")
+        ? "/partner/reset-password"
+        : redirectUrl.includes("/admin/")
+          ? "/admin/reset-password"
+          : "/portal/reset-password";
+
+      try {
+        confirmationLink = buildPortalRecoveryLink(
+          portalUrl,
+          recoveryPath,
+          linkData.properties,
+          "recovery",
+        );
+      } catch (buildError: any) {
+        console.error("Error building recovery link:", buildError);
+        return new Response(
+          JSON.stringify({ error: buildError?.message || "Failed to build recovery link" }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
     }
 
     // Get email template
@@ -243,6 +280,8 @@ ${companyName} Team
       student_name: user.user_metadata?.first_name || "there",
       student_email: email,
       confirmation_link: confirmationLink,
+      invitation_link: confirmationLink,
+      reset_link: confirmationLink,
       support_email: supportEmail,
       current_year: new Date().getFullYear().toString(),
     };

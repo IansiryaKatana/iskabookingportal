@@ -387,7 +387,7 @@ const Secrets = () => {
                 placeholder="Search secrets..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 rounded-full text-sm sm:text-base placeholder:text-xs sm:placeholder:text-sm"
+                className="pl-9 rounded-md text-sm sm:text-base placeholder:text-xs sm:placeholder:text-sm"
               />
             </div>
 
@@ -398,7 +398,7 @@ const Secrets = () => {
                 disabled={migrateSecrets.isPending || isMigrating}
                 variant="outline"
                 size="icon"
-                className="rounded-full h-10 w-10 sm:h-auto sm:w-auto sm:px-4 sm:py-2 sm:rounded-full sm:uppercase sm:tracking-wide sm:gap-2"
+                className="rounded-md h-10 w-10 sm:h-auto sm:w-auto sm:px-4 sm:py-2 sm:rounded-md sm:uppercase sm:tracking-wide sm:gap-2"
                 title="Migrate from Env Vars"
               >
                 {migrateSecrets.isPending || isMigrating ? (
@@ -411,7 +411,7 @@ const Secrets = () => {
               <Button 
                 onClick={handleAdd} 
                 size="icon"
-                className="rounded-full h-10 w-10 sm:h-auto sm:w-auto sm:px-4 sm:py-2 sm:rounded-full sm:uppercase sm:tracking-wide sm:gap-2"
+                className="rounded-md h-10 w-10 sm:h-auto sm:w-auto sm:px-4 sm:py-2 sm:rounded-md sm:uppercase sm:tracking-wide sm:gap-2"
                 title="Add Secret"
               >
                 <Plus className="h-4 w-4" />
@@ -544,7 +544,7 @@ const Secrets = () => {
                             variant="outline"
                             size="sm"
                             onClick={() => handleEdit(credential)}
-                            className="rounded-full w-full md:w-auto"
+                            className="rounded-md w-full md:w-auto"
                           >
                             Edit
                           </Button>
@@ -554,7 +554,7 @@ const Secrets = () => {
                                 variant="destructive"
                                 size="sm"
                                 onClick={() => handleDelete(credential)}
-                                className="rounded-full w-full md:w-auto"
+                                className="rounded-md w-full md:w-auto"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -634,7 +634,7 @@ const Secrets = () => {
               <div className="text-center py-12">
                 <Lock className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                 <p className="text-muted-foreground">No secrets found</p>
-                <Button onClick={handleAdd} className="mt-4 rounded-full uppercase tracking-wide gap-2">
+                <Button onClick={handleAdd} className="mt-4 rounded-md uppercase tracking-wide gap-2">
                   <Plus className="h-4 w-4" />
                   Add Your First Secret
                 </Button>
@@ -654,7 +654,7 @@ const Secrets = () => {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-full"
+                className="h-8 w-8 rounded-md"
                 onClick={() => setIsAddDialogOpen(false)}
                 aria-label="Close"
               >
@@ -681,7 +681,7 @@ const Secrets = () => {
                   placeholder="e.g., STRIPE_SECRET_KEY"
                   value={formData.credential_key}
                   onChange={(e) => setFormData({ ...formData, credential_key: e.target.value.toUpperCase() })}
-                  className="rounded-full"
+                  className="rounded-md"
                 />
                 <p className="text-xs text-muted-foreground">Use uppercase with underscores (e.g., API_KEY_NAME)</p>
               </div>
@@ -699,7 +699,7 @@ const Secrets = () => {
                 <div className="space-y-2">
                   <Label htmlFor="category">Category</Label>
                   <Select value={formData.category} onValueChange={(value) => setFormData({ ...formData, category: value })}>
-                    <SelectTrigger className="rounded-full">
+                    <SelectTrigger className="rounded-md">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -717,7 +717,7 @@ const Secrets = () => {
                     value={formData.credential_type}
                     onValueChange={(value) => setFormData({ ...formData, credential_type: value })}
                   >
-                    <SelectTrigger className="rounded-full">
+                    <SelectTrigger className="rounded-md">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -738,7 +738,7 @@ const Secrets = () => {
                   placeholder="What is this secret used for?"
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="rounded-full"
+                  className="rounded-md"
                 />
               </div>
               <div className="space-y-4">
@@ -767,13 +767,13 @@ const Secrets = () => {
               </div>
             </div>
             <DialogFooter className="flex flex-col sm:flex-row gap-2">
-              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} className="rounded-full w-full sm:w-auto">
+              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} className="rounded-md w-full sm:w-auto">
                 Cancel
               </Button>
               <Button
                 onClick={() => createCredential.mutate(formData)}
                 disabled={!formData.credential_key || !formData.credential_value || createCredential.isPending}
-                className="rounded-full uppercase tracking-wide gap-2 w-full sm:w-auto"
+                className="rounded-md uppercase tracking-wide gap-2 w-full sm:w-auto"
               >
                 {createCredential.isPending ? (
                   <>
@@ -802,7 +802,7 @@ const Secrets = () => {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-full"
+                className="h-8 w-8 rounded-md"
                 onClick={() => setIsEditDialogOpen(false)}
                 aria-label="Close"
               >
@@ -812,7 +812,7 @@ const Secrets = () => {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Key Name</Label>
-                <Input value={formData.credential_key} disabled className="rounded-full bg-muted" />
+                <Input value={formData.credential_key} disabled className="rounded-md bg-muted" />
                 <p className="text-xs text-muted-foreground">Key name cannot be changed</p>
               </div>
               <div className="space-y-2">
@@ -834,7 +834,7 @@ const Secrets = () => {
                 <div className="space-y-2">
                   <Label htmlFor="edit_category">Category</Label>
                   <Select value={formData.category} onValueChange={(value) => setFormData({ ...formData, category: value })}>
-                    <SelectTrigger className="rounded-full">
+                    <SelectTrigger className="rounded-md">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -852,7 +852,7 @@ const Secrets = () => {
                     value={formData.credential_type}
                     onValueChange={(value) => setFormData({ ...formData, credential_type: value })}
                   >
-                    <SelectTrigger className="rounded-full">
+                    <SelectTrigger className="rounded-md">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -873,7 +873,7 @@ const Secrets = () => {
                   placeholder="What is this secret used for?"
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="rounded-full"
+                  className="rounded-md"
                 />
               </div>
               <div className="space-y-4">
@@ -902,7 +902,7 @@ const Secrets = () => {
               </div>
             </div>
             <DialogFooter className="flex flex-col sm:flex-row gap-2">
-              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} className="rounded-full w-full sm:w-auto">
+              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} className="rounded-md w-full sm:w-auto">
                 Cancel
               </Button>
               <Button
@@ -912,7 +912,7 @@ const Secrets = () => {
                   }
                 }}
                 disabled={updateCredential.isPending}
-                className="rounded-full uppercase tracking-wide gap-2 w-full sm:w-auto"
+                className="rounded-md uppercase tracking-wide gap-2 w-full sm:w-auto"
               >
                 {updateCredential.isPending ? (
                   <>
@@ -951,7 +951,7 @@ const Secrets = () => {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 rounded-full"
+                  className="h-8 w-8 rounded-md"
                   aria-label="Close"
                 >
                   <XCircle className="h-5 w-5" />
@@ -959,7 +959,7 @@ const Secrets = () => {
               </AlertDialogCancel>
             </AlertDialogHeader>
             <AlertDialogFooter className="flex flex-col sm:flex-row gap-2">
-              <AlertDialogCancel className="rounded-full w-full sm:w-auto" onClick={() => setDeleteDialogOpen(false)}>
+              <AlertDialogCancel className="rounded-md w-full sm:w-auto" onClick={() => setDeleteDialogOpen(false)}>
                 Cancel
               </AlertDialogCancel>
               <AlertDialogAction
@@ -969,7 +969,7 @@ const Secrets = () => {
                   }
                 }}
                 disabled={deleteCredential.isPending}
-                className="rounded-full bg-destructive hover:bg-destructive/90 w-full sm:w-auto"
+                className="rounded-md bg-destructive hover:bg-destructive/90 w-full sm:w-auto"
               >
                 {deleteCredential.isPending ? (
                   <>

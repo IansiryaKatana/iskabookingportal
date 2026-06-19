@@ -5,7 +5,7 @@ import { useOTABookings } from "@/hooks/useOTABookings";
 import { useOTAExpenses } from "@/hooks/useOTAExpenses";
 import { useOTAPaymentLedger } from "@/hooks/useOTAPayments";
 import type { OTAPaymentStatus } from "@/utils/otaPayment";
-import { OTA_PAYMENT_STATUS_LABELS } from "@/utils/otaPayment";
+import { OTAPaymentStatusBadge } from "@/components/finance/FinanceStatusBadge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -268,7 +268,7 @@ const OTAFinancePage = () => {
             </Link>
             . Expected payout is not cash until recorded.
           </p>
-          <Button asChild variant="outline" className="rounded-full shrink-0">
+          <Button asChild variant="outline" className="rounded-md shrink-0">
             <Link to="/ota-bookings/payments">
               <CreditCard className="h-4 w-4 mr-2" />
               Record payment
@@ -287,7 +287,7 @@ const OTAFinancePage = () => {
             <div className="flex flex-col md:flex-row gap-3 md:gap-4 items-end">
               <div className="flex-1 min-w-[150px]">
                 <Select value={dateRange} onValueChange={(value: "this_week" | "this_month" | "custom") => setDateRange(value)}>
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger className="rounded-md">
                     <SelectValue placeholder="Date Range" />
                   </SelectTrigger>
                   <SelectContent>
@@ -304,7 +304,7 @@ const OTAFinancePage = () => {
                       type="date"
                       value={customStartDate}
                       onChange={(e) => setCustomStartDate(e.target.value)}
-                      className="rounded-full"
+                      className="rounded-md"
                       placeholder="Start Date"
                     />
                   </div>
@@ -313,7 +313,7 @@ const OTAFinancePage = () => {
                       type="date"
                       value={customEndDate}
                       onChange={(e) => setCustomEndDate(e.target.value)}
-                      className="rounded-full"
+                      className="rounded-md"
                       placeholder="End Date"
                     />
                   </div>
@@ -321,7 +321,7 @@ const OTAFinancePage = () => {
               )}
               <div className="flex-1 min-w-[150px]">
                 <Select value={channelFilter} onValueChange={setChannelFilter}>
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger className="rounded-md">
                     <SelectValue placeholder="Channel" />
                   </SelectTrigger>
                   <SelectContent>
@@ -339,7 +339,7 @@ const OTAFinancePage = () => {
                   placeholder="Search booking ref, guest, studio, channel, status..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="rounded-full text-sm md:text-base"
+                  className="rounded-md text-sm md:text-base"
                 />
               </div>
               <div className="flex-1 min-w-[150px]">
@@ -347,7 +347,7 @@ const OTAFinancePage = () => {
                   value={paymentStatusFilter}
                   onValueChange={(v) => setPaymentStatusFilter(v as OTAPaymentStatus | "all")}
                 >
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger className="rounded-md">
                     <SelectValue placeholder="Payment status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -362,7 +362,7 @@ const OTAFinancePage = () => {
               <div className="flex-shrink-0">
                 <Button
                   onClick={exportToCSV}
-                  className="rounded-full gap-2"
+                  className="rounded-md gap-2"
                   variant="destructive"
                 >
                   <Download className="h-4 w-4" />
@@ -547,9 +547,7 @@ const OTAFinancePage = () => {
                             {formatCurrency(row.remaining_balance)}
                           </TableCell>
                           <TableCell className="text-xs">
-                            <Badge variant="secondary" className="text-xs">
-                              {OTA_PAYMENT_STATUS_LABELS[payStatus] ?? payStatus}
-                            </Badge>
+                            <OTAPaymentStatusBadge status={payStatus} />
                           </TableCell>
                           <TableCell className="text-xs">
                             <Badge variant="outline" className="text-xs capitalize">

@@ -191,7 +191,7 @@ const DocuSignTemplates = () => {
           <DialogTrigger asChild>
             <Button
               size="sm"
-              className="rounded-full uppercase tracking-wide gap-2 flex-shrink-0 h-7 px-2 text-xs"
+              className="rounded-md uppercase tracking-wide gap-2 flex-shrink-0 h-7 px-2 text-xs"
               onClick={() => {
                 setEditingId(null);
                 form.reset({
@@ -223,7 +223,7 @@ const DocuSignTemplates = () => {
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button
-              className="rounded-full uppercase tracking-wide"
+              className="rounded-md uppercase tracking-wide"
               onClick={() => {
                 setEditingId(null);
                 form.reset({
@@ -415,14 +415,14 @@ const DocuSignTemplates = () => {
                   <Button
                     type="button"
                     variant="outline"
-                    className="rounded-full uppercase tracking-wide"
+                    className="rounded-md uppercase tracking-wide"
                     onClick={() => setOpen(false)}
                   >
                     Cancel
                   </Button>
                   <Button
                     type="submit"
-                    className="rounded-full uppercase tracking-wide"
+                    className="rounded-md uppercase tracking-wide"
                     disabled={createTemplate.isLoading || updateTemplate.isLoading}
                   >
                     {(createTemplate.isLoading || updateTemplate.isLoading) ? (

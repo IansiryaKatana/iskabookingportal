@@ -293,7 +293,7 @@ const OTAExpensesPage = () => {
                 Filters
               </CardTitle>
               <div className="flex items-center gap-2">
-                <Button variant="outline" onClick={exportToCSV} className="rounded-full gap-2 text-xs md:text-sm">
+                <Button variant="outline" onClick={exportToCSV} className="rounded-md gap-2 text-xs md:text-sm">
                   <Download className="h-3 w-3 md:h-4 md:w-4" />
                   Export
                 </Button>
@@ -302,7 +302,7 @@ const OTAExpensesPage = () => {
                     setEditExpenseId(null);
                     setFormOpen(true);
                   }}
-                  className="rounded-full uppercase tracking-wide gap-2 text-xs md:text-sm"
+                  className="rounded-md uppercase tracking-wide gap-2 text-xs md:text-sm"
                 >
                   <Plus className="h-3 w-3 md:h-4 md:w-4" />
                   New OTA Expense
@@ -316,10 +316,10 @@ const OTAExpensesPage = () => {
                 placeholder="Search expenses..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="rounded-full text-sm md:text-base"
+                className="rounded-md text-sm md:text-base"
               />
               <Select value={channelFilter} onValueChange={setChannelFilter}>
-                <SelectTrigger className="rounded-full text-sm md:text-base">
+                <SelectTrigger className="rounded-md text-sm md:text-base">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -332,7 +332,7 @@ const OTAExpensesPage = () => {
                 </SelectContent>
               </Select>
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="rounded-full text-sm md:text-base">
+                <SelectTrigger className="rounded-md text-sm md:text-base">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -346,8 +346,8 @@ const OTAExpensesPage = () => {
                   <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
-              <Input type="date" value={startDateFilter} onChange={(e) => setStartDateFilter(e.target.value)} className="rounded-full text-sm md:text-base" />
-              <Input type="date" value={endDateFilter} onChange={(e) => setEndDateFilter(e.target.value)} className="rounded-full text-sm md:text-base" />
+              <Input type="date" value={startDateFilter} onChange={(e) => setStartDateFilter(e.target.value)} className="rounded-md text-sm md:text-base" />
+              <Input type="date" value={endDateFilter} onChange={(e) => setEndDateFilter(e.target.value)} className="rounded-md text-sm md:text-base" />
             </div>
           </CardContent>
         </Card>
@@ -365,7 +365,7 @@ const OTAExpensesPage = () => {
                 <Receipt className="h-10 w-10 md:h-12 md:w-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-base md:text-lg font-semibold mb-2">No OTA expenses found</h3>
                 <p className="text-xs md:text-sm text-muted-foreground mb-4">Try adjusting your filters or create your first expense.</p>
-                <Button onClick={() => setFormOpen(true)} className="rounded-full uppercase tracking-wide gap-2 text-xs md:text-sm">
+                <Button onClick={() => setFormOpen(true)} className="rounded-md uppercase tracking-wide gap-2 text-xs md:text-sm">
                   <Plus className="h-3 w-3 md:h-4 md:w-4" />
                   Create First Expense
                 </Button>
@@ -389,7 +389,7 @@ const OTAExpensesPage = () => {
                       <TableRow key={expense.id}>
                         <TableCell className="text-xs md:text-sm">{format(new Date(expense.expense_date), "MMM d, yyyy")}</TableCell>
                         <TableCell>
-                          <Badge variant="outline" className="rounded-full text-[10px] md:text-xs">
+                          <Badge variant="outline" className="rounded-md text-[10px] md:text-xs">
                             {getCategoryLabel(expense.expense_category)}
                           </Badge>
                         </TableCell>
@@ -399,14 +399,14 @@ const OTAExpensesPage = () => {
                         <TableCell className="text-right font-semibold text-xs md:text-sm">£{Number(expense.amount).toFixed(2)}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <Button variant="ghost" size="sm" onClick={() => handleEdit(expense.id)} className="rounded-full h-8 w-8 p-0">
+                            <Button variant="ghost" size="sm" onClick={() => handleEdit(expense.id)} className="rounded-md h-8 w-8 p-0">
                               <Edit className="h-4 w-4" />
                             </Button>
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => setDeleteExpenseId(expense.id)}
-                              className="rounded-full h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              className="rounded-md h-8 w-8 p-0 text-destructive hover:text-destructive"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -437,7 +437,7 @@ const OTAExpensesPage = () => {
                 <div className="space-y-2">
                   <Label className="text-xs md:text-sm">Related OTA Booking (Optional)</Label>
                   <Select value={formData.ota_booking_id} onValueChange={(value) => setFormData((prev) => ({ ...prev, ota_booking_id: value }))}>
-                    <SelectTrigger className="rounded-full text-sm md:text-base">
+                    <SelectTrigger className="rounded-md text-sm md:text-base">
                       <SelectValue placeholder="Select booking" />
                     </SelectTrigger>
                     <SelectContent>
@@ -455,7 +455,7 @@ const OTAExpensesPage = () => {
                   <div className="space-y-2">
                     <Label className="text-xs md:text-sm">Channel</Label>
                     <Select value={formData.channel} onValueChange={(value) => setFormData((prev) => ({ ...prev, channel: value }))}>
-                      <SelectTrigger className="rounded-full text-sm md:text-base">
+                      <SelectTrigger className="rounded-md text-sm md:text-base">
                         <SelectValue placeholder="Select channel" />
                       </SelectTrigger>
                       <SelectContent>
@@ -474,7 +474,7 @@ const OTAExpensesPage = () => {
                       value={formData.expense_category}
                       onValueChange={(value: OTAExpenseCategory) => setFormData((prev) => ({ ...prev, expense_category: value }))}
                     >
-                      <SelectTrigger className="rounded-full text-sm md:text-base">
+                      <SelectTrigger className="rounded-md text-sm md:text-base">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -496,7 +496,7 @@ const OTAExpensesPage = () => {
                     value={formData.description}
                     onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
                     placeholder="Describe this OTA expense"
-                    className="rounded-full text-sm md:text-base"
+                    className="rounded-md text-sm md:text-base"
                   />
                 </div>
 
@@ -509,7 +509,7 @@ const OTAExpensesPage = () => {
                       step="0.01"
                       value={formData.amount}
                       onChange={(e) => setFormData((prev) => ({ ...prev, amount: e.target.value }))}
-                      className="rounded-full text-sm md:text-base"
+                      className="rounded-md text-sm md:text-base"
                     />
                   </div>
                   <div className="space-y-2">
@@ -518,7 +518,7 @@ const OTAExpensesPage = () => {
                       type="date"
                       value={formData.expense_date}
                       onChange={(e) => setFormData((prev) => ({ ...prev, expense_date: e.target.value }))}
-                      className="rounded-full text-sm md:text-base"
+                      className="rounded-md text-sm md:text-base"
                     />
                   </div>
                 </div>
@@ -529,7 +529,7 @@ const OTAExpensesPage = () => {
                     <Input
                       value={formData.vendor_name}
                       onChange={(e) => setFormData((prev) => ({ ...prev, vendor_name: e.target.value }))}
-                      className="rounded-full text-sm md:text-base"
+                      className="rounded-md text-sm md:text-base"
                     />
                   </div>
                   <div className="space-y-2">
@@ -537,7 +537,7 @@ const OTAExpensesPage = () => {
                     <Input
                       value={formData.invoice_number}
                       onChange={(e) => setFormData((prev) => ({ ...prev, invoice_number: e.target.value }))}
-                      className="rounded-full text-sm md:text-base"
+                      className="rounded-md text-sm md:text-base"
                     />
                   </div>
                 </div>
@@ -554,13 +554,13 @@ const OTAExpensesPage = () => {
               </div>
 
               <SheetFooter className="mt-6 flex gap-2">
-                <Button variant="outline" onClick={resetForm} className="rounded-full text-xs md:text-sm">
+                <Button variant="outline" onClick={resetForm} className="rounded-md text-xs md:text-sm">
                   Cancel
                 </Button>
                 <Button
                   onClick={handleSubmit}
                   disabled={createExpense.isPending || updateExpense.isPending}
-                  className="rounded-full uppercase tracking-wide gap-2 text-xs md:text-sm"
+                  className="rounded-md uppercase tracking-wide gap-2 text-xs md:text-sm"
                 >
                   {createExpense.isPending || updateExpense.isPending ? (
                     <>
@@ -590,11 +590,11 @@ const OTAExpensesPage = () => {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter className="gap-2">
-              <AlertDialogCancel className="rounded-full text-xs md:text-sm">Cancel</AlertDialogCancel>
+              <AlertDialogCancel className="rounded-md text-xs md:text-sm">Cancel</AlertDialogCancel>
               <AlertDialogAction
                 onClick={handleDelete}
                 disabled={deleteExpense.isPending}
-                className="rounded-full bg-destructive hover:bg-destructive/90 text-xs md:text-sm"
+                className="rounded-md bg-destructive hover:bg-destructive/90 text-xs md:text-sm"
               >
                 {deleteExpense.isPending ? "Deleting..." : "Delete"}
               </AlertDialogAction>

@@ -144,7 +144,7 @@ const getStatusBadge = (status: string) => {
   };
 
   return (
-    <Badge className={`uppercase ${config.className} rounded-full px-2.5 py-0.5 text-xs font-medium`}>
+    <Badge className={`uppercase ${config.className} rounded-md px-2.5 py-0.5 text-xs font-medium`}>
       {config.label}
     </Badge>
   );
@@ -160,7 +160,7 @@ import {
 const getBookingSourceBadge = (source?: string | null) => {
   if (!source) {
     return (
-      <Badge className="uppercase bg-muted text-muted-foreground rounded-full px-2.5 py-0.5 text-[10px] font-medium">
+      <Badge className="uppercase bg-muted text-muted-foreground rounded-md px-2.5 py-0.5 text-[10px] font-medium">
         No source
       </Badge>
     );
@@ -173,7 +173,7 @@ const getBookingSourceBadge = (source?: string | null) => {
 
   return (
     <Badge
-      className={`uppercase ${cfg.className} rounded-full px-2.5 py-0.5 text-[10px] font-medium`}
+      className={`uppercase ${cfg.className} rounded-md px-2.5 py-0.5 text-[10px] font-medium`}
     >
       {cfg.label}
     </Badge>
@@ -805,7 +805,7 @@ const Applications = () => {
               placeholder="Search by name, email, studio, contract, status..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="rounded-full pl-9 text-sm md:text-base placeholder:text-xs md:placeholder:text-sm"
+              className="rounded-md pl-9 text-sm md:text-base placeholder:text-xs md:placeholder:text-sm"
             />
           </div>
           <div className="w-full md:w-56">
@@ -814,7 +814,7 @@ const Applications = () => {
               value={bookingSourceFilter}
               onValueChange={setBookingSourceFilter}
             >
-              <SelectTrigger className="rounded-full text-xs sm:text-sm">
+              <SelectTrigger className="rounded-md text-xs sm:text-sm">
                 <SelectValue placeholder="All booking sources" />
               </SelectTrigger>
               <SelectContent>
@@ -833,7 +833,7 @@ const Applications = () => {
               value={contractTypeFilter}
               onValueChange={(value) => setContractTypeFilter(value as ContractTypeFilter)}
             >
-              <SelectTrigger className="rounded-full text-xs sm:text-sm">
+              <SelectTrigger className="rounded-md text-xs sm:text-sm">
                 <SelectValue placeholder="All contract types" />
               </SelectTrigger>
               <SelectContent>
@@ -854,7 +854,7 @@ const Applications = () => {
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
-                  className="w-full justify-between rounded-full px-3 py-2 h-auto text-left"
+                  className="w-full justify-between rounded-md px-3 py-2 h-auto text-left"
                 >
                   <span className="text-xs sm:text-sm text-foreground truncate">
                     {createdFrom || createdTo
@@ -879,7 +879,7 @@ const Applications = () => {
                         type="button"
                         size="xs"
                         variant="outline"
-                        className="rounded-full text-[11px] px-2 py-1"
+                        className="rounded-md text-[11px] px-2 py-1"
                         onClick={() => {
                           const today = new Date();
                           const from = subDays(today, 6);
@@ -892,7 +892,7 @@ const Applications = () => {
                         type="button"
                         size="xs"
                         variant="outline"
-                        className="rounded-full text-[11px] px-2 py-1"
+                        className="rounded-md text-[11px] px-2 py-1"
                         onClick={() => {
                           const today = new Date();
                           const from = subDays(today, 29);
@@ -905,7 +905,7 @@ const Applications = () => {
                         type="button"
                         size="xs"
                         variant="outline"
-                        className="rounded-full text-[11px] px-2 py-1"
+                        className="rounded-md text-[11px] px-2 py-1"
                         onClick={() => {
                           const today = new Date();
                           const from = startOfMonth(today);
@@ -920,7 +920,7 @@ const Applications = () => {
                           type="button"
                           size="xs"
                           variant="ghost"
-                          className="rounded-full text-[11px] px-2 py-1 text-muted-foreground"
+                          className="rounded-md text-[11px] px-2 py-1 text-muted-foreground"
                           onClick={clearDateRange}
                         >
                           Clear
@@ -940,7 +940,7 @@ const Applications = () => {
             </Popover>
           </div>
           <Button
-            className="rounded-full uppercase tracking-wide gap-2"
+            className="rounded-md uppercase tracking-wide gap-2"
             onClick={() => setCreateDialogOpen(true)}
           >
             <Plus className="h-4 w-4" />
@@ -950,7 +950,7 @@ const Applications = () => {
         <div className="flex flex-wrap gap-2 md:gap-3 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 scrollbar-hide">
           <Button
             variant={statusFilter === "all" ? "default" : "outline"}
-            className="rounded-full uppercase tracking-wide text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
+            className="rounded-md uppercase tracking-wide text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
             onClick={() => setStatusFilter("all")}
           >
             All applications
@@ -959,7 +959,7 @@ const Applications = () => {
             <Button
               key={key}
               variant={statusFilter === key ? "default" : "outline"}
-              className="rounded-full uppercase tracking-wide text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
+              className="rounded-md uppercase tracking-wide text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
               onClick={() => setStatusFilter(key)}
             >
               {statusLabels[key]}
@@ -993,14 +993,14 @@ const Applications = () => {
                   <div className="space-y-1 flex-1">
                     <div className="flex items-center gap-3">
                       <div className="h-6 w-48 bg-muted animate-pulse rounded" />
-                      <div className="h-5 w-24 bg-muted animate-pulse rounded-full" />
+                      <div className="h-5 w-24 bg-muted animate-pulse rounded-md" />
                     </div>
                     <div className="h-4 w-64 bg-muted animate-pulse rounded" />
                     <div className="h-3 w-40 bg-muted animate-pulse rounded" />
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="h-10 w-48 bg-muted animate-pulse rounded-full" />
-                    <div className="h-10 w-32 bg-muted animate-pulse rounded-full" />
+                    <div className="h-10 w-48 bg-muted animate-pulse rounded-md" />
+                    <div className="h-10 w-32 bg-muted animate-pulse rounded-md" />
                   </div>
                 </div>
               ))}
@@ -1046,7 +1046,7 @@ const Applications = () => {
                       </div>
                       <div className="flex-shrink-0 flex items-center gap-1.5 flex-wrap">
                         {(application as { extension_of_application_id?: string | null }).extension_of_application_id && (
-                          <Badge variant="secondary" className="text-[10px] uppercase tracking-wide gap-1 rounded-full">
+                          <Badge variant="secondary" className="text-[10px] uppercase tracking-wide gap-1 rounded-md">
                             <CalendarPlus className="h-3 w-3" />
                             Extension
                           </Badge>
@@ -1057,7 +1057,7 @@ const Applications = () => {
                           application.contract?.student_application_id && (
                             <Badge
                               variant="secondary"
-                              className="text-[10px] uppercase tracking-wide rounded-full"
+                              className="text-[10px] uppercase tracking-wide rounded-md"
                             >
                               Custom contract
                             </Badge>
@@ -1068,7 +1068,7 @@ const Applications = () => {
                         ) && (
                           <Badge
                             variant="secondary"
-                            className="text-[10px] normal-case tracking-normal rounded-full bg-muted text-muted-foreground"
+                            className="text-[10px] normal-case tracking-normal rounded-md bg-muted text-muted-foreground"
                           >
                             {formatStayRange(
                               application.contract?.contract_start,
@@ -1111,7 +1111,7 @@ const Applications = () => {
                       <Button
                         variant={!application.deposit_payment_intent_id ? "default" : "outline"}
                         size="sm"
-                        className="rounded-full uppercase tracking-wide gap-2 flex-1 sm:flex-initial text-xs"
+                        className="rounded-md uppercase tracking-wide gap-2 flex-1 sm:flex-initial text-xs"
                         onClick={() => {
                           setSelectedApplicationId(application.id);
                           setManualPaymentInitialType(application.deposit_payment_intent_id ? "instalment" : "deposit");
@@ -1127,7 +1127,7 @@ const Applications = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="rounded-full uppercase tracking-wide gap-2 flex-1 sm:flex-initial text-xs"
+                        className="rounded-md uppercase tracking-wide gap-2 flex-1 sm:flex-initial text-xs"
                         onClick={() => {
                           const currentQuery = buildListSearchParams().toString();
                           navigate(`/admin/applications/${application.id}`, {
@@ -1144,7 +1144,7 @@ const Applications = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="rounded-full uppercase tracking-wide gap-2 flex-1 sm:flex-initial text-xs"
+                        className="rounded-md uppercase tracking-wide gap-2 flex-1 sm:flex-initial text-xs"
                         onClick={() =>
                           navigate(`/portal/applications/${application.id}`)
                         }
@@ -1270,7 +1270,7 @@ const Applications = () => {
                 type="button"
                 variant={studentMode === "existing" ? "default" : "outline"}
                 size="sm"
-                className="flex-1 rounded-full gap-2"
+                className="flex-1 rounded-md gap-2"
                 onClick={() => setStudentMode("existing")}
               >
                 <Users className="h-4 w-4" />
@@ -1280,7 +1280,7 @@ const Applications = () => {
                 type="button"
                 variant={studentMode === "new" ? "default" : "outline"}
                 size="sm"
-                className="flex-1 rounded-full gap-2"
+                className="flex-1 rounded-md gap-2"
                 onClick={() => setStudentMode("new")}
               >
                 <UserPlus className="h-4 w-4" />
@@ -1293,7 +1293,7 @@ const Applications = () => {
               <div className="space-y-2">
                 <Label>Student</Label>
                 <Select value={createStudentId} onValueChange={setCreateStudentId}>
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger className="rounded-md">
                     <SelectValue placeholder="Select student" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1320,7 +1320,7 @@ const Applications = () => {
                     placeholder="student@example.com"
                     value={newStudentEmail}
                     onChange={(e) => setNewStudentEmail(e.target.value)}
-                    className="rounded-full"
+                    className="rounded-md"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -1331,7 +1331,7 @@ const Applications = () => {
                       placeholder="John"
                       value={newStudentFirstName}
                       onChange={(e) => setNewStudentFirstName(e.target.value)}
-                      className="rounded-full"
+                      className="rounded-md"
                     />
                   </div>
                   <div className="space-y-2">
@@ -1341,7 +1341,7 @@ const Applications = () => {
                       placeholder="Doe"
                       value={newStudentLastName}
                       onChange={(e) => setNewStudentLastName(e.target.value)}
-                      className="rounded-full"
+                      className="rounded-md"
                     />
                   </div>
                 </div>
@@ -1358,7 +1358,7 @@ const Applications = () => {
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="rounded-full gap-1.5 text-xs"
+                  className="rounded-md gap-1.5 text-xs"
                   onClick={() => setCustomContractSheetOpen(true)}
                 >
                   <FilePlus2 className="h-3.5 w-3.5" />
@@ -1377,7 +1377,7 @@ const Applications = () => {
                     variant="outline"
                     role="combobox"
                     aria-expanded={contractPickerOpen}
-                    className="w-full justify-between rounded-full font-normal"
+                    className="w-full justify-between rounded-md font-normal"
                   >
                     <span className="truncate">
                       {createContractId ? selectedContractLabel : "Select contract"}
@@ -1435,7 +1435,7 @@ const Applications = () => {
                         variant="outline"
                         role="combobox"
                         aria-expanded={studioPickerOpen}
-                        className="w-full justify-between rounded-full font-normal"
+                        className="w-full justify-between rounded-md font-normal"
                       >
                         <span className="truncate">{selectedStudioDisplay}</span>
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -1485,7 +1485,7 @@ const Applications = () => {
                     </PopoverContent>
                   </Popover>
                 ) : (
-                  <div className="rounded-full border border-dashed border-muted-foreground/40 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                  <div className="rounded-md border border-dashed border-muted-foreground/40 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
                     <p className="font-medium">Fully booked currently</p>
                     <p className="mt-0.5 text-xs">No studios available for this contract. You can still create the application; the student can select a studio later in the journey.</p>
                   </div>
@@ -1495,7 +1495,7 @@ const Applications = () => {
             <div className="space-y-2">
               <Label>Booking source</Label>
               <Select value={createBookingSource} onValueChange={setCreateBookingSource}>
-                <SelectTrigger className="rounded-full">
+                <SelectTrigger className="rounded-md">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1510,7 +1510,7 @@ const Applications = () => {
           </div>
             </ScrollArea>
             <DrawerFooter className="gap-2 px-4 pb-6">
-              <Button variant="outline" onClick={() => setCreateDialogOpen(false)} className="rounded-full">
+              <Button variant="outline" onClick={() => setCreateDialogOpen(false)} className="rounded-md">
                 Cancel
               </Button>
               <Button
@@ -1522,7 +1522,7 @@ const Applications = () => {
                   createApplicationMutation.isPending ||
                   isCreatingStudent
                 }
-                className="rounded-full"
+                className="rounded-md"
               >
                 {isCreatingStudent
                   ? "Creating student…"
@@ -1554,7 +1554,7 @@ const Applications = () => {
                 type="button"
                 variant={studentMode === "existing" ? "default" : "outline"}
                 size="sm"
-                className="flex-1 rounded-full gap-2"
+                className="flex-1 rounded-md gap-2"
                 onClick={() => setStudentMode("existing")}
               >
                 <Users className="h-4 w-4" />
@@ -1564,7 +1564,7 @@ const Applications = () => {
                 type="button"
                 variant={studentMode === "new" ? "default" : "outline"}
                 size="sm"
-                className="flex-1 rounded-full gap-2"
+                className="flex-1 rounded-md gap-2"
                 onClick={() => setStudentMode("new")}
               >
                 <UserPlus className="h-4 w-4" />
@@ -1575,7 +1575,7 @@ const Applications = () => {
               <div className="space-y-2">
                 <Label>Student</Label>
                 <Select value={createStudentId} onValueChange={setCreateStudentId}>
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger className="rounded-md">
                     <SelectValue placeholder="Select student" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1602,7 +1602,7 @@ const Applications = () => {
                     placeholder="student@example.com"
                     value={newStudentEmail}
                     onChange={(e) => setNewStudentEmail(e.target.value)}
-                    className="rounded-full"
+                    className="rounded-md"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -1613,7 +1613,7 @@ const Applications = () => {
                       placeholder="John"
                       value={newStudentFirstName}
                       onChange={(e) => setNewStudentFirstName(e.target.value)}
-                      className="rounded-full"
+                      className="rounded-md"
                     />
                   </div>
                   <div className="space-y-2">
@@ -1623,7 +1623,7 @@ const Applications = () => {
                       placeholder="Doe"
                       value={newStudentLastName}
                       onChange={(e) => setNewStudentLastName(e.target.value)}
-                      className="rounded-full"
+                      className="rounded-md"
                     />
                   </div>
                 </div>
@@ -1639,7 +1639,7 @@ const Applications = () => {
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="rounded-full gap-1.5 text-xs"
+                  className="rounded-md gap-1.5 text-xs"
                   onClick={() => setCustomContractSheetOpen(true)}
                 >
                   <FilePlus2 className="h-3.5 w-3.5" />
@@ -1658,7 +1658,7 @@ const Applications = () => {
                     variant="outline"
                     role="combobox"
                     aria-expanded={contractPickerOpen}
-                    className="w-full justify-between rounded-full font-normal"
+                    className="w-full justify-between rounded-md font-normal"
                   >
                     <span className="truncate">
                       {createContractId ? selectedContractLabel : "Select contract"}
@@ -1716,7 +1716,7 @@ const Applications = () => {
                         variant="outline"
                         role="combobox"
                         aria-expanded={studioPickerOpen}
-                        className="w-full justify-between rounded-full font-normal"
+                        className="w-full justify-between rounded-md font-normal"
                       >
                         <span className="truncate">{selectedStudioDisplay}</span>
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -1766,7 +1766,7 @@ const Applications = () => {
                     </PopoverContent>
                   </Popover>
                 ) : (
-                  <div className="rounded-full border border-dashed border-muted-foreground/40 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                  <div className="rounded-md border border-dashed border-muted-foreground/40 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
                     <p className="font-medium">Fully booked currently</p>
                     <p className="mt-0.5 text-xs">No studios available for this contract. You can still create the application; the student can select a studio later in the journey.</p>
                   </div>
@@ -1776,7 +1776,7 @@ const Applications = () => {
             <div className="space-y-2">
               <Label>Booking source</Label>
               <Select value={createBookingSource} onValueChange={setCreateBookingSource}>
-                <SelectTrigger className="rounded-full">
+                <SelectTrigger className="rounded-md">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1790,7 +1790,7 @@ const Applications = () => {
             </div>
             </div>
             <SheetFooter>
-              <Button variant="outline" onClick={() => setCreateDialogOpen(false)} className="rounded-full">
+              <Button variant="outline" onClick={() => setCreateDialogOpen(false)} className="rounded-md">
                 Cancel
               </Button>
               <Button
@@ -1802,7 +1802,7 @@ const Applications = () => {
                   createApplicationMutation.isPending ||
                   isCreatingStudent
                 }
-                className="rounded-full"
+                className="rounded-md"
               >
                 {isCreatingStudent
                   ? "Creating student…"
@@ -1842,7 +1842,7 @@ const SelectStatusButton = ({
       value={status}
       onValueChange={(value) => onChange(value)}
     >
-      <SelectTrigger className="w-full sm:w-48 rounded-full text-xs sm:text-sm">
+      <SelectTrigger className="w-full sm:w-48 rounded-md text-xs sm:text-sm">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

@@ -1024,7 +1024,7 @@ const EmailTemplates = () => {
       mobileActionButton={
         <Button
           size="sm"
-          className="rounded-full uppercase tracking-wide gap-2 flex-shrink-0 h-7 px-2 text-xs"
+          className="rounded-md uppercase tracking-wide gap-2 flex-shrink-0 h-7 px-2 text-xs"
           onClick={() => handleOpenDialog()}
         >
           <Plus className="h-4 w-4" />
@@ -1043,7 +1043,7 @@ const EmailTemplates = () => {
           </div>
           <Button
             onClick={() => handleOpenDialog()}
-            className="rounded-full uppercase tracking-wide gap-2"
+            className="rounded-md uppercase tracking-wide gap-2"
           >
             <Plus className="h-4 w-4" />
             New Template
@@ -1082,7 +1082,7 @@ const EmailTemplates = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="rounded-full uppercase tracking-wide gap-2"
+                        className="rounded-md uppercase tracking-wide gap-2"
                         onClick={() => handleOpenDialog(template.id)}
                       >
                         <Edit className="h-4 w-4" />
@@ -1091,7 +1091,7 @@ const EmailTemplates = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="rounded-full uppercase tracking-wide gap-2 text-destructive hover:text-destructive"
+                        className="rounded-md uppercase tracking-wide gap-2 text-destructive hover:text-destructive"
                         onClick={() => handleDelete(template.id)}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -1116,7 +1116,7 @@ const EmailTemplates = () => {
             <CardContent>
               <Button
                 onClick={() => handleOpenDialog()}
-                className="rounded-full uppercase tracking-wide gap-2"
+                className="rounded-md uppercase tracking-wide gap-2"
               >
                 <Plus className="h-4 w-4" />
                 Create Template
@@ -1172,7 +1172,7 @@ const EmailTemplates = () => {
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="h-6 w-6 p-0 rounded-full"
+                            className="h-6 w-6 p-0 rounded-md"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <Info className="h-4 w-4 text-muted-foreground" />
@@ -1226,7 +1226,7 @@ const EmailTemplates = () => {
                           type="button"
                           variant="outline"
                           onClick={handleLoadDefaultTemplate}
-                          className="rounded-full uppercase tracking-wide gap-2"
+                          className="rounded-md uppercase tracking-wide gap-2"
                         >
                           <Sparkles className="h-4 w-4" />
                           Load Template
@@ -1316,14 +1316,14 @@ const EmailTemplates = () => {
                   type="button"
                   variant="outline"
                   onClick={() => setDialogOpen(false)}
-                  className="rounded-full uppercase tracking-wide"
+                  className="rounded-md uppercase tracking-wide"
                 >
                   Cancel
                 </Button>
                 <Button
                   type="submit"
                   disabled={createTemplate.isPending || updateTemplate.isPending}
-                  className="rounded-full uppercase tracking-wide"
+                  className="rounded-md uppercase tracking-wide"
                 >
                   {editingTemplate ? "Update" : "Create"}
                 </Button>

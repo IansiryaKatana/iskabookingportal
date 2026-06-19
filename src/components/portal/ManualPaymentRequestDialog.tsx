@@ -137,7 +137,7 @@ export default function ManualPaymentRequestDialog({
             type="button"
             variant="outline"
             onClick={() => onOpenChange(false)}
-            className="rounded-full uppercase tracking-wide order-2 sm:order-1"
+            className="rounded-md uppercase tracking-wide order-2 sm:order-1"
           >
             Cancel
           </Button>
@@ -145,7 +145,7 @@ export default function ManualPaymentRequestDialog({
             type="button"
             onClick={handleSubmit}
             disabled={createRequest.isPending}
-            className="rounded-full uppercase tracking-wide order-1 sm:order-2"
+            className="rounded-md uppercase tracking-wide order-1 sm:order-2"
           >
             {createRequest.isPending ? (
               <>

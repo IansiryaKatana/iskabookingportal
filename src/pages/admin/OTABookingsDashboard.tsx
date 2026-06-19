@@ -120,7 +120,7 @@ const getStatusBadge = (status: string) => {
   const Icon = config.icon;
 
   return (
-    <Badge className={`uppercase ${config.className} rounded-full px-2.5 py-0.5 text-xs font-medium flex items-center gap-1`}>
+    <Badge className={`uppercase ${config.className} rounded-md px-2.5 py-0.5 text-xs font-medium flex items-center gap-1`}>
       <Icon className="h-3 w-3" />
       {config.label}
     </Badge>
@@ -140,7 +140,7 @@ const getChannelBadge = (channel: string) => {
   const config = configs[channel] || configs.other;
 
   return (
-    <Badge className={`${config.className} rounded-full px-2.5 py-0.5 text-xs font-medium`}>
+    <Badge className={`${config.className} rounded-md px-2.5 py-0.5 text-xs font-medium`}>
       {config.label}
     </Badge>
   );
@@ -730,6 +730,304 @@ const OTABookingsDashboard = () => {
     }
   };
 
+  const renderCreateBookingForm = () => (
+    <div className="space-y-4 py-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>External Reference *</Label>
+          <Input
+            placeholder="e.g., AB123456"
+            value={formExternalRef}
+            onChange={(e) => setFormExternalRef(e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Channel *</Label>
+          <Select value={formChannel} onValueChange={(value: "airbnb" | "booking" | "agoda" | "expedia" | "other") => setFormChannel(value)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CHANNELS.filter((c) => c.value !== "all").map((channel) => (
+                <SelectItem key={channel.value} value={channel.value}>
+                  {channel.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Guest Name *</Label>
+        <Input
+          placeholder="Guest full name"
+          value={formGuestName}
+          onChange={(e) => setFormGuestName(e.target.value)}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Guest Phone</Label>
+          <Input
+            placeholder="+44 1234 567890"
+            value={formGuestPhone}
+            onChange={(e) => setFormGuestPhone(e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Guest Email</Label>
+          <Input
+            type="email"
+            placeholder="guest@example.com"
+            value={formGuestEmail}
+            onChange={(e) => setFormGuestEmail(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Studio * (OTA Allocated Only)</Label>
+        <Popover open={studioSearchOpen} onOpenChange={setStudioSearchOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={studioSearchOpen}
+              className={cn(
+                "w-full justify-between font-normal",
+                !formStudioId && "border-destructive"
+              )}
+            >
+              <span className="truncate">{selectedStudioDisplay}</span>
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+            <Command>
+              <CommandInput
+                placeholder="Search studios by number..."
+                value={studioSearch}
+                onValueChange={setStudioSearch}
+              />
+              <CommandList>
+                <CommandEmpty>No OTA studios found.</CommandEmpty>
+                <CommandGroup>
+                  {filteredOTAStudios.map((studio) => {
+                    const hasConflict = conflictingBookings.some(
+                      (b) => b.studio_id === studio.id
+                    );
+                    return (
+                      <CommandItem
+                        key={studio.id}
+                        value={studio.studio_number || studio.id}
+                        onSelect={() => {
+                          setFormStudioId(studio.id);
+                          setStudioSearchOpen(false);
+                          setStudioSearch("");
+                        }}
+                        className={cn(
+                          "cursor-pointer",
+                          hasConflict && formCheckIn && formCheckOut && "opacity-50"
+                        )}
+                        disabled={hasConflict && formCheckIn && formCheckOut}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            formStudioId === studio.id ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        <div className="flex-1">
+                          <p className="font-medium">
+                            {studio.studio_number || studio.id}
+                            {hasConflict && formCheckIn && formCheckOut && (
+                              <span className="ml-2 text-xs text-destructive">
+                                (Booked)
+                              </span>
+                            )}
+                          </p>
+                          {studio.floor && (
+                            <p className="text-xs text-muted-foreground">
+                              Floor {studio.floor}
+                            </p>
+                          )}
+                        </div>
+                      </CommandItem>
+                    );
+                  })}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+        {otaStudios.length === 0 && (
+          <p className="text-xs text-muted-foreground">
+            No OTA-allocated studios available. Please allocate studios to OTA first.
+          </p>
+        )}
+        {conflictingBookings.length > 0 && formCheckIn && formCheckOut && (
+          <p className="text-xs text-destructive font-medium">
+            ⚠️ This studio has conflicting bookings for the selected dates. Please choose different dates.
+          </p>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="space-y-2">
+          <Label>Check-in Date *</Label>
+          <Input
+            type="date"
+            value={formCheckIn}
+            onChange={(e) => setFormCheckIn(e.target.value)}
+            disabled={!formStudioId}
+          />
+          {!formStudioId && (
+            <p className="text-xs text-muted-foreground">Select a studio first</p>
+          )}
+        </div>
+        <div className="space-y-2">
+          <Label>Check-out Date *</Label>
+          <Input
+            type="date"
+            value={formCheckOut}
+            onChange={(e) => setFormCheckOut(e.target.value)}
+            min={formCheckIn || undefined}
+            disabled={!formStudioId}
+          />
+          {formCheckIn && formCheckOut && (
+            <p className={cn(
+              "text-xs",
+              calculatedNights > 0 ? "text-muted-foreground" : "text-destructive"
+            )}>
+              {calculatedNights > 0
+                ? `${calculatedNights} night${calculatedNights !== 1 ? "s" : ""}`
+                : "Check-out must be after check-in"
+              }
+            </p>
+          )}
+        </div>
+        <div className="space-y-2">
+          <Label>Status</Label>
+          <Select value={formStatus} onValueChange={setFormStatus}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {OTA_STATUSES.filter((s) => s.value !== "all").map((status) => (
+                <SelectItem key={status.value} value={status.value}>
+                  {status.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Price per Night (GBP) *</Label>
+          <Input
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="25.00"
+            value={formPricePerNight}
+            onChange={(e) => setFormPricePerNight(e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Commission Amount (GBP) *</Label>
+          <Input
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="15.00"
+            value={formCommission}
+            onChange={(e) => setFormCommission(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="space-y-2">
+          <Label>Number of Nights</Label>
+          <Input
+            value={calculatedNights > 0 ? calculatedNights.toString() : "0"}
+            readOnly
+            className={cn(
+              "bg-muted",
+              formCheckIn && formCheckOut && calculatedNights === 0 && "border-destructive"
+            )}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Total Booking Value (GBP)</Label>
+          <Input
+            value={calculatedTotalBookingValue.toFixed(2)}
+            readOnly
+            className="bg-muted"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Total Revenue (GBP)</Label>
+          <Input
+            value={calculatedTotalRevenue.toFixed(2)}
+            readOnly
+            className="bg-muted font-semibold"
+          />
+        </div>
+      </div>
+
+      {calculatedNights > 0 && formPricePerNight && (
+        <div className="text-xs text-muted-foreground bg-muted p-3 rounded-md">
+          <div className="font-medium mb-1">Calculation Breakdown:</div>
+          <div>Total Booking Value: £{formPricePerNight} × {calculatedNights} night{calculatedNights !== 1 ? "s" : ""} = £{calculatedTotalBookingValue.toFixed(2)}</div>
+          {formCommission && parseFloat(formCommission) > 0 && (
+            <div>Commission: -£{parseFloat(formCommission).toFixed(2)}</div>
+          )}
+          <div className="font-semibold mt-1">Total Revenue: £{calculatedTotalRevenue.toFixed(2)}</div>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        <Label>Internal Notes (Staff Only)</Label>
+        <Textarea
+          placeholder="Internal notes for staff reference..."
+          value={formInternalNotes}
+          onChange={(e) => setFormInternalNotes(e.target.value)}
+          className="min-h-[80px]"
+        />
+      </div>
+    </div>
+  );
+
+  const renderCreateBookingActions = () => (
+    <>
+      <Button variant="outline" onClick={() => setCreateDialogOpen(false)} className="rounded-md">
+        Cancel
+      </Button>
+      <Button
+        onClick={handleCreateBooking}
+        className="rounded-md"
+        disabled={createBooking.isPending || (conflictingBookings.length > 0 && !!formCheckIn && !!formCheckOut)}
+      >
+        {createBooking.isPending ? (
+          <>
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            Creating...
+          </>
+        ) : (
+          <>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Booking
+          </>
+        )}
+      </Button>
+    </>
+  );
+
   // Skeleton loader
   if (isLoading) {
     return (
@@ -766,7 +1064,7 @@ const OTABookingsDashboard = () => {
         <Button
           onClick={() => setCreateDialogOpen(true)}
           size="sm"
-          className="rounded-full h-9 w-9 p-0 bg-primary hover:bg-primary/90 text-white flex-shrink-0"
+          className="rounded-md h-9 w-9 p-0 bg-primary hover:bg-primary/90 text-white flex-shrink-0"
         >
           <Plus className="h-4 w-4" />
         </Button>
@@ -785,7 +1083,7 @@ const OTABookingsDashboard = () => {
           </div>
           <Button
             onClick={() => setCreateDialogOpen(true)}
-            className="rounded-full uppercase tracking-wide gap-2"
+            className="rounded-md uppercase tracking-wide gap-2"
           >
             <Plus className="h-4 w-4" />
             New Booking
@@ -881,7 +1179,7 @@ const OTABookingsDashboard = () => {
                   type="button"
                   variant={unallocatedOnly ? "default" : "outline"}
                   onClick={() => setUnallocatedOnly((prev) => !prev)}
-                  className="rounded-full"
+                  className="rounded-md"
                 >
                   {unallocatedOnly ? "Unallocated Only: ON" : "Unallocated Only"}
                 </Button>
@@ -898,7 +1196,7 @@ const OTABookingsDashboard = () => {
                     setUnallocatedOnly(false);
                     setSelectedBookings(new Set());
                   }}
-                  className="rounded-full"
+                  className="rounded-md"
                   disabled={!hasActiveFilters}
                 >
                   Clear Filters
@@ -914,12 +1212,12 @@ const OTABookingsDashboard = () => {
                   placeholder="Ref, guest name, studio..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="rounded-full text-sm md:text-base"
+                  className="rounded-md text-sm md:text-base"
                 />
                 </div>
                 <div className="xl:col-span-2">
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger className="rounded-md">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -933,7 +1231,7 @@ const OTABookingsDashboard = () => {
                 </div>
                 <div className="xl:col-span-2">
                 <Select value={channelFilter} onValueChange={setChannelFilter}>
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger className="rounded-md">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -950,7 +1248,7 @@ const OTABookingsDashboard = () => {
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
-                        className="rounded-full w-full justify-start text-left font-normal"
+                        className="rounded-md w-full justify-start text-left font-normal"
                       >
                         {checkInRangeLabel}
                       </Button>
@@ -961,20 +1259,20 @@ const OTABookingsDashboard = () => {
                           type="date"
                           value={checkInFromFilter}
                           onChange={(e) => setCheckInFromFilter(e.target.value)}
-                          className="rounded-full text-sm"
+                          className="rounded-md text-sm"
                         />
                         <Input
                           type="date"
                           value={checkInToFilter}
                           onChange={(e) => setCheckInToFilter(e.target.value)}
-                          className="rounded-full text-sm"
+                          className="rounded-md text-sm"
                         />
                         <div className="flex justify-end gap-2">
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="rounded-full"
+                            className="rounded-md"
                             onClick={() => {
                               setCheckInFromFilter("");
                               setCheckInToFilter("");
@@ -985,7 +1283,7 @@ const OTABookingsDashboard = () => {
                           <Button
                             type="button"
                             size="sm"
-                            className="rounded-full"
+                            className="rounded-md"
                             onClick={() => setCheckInRangeOpen(false)}
                           >
                             Done
@@ -997,7 +1295,7 @@ const OTABookingsDashboard = () => {
                 </div>
                 <div className="xl:col-span-2">
                 <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger className="rounded-md">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1015,7 +1313,7 @@ const OTABookingsDashboard = () => {
                   type="button"
                   variant={unallocatedOnly ? "default" : "outline"}
                   onClick={() => setUnallocatedOnly((prev) => !prev)}
-                  className="rounded-full"
+                  className="rounded-md"
                 >
                   {unallocatedOnly ? "Unallocated Only: ON" : "Unallocated Only"}
                 </Button>
@@ -1032,7 +1330,7 @@ const OTABookingsDashboard = () => {
                     setUnallocatedOnly(false);
                     setSelectedBookings(new Set());
                   }}
-                  className="rounded-full"
+                  className="rounded-md"
                   disabled={!hasActiveFilters}
                 >
                   Clear Filters
@@ -1046,7 +1344,7 @@ const OTABookingsDashboard = () => {
                       onClick={() => setStatusDialogOpen(true)}
                       variant="outline"
                       size="sm"
-                      className="rounded-full text-xs"
+                      className="rounded-md text-xs"
                     >
                       Update Status ({selectedBookings.size})
                     </Button>
@@ -1054,7 +1352,7 @@ const OTABookingsDashboard = () => {
                       onClick={handleBulkMarkNoShow}
                       variant="outline"
                       size="sm"
-                      className="rounded-full text-xs"
+                      className="rounded-md text-xs"
                     >
                       Mark No Show ({selectedBookings.size})
                     </Button>
@@ -1062,7 +1360,7 @@ const OTABookingsDashboard = () => {
                       onClick={handleBulkCancel}
                       variant="destructive"
                       size="sm"
-                      className="rounded-full text-xs"
+                      className="rounded-md text-xs"
                     >
                       Cancel ({selectedBookings.size})
                     </Button>
@@ -1070,7 +1368,7 @@ const OTABookingsDashboard = () => {
                       onClick={() => setSelectedBookings(new Set())}
                       variant="ghost"
                       size="sm"
-                      className="rounded-full text-xs"
+                      className="rounded-md text-xs"
                     >
                       Clear
                     </Button>
@@ -1249,7 +1547,7 @@ const OTABookingsDashboard = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="rounded-full"
+                        className="rounded-md"
                         onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
                         disabled={currentPage === 1}
                       >
@@ -1261,7 +1559,7 @@ const OTABookingsDashboard = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="rounded-full"
+                        className="rounded-md"
                         onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
                         disabled={currentPage === totalPages}
                       >
@@ -1290,16 +1588,16 @@ const OTABookingsDashboard = () => {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {detailsEditing ? (
-                        <Button variant="outline" size="sm" onClick={() => setDetailsEditing(false)} className="rounded-full gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setDetailsEditing(false)} className="rounded-md gap-2">
                           Cancel
                         </Button>
                       ) : (
-                        <Button variant="outline" size="sm" onClick={() => setDetailsEditing(true)} className="rounded-full gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setDetailsEditing(true)} className="rounded-md gap-2">
                           <Pencil className="h-4 w-4" />
                           Edit booking
                         </Button>
                       )}
-                      <Button variant="ghost" size="sm" onClick={() => setDetailsOpen(false)} className="rounded-full">
+                      <Button variant="ghost" size="sm" onClick={() => setDetailsOpen(false)} className="rounded-md">
                         Close
                       </Button>
                     </div>
@@ -1331,16 +1629,16 @@ const OTABookingsDashboard = () => {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {detailsEditing ? (
-                        <Button variant="outline" size="sm" onClick={() => setDetailsEditing(false)} className="rounded-full gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setDetailsEditing(false)} className="rounded-md gap-2">
                           Cancel
                         </Button>
                       ) : (
-                        <Button variant="outline" size="sm" onClick={() => setDetailsEditing(true)} className="rounded-full gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setDetailsEditing(true)} className="rounded-md gap-2">
                           <Pencil className="h-4 w-4" />
                           Edit booking
                         </Button>
                       )}
-                      <Button variant="ghost" size="sm" onClick={() => setDetailsOpen(false)} className="rounded-full">
+                      <Button variant="ghost" size="sm" onClick={() => setDetailsOpen(false)} className="rounded-md">
                         Close
                       </Button>
                     </div>
@@ -1364,318 +1662,40 @@ const OTABookingsDashboard = () => {
           </>
         )}
 
-        {/* Create Booking Dialog */}
-        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-          <DialogContent className="sm:max-w-[600px] rounded-3xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Create New OTA Booking</DialogTitle>
-              <DialogDescription>
-                Add a new OTA booking to the system.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>External Reference *</Label>
-                  <Input
-                    placeholder="e.g., AB123456"
-                    value={formExternalRef}
-                    onChange={(e) => setFormExternalRef(e.target.value)}
-                    className="rounded-full"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Channel *</Label>
-                  <Select value={formChannel} onValueChange={(value: "airbnb" | "booking" | "agoda" | "expedia" | "other") => setFormChannel(value)}>
-                    <SelectTrigger className="rounded-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CHANNELS.filter((c) => c.value !== "all").map((channel) => (
-                        <SelectItem key={channel.value} value={channel.value}>
-                          {channel.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label>Guest Name *</Label>
-                <Input
-                  placeholder="Guest full name"
-                  value={formGuestName}
-                  onChange={(e) => setFormGuestName(e.target.value)}
-                  className="rounded-full"
-                />
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Guest Phone</Label>
-                  <Input
-                    placeholder="+44 1234 567890"
-                    value={formGuestPhone}
-                    onChange={(e) => setFormGuestPhone(e.target.value)}
-                    className="rounded-full"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Guest Email</Label>
-                  <Input
-                    type="email"
-                    placeholder="guest@example.com"
-                    value={formGuestEmail}
-                    onChange={(e) => setFormGuestEmail(e.target.value)}
-                    className="rounded-full"
-                  />
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label>Studio * (OTA Allocated Only)</Label>
-                <Popover open={studioSearchOpen} onOpenChange={setStudioSearchOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={studioSearchOpen}
-                      className={cn(
-                        "w-full justify-between rounded-full font-normal",
-                        !formStudioId && "border-destructive"
-                      )}
-                    >
-                      <span className="truncate">{selectedStudioDisplay}</span>
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-                    <Command>
-                      <CommandInput
-                        placeholder="Search studios by number..."
-                        value={studioSearch}
-                        onValueChange={setStudioSearch}
-                      />
-                      <CommandList>
-                        <CommandEmpty>No OTA studios found.</CommandEmpty>
-                        <CommandGroup>
-                          {filteredOTAStudios.map((studio) => {
-                            // Check if this studio has conflicting bookings
-                            const hasConflict = conflictingBookings.some(
-                              (b) => b.studio_id === studio.id
-                            );
-                            return (
-                              <CommandItem
-                                key={studio.id}
-                                value={studio.studio_number || studio.id}
-                                onSelect={() => {
-                                  setFormStudioId(studio.id);
-                                  setStudioSearchOpen(false);
-                                  setStudioSearch("");
-                                }}
-                                className={cn(
-                                  "cursor-pointer",
-                                  hasConflict && formCheckIn && formCheckOut && "opacity-50"
-                                )}
-                                disabled={hasConflict && formCheckIn && formCheckOut}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    formStudioId === studio.id ? "opacity-100" : "opacity-0"
-                                  )}
-                                />
-                                <div className="flex-1">
-                                  <p className="font-medium">
-                                    {studio.studio_number || studio.id}
-                                    {hasConflict && formCheckIn && formCheckOut && (
-                                      <span className="ml-2 text-xs text-destructive">
-                                        (Booked)
-                                      </span>
-                                    )}
-                                  </p>
-                                  {studio.floor && (
-                                    <p className="text-xs text-muted-foreground">
-                                      Floor {studio.floor}
-                                    </p>
-                                  )}
-                                </div>
-                              </CommandItem>
-                            );
-                          })}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-                {otaStudios.length === 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    No OTA-allocated studios available. Please allocate studios to OTA first.
-                  </p>
-                )}
-                {conflictingBookings.length > 0 && formCheckIn && formCheckOut && (
-                  <p className="text-xs text-destructive font-medium">
-                    ⚠️ This studio has conflicting bookings for the selected dates. Please choose different dates.
-                  </p>
-                )}
-              </div>
-              
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Check-in Date *</Label>
-                  <Input
-                    type="date"
-                    value={formCheckIn}
-                    onChange={(e) => setFormCheckIn(e.target.value)}
-                    className="rounded-full"
-                    disabled={!formStudioId}
-                  />
-                  {!formStudioId && (
-                    <p className="text-xs text-muted-foreground">Select a studio first</p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label>Check-out Date *</Label>
-                  <Input
-                    type="date"
-                    value={formCheckOut}
-                    onChange={(e) => setFormCheckOut(e.target.value)}
-                    className="rounded-full"
-                    min={formCheckIn || undefined}
-                    disabled={!formStudioId}
-                  />
-                  {formCheckIn && formCheckOut && (
-                    <p className={cn(
-                      "text-xs",
-                      calculatedNights > 0 ? "text-muted-foreground" : "text-destructive"
-                    )}>
-                      {calculatedNights > 0 
-                        ? `${calculatedNights} night${calculatedNights !== 1 ? "s" : ""}`
-                        : "Check-out must be after check-in"
-                      }
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label>Status</Label>
-                  <Select value={formStatus} onValueChange={setFormStatus}>
-                    <SelectTrigger className="rounded-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {OTA_STATUSES.filter((s) => s.value !== "all").map((status) => (
-                        <SelectItem key={status.value} value={status.value}>
-                          {status.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Price per Night (GBP) *</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="25.00"
-                    value={formPricePerNight}
-                    onChange={(e) => setFormPricePerNight(e.target.value)}
-                    className="rounded-full"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Commission Amount (GBP) *</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="15.00"
-                    value={formCommission}
-                    onChange={(e) => setFormCommission(e.target.value)}
-                    className="rounded-full"
-                  />
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Number of Nights</Label>
-                  <Input
-                    value={calculatedNights > 0 ? calculatedNights.toString() : "0"}
-                    readOnly
-                    className={cn(
-                      "rounded-full bg-muted",
-                      formCheckIn && formCheckOut && calculatedNights === 0 && "border-destructive"
-                    )}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Total Booking Value (GBP)</Label>
-                  <Input
-                    value={calculatedTotalBookingValue.toFixed(2)}
-                    readOnly
-                    className="rounded-full bg-muted"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Total Revenue (GBP)</Label>
-                  <Input
-                    value={calculatedTotalRevenue.toFixed(2)}
-                    readOnly
-                    className="rounded-full bg-muted font-semibold"
-                  />
-                </div>
-              </div>
-              
-              {calculatedNights > 0 && formPricePerNight && (
-                <div className="text-xs text-muted-foreground bg-muted p-3 rounded-xl">
-                  <div className="font-medium mb-1">Calculation Breakdown:</div>
-                  <div>Total Booking Value: £{formPricePerNight} × {calculatedNights} night{calculatedNights !== 1 ? "s" : ""} = £{calculatedTotalBookingValue.toFixed(2)}</div>
-                  {formCommission && parseFloat(formCommission) > 0 && (
-                    <div>Commission: -£{parseFloat(formCommission).toFixed(2)}</div>
-                  )}
-                  <div className="font-semibold mt-1">Total Revenue: £{calculatedTotalRevenue.toFixed(2)}</div>
-                </div>
-              )}
-              
-              <div className="space-y-2">
-                <Label>Internal Notes (Staff Only)</Label>
-                <Textarea
-                  placeholder="Internal notes for staff reference..."
-                  value={formInternalNotes}
-                  onChange={(e) => setFormInternalNotes(e.target.value)}
-                  className="rounded-xl min-h-[80px]"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setCreateDialogOpen(false)} className="rounded-full">
-                Cancel
-              </Button>
-              <Button 
-                onClick={handleCreateBooking} 
-                className="rounded-full"
-                disabled={createBooking.isPending || (conflictingBookings.length > 0 && !!formCheckIn && !!formCheckOut)}
-              >
-                {createBooking.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Booking
-                  </>
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        {/* Create Booking Sheet */}
+        {isMobile ? (
+          <Drawer open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+            <DrawerContent className="max-h-[90vh] rounded-t-[28px] mb-0">
+              <DrawerHeader className="text-left px-4 pt-6 pb-2">
+                <DrawerTitle>Create New OTA Booking</DrawerTitle>
+                <DrawerDescription>
+                  Add a new OTA booking to the system.
+                </DrawerDescription>
+              </DrawerHeader>
+              <ScrollArea className="flex-1 px-4">
+                {renderCreateBookingForm()}
+              </ScrollArea>
+              <DrawerFooter className="px-4 pb-4 pt-2 flex-row justify-end gap-2">
+                {renderCreateBookingActions()}
+              </DrawerFooter>
+            </DrawerContent>
+          </Drawer>
+        ) : (
+          <Sheet open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+            <SheetContent side="right" className="w-full sm:max-w-[600px] overflow-y-auto flex flex-col">
+              <SheetHeader>
+                <SheetTitle>Create New OTA Booking</SheetTitle>
+                <SheetDescription>
+                  Add a new OTA booking to the system.
+                </SheetDescription>
+              </SheetHeader>
+              {renderCreateBookingForm()}
+              <SheetFooter className="mt-auto pt-4">
+                {renderCreateBookingActions()}
+              </SheetFooter>
+            </SheetContent>
+          </Sheet>
+        )}
 
         {/* Bulk Status Update Dialog */}
         <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
@@ -1690,7 +1710,7 @@ const OTABookingsDashboard = () => {
               <div className="space-y-2">
                 <Label>New Status</Label>
                 <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger className="rounded-md">
                     <SelectValue placeholder="Select status..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -1704,10 +1724,10 @@ const OTABookingsDashboard = () => {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setStatusDialogOpen(false)} className="rounded-full">
+              <Button variant="outline" onClick={() => setStatusDialogOpen(false)} className="rounded-md">
                 Cancel
               </Button>
-              <Button onClick={handleBulkStatusUpdate} className="rounded-full">
+              <Button onClick={handleBulkStatusUpdate} className="rounded-md">
                 Update
               </Button>
             </DialogFooter>
@@ -1901,22 +1921,22 @@ const OTABookingDetailsContent = ({
     return (
       <div className="space-y-6">
         <div className="flex flex-wrap gap-2 items-center">
-          <Button variant="outline" size="sm" className="rounded-full gap-2" onClick={() => setIsEditing(false)}>
+          <Button variant="outline" size="sm" className="rounded-md gap-2" onClick={() => setIsEditing(false)}>
             Cancel
           </Button>
-          <Button variant="default" size="sm" className="rounded-full gap-2" disabled={updateBooking.isPending || !editForm.guest_name.trim() || !editForm.external_ref.trim()} onClick={handleSaveEdit}>
+          <Button variant="default" size="sm" className="rounded-md gap-2" disabled={updateBooking.isPending || !editForm.guest_name.trim() || !editForm.external_ref.trim()} onClick={handleSaveEdit}>
             {updateBooking.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save changes"}
           </Button>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>Booking reference</Label>
-            <Input value={editForm.external_ref} onChange={(e) => setEditForm((f) => ({ ...f, external_ref: e.target.value }))} className="rounded-full" />
+            <Input value={editForm.external_ref} onChange={(e) => setEditForm((f) => ({ ...f, external_ref: e.target.value }))} className="rounded-md" />
           </div>
           <div className="space-y-2">
             <Label>Channel</Label>
             <Select value={editForm.channel} onValueChange={(v) => setEditForm((f) => ({ ...f, channel: v }))}>
-              <SelectTrigger className="rounded-full"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="rounded-md"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {CHANNEL_OPTIONS.map((ch) => <SelectItem key={ch} value={ch}>{ch}</SelectItem>)}
               </SelectContent>
@@ -1924,20 +1944,20 @@ const OTABookingDetailsContent = ({
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label>Guest name</Label>
-            <Input value={editForm.guest_name} onChange={(e) => setEditForm((f) => ({ ...f, guest_name: e.target.value }))} className="rounded-full" />
+            <Input value={editForm.guest_name} onChange={(e) => setEditForm((f) => ({ ...f, guest_name: e.target.value }))} className="rounded-md" />
           </div>
           <div className="space-y-2">
             <Label>Guest email</Label>
-            <Input type="email" value={editForm.guest_email} onChange={(e) => setEditForm((f) => ({ ...f, guest_email: e.target.value }))} className="rounded-full" />
+            <Input type="email" value={editForm.guest_email} onChange={(e) => setEditForm((f) => ({ ...f, guest_email: e.target.value }))} className="rounded-md" />
           </div>
           <div className="space-y-2">
             <Label>Guest phone</Label>
-            <Input value={editForm.guest_phone} onChange={(e) => setEditForm((f) => ({ ...f, guest_phone: e.target.value }))} className="rounded-full" />
+            <Input value={editForm.guest_phone} onChange={(e) => setEditForm((f) => ({ ...f, guest_phone: e.target.value }))} className="rounded-md" />
           </div>
           <div className="space-y-2">
             <Label>Studio</Label>
             <Select value={editForm.studio_id || "none"} onValueChange={(v) => setEditForm((f) => ({ ...f, studio_id: v === "none" ? "" : v }))}>
-              <SelectTrigger className="rounded-full"><SelectValue placeholder="Unallocated" /></SelectTrigger>
+              <SelectTrigger className="rounded-md"><SelectValue placeholder="Unallocated" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Unallocated</SelectItem>
                 {studios.map((s) => <SelectItem key={s.id} value={s.id}>{s.studio_number}</SelectItem>)}
@@ -1947,7 +1967,7 @@ const OTABookingDetailsContent = ({
           <div className="space-y-2">
             <Label>Status</Label>
             <Select value={editForm.status} onValueChange={(v) => setEditForm((f) => ({ ...f, status: v }))}>
-              <SelectTrigger className="rounded-full"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="rounded-md"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {STATUS_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>)}
               </SelectContent>
@@ -1955,23 +1975,23 @@ const OTABookingDetailsContent = ({
           </div>
           <div className="space-y-2">
             <Label>Check-in</Label>
-            <Input type="date" value={editForm.check_in} onChange={(e) => setEditForm((f) => ({ ...f, check_in: e.target.value }))} className="rounded-full" />
+            <Input type="date" value={editForm.check_in} onChange={(e) => setEditForm((f) => ({ ...f, check_in: e.target.value }))} className="rounded-md" />
           </div>
           <div className="space-y-2">
             <Label>Check-out</Label>
-            <Input type="date" value={editForm.check_out} onChange={(e) => setEditForm((f) => ({ ...f, check_out: e.target.value }))} className="rounded-full" />
+            <Input type="date" value={editForm.check_out} onChange={(e) => setEditForm((f) => ({ ...f, check_out: e.target.value }))} className="rounded-md" />
           </div>
           <div className="space-y-2">
             <Label>Price per night</Label>
-            <Input type="number" step="0.01" value={editForm.price_per_night} onChange={(e) => setEditForm((f) => ({ ...f, price_per_night: e.target.value }))} className="rounded-full" />
+            <Input type="number" step="0.01" value={editForm.price_per_night} onChange={(e) => setEditForm((f) => ({ ...f, price_per_night: e.target.value }))} className="rounded-md" />
           </div>
           <div className="space-y-2">
             <Label>Commission amount</Label>
-            <Input type="number" step="0.01" value={editForm.commission_amount} onChange={(e) => setEditForm((f) => ({ ...f, commission_amount: e.target.value }))} className="rounded-full" />
+            <Input type="number" step="0.01" value={editForm.commission_amount} onChange={(e) => setEditForm((f) => ({ ...f, commission_amount: e.target.value }))} className="rounded-md" />
           </div>
           <div className="space-y-2">
             <Label>Currency</Label>
-            <Input value={editForm.currency} onChange={(e) => setEditForm((f) => ({ ...f, currency: e.target.value }))} className="rounded-full" />
+            <Input value={editForm.currency} onChange={(e) => setEditForm((f) => ({ ...f, currency: e.target.value }))} className="rounded-md" />
           </div>
         </div>
         <div className="space-y-2">
@@ -2151,7 +2171,7 @@ const OTABookingDetailsContent = ({
           ) : (
             activityLog.map((log) => (
               <div key={log.id} className="flex gap-3 text-xs">
-                <div className="flex-shrink-0 w-2 h-2 rounded-full bg-primary mt-1.5" />
+                <div className="flex-shrink-0 w-2 h-2 rounded-md bg-primary mt-1.5" />
                 <div className="flex-1">
                   <p className="font-medium">{log.message}</p>
                   <p className="text-muted-foreground">
@@ -2178,7 +2198,7 @@ const OTABookingDetailsContent = ({
                 setSelectedStatus(booking.status);
                 setStatusDialogOpen(true);
               }}
-              className="rounded-full w-full justify-center gap-2"
+              className="rounded-md w-full justify-center gap-2"
             >
               <CheckCircle2 className="h-4 w-4" />
               Update Status
@@ -2188,7 +2208,7 @@ const OTABookingDetailsContent = ({
             variant="outline"
             size="sm"
             onClick={() => setNotesDialogOpen(true)}
-            className="rounded-full w-full justify-center gap-2"
+            className="rounded-md w-full justify-center gap-2"
           >
             <FileText className="h-4 w-4" />
             Edit Internal Notes
@@ -2199,7 +2219,7 @@ const OTABookingDetailsContent = ({
                 variant="outline"
                 size="sm"
                 onClick={() => onStatusUpdate("no_show")}
-                className="rounded-full flex-1 justify-center gap-2 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
+                className="rounded-md flex-1 justify-center gap-2 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
               >
                 <XCircle className="h-4 w-4" />
                 Mark as No Show
@@ -2208,7 +2228,7 @@ const OTABookingDetailsContent = ({
                 variant="destructive"
                 size="sm"
                 onClick={() => onStatusUpdate("cancelled")}
-                className="rounded-full flex-1 justify-center gap-2"
+                className="rounded-md flex-1 justify-center gap-2"
               >
                 <Trash2 className="h-4 w-4" />
                 Cancel Booking
@@ -2231,7 +2251,7 @@ const OTABookingDetailsContent = ({
             <div className="space-y-2">
               <Label>New Status</Label>
               <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                <SelectTrigger className="rounded-full">
+                <SelectTrigger className="rounded-md">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -2245,10 +2265,10 @@ const OTABookingDetailsContent = ({
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setStatusDialogOpen(false)} className="rounded-full">
+            <Button variant="outline" onClick={() => setStatusDialogOpen(false)} className="rounded-md">
               Cancel
             </Button>
-            <Button onClick={handleStatusChange} className="rounded-full">
+            <Button onClick={handleStatusChange} className="rounded-md">
               Update
             </Button>
           </DialogFooter>
@@ -2276,10 +2296,10 @@ const OTABookingDetailsContent = ({
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setNotesDialogOpen(false)} className="rounded-full">
+            <Button variant="outline" onClick={() => setNotesDialogOpen(false)} className="rounded-md">
               Cancel
             </Button>
-            <Button onClick={handleUpdateNotes} className="rounded-full">
+            <Button onClick={handleUpdateNotes} className="rounded-md">
               Save
             </Button>
           </DialogFooter>

@@ -143,8 +143,8 @@ export function SalesReportCharts({
   totalInstallmentsCollected,
   totalSalesValue,
 }: SalesReportChartsProps) {
-  const occupancyGradientId = useId().replace(/:/g, "");
-  const rebookerGradientId = useId().replace(/:/g, "");
+  const occupancyGradientId = useId().replace(/:/g);
+  const rebookerGradientId = useId().replace(/:/g);
 
   const occupancyChartData = useMemo(() => aggregateOccupancyByMonth(occupancy ?? []), [occupancy]);
   const rebookerChartData = useMemo(() => sortRebookersByMonth(rebookers ?? []), [rebookers]);
@@ -191,10 +191,10 @@ export function SalesReportCharts({
               </div>
               {!loadingOccupancy && occupancyChartData.length > 0 && (
                 <div className="flex flex-wrap gap-2">
-                  <Badge variant="secondary" className="rounded-full text-[10px]">
+                  <Badge variant="secondary" className="rounded-md text-[10px]">
                     Avg {avgOccupancy}%
                   </Badge>
-                  <Badge variant="outline" className="rounded-full text-[10px]">
+                  <Badge variant="outline" className="rounded-md text-[10px]">
                     Peak {peakOccupancy.occupancy}% · {peakOccupancy.month}
                   </Badge>
                 </div>
@@ -259,11 +259,11 @@ export function SalesReportCharts({
               </div>
               {!loadingRebookers && rebookerChartData.length > 0 && (
                 <div className="flex flex-wrap gap-2">
-                  <Badge variant="secondary" className="rounded-full text-[10px]">
+                  <Badge variant="secondary" className="rounded-md text-[10px]">
                     Avg {avgRebookerShare}%
                   </Badge>
                   {latestRebooker && (
-                    <Badge variant="outline" className="rounded-full text-[10px]">
+                    <Badge variant="outline" className="rounded-md text-[10px]">
                       Latest {latestRebooker.rebooker_share}% ({latestRebooker.rebooker_contracts}/
                       {latestRebooker.total_contracts})
                     </Badge>
@@ -431,9 +431,9 @@ export function SalesReportCharts({
                     <span className="text-3xl font-bold tabular-nums">{collectionRate}%</span>
                     <span className="text-xs text-muted-foreground">of expected sales</span>
                   </div>
-                  <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div className="h-2.5 w-full overflow-hidden rounded-md bg-muted">
                     <div
-                      className="h-full rounded-full bg-primary transition-all duration-500"
+                      className="h-full rounded-md bg-primary transition-all duration-500"
                       style={{ width: `${Math.min(collectionRate, 100)}%` }}
                     />
                   </div>
@@ -452,9 +452,9 @@ export function SalesReportCharts({
                       </p>
                       <span className="text-sm font-bold tabular-nums">{formatCurrency(totalDepositsCollected)}</span>
                     </div>
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                    <div className="h-2 w-full overflow-hidden rounded-md bg-muted">
                       <div
-                        className="h-full rounded-full bg-amber-500 transition-all duration-500"
+                        className="h-full rounded-md bg-amber-500 transition-all duration-500"
                         style={{ width: `${depositShareOfReceived}%` }}
                       />
                     </div>
@@ -469,9 +469,9 @@ export function SalesReportCharts({
                       </p>
                       <span className="text-sm font-bold tabular-nums">{formatCurrency(totalInstallmentsCollected)}</span>
                     </div>
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                    <div className="h-2 w-full overflow-hidden rounded-md bg-muted">
                       <div
-                        className="h-full rounded-full bg-green-600 transition-all duration-500"
+                        className="h-full rounded-md bg-green-600 transition-all duration-500"
                         style={{ width: `${installmentShareOfReceived}%` }}
                       />
                     </div>

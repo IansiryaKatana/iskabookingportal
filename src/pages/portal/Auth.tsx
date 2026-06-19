@@ -236,7 +236,7 @@ const PortalAuth = () => {
             )}
             {registrationSuccess ? (
               <div className="space-y-6 text-center py-4">
-                <div className="mx-auto h-16 w-16 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                <div className="mx-auto h-16 w-16 rounded-md bg-primary/10 text-primary flex items-center justify-center">
                   <CheckCircle2 className="h-8 w-8" />
                 </div>
                 <div className="space-y-2">
@@ -266,7 +266,7 @@ const PortalAuth = () => {
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full rounded-full uppercase tracking-wide"
+                  className="w-full rounded-md uppercase tracking-wide"
                   onClick={() => {
                     setRegistrationSuccess(null);
                     setMode("login");

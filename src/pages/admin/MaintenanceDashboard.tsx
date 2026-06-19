@@ -190,7 +190,7 @@ const getStatusBadge = (status: string) => {
   const Icon = config.icon;
 
   return (
-    <Badge className={`uppercase ${config.className} rounded-full px-2.5 py-0.5 text-xs font-medium flex items-center gap-1`}>
+    <Badge className={`uppercase ${config.className} rounded-md px-2.5 py-0.5 text-xs font-medium flex items-center gap-1`}>
       <Icon className="h-3 w-3" />
       {config.label}
     </Badge>
@@ -221,7 +221,7 @@ const getUrgencyBadge = (urgency: string) => {
   const label = compactLabelByBand[info.band] || compactLabelByBand.P3;
 
   return (
-    <Badge className={`uppercase ${config.className} rounded-full px-2.5 py-0.5 text-xs font-medium flex items-center`}>
+    <Badge className={`uppercase ${config.className} rounded-md px-2.5 py-0.5 text-xs font-medium flex items-center`}>
       {label}
     </Badge>
   );
@@ -450,7 +450,7 @@ const MaintenanceDashboard = () => {
           <Button
             onClick={() => setCreateTaskDialogOpen(true)}
             size="sm"
-            className="rounded-full h-9 w-9 p-0 bg-primary hover:bg-primary/90 text-primary-foreground flex-shrink-0"
+            className="rounded-md h-9 w-9 p-0 bg-primary hover:bg-primary/90 text-primary-foreground flex-shrink-0"
           >
             <Plus className="h-4 w-4" />
           </Button>
@@ -464,7 +464,7 @@ const MaintenanceDashboard = () => {
             <button
               key={cat.value}
               onClick={() => setCategoryFilter(cat.value)}
-              className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+              className={`flex-shrink-0 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 categoryFilter === cat.value
                   ? "bg-primary text-primary-foreground"
                   : "bg-muted hover:bg-muted/80"
@@ -554,12 +554,12 @@ const MaintenanceDashboard = () => {
                     placeholder="Search requests..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="rounded-full text-xs md:text-sm h-9 md:h-10"
+                    className="rounded-md text-xs md:text-sm h-9 md:h-10"
                   />
                 </div>
                 <div>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="rounded-full text-xs md:text-sm h-9 md:h-10">
+                    <SelectTrigger className="rounded-md text-xs md:text-sm h-9 md:h-10">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -574,7 +574,7 @@ const MaintenanceDashboard = () => {
               </div>
               {canCreateTasks && (
                 <div className="hidden md:flex">
-                  <Button onClick={() => setCreateTaskDialogOpen(true)} className="rounded-full">
+                  <Button onClick={() => setCreateTaskDialogOpen(true)} className="rounded-md">
                     <Plus className="mr-2 h-4 w-4" />
                     Create Maintenance Task
                   </Button>
@@ -639,11 +639,11 @@ const MaintenanceDashboard = () => {
                             </TableCell>
                             <TableCell>
                               {request.studio ? (
-                                <Badge variant="outline" className="rounded-full text-xs">
+                                <Badge variant="outline" className="rounded-md text-xs">
                                   Studio {request.studio.studio_number}
                                 </Badge>
                               ) : request.communal_area ? (
-                                <Badge variant="outline" className="rounded-full text-xs">
+                                <Badge variant="outline" className="rounded-md text-xs">
                                   {request.communal_area.name}
                                   {request.communal_area.location && ` - ${request.communal_area.location}`}
                                 </Badge>
@@ -675,7 +675,7 @@ const MaintenanceDashboard = () => {
                             </TableCell>
                             <TableCell>
                               {isOverdue ? (
-                                <Badge variant="destructive" className="rounded-full text-xs">
+                                <Badge variant="destructive" className="rounded-md text-xs">
                                   Overdue
                                 </Badge>
                               ) : request.sla_due_at ? (
@@ -715,11 +715,11 @@ const MaintenanceDashboard = () => {
                             {getStatusBadge(request.status)}
                             {getUrgencyBadge(request.urgency || "medium")}
                             {request.studio ? (
-                              <Badge variant="outline" className="rounded-full text-xs">
+                              <Badge variant="outline" className="rounded-md text-xs">
                                 Studio {request.studio.studio_number}
                               </Badge>
                             ) : request.communal_area ? (
-                              <Badge variant="outline" className="rounded-full text-xs">
+                              <Badge variant="outline" className="rounded-md text-xs">
                                 {request.communal_area.name}
                               </Badge>
                             ) : null}
@@ -772,7 +772,7 @@ const MaintenanceDashboard = () => {
                     <Button
                       variant="outline"
                       onClick={() => setDetailsOpen(false)}
-                      className="rounded-full"
+                      className="rounded-md"
                     >
                       Close
                     </Button>
@@ -806,7 +806,7 @@ const MaintenanceDashboard = () => {
                     <Button
                       variant="outline"
                       onClick={() => setDetailsOpen(false)}
-                      className="rounded-full"
+                      className="rounded-md"
                     >
                       Close
                     </Button>
@@ -967,11 +967,11 @@ const RequestDetailsContent = ({
             <Label className="text-xs text-muted-foreground">Location</Label>
             <div className="mt-1">
               {request.studio ? (
-                <Badge variant="outline" className="rounded-full text-xs">
+                <Badge variant="outline" className="rounded-md text-xs">
                   Studio {request.studio.studio_number}
                 </Badge>
               ) : request.communal_area ? (
-                <Badge variant="outline" className="rounded-full text-xs">
+                <Badge variant="outline" className="rounded-md text-xs">
                   {request.communal_area.name}
                   {request.communal_area.location && ` - ${request.communal_area.location}`}
                 </Badge>
@@ -1043,7 +1043,7 @@ const RequestDetailsContent = ({
           ) : (
             activityLog.map((log) => (
               <div key={log.id} className="flex gap-3 text-xs">
-                <div className="flex-shrink-0 w-2 h-2 rounded-full bg-primary mt-1.5" />
+                <div className="flex-shrink-0 w-2 h-2 rounded-md bg-primary mt-1.5" />
                 <div className="flex-1">
                   <p className="font-medium">{log.message}</p>
                   <p className="text-muted-foreground">
@@ -1068,7 +1068,7 @@ const RequestDetailsContent = ({
           <Button
             onClick={() => setExpectedDialogOpen(true)}
             variant="outline"
-            className="rounded-full w-full"
+            className="rounded-md w-full"
           >
             <Calendar className="h-4 w-4 mr-2" />
             Set Expected Resolve Date
@@ -1101,7 +1101,7 @@ const RequestDetailsContent = ({
                   });
                 }
               }}
-              className="rounded-full bg-green-600 hover:bg-green-700"
+              className="rounded-md bg-green-600 hover:bg-green-700"
             >
               <CheckCircle2 className="h-4 w-4 mr-2" />
               Approve
@@ -1130,7 +1130,7 @@ const RequestDetailsContent = ({
                   });
                 }
               }}
-              className="rounded-full"
+              className="rounded-md"
             >
               <XCircle className="h-4 w-4 mr-2" />
               Reject
@@ -1145,7 +1145,7 @@ const RequestDetailsContent = ({
             <Button
               onClick={() => onStatusUpdate("in_progress")}
               variant="outline"
-              className="rounded-full w-full"
+              className="rounded-md w-full"
             >
               <Loader2 className="h-4 w-4 mr-2" />
               Mark In Progress
@@ -1160,7 +1160,7 @@ const RequestDetailsContent = ({
               />
               <Button
                 onClick={handleComplete}
-                className="rounded-full w-full"
+                className="rounded-md w-full"
               >
                 <CheckCircle2 className="h-4 w-4 mr-2" />
                 Mark Complete
@@ -1173,7 +1173,7 @@ const RequestDetailsContent = ({
           <Button
             onClick={() => setUpdateDialogOpen(true)}
             variant="outline"
-            className="rounded-full w-full"
+            className="rounded-md w-full"
           >
             <UserCheck className="h-4 w-4 mr-2" />
             Assign Officer
@@ -1197,7 +1197,7 @@ const RequestDetailsContent = ({
                 type="datetime-local"
                 value={expectedResolveDate}
                 onChange={(e) => setExpectedResolveDate(e.target.value)}
-                className="rounded-full"
+                className="rounded-md"
               />
             </div>
           </div>
@@ -1205,7 +1205,7 @@ const RequestDetailsContent = ({
             <Button
               variant="outline"
               onClick={() => setExpectedDialogOpen(false)}
-              className="rounded-full"
+              className="rounded-md"
             >
               Cancel
             </Button>
@@ -1233,7 +1233,7 @@ const RequestDetailsContent = ({
                   });
                 }
               }}
-              className="rounded-full"
+              className="rounded-md"
             >
               Set Date
             </Button>
@@ -1257,7 +1257,7 @@ const RequestDetailsContent = ({
                 value={updateData.assigned_to_user_id}
                 onValueChange={(value) => setUpdateData({ ...updateData, assigned_to_user_id: value })}
               >
-                <SelectTrigger className="rounded-full">
+                <SelectTrigger className="rounded-md">
                   <SelectValue placeholder="Select officer..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -1271,10 +1271,10 @@ const RequestDetailsContent = ({
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setUpdateDialogOpen(false)} className="rounded-full">
+            <Button variant="outline" onClick={() => setUpdateDialogOpen(false)} className="rounded-md">
               Cancel
             </Button>
-            <Button onClick={handleAssign} className="rounded-full">
+            <Button onClick={handleAssign} className="rounded-md">
               Assign
             </Button>
           </DialogFooter>

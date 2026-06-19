@@ -296,7 +296,7 @@ export function AmendBookingDialog({
                 setStartDate(next);
                 setEndDate(computeContractEndDate(next, weeksValue, extraDaysValue));
               }}
-              className="rounded-full"
+              className="rounded-md"
             />
           </div>
 
@@ -314,7 +314,7 @@ export function AmendBookingDialog({
                   setWeeksValue(w);
                   setEndDate(computeContractEndDate(startDate, w, extraDaysValue));
                 }}
-                className="rounded-full"
+                className="rounded-md"
               />
             </div>
             <div className="space-y-2">
@@ -330,7 +330,7 @@ export function AmendBookingDialog({
                   setExtraDaysValue(d);
                   setEndDate(computeContractEndDate(startDate, weeksValue, d));
                 }}
-                className="rounded-full"
+                className="rounded-md"
               />
             </div>
           </div>
@@ -345,7 +345,7 @@ export function AmendBookingDialog({
               max={academicYear?.end_date ? sliceDate(academicYear.end_date) : undefined}
               disabled={!startDate}
               onChange={(e) => handleEndDateChange(e.target.value)}
-              className="rounded-full"
+              className="rounded-md"
             />
             <p className="text-[11px] text-muted-foreground">
               Duration: {formatContractDuration({ weeks: weeksValue, extra_days: extraDaysValue })}
@@ -358,7 +358,7 @@ export function AmendBookingDialog({
           <div className="space-y-2">
             <Label>Studio grade</Label>
             <Select value={gradeId} onValueChange={setGradeId}>
-              <SelectTrigger className="rounded-full">
+              <SelectTrigger className="rounded-md">
                 <SelectValue placeholder="Select grade" />
               </SelectTrigger>
               <SelectContent>
@@ -422,7 +422,7 @@ export function AmendBookingDialog({
           <Button
             type="button"
             variant="outline"
-            className="rounded-full flex-1"
+            className="rounded-md flex-1"
             onClick={() => onOpenChange(false)}
             disabled={amendBooking.isPending}
           >
@@ -431,7 +431,7 @@ export function AmendBookingDialog({
           </Button>
           <Button
             type="button"
-            className="rounded-full flex-1"
+            className="rounded-md flex-1"
             disabled={amendBooking.isPending || !!validationError}
             onClick={() => void handleSubmit()}
           >

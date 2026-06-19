@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { usePartnerReferrals } from "@/hooks/usePartner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { FinanceStatusBadge } from "@/components/finance/FinanceStatusBadge";
 import { formatCurrency } from "@/lib/utils";
 import { Users, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -58,31 +59,9 @@ const PartnerReferrals = () => {
     document.body.removeChild(link);
   };
 
-  const getPaymentStatusBadge = (status: string) => {
-    switch (status) {
-      case "fully_paid":
-        return <Badge className="bg-green-600 text-white">Fully Paid</Badge>;
-      case "partially_paid":
-        return <Badge className="bg-amber-500 text-white">Partially Paid</Badge>;
-      default:
-        return <Badge className="bg-gray-500 text-white">Unpaid</Badge>;
-    }
-  };
-
-  const getCommissionStatusBadge = (status: string) => {
-    switch (status) {
-      case "paid":
-        return <Badge className="bg-green-600 text-white">Paid</Badge>;
-      case "approved":
-        return <Badge className="bg-blue-500 text-white">Approved</Badge>;
-      case "pending":
-        return <Badge className="bg-gray-500 text-white">Pending</Badge>;
-      case "cancelled":
-        return <Badge variant="destructive">Cancelled</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
+  const getCommissionStatusBadge = (status: string) => (
+    <FinanceStatusBadge status={status} />
+  );
 
   return (
     <PartnerLayout 
@@ -93,7 +72,7 @@ const PartnerReferrals = () => {
           <Button
             onClick={exportToCSV}
             size="sm"
-            className="rounded-full uppercase tracking-wide gap-2 bg-red-600 hover:bg-red-700 text-white"
+            className="rounded-md uppercase tracking-wide gap-2 bg-red-600 hover:bg-red-700 text-white"
           >
             <Download className="h-4 w-4" />
             <span className="hidden sm:inline">Export CSV</span>
@@ -112,7 +91,7 @@ const PartnerReferrals = () => {
           {referrals && referrals.length > 0 && (
             <Button
               onClick={exportToCSV}
-              className="rounded-full uppercase tracking-wide gap-2 bg-red-600 hover:bg-red-700 text-white"
+              className="rounded-md uppercase tracking-wide gap-2 bg-red-600 hover:bg-red-700 text-white"
             >
               <Download className="h-4 w-4" />
               Export CSV
@@ -180,7 +159,7 @@ const PartnerReferrals = () => {
                     </div>
                     <div className="flex flex-col items-end gap-3">
                       <div className="flex flex-col items-end gap-2">
-                        {getPaymentStatusBadge(referral.payment_status)}
+                        <FinanceStatusBadge status={referral.payment_status} />
                         {getCommissionStatusBadge(referral.commission_status)}
                       </div>
                       <div className="text-right">

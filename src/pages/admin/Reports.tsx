@@ -342,12 +342,6 @@ const Reports = () => {
             grade.reserved_studios.toString(),
             grade.maintenance_studios.toString(),
             grade.occupancy_percentage.toString(),
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
           ]);
         }
       });
@@ -464,7 +458,7 @@ const Reports = () => {
                 <Skeleton className="h-5 w-48" />
                 <Skeleton className="h-4 w-64" />
               </div>
-              <Skeleton className="h-10 w-32 rounded-full" />
+              <Skeleton className="h-10 w-32 rounded-md" />
             </div>
           </CardContent>
         </Card>
@@ -489,7 +483,7 @@ const Reports = () => {
           <Button
             size="sm"
             variant="outline"
-            className="rounded-full p-2 h-9 w-9 flex-shrink-0"
+            className="rounded-md p-2 h-9 w-9 flex-shrink-0"
             onClick={exportToCSV}
           >
             <Download className="h-4 w-4" />
@@ -646,7 +640,7 @@ const Reports = () => {
                   reportData.length > 0)) && (
                 <Button
                   onClick={exportToCSV}
-                  className="rounded-full uppercase tracking-wide gap-2 hidden lg:flex"
+                  className="rounded-md uppercase tracking-wide gap-2 hidden lg:flex"
                 >
                   <Download className="h-4 w-4" />
                   Export CSV
@@ -1021,7 +1015,7 @@ const Reports = () => {
                       Use the dedicated Weekly Payments report to run a detailed weekly breakdown,
                       export CSV, and inspect individual payments.
                     </p>
-                    <Button asChild className="rounded-full">
+                    <Button asChild className="rounded-md">
                       <Link to="/admin/weekly-payment-report">Open Weekly Payments</Link>
                     </Button>
                   </CardContent>

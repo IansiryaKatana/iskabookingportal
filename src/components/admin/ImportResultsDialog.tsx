@@ -96,15 +96,15 @@ const ImportResultsDialog = ({
         <DialogHeader>
           <div className="flex items-center gap-3">
             {succeeded > 0 && failed === 0 ? (
-              <div className="p-2 bg-green-100 dark:bg-green-900 rounded-full">
+              <div className="p-2 bg-green-100 dark:bg-green-900 rounded-md">
                 <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
               </div>
             ) : succeeded > 0 && failed > 0 ? (
-              <div className="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-full">
+              <div className="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-md">
                 <AlertCircle className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
               </div>
             ) : (
-              <div className="p-2 bg-red-100 dark:bg-red-900 rounded-full">
+              <div className="p-2 bg-red-100 dark:bg-red-900 rounded-md">
                 <XCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
               </div>
             )}
@@ -197,7 +197,7 @@ const ImportResultsDialog = ({
                   variant="outline"
                   size="sm"
                   onClick={handleDownloadFailed}
-                  className="rounded-full uppercase tracking-wide gap-2 text-xs"
+                  className="rounded-md uppercase tracking-wide gap-2 text-xs"
                 >
                   <Download className="h-3 w-3" />
                   Download CSV
@@ -283,7 +283,7 @@ const ImportResultsDialog = ({
           {failed > 0 && (
             <Button
               onClick={handleDownloadFailed}
-              className="rounded-full uppercase tracking-wide gap-2"
+              className="rounded-md uppercase tracking-wide gap-2"
             >
               <Download className="h-4 w-4" />
               Download Failed Records

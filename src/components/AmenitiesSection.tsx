@@ -68,7 +68,7 @@ const AmenitiesSection = ({ amenities, videoUrl, fallbackVideoUrl }: AmenitiesSe
                       className="h-10 w-10 object-contain"
                     />
                   ) : (
-                    <div className="h-10 w-10 rounded-full bg-white/10 flex items-center justify-center text-lg font-bold text-primary">
+                    <div className="h-10 w-10 rounded-md bg-white/10 flex items-center justify-center text-lg font-bold text-primary">
                       {amenity.name.charAt(0)}
                     </div>
                   )}

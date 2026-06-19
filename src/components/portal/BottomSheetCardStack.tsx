@@ -131,7 +131,7 @@ const BottomSheetCardStack = ({ messages, onAllDismissed, onSkip }: BottomSheetC
     <div className="w-full">
       {/* Progress Indicator */}
       <div className="text-center mb-4">
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-muted/50 rounded-full">
+        <div className="inline-flex items-center gap-2 px-4 py-2 bg-muted/50 rounded-md">
           <span className="text-sm font-medium">
             {currentMessageNumber} of {totalMessages}
           </span>
@@ -147,7 +147,7 @@ const BottomSheetCardStack = ({ messages, onAllDismissed, onSkip }: BottomSheetC
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <div className={clsx(
-              "p-2 rounded-full flex-shrink-0",
+              "p-2 rounded-md flex-shrink-0",
               currentMessage.type === "success" && "bg-green-100 dark:bg-green-900",
               currentMessage.type === "warning" && "bg-yellow-100 dark:bg-yellow-900",
               currentMessage.type === "error" && "bg-red-100 dark:bg-red-900",
@@ -160,7 +160,7 @@ const BottomSheetCardStack = ({ messages, onAllDismissed, onSkip }: BottomSheetC
                 {currentMessage.title}
               </h3>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
-                <Badge className={clsx("uppercase text-xs rounded-full px-2 py-0.5", getTypeBadgeColor())}>
+                <Badge className={clsx("uppercase text-xs rounded-md px-2 py-0.5", getTypeBadgeColor())}>
                   {getTypeLabel()}
                 </Badge>
                 <span className="text-xs text-muted-foreground">
@@ -183,7 +183,7 @@ const BottomSheetCardStack = ({ messages, onAllDismissed, onSkip }: BottomSheetC
           <Button
             onClick={handleDismiss}
             disabled={isAnimating}
-            className="w-full rounded-full uppercase tracking-wide gap-2"
+            className="w-full rounded-md uppercase tracking-wide gap-2"
           >
             <X className="h-4 w-4" />
             {currentIndex >= messages.length - 1 ? "Close" : "Next Message"}
@@ -191,7 +191,7 @@ const BottomSheetCardStack = ({ messages, onAllDismissed, onSkip }: BottomSheetC
           <Button
             variant="outline"
             onClick={handleSkip}
-            className="w-full rounded-full uppercase tracking-wide gap-2"
+            className="w-full rounded-md uppercase tracking-wide gap-2"
           >
             <ExternalLink className="h-4 w-4" />
             View All Messages
@@ -212,7 +212,7 @@ const BottomSheetCardStack = ({ messages, onAllDismissed, onSkip }: BottomSheetC
               )}
             >
               <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-muted-foreground/30" />
+                <div className="h-2 w-2 rounded-md bg-muted-foreground/30" />
                 <span className="text-xs text-muted-foreground truncate">{msg.title}</span>
               </div>
             </div>

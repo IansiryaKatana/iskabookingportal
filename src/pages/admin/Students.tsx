@@ -262,7 +262,7 @@ const Students = () => {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="rounded-full uppercase tracking-wide gap-1.5 h-8 px-3 text-xs flex-shrink-0"
+                          className="rounded-md uppercase tracking-wide gap-1.5 h-8 px-3 text-xs flex-shrink-0"
                           onClick={() => navigate(`/admin/students/${student.id}`)}
                         >
                           View
@@ -347,7 +347,7 @@ const Students = () => {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="rounded-full uppercase tracking-wide gap-2"
+                            className="rounded-md uppercase tracking-wide gap-2"
                             onClick={() => navigate(`/admin/students/${student.id}`)}
                           >
                             View

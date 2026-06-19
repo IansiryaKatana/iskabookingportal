@@ -206,7 +206,7 @@ const Profile = () => {
             <Skeleton className="h-4 w-32" />
             <Skeleton className="h-10 w-full" />
           </div>
-          <Skeleton className="h-10 w-40 rounded-full" />
+          <Skeleton className="h-10 w-40 rounded-md" />
         </CardContent>
       </Card>
       <Card className="rounded-3xl border border-border/60 shadow-xl">
@@ -227,7 +227,7 @@ const Profile = () => {
             <Skeleton className="h-4 w-40" />
             <Skeleton className="h-10 w-full" />
           </div>
-          <Skeleton className="h-10 w-44 rounded-full" />
+          <Skeleton className="h-10 w-44 rounded-md" />
         </CardContent>
       </Card>
     </div>
@@ -403,7 +403,7 @@ const Profile = () => {
                 />
                 <Button
                   type="submit"
-                  className="rounded-full uppercase tracking-wide gap-2"
+                  className="rounded-md uppercase tracking-wide gap-2"
                   disabled={isSavingProfile}
                 >
                   {isSavingProfile ? (
@@ -481,7 +481,7 @@ const Profile = () => {
                 />
                 <Button
                   type="submit"
-                  className="rounded-full uppercase tracking-wide gap-2"
+                  className="rounded-md uppercase tracking-wide gap-2"
                   disabled={isChangingPassword}
                 >
                   {isChangingPassword ? (

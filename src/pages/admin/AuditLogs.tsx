@@ -19,6 +19,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  formatAuditActionLabel,
+  getAuditActionBadgeClass,
+} from "@/utils/badgeStyles";
 
 const AuditLogs = () => {
   const queryClient = useQueryClient();
@@ -104,7 +108,7 @@ const AuditLogs = () => {
       const { data, error } = await supabase
         .from("profiles")
         .select("id, first_name, last_name")
-        .in("role", ["staff", "superadmin"])
+        .in("role", ["staff", "superadmin", "admin"])
         .order("first_name", { ascending: true });
 
       if (error) throw error;
@@ -169,7 +173,7 @@ const AuditLogs = () => {
           <Button
             size="sm"
             variant="outline"
-            className="rounded-full p-2 h-9 w-9 flex-shrink-0"
+            className="rounded-md p-2 h-9 w-9 flex-shrink-0"
             onClick={exportToCSV}
           >
             <Download className="h-4 w-4" />
@@ -258,7 +262,7 @@ const AuditLogs = () => {
                   onClick={() => queryClient.invalidateQueries({ queryKey: ["audit-logs"] })}
                   variant="outline"
                   size="sm"
-                  className="rounded-full uppercase tracking-wide gap-2"
+                  className="rounded-md uppercase tracking-wide gap-2"
                 >
                   <RefreshCw className="h-4 w-4" />
                   Refresh
@@ -267,7 +271,7 @@ const AuditLogs = () => {
                   <Button
                     onClick={exportToCSV}
                     variant="outline"
-                    className="rounded-full uppercase tracking-wide gap-2 hidden lg:flex"
+                    className="rounded-md uppercase tracking-wide gap-2 hidden lg:flex"
                   >
                     <Download className="h-4 w-4" />
                     Export CSV
@@ -299,8 +303,11 @@ const AuditLogs = () => {
                         {log.staff ? `${log.staff.first_name} ${log.staff.last_name}` : "—"}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="uppercase">
-                          {log.action}
+                        <Badge
+                          variant="outline"
+                          className={getAuditActionBadgeClass(log.action)}
+                        >
+                          {formatAuditActionLabel(log.action)}
                         </Badge>
                       </TableCell>
                       <TableCell>

@@ -301,11 +301,11 @@ const Contracts = () => {
                     <Skeleton className="h-4 w-56" />
                   </div>
                 </div>
-                <Skeleton className="h-6 w-24 rounded-full" />
+                <Skeleton className="h-6 w-24 rounded-md" />
               </div>
               <div className="flex flex-wrap items-center gap-4">
                 <Skeleton className="h-4 w-32" />
-                <Skeleton className="h-9 w-28 rounded-full" />
+                <Skeleton className="h-9 w-28 rounded-md" />
               </div>
             </div>
           ))}
@@ -336,7 +336,7 @@ const Contracts = () => {
           </CardHeader>
           <CardContent>
             <Button
-              className="rounded-full uppercase tracking-wide"
+              className="rounded-md uppercase tracking-wide"
               onClick={() => navigate("/portal")}
             >
               View Applications
@@ -441,11 +441,11 @@ const ContractCard = ({
                     <Skeleton className="h-4 w-56" />
                   </div>
                 </div>
-                <Skeleton className="h-6 w-24 rounded-full" />
+                <Skeleton className="h-6 w-24 rounded-md" />
               </div>
               <div className="flex flex-wrap items-center gap-4">
                 <Skeleton className="h-4 w-32" />
-                <Skeleton className="h-9 w-28 rounded-full" />
+                <Skeleton className="h-9 w-28 rounded-md" />
               </div>
             </div>
           ))}
@@ -484,7 +484,7 @@ const ContractCard = ({
             {tenancyEnvelope && (
               <div className="flex items-center gap-3">
                 {isEnvelopeCompleted(tenancyEnvelope.status) ? (
-                  <span className="inline-flex items-center rounded-full bg-green-600 px-3 py-1 text-sm font-semibold text-white uppercase tracking-wide">
+                  <span className="inline-flex items-center rounded-md bg-green-600 px-3 py-1 text-sm font-semibold text-white uppercase tracking-wide">
                     {formatEnvelopeStatus(tenancyEnvelope.status)}
                   </span>
                 ) : (
@@ -506,7 +506,7 @@ const ContractCard = ({
                   <Button
                     variant="default"
                     size="sm"
-                    className="rounded-full uppercase tracking-wide gap-2"
+                    className="rounded-md uppercase tracking-wide gap-2"
                     onClick={onSignTenancy}
                     disabled={isSigningTenancy}
                   >
@@ -527,7 +527,7 @@ const ContractCard = ({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="rounded-full uppercase tracking-wide gap-2"
+                    className="rounded-md uppercase tracking-wide gap-2"
                     onClick={() => onDownload(tenancyEnvelope.envelope_id ?? "", "tenancy")}
                     disabled={downloadingId === (tenancyEnvelope.envelope_id ?? `${applicationId}-tenancy`)}
                   >
@@ -563,7 +563,7 @@ const ContractCard = ({
                 </div>
               </div>
               {isEnvelopeCompleted(guarantorEnvelope.status) ? (
-                <span className="inline-flex items-center rounded-full bg-green-600 px-3 py-1 text-sm font-semibold text-white uppercase tracking-wide">
+                <span className="inline-flex items-center rounded-md bg-green-600 px-3 py-1 text-sm font-semibold text-white uppercase tracking-wide">
                   {formatEnvelopeStatus(guarantorEnvelope.status)}
                 </span>
               ) : (
@@ -581,7 +581,7 @@ const ContractCard = ({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="rounded-full uppercase tracking-wide gap-2"
+                  className="rounded-md uppercase tracking-wide gap-2"
                   onClick={() => onDownload(guarantorEnvelope.envelope_id ?? "", "guarantor")}
                   disabled={downloadingId === (guarantorEnvelope.envelope_id ?? `${applicationId}-guarantor`)}
                 >

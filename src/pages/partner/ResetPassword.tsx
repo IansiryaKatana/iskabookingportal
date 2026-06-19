@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { establishRecoverySession } from "@/utils/recoverySession";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,87 +24,19 @@ const PartnerResetPassword = () => {
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    // Check if we have a valid reset token in the URL
     const checkToken = async () => {
-      // Supabase automatically handles password reset tokens in the URL hash
-      // We need to check if there's a session after Supabase processes the hash
-      
-      // First, check if there's a hash with recovery token
-      const hash = window.location.hash;
-      const hasRecoveryToken = hash && hash.includes("type=recovery");
-      
-      // Also check query params (some email clients strip hash)
-      const queryType = searchParams.get("type");
-      const hasQueryToken = queryType === "recovery";
-      
-      if (!hasRecoveryToken && !hasQueryToken) {
-        setError("Invalid or missing password reset token. Please request a new password reset link.");
+      const result = await establishRecoverySession(supabase, { allowSignup: false });
+
+      if (!result.ok) {
+        setError(
+          result.error ??
+            "Invalid or expired reset token. Please request a new password reset link.",
+        );
         setIsValidating(false);
         return;
       }
 
-      // Wait a moment for Supabase to process the hash automatically
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // Check if Supabase has automatically set a session
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      if (session && !sessionError) {
-        // Session exists - token is valid
-        setIsValidToken(true);
-        setIsValidating(false);
-        return;
-      }
-
-      // If no session, try to manually extract and set it
-      if (hasRecoveryToken) {
-        try {
-          const hashParams = new URLSearchParams(hash.substring(1));
-          const accessToken = hashParams.get("access_token");
-          const refreshToken = hashParams.get("refresh_token");
-          
-          if (accessToken && refreshToken) {
-            const { error: setSessionError } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
-            
-            if (!setSessionError) {
-              setIsValidToken(true);
-              setIsValidating(false);
-              return;
-            }
-          }
-        } catch (err) {
-          console.error("Error parsing reset token:", err);
-        }
-      }
-
-      // Try query params
-      if (hasQueryToken) {
-        try {
-          const accessToken = searchParams.get("access_token");
-          const refreshToken = searchParams.get("refresh_token");
-          
-          if (accessToken && refreshToken) {
-            const { error: setSessionError } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
-            
-            if (!setSessionError) {
-              setIsValidToken(true);
-              setIsValidating(false);
-              return;
-            }
-          }
-        } catch (err) {
-          console.error("Error setting session from query params:", err);
-        }
-      }
-      
-      // If we get here, token is invalid or expired
-      setError("Invalid or expired reset token. Please request a new password reset link.");
+      setIsValidToken(true);
       setIsValidating(false);
     };
 
@@ -130,8 +63,15 @@ const PartnerResetPassword = () => {
     try {
       // Update password using Supabase auth
       // The token is in the URL hash, Supabase will handle it automatically
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+
       const { error: updateError } = await supabase.auth.updateUser({
         password: password,
+        data: {
+          ...(currentUser?.user_metadata || {}),
+          account_status: "activated",
+          activated_at: new Date().toISOString(),
+        },
       });
 
       if (updateError) {
@@ -178,7 +118,7 @@ const PartnerResetPassword = () => {
       <div className="min-h-screen bg-gradient-to-b from-background via-background to-primary/5 flex items-center justify-center px-4 py-12">
         <Card className="w-full max-w-lg rounded-3xl shadow-xl border border-border/50 bg-background">
           <CardHeader className="space-y-3 text-center">
-            <div className="mx-auto h-12 w-12 flex items-center justify-center rounded-full bg-green-100">
+            <div className="mx-auto h-12 w-12 flex items-center justify-center rounded-md bg-green-100">
               <CheckCircle2 className="h-8 w-8 text-green-600" />
             </div>
             <CardTitle className="text-2xl font-display font-black uppercase tracking-wide">
@@ -208,7 +148,7 @@ const PartnerResetPassword = () => {
           <CardContent>
             <Button
               onClick={() => navigate("/partner/login")}
-              className="w-full rounded-full uppercase tracking-wide"
+              className="w-full rounded-md uppercase tracking-wide"
             >
               Go to Login
             </Button>
@@ -222,7 +162,7 @@ const PartnerResetPassword = () => {
     <div className="min-h-screen bg-gradient-to-b from-background via-background to-primary/5 flex items-center justify-center px-4 py-12">
       <Card className="w-full max-w-lg rounded-3xl shadow-xl border border-border/50 bg-background">
         <CardHeader className="space-y-3 text-center">
-          <div className="mx-auto h-12 w-12 flex items-center justify-center rounded-full bg-primary/10">
+          <div className="mx-auto h-12 w-12 flex items-center justify-center rounded-md bg-primary/10">
             <Lock className="h-8 w-8 text-primary" />
           </div>
           <CardTitle className="text-2xl font-display font-black uppercase tracking-wide">
@@ -302,7 +242,7 @@ const PartnerResetPassword = () => {
 
             <Button
               type="submit"
-              className="w-full rounded-full uppercase tracking-wide gap-2"
+              className="w-full rounded-md uppercase tracking-wide gap-2"
               disabled={isSubmitting}
             >
               {isSubmitting ? (

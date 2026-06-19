@@ -80,7 +80,7 @@ const PanelCard = ({
         </p>
         <Button
           size="lg"
-          className="w-full rounded-full font-semibold uppercase tracking-wide"
+          className="w-full rounded-md font-semibold uppercase tracking-wide"
           onClick={() => onSelect?.(contract)}
         >
           Enquire

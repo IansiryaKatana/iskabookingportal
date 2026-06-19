@@ -269,7 +269,6 @@ export const exportCashFlowToCSV = (
   const csvContent = [
     `"Academic Year","${academicYearName.replace(/"/g, '""')}"`,
     `"View Mode","${viewLabel}"`,
-    "",
     headers.map((h) => `"${h.replace(/"/g, '""')}"`).join(","),
     ...csvRows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
   ].join("\n");

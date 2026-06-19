@@ -38,7 +38,7 @@ const Documents = () => {
           <Skeleton className="h-9 w-48" />
           <Skeleton className="h-4 w-96" />
         </div>
-        <Skeleton className="h-10 w-40 rounded-full" />
+        <Skeleton className="h-10 w-40 rounded-md" />
       </div>
       <Card className="rounded-3xl border border-border/60 shadow-xl">
         <CardHeader>
@@ -53,7 +53,7 @@ const Documents = () => {
                   <div className="flex items-center gap-3">
                     <Skeleton className="h-5 w-5 rounded" />
                     <Skeleton className="h-6 w-32" />
-                    <Skeleton className="h-5 w-20 rounded-full" />
+                    <Skeleton className="h-5 w-20 rounded-md" />
                   </div>
                   <div className="flex flex-wrap items-center gap-4">
                     <Skeleton className="h-4 w-28" />
@@ -61,8 +61,8 @@ const Documents = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Skeleton className="h-9 w-28 rounded-full" />
-                  <Skeleton className="h-9 w-28 rounded-full" />
+                  <Skeleton className="h-9 w-28 rounded-md" />
+                  <Skeleton className="h-9 w-28 rounded-md" />
                 </div>
               </div>
             </div>
@@ -94,7 +94,7 @@ const Documents = () => {
           </CardHeader>
           <CardContent>
             <Button
-              className="rounded-full uppercase tracking-wide"
+              className="rounded-md uppercase tracking-wide"
               onClick={() => navigate("/portal")}
             >
               View Applications
@@ -119,7 +119,7 @@ const Documents = () => {
           </div>
           <Button
             variant="outline"
-            className="rounded-full uppercase tracking-wide gap-2"
+            className="rounded-md uppercase tracking-wide gap-2"
             onClick={async () => {
               // First, let's check what's actually in the database
               if (import.meta.env.DEV) console.log("Checking existing documents in database...");
@@ -381,7 +381,7 @@ const DocumentsList = ({ applications }: { applications: NonNullable<Application
         </CardHeader>
         <CardContent>
           <Button
-            className="rounded-full uppercase tracking-wide"
+            className="rounded-md uppercase tracking-wide"
             onClick={() => window.location.href = "/portal"}
           >
             View Applications
@@ -506,7 +506,7 @@ const ApplicationDocumentsCard = ({
                   <div className="flex items-center gap-3">
                     <Skeleton className="h-5 w-5 rounded" />
                     <Skeleton className="h-6 w-32" />
-                    <Skeleton className="h-5 w-20 rounded-full" />
+                    <Skeleton className="h-5 w-20 rounded-md" />
                   </div>
                   <div className="flex flex-wrap items-center gap-4">
                     <Skeleton className="h-4 w-28" />
@@ -514,8 +514,8 @@ const ApplicationDocumentsCard = ({
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Skeleton className="h-9 w-28 rounded-full" />
-                  <Skeleton className="h-9 w-28 rounded-full" />
+                  <Skeleton className="h-9 w-28 rounded-md" />
+                  <Skeleton className="h-9 w-28 rounded-md" />
                 </div>
               </div>
             </div>
@@ -602,7 +602,7 @@ const ApplicationDocumentsCard = ({
                     <Button
                       variant="outline"
                       size="sm"
-                      className="rounded-full uppercase tracking-wide gap-2"
+                      className="rounded-md uppercase tracking-wide gap-2"
                       onClick={() => fileInputRefs.current[doc.id]?.click()}
                       disabled={uploadingDocId === doc.id || uploadDocument.isPending}
                     >
@@ -623,7 +623,7 @@ const ApplicationDocumentsCard = ({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="rounded-full uppercase tracking-wide gap-2"
+                  className="rounded-md uppercase tracking-wide gap-2"
                   onClick={() =>
                     downloadDocument(
                       doc.storage_path,

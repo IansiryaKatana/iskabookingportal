@@ -150,7 +150,7 @@ const PartnerCommissions = () => {
               {referrals && referrals.length > 0 && (
                 <Button
                   onClick={exportToCSV}
-                  className="rounded-full uppercase tracking-wide gap-2"
+                  className="rounded-md uppercase tracking-wide gap-2"
                 >
                   <Download className="h-4 w-4" />
                   Export CSV

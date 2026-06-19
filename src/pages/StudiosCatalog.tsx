@@ -220,21 +220,21 @@ const StudiosCatalog = () => {
         <section className="relative flex items-center justify-center min-h-[65vh] overflow-hidden bg-muted/30">
           <div className="absolute inset-0 bg-gradient-to-b from-muted/50 via-muted/40 to-muted/60" />
           <div className="relative z-10 container mx-auto max-w-4xl px-4 text-center text-muted-foreground space-y-6 py-24">
-            <Skeleton className="mx-auto h-4 w-52 rounded-full bg-muted-foreground/40" />
+            <Skeleton className="mx-auto h-4 w-52 rounded-md bg-muted-foreground/40" />
             <div className="space-y-3">
-              <Skeleton className="mx-auto h-10 w-3/4 rounded-full bg-muted-foreground/25" />
-              <Skeleton className="mx-auto h-10 w-1/2 rounded-full bg-muted-foreground/25" />
-              <Skeleton className="mx-auto h-10 w-2/3 rounded-full bg-muted-foreground/25" />
+              <Skeleton className="mx-auto h-10 w-3/4 rounded-md bg-muted-foreground/25" />
+              <Skeleton className="mx-auto h-10 w-1/2 rounded-md bg-muted-foreground/25" />
+              <Skeleton className="mx-auto h-10 w-2/3 rounded-md bg-muted-foreground/25" />
             </div>
-            <Skeleton className="mx-auto h-11 w-48 rounded-full bg-muted-foreground/30" />
+            <Skeleton className="mx-auto h-11 w-48 rounded-md bg-muted-foreground/30" />
           </div>
         </section>
         <main className="container mx-auto px-4 pt-16 pb-20 max-w-6xl space-y-12">
           <header className="space-y-4 text-center">
-            <Skeleton className="mx-auto h-3 w-48 rounded-full" />
-            <Skeleton className="mx-auto h-9 w-80 rounded-full" />
-            <Skeleton className="mx-auto h-4 w-3/4 rounded-full" />
-            <Skeleton className="mx-auto h-4 w-2/3 rounded-full" />
+            <Skeleton className="mx-auto h-3 w-48 rounded-md" />
+            <Skeleton className="mx-auto h-9 w-80 rounded-md" />
+            <Skeleton className="mx-auto h-4 w-3/4 rounded-md" />
+            <Skeleton className="mx-auto h-4 w-2/3 rounded-md" />
           </header>
           <section className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
             {Array.from({ length: 6 }).map((_, idx) => (
@@ -246,21 +246,21 @@ const StudiosCatalog = () => {
                 <div className="relative h-48 w-full overflow-hidden rounded-2xl bg-muted/40">
                   <Skeleton className="absolute inset-0 h-full w-full rounded-none" />
                   <div className="absolute inset-x-4 top-4 flex justify-between">
-                    <Skeleton className="h-6 w-24 rounded-full bg-black/40" />
-                    <Skeleton className="h-6 w-24 rounded-full bg-black/40" />
+                    <Skeleton className="h-6 w-24 rounded-md bg-black/40" />
+                    <Skeleton className="h-6 w-24 rounded-md bg-black/40" />
                   </div>
-                  <Skeleton className="absolute left-4 bottom-4 h-6 w-32 rounded-full bg-black/50" />
+                  <Skeleton className="absolute left-4 bottom-4 h-6 w-32 rounded-md bg-black/50" />
                 </div>
                 <div className="mt-5 flex flex-1 flex-col gap-4">
-                  <Skeleton className="h-6 w-40 rounded-full" />
-                  <Skeleton className="h-3 w-full rounded-full" />
-                  <Skeleton className="h-3 w-3/4 rounded-full" />
-                  <Skeleton className="h-3 w-2/3 rounded-full" />
+                  <Skeleton className="h-6 w-40 rounded-md" />
+                  <Skeleton className="h-3 w-full rounded-md" />
+                  <Skeleton className="h-3 w-3/4 rounded-md" />
+                  <Skeleton className="h-3 w-2/3 rounded-md" />
                   <div className="mt-auto flex items-center justify-between gap-4">
-                    <Skeleton className="h-11 w-32 rounded-full" />
+                    <Skeleton className="h-11 w-32 rounded-md" />
                     <div className="space-y-2 text-right">
-                      <Skeleton className="ml-auto h-6 w-24 rounded-full" />
-                      <Skeleton className="ml-auto h-3 w-16 rounded-full" />
+                      <Skeleton className="ml-auto h-6 w-24 rounded-md" />
+                      <Skeleton className="ml-auto h-3 w-16 rounded-md" />
                     </div>
                   </div>
                 </div>
@@ -301,7 +301,7 @@ const StudiosCatalog = () => {
           </h1>
           <Button
             onClick={() => setViewingDialogOpen(true)}
-            className="rounded-full bg-[#ff2020] hover:bg-[#ff4040] px-8 py-3 text-sm font-semibold uppercase tracking-[0.35em]"
+            className="rounded-md bg-[#ff2020] hover:bg-[#ff4040] px-8 py-3 text-sm font-semibold uppercase tracking-[0.35em]"
           >
             Book a Viewing
           </Button>
@@ -316,12 +316,12 @@ const StudiosCatalog = () => {
               onValueChange={handleYearChange}
               className="w-auto"
             >
-              <TabsList className="inline-flex h-12 items-center justify-center rounded-full bg-primary/60 p-1.5 gap-1.5 md:gap-2 shadow-sm">
+              <TabsList className="inline-flex h-12 items-center justify-center rounded-md bg-primary/60 p-1.5 gap-1.5 md:gap-2 shadow-sm">
                 {academicYears.map((ay) => (
                   <TabsTrigger
                     key={ay.id}
                     value={ay.name}
-                    className="rounded-full uppercase tracking-wide text-xs md:text-sm font-semibold px-4 md:px-6 py-2 md:py-2.5 flex-shrink-0 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md transition-all data-[state=inactive]:bg-transparent data-[state=inactive]:text-white/90 hover:data-[state=inactive]:bg-primary/40"
+                    className="rounded-md uppercase tracking-wide text-xs md:text-sm font-semibold px-4 md:px-6 py-2 md:py-2.5 flex-shrink-0 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md transition-all data-[state=inactive]:bg-transparent data-[state=inactive]:text-white/90 hover:data-[state=inactive]:bg-primary/40"
                   >
                     {formatYearForDisplay(ay.name)}
                   </TabsTrigger>
@@ -392,7 +392,7 @@ const StudiosCatalog = () => {
                         </CarouselContent>
                         {grade.gallery.length > 1 && (
                           <div className="absolute bottom-2 left-1/2 -translate-x-1/2 opacity-0 group-hover/carousel:opacity-100 transition-opacity">
-                            <CarouselDots className="bg-black/50 backdrop-blur-sm rounded-full px-2 py-1" />
+                            <CarouselDots className="bg-black/50 backdrop-blur-sm rounded-md px-2 py-1" />
                           </div>
                         )}
                       </Carousel>
@@ -402,7 +402,7 @@ const StudiosCatalog = () => {
                       </div>
                     )}
                     {availabilityTag && (
-                      <span className={`absolute right-4 top-4 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.25em] ${availabilityTag.className}`}>
+                      <span className={`absolute right-4 top-4 rounded-md px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.25em] ${availabilityTag.className}`}>
                         {availabilityTag.label}
                       </span>
                     )}
@@ -425,7 +425,7 @@ const StudiosCatalog = () => {
                       {fullyBooked ? (
                         <Button
                           disabled
-                          className="rounded-full bg-gray-400 px-6 py-2 text-sm font-semibold uppercase tracking-[0.25em] text-white cursor-not-allowed"
+                          className="rounded-md bg-gray-400 px-6 py-2 text-sm font-semibold uppercase tracking-[0.25em] text-white cursor-not-allowed"
                         >
                           Fully Booked
                         </Button>

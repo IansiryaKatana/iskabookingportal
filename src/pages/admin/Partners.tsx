@@ -312,7 +312,7 @@ const Partners = () => {
           <DialogTrigger asChild>
             <Button
               size="sm"
-              className="rounded-full uppercase tracking-wide gap-2 flex-shrink-0 h-7 px-2 text-xs"
+              className="rounded-md uppercase tracking-wide gap-2 flex-shrink-0 h-7 px-2 text-xs"
               onClick={() => setEditingPartner(null)}
             >
               <Plus className="h-4 w-4" />
@@ -332,7 +332,7 @@ const Partners = () => {
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button
-                className="rounded-full uppercase tracking-wide"
+                className="rounded-md uppercase tracking-wide"
                 onClick={() => setEditingPartner(null)}
               >
                 <Plus className="h-4 w-4 mr-2" />
@@ -477,7 +477,7 @@ const Partners = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="w-full rounded-full uppercase tracking-wide gap-2"
+                        className="w-full rounded-md uppercase tracking-wide gap-2"
                         onClick={() => {
                           setSelectedPartnerForAccount(partner);
                           setAccountEmail(partner.contact_email || "");
@@ -561,7 +561,7 @@ const Partners = () => {
                   setCreateAccountDialogOpen(false);
                   setSelectedPartnerForAccount(null);
                 }}
-                className="rounded-full uppercase tracking-wide"
+                className="rounded-md uppercase tracking-wide"
               >
                 Cancel
               </Button>
@@ -577,7 +577,7 @@ const Partners = () => {
                   }
                 }}
                 disabled={!accountEmail || !accountFirstName || !accountLastName || createAccountMutation.isPending}
-                className="rounded-full uppercase tracking-wide"
+                className="rounded-md uppercase tracking-wide"
               >
                 {createAccountMutation.isPending ? "Creating..." : "Create Account"}
               </Button>
@@ -727,14 +727,14 @@ const PartnerForm = ({
           type="button"
           variant="outline"
           onClick={onCancel}
-          className="rounded-full uppercase tracking-wide"
+          className="rounded-md uppercase tracking-wide"
         >
           Cancel
         </Button>
         <Button
           type="submit"
           disabled={isSubmitting}
-          className="rounded-full uppercase tracking-wide"
+          className="rounded-md uppercase tracking-wide"
         >
           {isSubmitting ? "Saving..." : partner ? "Update Partner" : "Create Partner"}
         </Button>

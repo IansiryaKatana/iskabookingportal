@@ -49,7 +49,7 @@ const FinancialForecast = () => {
       return;
     }
 
-    const revenue = parseFloat(targetRevenue.replace(/[£,]/g, ""));
+    const revenue = parseFloat(targetRevenue.replace(/[£,]/g));
     if (isNaN(revenue) || revenue <= 0) {
       toast({
         variant: "destructive",
@@ -172,7 +172,7 @@ const FinancialForecast = () => {
           <Button
             size="sm"
             variant="outline"
-            className="rounded-full p-2 h-9 w-9 flex-shrink-0"
+            className="rounded-md p-2 h-9 w-9 flex-shrink-0"
             onClick={handleExportCSV}
           >
             <Download className="h-4 w-4" />
@@ -201,7 +201,7 @@ const FinancialForecast = () => {
                   placeholder="2,500,000"
                   value={targetRevenue}
                   onChange={(e) => {
-                    const value = e.target.value.replace(/[^0-9]/g, "");
+                    const value = e.target.value.replace(/[^0-9]/g);
                     if (value) {
                       const num = parseInt(value, 10);
                       setTargetRevenue(num.toLocaleString("en-GB"));
@@ -267,7 +267,7 @@ const FinancialForecast = () => {
             </div>
 
             <Button
-              className="rounded-full uppercase tracking-wide gap-2"
+              className="rounded-md uppercase tracking-wide gap-2"
               onClick={handleCalculate}
               disabled={calculateForecast.isPending || !targetRevenue || !academicYearId}
             >
@@ -402,7 +402,7 @@ const FinancialForecast = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="rounded-full uppercase tracking-wide gap-2 hidden lg:flex"
+                  className="rounded-md uppercase tracking-wide gap-2 hidden lg:flex"
                   onClick={handleExportCSV}
                 >
                   <Download className="h-4 w-4" />
@@ -482,7 +482,7 @@ const FinancialForecast = () => {
             <div className="flex justify-end">
               <Button
                 variant="outline"
-                className="rounded-full uppercase tracking-wide gap-2"
+                className="rounded-md uppercase tracking-wide gap-2"
                 onClick={handleCalculate}
                 disabled={calculateForecast.isPending}
               >

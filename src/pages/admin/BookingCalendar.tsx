@@ -322,7 +322,7 @@ const BookingCalendar = () => {
                     placeholder="Search by studio number or grade..."
                     value={studioSearch}
                     onChange={(e) => setStudioSearch(e.target.value)}
-                    className="pl-9 rounded-full text-xs md:text-sm"
+                    className="pl-9 rounded-md text-xs md:text-sm"
                   />
                 </div>
               </div>
@@ -330,7 +330,7 @@ const BookingCalendar = () => {
               <div className="space-y-2">
                 <Label htmlFor="allocation-filter" className="text-xs md:text-sm">Allocation</Label>
                 <Select value={allocationFilter} onValueChange={setAllocationFilter}>
-                  <SelectTrigger id="allocation-filter" className="rounded-full text-xs md:text-sm">
+                  <SelectTrigger id="allocation-filter" className="rounded-md text-xs md:text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -346,7 +346,7 @@ const BookingCalendar = () => {
               <div className="space-y-2">
                 <Label htmlFor="grade-filter" className="text-xs md:text-sm">Studio Grade</Label>
                 <Select value={studioGradeFilter} onValueChange={setStudioGradeFilter}>
-                  <SelectTrigger id="grade-filter" className="rounded-full text-xs md:text-sm">
+                  <SelectTrigger id="grade-filter" className="rounded-md text-xs md:text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -373,7 +373,7 @@ const BookingCalendar = () => {
               <div className="flex items-end">
                 <Button
                   onClick={exportToCSV}
-                  className="w-full rounded-full bg-red-500 hover:bg-red-600 text-white p-2 h-10"
+                  className="w-full rounded-md bg-red-500 hover:bg-red-600 text-white p-2 h-10"
                   variant="default"
                   size="icon"
                   title="Export to CSV"
@@ -403,7 +403,7 @@ const BookingCalendar = () => {
                   variant="outline"
                   size="sm"
                   onClick={handlePreviousMonth}
-                  className="rounded-full"
+                  className="rounded-md"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
@@ -411,7 +411,7 @@ const BookingCalendar = () => {
                   variant="outline"
                   size="sm"
                   onClick={handleToday}
-                  className="rounded-full uppercase tracking-wide"
+                  className="rounded-md uppercase tracking-wide"
                 >
                   Today
                 </Button>
@@ -419,7 +419,7 @@ const BookingCalendar = () => {
                   variant="outline"
                   size="sm"
                   onClick={handleNextMonth}
-                  className="rounded-full"
+                  className="rounded-md"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -776,7 +776,7 @@ const BookingCalendar = () => {
                       type="date"
                       value={checkInDate}
                       onChange={(e) => setCheckInDate(e.target.value)}
-                      className="rounded-full"
+                      className="rounded-md"
                     />
                     <p className="text-xs text-muted-foreground">
                       Leave empty to use contract start date
@@ -793,7 +793,7 @@ const BookingCalendar = () => {
                       type="date"
                       value={checkOutDate}
                       onChange={(e) => setCheckOutDate(e.target.value)}
-                      className="rounded-full"
+                      className="rounded-md"
                     />
                     <p className="text-xs text-muted-foreground">
                       Leave empty to use contract end date
@@ -834,7 +834,7 @@ const BookingCalendar = () => {
                         navigate(`/admin/applications/${selectedApplication.id}`);
                       }
                     }}
-                    className="rounded-full gap-2"
+                    className="rounded-md gap-2"
                   >
                     View Full Application
                   </Button>
@@ -848,7 +848,7 @@ const BookingCalendar = () => {
                   setCheckInOutDialogOpen(false);
                   setSelectedApplication(null);
                 }}
-                className="rounded-full"
+                className="rounded-md"
               >
                 Cancel
               </Button>
@@ -882,7 +882,7 @@ const BookingCalendar = () => {
                   }
                 }}
                 disabled={updateCheckInOut.isPending}
-                className="rounded-full uppercase tracking-wide gap-2"
+                className="rounded-md uppercase tracking-wide gap-2"
               >
                 {updateCheckInOut.isPending ? "Saving..." : "Save Changes"}
               </Button>

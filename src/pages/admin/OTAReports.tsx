@@ -127,7 +127,6 @@ const OTAReports = () => {
     const csvContent = [
       headers.join(","),
       ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
-      "",
       '"OTA Expense Summary"',
       expenseHeaders.map((h) => `"${h}"`).join(","),
       ...expenseRows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
@@ -241,10 +240,10 @@ const OTAReports = () => {
       mobileActionButton={
         hasData ? (
           <div className="flex gap-1">
-            <Button size="sm" variant="outline" className="rounded-full p-2 h-9 w-9" onClick={exportToCSV}>
+            <Button size="sm" variant="outline" className="rounded-md p-2 h-9 w-9" onClick={exportToCSV}>
               <Download className="h-4 w-4" />
             </Button>
-            <Button size="sm" variant="outline" className="rounded-full p-2 h-9 w-9" onClick={exportToPDF}>
+            <Button size="sm" variant="outline" className="rounded-md p-2 h-9 w-9" onClick={exportToPDF}>
               <FileText className="h-4 w-4" />
             </Button>
           </div>
@@ -269,7 +268,7 @@ const OTAReports = () => {
                     onClick={exportToCSV}
                     variant="secondary"
                     size="sm"
-                    className="rounded-full gap-1.5 bg-background shadow-sm hover:bg-muted"
+                    className="rounded-md gap-1.5 bg-background shadow-sm hover:bg-muted"
                   >
                     <Download className="h-4 w-4" />
                     Export CSV
@@ -278,7 +277,7 @@ const OTAReports = () => {
                     onClick={exportToPDF}
                     variant="secondary"
                     size="sm"
-                    className="rounded-full gap-1.5 bg-background shadow-sm hover:bg-muted"
+                    className="rounded-md gap-1.5 bg-background shadow-sm hover:bg-muted"
                   >
                     <FileText className="h-4 w-4" />
                     Export PDF
@@ -293,7 +292,7 @@ const OTAReports = () => {
                 <Label className="text-xs text-muted-foreground uppercase tracking-wide">Date range</Label>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-between rounded-full px-3 py-2 h-auto text-left mt-1.5">
+                    <Button variant="outline" className="w-full justify-between rounded-md px-3 py-2 h-auto text-left mt-1.5">
                       <span className="text-xs sm:text-sm truncate">
                         {dateFrom && dateTo
                           ? `${format(new Date(dateFrom), "dd MMM yyyy")} — ${format(new Date(dateTo), "dd MMM yyyy")}`
@@ -311,7 +310,7 @@ const OTAReports = () => {
                             type="button"
                             size="sm"
                             variant="outline"
-                            className="rounded-full text-xs"
+                            className="rounded-md text-xs"
                             onClick={() => {
                               const today = new Date();
                               handleDateRangeChange({ from: subDays(today, 6), to: today });
@@ -323,7 +322,7 @@ const OTAReports = () => {
                             type="button"
                             size="sm"
                             variant="outline"
-                            className="rounded-full text-xs"
+                            className="rounded-md text-xs"
                             onClick={() => {
                               const today = new Date();
                               handleDateRangeChange({ from: subDays(today, 29), to: today });
@@ -335,7 +334,7 @@ const OTAReports = () => {
                             type="button"
                             size="sm"
                             variant="outline"
-                            className="rounded-full text-xs"
+                            className="rounded-md text-xs"
                             onClick={() => {
                               const today = new Date();
                               handleDateRangeChange({ from: startOfMonth(today), to: endOfMonth(today) });
@@ -348,7 +347,7 @@ const OTAReports = () => {
                               type="button"
                               size="sm"
                               variant="ghost"
-                              className="rounded-full text-xs text-muted-foreground"
+                              className="rounded-md text-xs text-muted-foreground"
                               onClick={clearDateRange}
                             >
                               Clear

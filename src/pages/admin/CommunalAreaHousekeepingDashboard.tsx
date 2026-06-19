@@ -114,7 +114,7 @@ const getStatusBadge = (status: string) => {
   const Icon = config.icon;
 
   return (
-    <Badge className={`uppercase ${config.className} rounded-full px-2.5 py-0.5 text-xs font-medium flex items-center gap-1`}>
+    <Badge className={`uppercase ${config.className} rounded-md px-2.5 py-0.5 text-xs font-medium flex items-center gap-1`}>
       <Icon className="h-3 w-3" />
       {config.label}
     </Badge>
@@ -655,7 +655,7 @@ const CommunalAreaHousekeepingDashboard = () => {
             <div className="grid grid-cols-2 gap-3">
               <Button
                 onClick={() => handleApprove(status.id)}
-                className="rounded-full bg-green-600 hover:bg-green-700"
+                className="rounded-md bg-green-600 hover:bg-green-700"
               >
                 <Check className="h-4 w-4 mr-2" />
                 Approve
@@ -663,7 +663,7 @@ const CommunalAreaHousekeepingDashboard = () => {
               <Button
                 onClick={() => handleReject(status.id)}
                 variant="destructive"
-                className="rounded-full"
+                className="rounded-md"
               >
                 <X className="h-4 w-4 mr-2" />
                 Reject
@@ -674,7 +674,7 @@ const CommunalAreaHousekeepingDashboard = () => {
           {isHousekeeper && status.assigned_cleaner_id === detailProfile?.id && status.status === "dirty" && (
             <Button
               onClick={() => handleStatusChange(status.id, "clean_pending_approval")}
-              className="rounded-full w-full"
+              className="rounded-md w-full"
             >
               <CheckCircle2 className="h-4 w-4 mr-2" />
               Mark as Clean (Pending Approval)
@@ -686,7 +686,7 @@ const CommunalAreaHousekeepingDashboard = () => {
               <Button
                 onClick={() => setAssignDialogOpen(true)}
                 variant="outline"
-                className="rounded-full w-full"
+                className="rounded-md w-full"
               >
                 <UserCheck className="h-4 w-4 mr-2" />
                 {status.assigned_cleaner_id ? "Change Cleaner" : "Assign Cleaner"}
@@ -694,7 +694,7 @@ const CommunalAreaHousekeepingDashboard = () => {
               <Button
                 onClick={() => setDateDialogOpen(true)}
                 variant="outline"
-                className="rounded-full w-full"
+                className="rounded-md w-full"
               >
                 <Calendar className="h-4 w-4 mr-2" />
                 Set Next Clean Date
@@ -702,7 +702,7 @@ const CommunalAreaHousekeepingDashboard = () => {
               {status.status !== "clean" && (
                 <Button
                   onClick={() => handleStatusChange(status.id, "clean")}
-                  className="rounded-full w-full bg-green-600 hover:bg-green-700"
+                  className="rounded-md w-full bg-green-600 hover:bg-green-700"
                 >
                   <CheckCircle2 className="h-4 w-4 mr-2" />
                   Mark as Clean
@@ -711,7 +711,7 @@ const CommunalAreaHousekeepingDashboard = () => {
               <Button
                 onClick={() => handleStatusChange(status.id, "dirty")}
                 variant="destructive"
-                className="rounded-full w-full"
+                className="rounded-md w-full"
               >
                 <XCircle className="h-4 w-4 mr-2" />
                 Mark as Dirty
@@ -725,7 +725,7 @@ const CommunalAreaHousekeepingDashboard = () => {
           <Button
             variant="outline"
             onClick={onClose}
-            className="rounded-full w-full"
+            className="rounded-md w-full"
           >
             Close
           </Button>
@@ -744,7 +744,7 @@ const CommunalAreaHousekeepingDashboard = () => {
               <div className="space-y-2">
                 <Label>Cleaner</Label>
                 <Select value={selectedCleanerId || "__unassign__"} onValueChange={setSelectedCleanerId}>
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger className="rounded-md">
                     <SelectValue placeholder="Select cleaner..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -759,10 +759,10 @@ const CommunalAreaHousekeepingDashboard = () => {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setAssignDialogOpen(false)} className="rounded-full">
+              <Button variant="outline" onClick={() => setAssignDialogOpen(false)} className="rounded-md">
                 Cancel
               </Button>
-              <Button onClick={handleAssign} className="rounded-full">
+              <Button onClick={handleAssign} className="rounded-md">
                 Assign
               </Button>
             </DialogFooter>
@@ -785,15 +785,15 @@ const CommunalAreaHousekeepingDashboard = () => {
                   type="date"
                   value={nextCleanDate}
                   onChange={(e) => setNextCleanDate(e.target.value)}
-                  className="rounded-full"
+                  className="rounded-md"
                 />
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setDateDialogOpen(false)} className="rounded-full">
+              <Button variant="outline" onClick={() => setDateDialogOpen(false)} className="rounded-md">
                 Cancel
               </Button>
-              <Button onClick={handleSetDate} className="rounded-full">
+              <Button onClick={handleSetDate} className="rounded-md">
                 Set Date
               </Button>
             </DialogFooter>
@@ -812,7 +812,7 @@ const CommunalAreaHousekeepingDashboard = () => {
           <Button
             onClick={() => handleOpenAreaDialog()}
             size="sm"
-            className="rounded-full h-9 w-9 p-0 bg-primary hover:bg-primary/90 text-primary-foreground flex-shrink-0"
+            className="rounded-md h-9 w-9 p-0 bg-primary hover:bg-primary/90 text-primary-foreground flex-shrink-0"
           >
             <Plus className="h-4 w-4" />
           </Button>
@@ -867,7 +867,7 @@ const CommunalAreaHousekeepingDashboard = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 w-full md:w-auto">
                 <div>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="rounded-full text-xs md:text-sm h-9 md:h-10">
+                    <SelectTrigger className="rounded-md text-xs md:text-sm h-9 md:h-10">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -884,13 +884,13 @@ const CommunalAreaHousekeepingDashboard = () => {
                     placeholder="Search by area name or location..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="rounded-full text-xs md:text-sm h-9 md:h-10"
+                    className="rounded-md text-xs md:text-sm h-9 md:h-10"
                   />
                 </div>
               </div>
               {canEdit && (
                 <div className="hidden md:flex">
-                  <Button onClick={() => handleOpenAreaDialog()} className="rounded-full">
+                  <Button onClick={() => handleOpenAreaDialog()} className="rounded-md">
                     <Plus className="mr-2 h-4 w-4" />
                     Add Communal Area
                   </Button>
@@ -973,7 +973,7 @@ const CommunalAreaHousekeepingDashboard = () => {
               {selectedStatus && <DetailContent status={selectedStatus} />}
             </div>
             <DrawerFooter>
-              <Button variant="outline" onClick={() => setDetailsOpen(false)} className="rounded-full">
+              <Button variant="outline" onClick={() => setDetailsOpen(false)} className="rounded-md">
                 Close
               </Button>
             </DrawerFooter>

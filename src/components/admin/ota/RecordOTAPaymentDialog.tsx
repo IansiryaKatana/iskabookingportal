@@ -35,8 +35,8 @@ import type { OTABookingWithRelations } from "@/hooks/useOTABookings";
 import {
   canRecordOTAPayment,
   formatOTACurrency,
-  OTA_PAYMENT_STATUS_LABELS,
 } from "@/utils/otaPayment";
+import { OTAPaymentStatusBadge } from "@/components/finance/FinanceStatusBadge";
 import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -177,7 +177,7 @@ const RecordOTAPaymentDialog = ({
                   <Button
                     variant="outline"
                     role="combobox"
-                    className="w-full justify-between rounded-full font-normal"
+                    className="w-full justify-between rounded-md font-normal"
                   >
                     {selectedBooking
                       ? `${selectedBooking.external_ref} — ${selectedBooking.guest_name}`
@@ -228,9 +228,7 @@ const RecordOTAPaymentDialog = ({
                   {selectedBooking.channel}
                 </Badge>
                 {summary && (
-                  <Badge variant="secondary" className="text-xs">
-                    {OTA_PAYMENT_STATUS_LABELS[summary.payment_status]}
-                  </Badge>
+                  <OTAPaymentStatusBadge status={summary.payment_status} />
                 )}
               </div>
               {summaryLoading ? (
@@ -276,7 +274,7 @@ const RecordOTAPaymentDialog = ({
                 min="0.01"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="rounded-full"
+                className="rounded-md"
                 disabled={!selectedBookingId || summary?.payment_status === "fully_paid"}
               />
             </div>
@@ -286,7 +284,7 @@ const RecordOTAPaymentDialog = ({
                 type="date"
                 value={paymentDate}
                 onChange={(e) => setPaymentDate(e.target.value)}
-                className="rounded-full"
+                className="rounded-md"
               />
             </div>
           </div>
@@ -294,7 +292,7 @@ const RecordOTAPaymentDialog = ({
           <div className="space-y-2">
             <Label>Received from</Label>
             <Select value={receivedFrom} onValueChange={(v) => setReceivedFrom(v as typeof receivedFrom)}>
-              <SelectTrigger className="rounded-full">
+              <SelectTrigger className="rounded-md">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -313,7 +311,7 @@ const RecordOTAPaymentDialog = ({
               value={referenceNumber}
               onChange={(e) => setReferenceNumber(e.target.value)}
               placeholder="OTA payout ID or bank reference"
-              className="rounded-full"
+              className="rounded-md"
             />
           </div>
 
@@ -329,13 +327,13 @@ const RecordOTAPaymentDialog = ({
         </div>
 
         <DialogFooter className="flex-col sm:flex-row gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-full">
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-md">
             Cancel
           </Button>
           <Button
             onClick={handleSubmit}
             disabled={createPayment.isPending || !selectedBookingId || summary?.payment_status === "fully_paid"}
-            className="rounded-full"
+            className="rounded-md"
           >
             {createPayment.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Record payment

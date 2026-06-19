@@ -55,7 +55,7 @@ export const TYPOGRAPHY = {
 // Button Standards
 export const BUTTONS = {
   // Base styles (always include)
-  base: "rounded-full uppercase tracking-wide",
+  base: "rounded-md uppercase tracking-wide",
   
   // Sizes
   sizes: {
@@ -66,7 +66,7 @@ export const BUTTONS = {
   
   // Mobile-specific
   mobile: {
-    base: "rounded-full uppercase tracking-wide gap-2 flex-shrink-0",
+    base: "rounded-md uppercase tracking-wide gap-2 flex-shrink-0",
     sm: "text-xs h-7 px-2",
     iconOnly: "h-7 w-7 p-0", // For icon-only buttons on mobile
   },
@@ -111,7 +111,7 @@ export const DIALOGS = {
 export const FORMS = {
   field: "space-y-2",
   label: "text-sm font-medium",
-  input: "rounded-xl",
-  textarea: "rounded-xl min-h-[80px]",
+  input: "rounded-md",
+  textarea: "rounded-md min-h-[80px]",
 } as const;
 

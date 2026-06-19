@@ -90,7 +90,7 @@ const SalesReports = () => {
         <Button
           size="sm"
           variant="outline"
-          className="rounded-full p-2 h-9 w-9 flex-shrink-0"
+          className="rounded-md p-2 h-9 w-9 flex-shrink-0"
           onClick={handleDownload}
           disabled={downloadMutation.isPending || isLoading}
         >
@@ -132,7 +132,7 @@ const SalesReports = () => {
                         type="button"
                         variant={active ? "default" : "outline"}
                         size="sm"
-                        className="rounded-full"
+                        className="rounded-md"
                         onClick={() => setSelectedStatus(status)}
                       >
                         {STATUS_LABELS[status]}
@@ -161,7 +161,7 @@ const SalesReports = () => {
               </div>
               <Button
                 onClick={handleDownload}
-                className="hidden lg:flex rounded-full uppercase tracking-wide gap-2"
+                className="hidden lg:flex rounded-md uppercase tracking-wide gap-2"
                 disabled={downloadMutation.isPending || isLoading}
               >
                 {downloadMutation.isPending ? (

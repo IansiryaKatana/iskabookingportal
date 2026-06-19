@@ -110,7 +110,7 @@ const StudentDetail = () => {
             <CardDescription>The requested student could not be found.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => navigate("/admin/students")} className="rounded-full uppercase tracking-wide">
+            <Button onClick={() => navigate("/admin/students")} className="rounded-md uppercase tracking-wide">
               Back to Students
             </Button>
           </CardContent>
@@ -127,7 +127,7 @@ const StudentDetail = () => {
           <Button
             variant="ghost"
             onClick={() => navigate("/admin/students")}
-            className="rounded-full uppercase tracking-wide gap-2"
+            className="rounded-md uppercase tracking-wide gap-2"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to Students
@@ -138,7 +138,7 @@ const StudentDetail = () => {
             </Badge>
             <Button
               variant="outline"
-              className="rounded-full uppercase tracking-wide gap-2"
+              className="rounded-md uppercase tracking-wide gap-2"
               onClick={() => setManualPaymentOpen(true)}
             >
               <CreditCard className="h-4 w-4" />
@@ -146,7 +146,7 @@ const StudentDetail = () => {
             </Button>
             <Button
               variant="outline"
-              className="rounded-full uppercase tracking-wide gap-2"
+              className="rounded-md uppercase tracking-wide gap-2"
               onClick={() => navigate(`/portal/applications/${application.id}`)}
             >
               <ExternalLink className="h-4 w-4" />
@@ -378,7 +378,7 @@ const StudentDetail = () => {
                     <div>
                       <p className="font-medium capitalize">{envelope.signature_type} Agreement</p>
                       <p className="text-sm text-muted-foreground">
-                        Status: <Badge className={`uppercase rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                        Status: <Badge className={`uppercase rounded-md px-2.5 py-0.5 text-xs font-medium ${
                           envelope.status === "completed" 
                             ? "bg-green-500 hover:bg-green-600 text-white" 
                             : envelope.status === "sent"

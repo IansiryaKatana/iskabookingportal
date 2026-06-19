@@ -214,7 +214,7 @@ const StudioGrades = () => {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="rounded-full uppercase tracking-wide gap-2"
+                    className="rounded-md uppercase tracking-wide gap-2"
                     onClick={() => handleEdit(grade.slug)}
                   >
                     <Pencil className="h-4 w-4" />
@@ -253,14 +253,14 @@ const StudioGrades = () => {
             </div>
           ) : (
             <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
-              <TabsList className="grid grid-cols-3 rounded-full bg-muted">
-                <TabsTrigger value="overview" className="rounded-full uppercase text-xs tracking-[0.3em]">
+              <TabsList className="grid grid-cols-3 rounded-md bg-muted">
+                <TabsTrigger value="overview" className="rounded-md uppercase text-xs tracking-[0.3em]">
                   Overview
                 </TabsTrigger>
-                <TabsTrigger value="media" className="rounded-full uppercase text-xs tracking-[0.3em]">
+                <TabsTrigger value="media" className="rounded-md uppercase text-xs tracking-[0.3em]">
                   Media
                 </TabsTrigger>
-                <TabsTrigger value="banner" className="rounded-full uppercase text-xs tracking-[0.3em]">
+                <TabsTrigger value="banner" className="rounded-md uppercase text-xs tracking-[0.3em]">
                   Payment Banner
                 </TabsTrigger>
               </TabsList>
@@ -350,14 +350,14 @@ const StudioGrades = () => {
                       <Button
                         type="button"
                         variant="outline"
-                        className="rounded-full uppercase tracking-wide"
+                        className="rounded-md uppercase tracking-wide"
                         onClick={() => setOpen(false)}
                       >
                         Cancel
                       </Button>
                       <Button
                         type="submit"
-                        className="rounded-full uppercase tracking-wide"
+                        className="rounded-md uppercase tracking-wide"
                         disabled={updateGrade.isLoading || updatePrice.isLoading}
                       >
                         {(updateGrade.isLoading || updatePrice.isLoading) ? (
@@ -416,7 +416,7 @@ const StudioGrades = () => {
                                   <Button
                                     variant="secondary"
                                     size="sm"
-                                    className="rounded-full h-8 w-8 p-0"
+                                    className="rounded-md h-8 w-8 p-0"
                                     disabled={setHeroMedia.isLoading}
                                     onClick={() => {
                                       if (!gradeDetail) return;
@@ -437,7 +437,7 @@ const StudioGrades = () => {
                                 <Button
                                   variant="destructive"
                                   size="sm"
-                                  className="rounded-full h-8 w-8 p-0"
+                                  className="rounded-md h-8 w-8 p-0"
                                   disabled={deleteMedia.isLoading}
                                   onClick={() => {
                                     if (!gradeDetail) return;
@@ -500,7 +500,7 @@ const StudioGrades = () => {
                       <Button
                         type="button"
                         variant="outline"
-                        className="rounded-full uppercase tracking-wide gap-2"
+                        className="rounded-md uppercase tracking-wide gap-2"
                         asChild
                       >
                         <span>
@@ -521,7 +521,7 @@ const StudioGrades = () => {
                     onChange={(event) => setNewBannerText(event.target.value)}
                   />
                   <Button
-                    className="rounded-full uppercase tracking-wide"
+                    className="rounded-md uppercase tracking-wide"
                     disabled={!newBannerText.trim() || !gradeDetail || createBanner.isLoading}
                     onClick={() => {
                       if (!gradeDetail || !newBannerText.trim()) return;
@@ -592,7 +592,7 @@ const StudioGrades = () => {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="rounded-full uppercase tracking-wide"
+                              className="rounded-md uppercase tracking-wide"
                               disabled={updateBanner.isLoading}
                               onClick={() => {
                                 if (!gradeDetail) return;
@@ -621,7 +621,7 @@ const StudioGrades = () => {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="rounded-full uppercase tracking-wide text-destructive"
+                              className="rounded-md uppercase tracking-wide text-destructive"
                               disabled={deleteBanner.isLoading}
                               onClick={() => {
                                 if (!gradeDetail) return;

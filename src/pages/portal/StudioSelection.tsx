@@ -230,7 +230,7 @@ const StudioSelection = () => {
           </CardHeader>
           <CardContent>
             <Button
-              className="rounded-full uppercase tracking-wide"
+              className="rounded-md uppercase tracking-wide"
               onClick={() => navigate("/portal")}
             >
               Back to dashboard
@@ -343,7 +343,7 @@ const StudioSelection = () => {
                           {studio.studio_number}
                         </p>
                         <span
-                          className={`text-xs font-semibold uppercase tracking-[0.3em] px-2 py-1 rounded-full ${
+                          className={`text-xs font-semibold uppercase tracking-[0.3em] px-2 py-1 rounded-md ${
                             isSelected
                               ? "text-primary bg-primary/10"
                               : isOccupied
@@ -403,7 +403,7 @@ const StudioSelection = () => {
                       <div key={studio.id} className={cardClasses}>
                         <div className="text-left">{cardContent}</div>
                         <Button
-                          className="mt-4 w-full rounded-full uppercase tracking-wide gap-2"
+                          className="mt-4 w-full rounded-md uppercase tracking-wide gap-2"
                           onClick={handleContinue}
                           disabled={saving}
                         >
@@ -458,7 +458,7 @@ const StudioSelection = () => {
             <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
               <Button
                 variant="outline"
-                className="rounded-full uppercase tracking-wide"
+                className="rounded-md uppercase tracking-wide"
                 onClick={() => navigate("/portal")}
               >
                 Save for later
@@ -466,7 +466,7 @@ const StudioSelection = () => {
               {selectedStudio && (
                 <Button
                   variant="ghost"
-                  className="rounded-full uppercase tracking-wide"
+                  className="rounded-md uppercase tracking-wide"
                   onClick={handleRelease}
                   disabled={saving || releasing}
                 >
@@ -478,7 +478,7 @@ const StudioSelection = () => {
                 </Button>
               )}
               <Button
-                className="rounded-full uppercase tracking-wide gap-2"
+                className="rounded-md uppercase tracking-wide gap-2"
                 onClick={handleContinue}
                 disabled={!application.assigned_studio_id || saving}
               >

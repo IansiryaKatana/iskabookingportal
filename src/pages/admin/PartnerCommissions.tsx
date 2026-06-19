@@ -250,7 +250,7 @@ const PartnerCommissions = () => {
             <Button
               size="sm"
               variant="outline"
-              className="rounded-full p-2 h-9 w-9 flex-shrink-0"
+              className="rounded-md p-2 h-9 w-9 flex-shrink-0"
               onClick={exportToCSV}
             >
               <Download className="h-4 w-4" />
@@ -258,7 +258,7 @@ const PartnerCommissions = () => {
             <Button
               size="sm"
               variant="outline"
-              className="rounded-full p-2 h-9 w-9 flex-shrink-0"
+              className="rounded-md p-2 h-9 w-9 flex-shrink-0"
               onClick={exportToPDF}
             >
               <FileText className="h-4 w-4" />
@@ -388,7 +388,7 @@ const PartnerCommissions = () => {
                   <Button
                     onClick={exportToCSV}
                     variant="outline"
-                    className="rounded-full uppercase tracking-wide gap-2"
+                    className="rounded-md uppercase tracking-wide gap-2"
                   >
                     <Download className="h-4 w-4" />
                     CSV
@@ -396,7 +396,7 @@ const PartnerCommissions = () => {
                   <Button
                     onClick={exportToPDF}
                     variant="outline"
-                    className="rounded-full uppercase tracking-wide gap-2"
+                    className="rounded-md uppercase tracking-wide gap-2"
                   >
                     <FileText className="h-4 w-4" />
                     PDF
@@ -464,7 +464,7 @@ const PartnerCommissions = () => {
                             {commission.commission_status === "pending" && (
                               <Button
                                 size="sm"
-                                className="rounded-full uppercase tracking-wide"
+                                className="rounded-md uppercase tracking-wide"
                                 onClick={() => {
                                   updateStatus.mutate({
                                     referralId: commission.id,
@@ -478,7 +478,7 @@ const PartnerCommissions = () => {
                             {commission.commission_status === "approved" && (
                               <Button
                                 size="sm"
-                                className="rounded-full uppercase tracking-wide bg-green-600 hover:bg-green-700"
+                                className="rounded-md uppercase tracking-wide bg-green-600 hover:bg-green-700"
                                 onClick={() => {
                                   updateStatus.mutate({
                                     referralId: commission.id,

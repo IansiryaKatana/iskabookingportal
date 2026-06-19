@@ -572,8 +572,8 @@ const ContractDetail = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <Skeleton className="h-32 w-full rounded-2xl" />
-                <Skeleton className="h-12 w-full rounded-full" />
-                <Skeleton className="h-10 w-full rounded-full" />
+                <Skeleton className="h-12 w-full rounded-md" />
+                <Skeleton className="h-10 w-full rounded-md" />
               </CardContent>
             </Card>
           </div>
@@ -600,7 +600,7 @@ const ContractDetail = () => {
             </CardHeader>
             <CardContent>
               <Button
-                className="rounded-full uppercase tracking-wide"
+                className="rounded-md uppercase tracking-wide"
                 variant="outline"
                 onClick={() => {
                   const studioSlug = contract?.studio_grade?.slug ?? "";
@@ -630,11 +630,11 @@ const ContractDetail = () => {
       <section className="relative overflow-hidden flex items-center min-h-[340px] bg-black">
         {/* Red + yellow gradient orbs - clearly visible */}
         <div
-          className="pointer-events-none absolute -left-32 top-1/2 -translate-y-1/2 h-96 w-96 rounded-full bg-red-500/50 blur-3xl"
+          className="pointer-events-none absolute -left-32 top-1/2 -translate-y-1/2 h-96 w-96 rounded-md bg-red-500/50 blur-3xl"
           aria-hidden="true"
         />
         <div
-          className="pointer-events-none absolute -right-32 top-1/2 -translate-y-1/2 h-96 w-96 rounded-full bg-amber-400/45 blur-3xl"
+          className="pointer-events-none absolute -right-32 top-1/2 -translate-y-1/2 h-96 w-96 rounded-md bg-amber-400/45 blur-3xl"
           aria-hidden="true"
         />
         {/* Subtle gradient overlay so text stays readable */}
@@ -761,10 +761,10 @@ const ContractDetail = () => {
               <div className="grid md:grid-cols-2 gap-4">
                 {/* Deposit card */}
                 <Card className="relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-red-50 via-background to-red-50 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="pointer-events-none absolute inset-x-8 -top-8 h-20 rounded-full bg-primary/5 blur-2xl" />
+                  <div className="pointer-events-none absolute inset-x-8 -top-8 h-20 rounded-md bg-primary/5 blur-2xl" />
                   <CardHeader className="pb-1 relative z-10">
                     <CardTitle className="text-xs font-semibold uppercase tracking-[0.25em] text-muted-foreground flex items-center gap-2">
-                      <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-primary">
                         <CreditCard className="h-3.5 w-3.5" />
                       </span>
                       <span>Deposit</span>
@@ -791,7 +791,7 @@ const ContractDetail = () => {
                   <div className="pointer-events-none absolute inset-y-0 right-0 w-24 bg-primary/5 blur-3xl" />
                   <CardHeader className="pb-1 relative z-10">
                     <CardTitle className="text-xs font-semibold uppercase tracking-[0.25em] text-muted-foreground flex items-center gap-2">
-                      <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-primary">
                         <MapPin className="h-3.5 w-3.5" />
                       </span>
                       <span>Studio grade</span>
@@ -828,12 +828,12 @@ const ContractDetail = () => {
                         Payment schedule
                       </h3>
                       {resolvedPlanOptions.length > 1 && (
-                        <TabsList className="bg-muted rounded-full p-1 flex gap-1 flex-wrap w-full border border-border/60 shadow-inner">
+                        <TabsList className="bg-muted rounded-md p-1 flex gap-1 flex-wrap w-full border border-border/60 shadow-inner">
                           {resolvedPlanOptions.map((plan) => (
                             <TabsTrigger
                               key={plan.id}
                               value={plan.payment_plan_id ?? plan.id}
-                              className="rounded-full px-3 py-1 text-xs uppercase tracking-wide flex-1 min-w-0 border border-transparent transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm data-[state=active]:border-primary"
+                              className="rounded-md px-3 py-1 text-xs uppercase tracking-wide flex-1 min-w-0 border border-transparent transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm data-[state=active]:border-primary"
                             >
                               <span className="truncate">{plan.payment_plan?.name ?? "Plan"}</span>
                             </TabsTrigger>
@@ -963,7 +963,7 @@ const ContractDetail = () => {
               {/* Rebooking Button */}
               {user && rebookingCheck?.can_rebook && rebookingCheck.previous_application_id ? (
                 <Button
-                  className="w-full rounded-full uppercase tracking-wide bg-white text-primary hover:bg-white/90"
+                  className="w-full rounded-md uppercase tracking-wide bg-white text-primary hover:bg-white/90"
                   size="lg"
                   onClick={handleRebook}
                   disabled={creatingRebooking || checkingRebooking}
@@ -1004,7 +1004,7 @@ const ContractDetail = () => {
               {/* Regular Booking Button — hidden only when staff-only and user is not staff */}
               {showApplyButton && (
                 <Button
-                  className="w-full rounded-full uppercase tracking-wide bg-white text-primary hover:bg-white/90"
+                  className="w-full rounded-md uppercase tracking-wide bg-white text-primary hover:bg-white/90"
                   size="lg"
                   onClick={handleEnquire}
                   disabled={!canApplyForContract || creating || creatingRebooking}

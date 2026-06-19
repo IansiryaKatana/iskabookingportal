@@ -842,7 +842,7 @@ const Settings = () => {
                   <Button
                     onClick={handleSaveSocialMedia}
                     disabled={updateSocialMedia.isPending}
-                    className="rounded-full uppercase tracking-wide gap-2 text-xs md:text-sm"
+                    className="rounded-md uppercase tracking-wide gap-2 text-xs md:text-sm"
                   >
                     <Save className="h-3 w-3 md:h-4 md:w-4" />
                     {updateSocialMedia.isPending ? "Saving..." : "Save Changes"}
@@ -901,7 +901,7 @@ const Settings = () => {
                 size="sm"
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                className="rounded-full uppercase tracking-wide gap-2"
+                className="rounded-md uppercase tracking-wide gap-2"
               >
                 <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
                 Refresh
@@ -1089,7 +1089,7 @@ const Settings = () => {
                   <Button
                     onClick={handleSaveCredentials}
                     disabled={isSavingCredentials}
-                    className="rounded-full uppercase tracking-wide gap-2 text-xs md:text-sm flex-1"
+                    className="rounded-md uppercase tracking-wide gap-2 text-xs md:text-sm flex-1"
                   >
                     <Save className="h-3 w-3 md:h-4 md:w-4" />
                     {isSavingCredentials ? "Saving..." : "Save Credentials"}
@@ -1098,7 +1098,7 @@ const Settings = () => {
                     variant="outline"
                     onClick={handleTestConnection}
                     disabled={isTestingConnection}
-                    className="rounded-full uppercase tracking-wide gap-2 text-xs md:text-sm"
+                    className="rounded-md uppercase tracking-wide gap-2 text-xs md:text-sm"
                   >
                     {isTestingConnection ? (
                       <>
@@ -1213,7 +1213,7 @@ const Settings = () => {
                   <AlertDialogTrigger asChild>
                     <Button
                       variant="destructive"
-                      className="w-full rounded-full uppercase tracking-wide"
+                      className="w-full rounded-md uppercase tracking-wide"
                       disabled={deleteAllApplications.isPending || (appStats?.total || 0) === 0}
                     >
                       {deleteAllApplications.isPending ? (
@@ -1272,10 +1272,10 @@ const Settings = () => {
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel className="rounded-full" onClick={() => setDeleteOrphanedUsers(false)}>Cancel</AlertDialogCancel>
+                      <AlertDialogCancel className="rounded-md" onClick={() => setDeleteOrphanedUsers(false)}>Cancel</AlertDialogCancel>
                       <AlertDialogAction
                         onClick={() => deleteAllApplications.mutate()}
-                        className="rounded-full bg-destructive hover:bg-destructive/90"
+                        className="rounded-md bg-destructive hover:bg-destructive/90"
                         disabled={deleteAllApplications.isPending}
                       >
                         {deleteAllApplications.isPending ? (
@@ -1299,7 +1299,7 @@ const Settings = () => {
                       onValueChange={setSelectedAcademicYear}
                       disabled={isLoadingYears || deleteByAcademicYear.isPending}
                     >
-                      <SelectTrigger className="w-full rounded-full">
+                      <SelectTrigger className="w-full rounded-md">
                         <SelectValue placeholder="Select academic year" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1316,7 +1316,7 @@ const Settings = () => {
                     <AlertDialogTrigger asChild>
                       <Button
                         variant="destructive"
-                        className="w-full rounded-full uppercase tracking-wide"
+                        className="w-full rounded-md uppercase tracking-wide"
                         disabled={
                           !selectedAcademicYear ||
                           deleteByAcademicYear.isPending
@@ -1432,7 +1432,7 @@ const Settings = () => {
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel
-                        className="rounded-full"
+                        className="rounded-md"
                         onClick={() => {
                           setDeleteApplicationsByYear(true);
                           setDeleteCustomContractsByYear(false);
@@ -1444,7 +1444,7 @@ const Settings = () => {
                       </AlertDialogCancel>
                       <AlertDialogAction
                         onClick={() => selectedAcademicYear && deleteByAcademicYear.mutate(selectedAcademicYear)}
-                        className="rounded-full bg-destructive hover:bg-destructive/90"
+                        className="rounded-md bg-destructive hover:bg-destructive/90"
                         disabled={
                           deleteByAcademicYear.isPending ||
                           !selectedAcademicYear ||
@@ -1484,7 +1484,7 @@ const Settings = () => {
                           searchApplications.mutate();
                         }
                       }}
-                      className="rounded-full"
+                      className="rounded-md"
                       disabled={isSearching || deleteBySearch.isPending}
                     />
                     <Select
@@ -1492,7 +1492,7 @@ const Settings = () => {
                       onValueChange={(value: "student_name" | "studio_number") => setSearchType(value)}
                       disabled={isSearching || deleteBySearch.isPending}
                     >
-                      <SelectTrigger className="w-full sm:w-[160px] rounded-full">
+                      <SelectTrigger className="w-full sm:w-[160px] rounded-md">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1505,7 +1505,7 @@ const Settings = () => {
                     <Button
                       onClick={() => searchApplications.mutate()}
                       disabled={!searchTerm.trim() || isSearching || deleteBySearch.isPending}
-                      className="w-full sm:w-auto rounded-full"
+                      className="w-full sm:w-auto rounded-md"
                       variant="outline"
                     >
                       {isSearching ? (
@@ -1541,7 +1541,7 @@ const Settings = () => {
                               setSelectedApplications(new Set(searchResults.map((r) => r.application_id)));
                             }
                           }}
-                          className="rounded-full text-xs w-full sm:w-auto"
+                          className="rounded-md text-xs w-full sm:w-auto"
                         >
                           {selectedApplications.size === searchResults.length ? "Deselect All" : "Select All"}
                         </Button>
@@ -1550,7 +1550,7 @@ const Settings = () => {
                             <Button
                               variant="destructive"
                               size="sm"
-                              className="rounded-full text-xs w-full sm:w-auto"
+                              className="rounded-md text-xs w-full sm:w-auto"
                               disabled={selectedApplications.size === 0 || deleteBySearch.isPending}
                             >
                               {deleteBySearch.isPending ? (
@@ -1611,10 +1611,10 @@ const Settings = () => {
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                              <AlertDialogCancel className="rounded-full" onClick={() => setDeleteOrphanedUsersSearch(false)}>Cancel</AlertDialogCancel>
+                              <AlertDialogCancel className="rounded-md" onClick={() => setDeleteOrphanedUsersSearch(false)}>Cancel</AlertDialogCancel>
                               <AlertDialogAction
                                 onClick={() => deleteBySearch.mutate(Array.from(selectedApplications))}
-                                className="rounded-full bg-destructive hover:bg-destructive/90"
+                                className="rounded-md bg-destructive hover:bg-destructive/90"
                                 disabled={deleteBySearch.isPending}
                               >
                                 {deleteBySearch.isPending ? (
@@ -1634,7 +1634,7 @@ const Settings = () => {
                             <Button
                               variant="destructive"
                               size="sm"
-                              className="rounded-full text-xs w-full sm:w-auto"
+                              className="rounded-md text-xs w-full sm:w-auto"
                               disabled={deleteBySearch.isPending || searchResults.length === 0}
                             >
                               {deleteBySearch.isPending ? (
@@ -1696,7 +1696,7 @@ const Settings = () => {
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel
-                                className="rounded-full"
+                                className="rounded-md"
                                 onClick={() => setDeleteOrphanedUsersSearch(false)}
                               >
                                 Cancel
@@ -1706,7 +1706,7 @@ const Settings = () => {
                                   deleteBySearch.mutate(searchResults.map((r) => r.application_id));
                                 }}
                                 disabled={deleteBySearch.isPending}
-                                className="rounded-full bg-destructive hover:bg-destructive/90"
+                                className="rounded-md bg-destructive hover:bg-destructive/90"
                               >
                                 {deleteBySearch.isPending ? (
                                   <>
@@ -1825,7 +1825,7 @@ const Settings = () => {
                 <AlertDialogTrigger asChild>
                   <Button
                     variant="default"
-                    className="w-full rounded-full uppercase tracking-wide gap-2"
+                    className="w-full rounded-md uppercase tracking-wide gap-2"
                     disabled={isExportingDatabase}
                   >
                     {isExportingDatabase ? (
@@ -1865,10 +1865,10 @@ const Settings = () => {
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel className="rounded-full">Cancel</AlertDialogCancel>
+                    <AlertDialogCancel className="rounded-md">Cancel</AlertDialogCancel>
                     <AlertDialogAction
                       onClick={handleExportDatabase}
-                      className="rounded-full"
+                      className="rounded-md"
                       disabled={isExportingDatabase}
                     >
                       {isExportingDatabase ? (
@@ -1891,7 +1891,7 @@ const Settings = () => {
                 <AlertDialogTrigger asChild>
                   <Button
                     variant="outline"
-                    className="w-full rounded-full uppercase tracking-wide gap-2"
+                    className="w-full rounded-md uppercase tracking-wide gap-2"
                     disabled={isImportingDatabase}
                   >
                     {isImportingDatabase ? (
@@ -1947,12 +1947,12 @@ const Settings = () => {
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel className="rounded-full" onClick={() => setImportFile(null)}>
+                    <AlertDialogCancel className="rounded-md" onClick={() => setImportFile(null)}>
                       Cancel
                     </AlertDialogCancel>
                     <AlertDialogAction
                       onClick={handleImportDatabase}
-                      className="rounded-full"
+                      className="rounded-md"
                       disabled={isImportingDatabase || !importFile}
                     >
                       {isImportingDatabase ? (

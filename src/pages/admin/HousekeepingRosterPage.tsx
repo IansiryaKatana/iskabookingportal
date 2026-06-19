@@ -271,7 +271,7 @@ const HousekeepingRosterPage = () => {
                   variant="outline"
                   size="icon"
                   onClick={() => setCurrentWeek(subWeeks(currentWeek, 1))}
-                  className="rounded-full"
+                  className="rounded-md"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
@@ -292,16 +292,16 @@ const HousekeepingRosterPage = () => {
                   variant="outline"
                   size="icon"
                   onClick={() => setCurrentWeek(addWeeks(currentWeek, 1))}
-                  className="rounded-full"
+                  className="rounded-md"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
               <div className="flex items-center gap-2">
                 <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "by-cleaner" | "by-studio")}>
-                  <TabsList className="rounded-full">
-                    <TabsTrigger value="by-cleaner" className="rounded-full">By Cleaner</TabsTrigger>
-                    <TabsTrigger value="by-studio" className="rounded-full">By Studio</TabsTrigger>
+                  <TabsList className="rounded-md">
+                    <TabsTrigger value="by-cleaner" className="rounded-md">By Cleaner</TabsTrigger>
+                    <TabsTrigger value="by-studio" className="rounded-md">By Studio</TabsTrigger>
                   </TabsList>
                 </Tabs>
               </div>
@@ -323,7 +323,7 @@ const HousekeepingRosterPage = () => {
                 <div className="space-y-2">
                   <Label className="text-xs md:text-sm">Cleaner</Label>
                   <Select value={cleanerFilter} onValueChange={setCleanerFilter}>
-                    <SelectTrigger className="rounded-full">
+                    <SelectTrigger className="rounded-md">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -344,7 +344,7 @@ const HousekeepingRosterPage = () => {
                   placeholder="Studio number..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="rounded-full text-sm md:text-base"
+                  className="rounded-md text-sm md:text-base"
                 />
               </div>
             </div>
@@ -437,7 +437,7 @@ const HousekeepingRosterPage = () => {
                                     <Button
                                       variant="outline"
                                       size="sm"
-                                      className="mt-2 rounded-full text-xs w-full"
+                                      className="mt-2 rounded-md text-xs w-full"
                                       onClick={() => {
                                         setSelectedStudioId(studio.id);
                                         setDateDialogOpen(true);
@@ -487,7 +487,7 @@ const HousekeepingRosterPage = () => {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="mt-2 rounded-full text-xs w-full"
+                                className="mt-2 rounded-md text-xs w-full"
                                 onClick={() => {
                                   setSelectedStudioId(studio.id);
                                   setAssignDialogOpen(true);
@@ -579,7 +579,7 @@ const HousekeepingRosterPage = () => {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="rounded-full text-xs flex-1"
+                                className="rounded-md text-xs flex-1"
                                 onClick={() => {
                                   setSelectedStudioId(studio.id);
                                   setSelectedCleanerId(studio.assigned_cleaner_id || "");
@@ -592,7 +592,7 @@ const HousekeepingRosterPage = () => {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="rounded-full text-xs flex-1"
+                                className="rounded-md text-xs flex-1"
                                 onClick={() => {
                                   setSelectedStudioId(studio.id);
                                   setSelectedDate(studio.next_clean_due_at || "");
@@ -630,7 +630,7 @@ const HousekeepingRosterPage = () => {
                   value={selectedCleanerId || "none"} 
                   onValueChange={(value) => setSelectedCleanerId(value === "none" ? null : value)}
                 >
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger className="rounded-md">
                     <SelectValue placeholder="Select cleaner..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -645,10 +645,10 @@ const HousekeepingRosterPage = () => {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setAssignDialogOpen(false)} className="rounded-full">
+              <Button variant="outline" onClick={() => setAssignDialogOpen(false)} className="rounded-md">
                 Cancel
               </Button>
-              <Button onClick={handleAssignCleaner} className="rounded-full">
+              <Button onClick={handleAssignCleaner} className="rounded-md">
                 Assign
               </Button>
             </DialogFooter>
@@ -671,15 +671,15 @@ const HousekeepingRosterPage = () => {
                   type="date"
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
-                  className="rounded-full"
+                  className="rounded-md"
                 />
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setDateDialogOpen(false)} className="rounded-full">
+              <Button variant="outline" onClick={() => setDateDialogOpen(false)} className="rounded-md">
                 Cancel
               </Button>
-              <Button onClick={handleSetDate} className="rounded-full">
+              <Button onClick={handleSetDate} className="rounded-md">
                 Set Date
               </Button>
             </DialogFooter>

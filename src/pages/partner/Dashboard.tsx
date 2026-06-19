@@ -4,6 +4,7 @@ import { usePartnerDashboardStats, usePartnerReferrals } from "@/hooks/usePartne
 import { Skeleton } from "@/components/ui/skeleton";
 import { Users, DollarSign, CheckCircle2, Clock, TrendingUp } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import { FinanceStatusBadge } from "@/components/finance/FinanceStatusBadge";
 
 const PartnerDashboard = () => {
   const { data: stats, isLoading: loadingStats } = usePartnerDashboardStats();
@@ -130,33 +131,8 @@ const PartnerDashboard = () => {
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-2">
-                          <span
-                            className={`text-xs px-3 py-1 rounded-full ${
-                              referral.payment_status === "fully_paid"
-                                ? "bg-green-600 text-white"
-                                : referral.payment_status === "partially_paid"
-                                  ? "bg-amber-500 text-white"
-                                  : "bg-gray-500 text-white"
-                            }`}
-                          >
-                            {referral.payment_status === "fully_paid"
-                              ? "Fully Paid"
-                              : referral.payment_status === "partially_paid"
-                                ? "Partially Paid"
-                                : "Unpaid"}
-                          </span>
-                          <span
-                            className={`text-xs px-3 py-1 rounded-full ${
-                              referral.commission_status === "paid"
-                                ? "bg-green-600 text-white"
-                                : referral.commission_status === "approved"
-                                  ? "bg-blue-500 text-white"
-                                  : "bg-gray-500 text-white"
-                            }`}
-                          >
-                            {referral.commission_status.charAt(0).toUpperCase() +
-                              referral.commission_status.slice(1)}
-                          </span>
+                          <FinanceStatusBadge status={referral.payment_status} />
+                          <FinanceStatusBadge status={referral.commission_status} />
                         </div>
                       </div>
                     </CardContent>

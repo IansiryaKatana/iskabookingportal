@@ -52,6 +52,7 @@ import { Loader2 } from "lucide-react";
 import { BOOKING_SOURCE_OPTIONS } from "@/constants/bookingSources";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
+import { FinanceStatusBadge } from "@/components/finance/FinanceStatusBadge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import {
@@ -124,7 +125,7 @@ const getStatusBadge = (status: string) => {
   };
 
   return (
-    <Badge className={`uppercase ${config.className} rounded-full px-2.5 py-0.5 text-xs font-medium`}>
+    <Badge className={`uppercase ${config.className} rounded-md px-2.5 py-0.5 text-xs font-medium`}>
       {config.label}
     </Badge>
   );
@@ -1070,7 +1071,7 @@ const ApplicationDetail = () => {
             <CardDescription>The requested application could not be found.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={navigateToApplications} className="rounded-full uppercase tracking-wide gap-2 bg-black text-white hover:bg-accent hover:text-accent-foreground">
+            <Button onClick={navigateToApplications} className="rounded-md uppercase tracking-wide gap-2 bg-black text-white hover:bg-accent hover:text-accent-foreground">
               <ArrowUpLeft className="h-4 w-4" />
               Back to Applications
             </Button>
@@ -1087,7 +1088,7 @@ const ApplicationDetail = () => {
       mobileActionButton={
         <Button
           onClick={navigateToApplications}
-          className="rounded-full h-9 w-9 p-0 bg-black text-white hover:bg-accent hover:text-accent-foreground flex-shrink-0"
+          className="rounded-md h-9 w-9 p-0 bg-black text-white hover:bg-accent hover:text-accent-foreground flex-shrink-0"
           size="sm"
         >
           <ArrowUpLeft className="h-4 w-4" />
@@ -1099,7 +1100,7 @@ const ApplicationDetail = () => {
         <div className="hidden lg:flex items-center justify-between">
           <Button
             onClick={navigateToApplications}
-            className="rounded-full uppercase tracking-wide gap-2 bg-black text-white hover:bg-accent hover:text-accent-foreground"
+            className="rounded-md uppercase tracking-wide gap-2 bg-black text-white hover:bg-accent hover:text-accent-foreground"
           >
             <ArrowUpLeft className="h-4 w-4" />
             Back to Applications
@@ -1108,13 +1109,13 @@ const ApplicationDetail = () => {
             <div className="flex items-center gap-3">
               {getStatusBadge(displayStatus)}
               {application.is_rebooking && (
-                <Badge className="bg-primary/10 text-primary border-primary/20 rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide flex items-center gap-1.5">
+                <Badge className="bg-primary/10 text-primary border-primary/20 rounded-md px-3 py-1 text-xs font-medium uppercase tracking-wide flex items-center gap-1.5">
                   <RotateCcw className="h-3 w-3" />
                   Rebooking
                 </Badge>
               )}
               {isExtension && (
-                <Badge className="bg-primary/10 text-primary border-primary/20 rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide flex items-center gap-1.5">
+                <Badge className="bg-primary/10 text-primary border-primary/20 rounded-md px-3 py-1 text-xs font-medium uppercase tracking-wide flex items-center gap-1.5">
                   <CalendarPlus className="h-3 w-3" />
                   Extension
                 </Badge>
@@ -1123,7 +1124,7 @@ const ApplicationDetail = () => {
                 value={application.status}
                 onValueChange={handleStatusChange}
               >
-                <SelectTrigger className="w-48 rounded-full">
+                <SelectTrigger className="w-48 rounded-md">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1143,7 +1144,7 @@ const ApplicationDetail = () => {
                   onValueChange={handleBookingSourceChange}
                   disabled={updateBookingSource.isPending}
                 >
-                  <SelectTrigger className="w-40 rounded-full">
+                  <SelectTrigger className="w-40 rounded-md">
                     <SelectValue placeholder="—" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1160,7 +1161,7 @@ const ApplicationDetail = () => {
                 <Button
                   type="button"
                   variant="outline"
-                  className="rounded-full uppercase tracking-wide border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                  className="rounded-md uppercase tracking-wide border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
                   onClick={() => setDiscardDialogOpen(true)}
                   disabled={discardDraftApplication.isPending}
                 >
@@ -1174,7 +1175,7 @@ const ApplicationDetail = () => {
                   <Button
                     type="button"
                     variant="outline"
-                    className="rounded-full uppercase tracking-wide border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                    className="rounded-md uppercase tracking-wide border-primary text-primary hover:bg-primary hover:text-primary-foreground"
                     onClick={handleCheckoutAndRelease}
                   >
                     Check out &amp; release studio
@@ -1189,13 +1190,13 @@ const ApplicationDetail = () => {
           <div className="flex items-center gap-2">
             {getStatusBadge(displayStatus)}
             {application.is_rebooking && (
-              <Badge className="bg-primary/10 text-primary border-primary/20 rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide flex items-center gap-1.5">
+              <Badge className="bg-primary/10 text-primary border-primary/20 rounded-md px-3 py-1 text-xs font-medium uppercase tracking-wide flex items-center gap-1.5">
                 <RotateCcw className="h-3 w-3" />
                 Rebooking
               </Badge>
             )}
             {isExtension && (
-              <Badge className="bg-primary/10 text-primary border-primary/20 rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide flex items-center gap-1.5">
+              <Badge className="bg-primary/10 text-primary border-primary/20 rounded-md px-3 py-1 text-xs font-medium uppercase tracking-wide flex items-center gap-1.5">
                 <CalendarPlus className="h-3 w-3" />
                 Extension
               </Badge>
@@ -1205,7 +1206,7 @@ const ApplicationDetail = () => {
             value={application.status}
             onValueChange={handleStatusChange}
           >
-            <SelectTrigger className="w-full sm:w-48 rounded-full text-sm">
+            <SelectTrigger className="w-full sm:w-48 rounded-md text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -1227,7 +1228,7 @@ const ApplicationDetail = () => {
               onValueChange={handleBookingSourceChange}
               disabled={updateBookingSource.isPending}
             >
-              <SelectTrigger className="w-full sm:w-40 rounded-full text-sm">
+              <SelectTrigger className="w-full sm:w-40 rounded-md text-sm">
                 <SelectValue placeholder="—" />
               </SelectTrigger>
               <SelectContent>
@@ -1245,7 +1246,7 @@ const ApplicationDetail = () => {
               <Button
                 type="button"
                 variant="outline"
-                className="mt-1 sm:mt-0 rounded-full uppercase tracking-wide border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground w-full sm:w-auto justify-center"
+                className="mt-1 sm:mt-0 rounded-md uppercase tracking-wide border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground w-full sm:w-auto justify-center"
                 onClick={() => setDiscardDialogOpen(true)}
                 disabled={discardDraftApplication.isPending}
               >
@@ -1259,7 +1260,7 @@ const ApplicationDetail = () => {
                 <Button
                   type="button"
                   variant="outline"
-                  className="mt-1 sm:mt-0 rounded-full uppercase tracking-wide border-primary text-primary hover:bg-primary hover:text-primary-foreground w-full sm:w-auto justify-center"
+                  className="mt-1 sm:mt-0 rounded-md uppercase tracking-wide border-primary text-primary hover:bg-primary hover:text-primary-foreground w-full sm:w-auto justify-center"
                   onClick={handleCheckoutAndRelease}
                 >
                   Check out &amp; release studio
@@ -1338,7 +1339,7 @@ const ApplicationDetail = () => {
                   <CardDescription className="text-sm mt-1">Add an extension period (e.g. extra weeks with a new instalment schedule) for this booking.</CardDescription>
                 </div>
                 <Button
-                  className="rounded-full uppercase tracking-wide gap-2"
+                  className="rounded-md uppercase tracking-wide gap-2"
                   onClick={() => {
                     const contract = application?.contract as { contract_end?: string; weekly_price_override?: number } | null;
                     const extensionStartDate = contract?.contract_end
@@ -1374,7 +1375,7 @@ const ApplicationDetail = () => {
                     <li key={ext.id} className="flex flex-wrap items-center justify-between gap-2 py-2 border-b border-border/50 last:border-0">
                       <span className="text-sm font-medium">{ext.contract?.name ?? "Extension"}</span>
                       <div className="flex items-center gap-2">
-                        <Badge variant="secondary" className="rounded-full text-xs">{ext.status}</Badge>
+                        <Badge variant="secondary" className="rounded-md text-xs">{ext.status}</Badge>
                         <Button
                           variant="link"
                           className="p-0 h-auto text-primary text-sm"
@@ -1411,7 +1412,7 @@ const ApplicationDetail = () => {
                   </div>
                   <button
                     type="button"
-                    className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                     onClick={() => {
                       if (passportPhotoUrl) setIsPassportPhotoDialogOpen(true);
                     }}
@@ -1666,7 +1667,7 @@ const ApplicationDetail = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="rounded-full uppercase tracking-wide gap-2 text-xs w-full sm:w-auto"
+                          className="rounded-md uppercase tracking-wide gap-2 text-xs w-full sm:w-auto"
                           onClick={async () => {
                             try {
                               // Try both encoded and decoded paths since the issue could be either way
@@ -1747,7 +1748,7 @@ const ApplicationDetail = () => {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="rounded-full uppercase tracking-wide gap-2 text-green-600 text-xs w-full sm:w-auto"
+                              className="rounded-md uppercase tracking-wide gap-2 text-green-600 text-xs w-full sm:w-auto"
                               onClick={async () => {
                                 try {
                                   await verifyDocument.mutateAsync({
@@ -1774,7 +1775,7 @@ const ApplicationDetail = () => {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="rounded-full uppercase tracking-wide gap-2 text-red-600 text-xs w-full sm:w-auto"
+                              className="rounded-md uppercase tracking-wide gap-2 text-red-600 text-xs w-full sm:w-auto"
                               onClick={async () => {
                                 try {
                                   await verifyDocument.mutateAsync({
@@ -1804,7 +1805,7 @@ const ApplicationDetail = () => {
                           <Button
                             variant="outline"
                             size="sm"
-                            className="rounded-full uppercase tracking-wide gap-2 text-blue-600 text-xs w-full sm:w-auto"
+                            className="rounded-md uppercase tracking-wide gap-2 text-blue-600 text-xs w-full sm:w-auto"
                             onClick={() => {
                               setSelectedRejectedDoc({
                                 id: doc.id,
@@ -1856,7 +1857,7 @@ const ApplicationDetail = () => {
                       <Button
                         variant="default"
                         size="sm"
-                        className="rounded-full uppercase tracking-wide text-xs"
+                        className="rounded-md uppercase tracking-wide text-xs"
                         onClick={() => {
                           setManualPaymentInitialType("deposit");
                           setManualPaymentOpen(true);
@@ -1878,7 +1879,7 @@ const ApplicationDetail = () => {
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="rounded-full uppercase tracking-wide text-xs gap-1"
+                      className="rounded-md uppercase tracking-wide text-xs gap-1"
                       onClick={() => setAmendBookingOpen(true)}
                     >
                       <Pencil className="h-3 w-3" />
@@ -1889,7 +1890,7 @@ const ApplicationDetail = () => {
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="rounded-full uppercase tracking-wide text-xs gap-1 opacity-60"
+                      className="rounded-md uppercase tracking-wide text-xs gap-1 opacity-60"
                       disabled
                       title={amendEligibility.reason}
                     >
@@ -1939,7 +1940,7 @@ const ApplicationDetail = () => {
                     }}
                     disabled={!!hasInstalmentPayments}
                   >
-                    <SelectTrigger className="mt-1.5 rounded-full">
+                    <SelectTrigger className="mt-1.5 rounded-md">
                       <SelectValue placeholder="Select plan" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1999,7 +2000,7 @@ const ApplicationDetail = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="rounded-full uppercase tracking-wide text-xs gap-1"
+                        className="rounded-md uppercase tracking-wide text-xs gap-1"
                         onClick={() => {
                           setCustomInstallments(
                             paymentSchedule.map((row) => ({
@@ -2046,24 +2047,17 @@ const ApplicationDetail = () => {
                               <td className="py-2 px-3 text-center">
                                 {breakdown ? (
                                   <div className="flex flex-col items-center gap-0.5">
-                                    {breakdown.payment_status === "paid" && (
-                                      <Badge className="bg-emerald-600 text-white text-xs font-semibold uppercase px-2 py-0.5 rounded-md">
-                                        Paid
-                                      </Badge>
-                                    )}
-                                    {breakdown.payment_status === "partial" && (
-                                      <Badge className="bg-amber-500 text-white text-xs font-semibold uppercase px-2 py-0.5 rounded-md">
-                                        Partially paid
-                                      </Badge>
-                                    )}
-                                    {breakdown.payment_status === "unpaid" && (
-                                      <Badge
-                                        variant="outline"
-                                        className="text-muted-foreground text-xs uppercase"
-                                      >
-                                        Not paid
-                                      </Badge>
-                                    )}
+                                    <FinanceStatusBadge
+                                      status={breakdown.payment_status}
+                                      label={
+                                        breakdown.payment_status === "unpaid"
+                                          ? "Not paid"
+                                          : breakdown.payment_status === "partial"
+                                            ? "Partially paid"
+                                            : "Paid"
+                                      }
+                                      className="text-xs uppercase"
+                                    />
                                     {(breakdown.amount_paid > 0 ||
                                       breakdown.remaining_amount > 0) && (
                                       <span className="text-[10px] text-muted-foreground">
@@ -2073,12 +2067,7 @@ const ApplicationDetail = () => {
                                     )}
                                   </div>
                                 ) : (
-                                  <Badge
-                                    variant="outline"
-                                    className="text-muted-foreground text-xs uppercase"
-                                  >
-                                    Not paid
-                                  </Badge>
+                                  <FinanceStatusBadge status="unpaid" label="Not paid" className="text-xs uppercase" />
                                 )}
                               </td>
                               <td className="py-2 px-3 text-right text-muted-foreground">{row.due_date ? format(new Date(row.due_date), "d MMM yyyy") : "—"}</td>
@@ -2109,7 +2098,7 @@ const ApplicationDetail = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="rounded-full uppercase tracking-wide text-[10px]"
+                        className="rounded-md uppercase tracking-wide text-[10px]"
                         onClick={() => {
                           if (applicationId) {
                             removeCashback.mutate({ applicationId });
@@ -2124,7 +2113,7 @@ const ApplicationDetail = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="rounded-full uppercase tracking-wide text-xs"
+                      className="rounded-md uppercase tracking-wide text-xs"
                       onClick={() => setCashbackDialogOpen(true)}
                     >
                       <Gift className="h-3 w-3 mr-1" />
@@ -2152,7 +2141,7 @@ const ApplicationDetail = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="rounded-full uppercase tracking-wide text-[10px]"
+                        className="rounded-md uppercase tracking-wide text-[10px]"
                         onClick={() => {
                           if (applicationId) {
                             removeDiscount.mutate({ applicationId });
@@ -2167,7 +2156,7 @@ const ApplicationDetail = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="rounded-full uppercase tracking-wide text-xs"
+                      className="rounded-md uppercase tracking-wide text-xs"
                       onClick={() => setDiscountDialogOpen(true)}
                     >
                       <Percent className="h-3 w-3 mr-1" />
@@ -2195,7 +2184,7 @@ const ApplicationDetail = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="rounded-full uppercase tracking-wide text-xs"
+                      className="rounded-md uppercase tracking-wide text-xs"
                       onClick={() => setPartnerDialogOpen(true)}
                     >
                       <Handshake className="h-3 w-3 mr-1" />
@@ -2219,22 +2208,17 @@ const ApplicationDetail = () => {
                 <div className="space-y-2 pt-2 border-t">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs sm:text-sm text-muted-foreground">Installment progress</span>
-                    <Badge
-                      variant="outline"
-                      className={
+                    <FinanceStatusBadge
+                      status={paymentSummary.payment_status}
+                      label={
                         paymentSummary.payment_status === "fully_paid"
-                          ? "border-green-600 text-green-700 bg-green-50"
+                          ? "Fully paid"
                           : paymentSummary.payment_status === "partially_paid"
-                            ? "border-amber-600 text-amber-700 bg-amber-50"
-                            : "text-muted-foreground"
+                            ? "Partially paid"
+                            : "Unpaid"
                       }
-                    >
-                      {paymentSummary.payment_status === "fully_paid"
-                        ? "Fully paid"
-                        : paymentSummary.payment_status === "partially_paid"
-                          ? "Partially paid"
-                          : "Unpaid"}
-                    </Badge>
+                      className="text-xs sm:text-sm"
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Progress
@@ -2258,7 +2242,7 @@ const ApplicationDetail = () => {
 
               <Button
                 variant="outline"
-                className="w-full rounded-full uppercase tracking-wide gap-2 mt-4 bg-black hover:bg-yellow-500 hover:text-black text-white border-0 justify-between transition-colors"
+                className="w-full rounded-md uppercase tracking-wide gap-2 mt-4 bg-black hover:bg-yellow-500 hover:text-black text-white border-0 justify-between transition-colors"
                 onClick={() => {
                   setManualPaymentInitialType("deposit");
                   setManualPaymentOpen(true);
@@ -2294,7 +2278,7 @@ const ApplicationDetail = () => {
                     type="button"
                     variant="default"
                     size="sm"
-                    className="rounded-full uppercase tracking-wide text-xs mt-2"
+                    className="rounded-md uppercase tracking-wide text-xs mt-2"
                     onClick={() => setAmendBookingOpen(true)}
                   >
                     <Pencil className="h-3 w-3 mr-1" />
@@ -2325,7 +2309,7 @@ const ApplicationDetail = () => {
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="rounded-full uppercase tracking-wide text-xs w-full sm:w-auto"
+                      className="rounded-md uppercase tracking-wide text-xs w-full sm:w-auto"
                       onClick={() => void handleResendAgreements()}
                       disabled={resendAgreements.isPending}
                     >
@@ -2486,7 +2470,7 @@ const ApplicationDetail = () => {
                                   Superseded
                                 </Badge>
                               ) : isEnvelopeCompleted(envelope?.status) ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-green-600 px-3 py-1 text-[11px] sm:text-xs font-semibold text-white uppercase tracking-wide">
+                                <span className="inline-flex items-center gap-1 rounded-md bg-green-600 px-3 py-1 text-[11px] sm:text-xs font-semibold text-white uppercase tracking-wide">
                                   <CheckCircle2 className="h-3 w-3" />
                                   Completed
                                 </span>
@@ -2533,7 +2517,7 @@ const ApplicationDetail = () => {
                           role="combobox"
                           aria-expanded={studioDropdownOpen}
                           className={cn(
-                            "w-full justify-between rounded-full font-normal mt-0",
+                            "w-full justify-between rounded-md font-normal mt-0",
                             !(selectedStudio || application.assigned_studio_id) && "text-muted-foreground"
                           )}
                         >
@@ -2601,7 +2585,7 @@ const ApplicationDetail = () => {
                   {selectedStudio && selectedStudio !== application.assigned_studio_id && (
                     <Button
                       onClick={() => reassignStudio.mutate(selectedStudio)}
-                      className="w-full rounded-full uppercase tracking-wide"
+                      className="w-full rounded-md uppercase tracking-wide"
                       disabled={reassignStudio.isPending}
                     >
                       {reassignStudio.isPending ? "Reassigning..." : "Reassign Studio"}
@@ -2633,7 +2617,7 @@ const ApplicationDetail = () => {
                   <div className="flex justify-end">
                     <Button
                       size="sm"
-                      className="rounded-full uppercase tracking-wide text-xs"
+                      className="rounded-md uppercase tracking-wide text-xs"
                       variant="outline"
                       disabled={updateApplicationNotes.isPending}
                       onClick={() => updateApplicationNotes.mutate(applicationNotes)}
@@ -2682,7 +2666,7 @@ const ApplicationDetail = () => {
             <div className="flex flex-col sm:flex-row flex-wrap gap-3">
               <Button
                 variant="outline"
-                className="rounded-full tracking-wide gap-2 text-xs sm:text-sm w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-white hover:text-white border-0"
+                className="rounded-md tracking-wide gap-2 text-xs sm:text-sm w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-white hover:text-white border-0"
                 onClick={() => handleSendNotification("Deposit Reminder", "Please complete your deposit payment to proceed with your application.")}
               >
                 <Send className="h-4 w-4" />
@@ -2691,7 +2675,7 @@ const ApplicationDetail = () => {
               </Button>
               <Button
                 variant="outline"
-                className="rounded-full tracking-wide gap-2 text-xs sm:text-sm w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600 text-white hover:text-white border-0"
+                className="rounded-md tracking-wide gap-2 text-xs sm:text-sm w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600 text-white hover:text-white border-0"
                 disabled={unpaidInstallments.length === 0}
                 onClick={() => {
                   if (unpaidInstallments.length > 0) {
@@ -2706,7 +2690,7 @@ const ApplicationDetail = () => {
               </Button>
               <Button
                 variant="outline"
-                className="rounded-full tracking-wide gap-2 text-xs sm:text-sm w-full sm:w-auto bg-blue-500 hover:bg-blue-600 text-white hover:text-white border-0"
+                className="rounded-md tracking-wide gap-2 text-xs sm:text-sm w-full sm:w-auto bg-blue-500 hover:bg-blue-600 text-white hover:text-white border-0"
                 onClick={() => handleSendNotification("Signature Reminder", "Please complete signing your tenancy agreement.")}
               >
                 <Send className="h-4 w-4" />
@@ -2715,7 +2699,7 @@ const ApplicationDetail = () => {
               </Button>
               <Button
                 variant="outline"
-                className="rounded-full tracking-wide gap-2 text-xs sm:text-sm w-full sm:w-auto bg-green-500 hover:bg-green-600 text-white hover:text-white border-0"
+                className="rounded-md tracking-wide gap-2 text-xs sm:text-sm w-full sm:w-auto bg-green-500 hover:bg-green-600 text-white hover:text-white border-0"
                 onClick={() => handleSendNotification("Application Confirmed", "Your application has been confirmed! Welcome to Urban Hub.")}
               >
                 <Send className="h-4 w-4" />
@@ -2724,7 +2708,7 @@ const ApplicationDetail = () => {
               </Button>
               <Button
                 variant="outline"
-                className="rounded-full tracking-wide gap-2 text-xs sm:text-sm w-full sm:w-auto bg-primary hover:bg-primary/80 text-white font-semibold border-0"
+                className="rounded-md tracking-wide gap-2 text-xs sm:text-sm w-full sm:w-auto bg-primary hover:bg-primary/80 text-white font-semibold border-0"
                 onClick={handleDownloadApplicationCsv}
               >
                 <Download className="h-4 w-4" />
@@ -2790,12 +2774,12 @@ const ApplicationDetail = () => {
             <Button
               variant="outline"
               onClick={() => setInstallmentInvoiceDialogOpen(false)}
-              className="rounded-full uppercase tracking-wide"
+              className="rounded-md uppercase tracking-wide"
             >
               Cancel
             </Button>
             <Button
-              className="rounded-full uppercase tracking-wide"
+              className="rounded-md uppercase tracking-wide"
               onClick={handleSendInstallmentInvoice}
               disabled={
                 sendingInstallmentInvoice ||
@@ -2844,7 +2828,7 @@ const ApplicationDetail = () => {
             <Button
               variant="outline"
               onClick={() => setCashbackDialogOpen(false)}
-              className="rounded-full uppercase tracking-wide"
+              className="rounded-md uppercase tracking-wide"
             >
               Cancel
             </Button>
@@ -2860,7 +2844,7 @@ const ApplicationDetail = () => {
                 }
               }}
               disabled={!selectedCashbackCampaign || applyCashback.isPending}
-              className="rounded-full uppercase tracking-wide"
+              className="rounded-md uppercase tracking-wide"
             >
               {applyCashback.isPending ? "Applying..." : "Apply Cashback"}
             </Button>
@@ -2903,7 +2887,7 @@ const ApplicationDetail = () => {
             <Button
               variant="outline"
               onClick={() => setDiscountDialogOpen(false)}
-              className="rounded-full uppercase tracking-wide"
+              className="rounded-md uppercase tracking-wide"
             >
               Cancel
             </Button>
@@ -2919,7 +2903,7 @@ const ApplicationDetail = () => {
                 }
               }}
               disabled={!selectedDiscountCampaign || applyDiscount.isPending}
-              className="rounded-full uppercase tracking-wide"
+              className="rounded-md uppercase tracking-wide"
             >
               {applyDiscount.isPending ? "Applying..." : "Apply Discount"}
             </Button>
@@ -3006,7 +2990,7 @@ const ApplicationDetail = () => {
             <Button
               variant="outline"
               onClick={() => setPartnerDialogOpen(false)}
-              className="rounded-full uppercase tracking-wide"
+              className="rounded-md uppercase tracking-wide"
             >
               Cancel
             </Button>
@@ -3022,7 +3006,7 @@ const ApplicationDetail = () => {
                 }
               }}
               disabled={!selectedPartner || createPartnerReferral.isPending}
-              className="rounded-full uppercase tracking-wide"
+              className="rounded-md uppercase tracking-wide"
             >
               {createPartnerReferral.isPending ? "Assigning..." : "Assign Partner"}
             </Button>
@@ -3114,12 +3098,12 @@ const ApplicationDetail = () => {
             <Button
               variant="outline"
               onClick={() => setCustomScheduleOpen(false)}
-              className="rounded-full uppercase tracking-wide"
+              className="rounded-md uppercase tracking-wide"
             >
               Cancel
             </Button>
             <Button
-              className="rounded-full uppercase tracking-wide"
+              className="rounded-md uppercase tracking-wide"
               disabled={
                 createCustomContract.isPending ||
                 customInstallments.length === 0 ||
@@ -3187,7 +3171,7 @@ const ApplicationDetail = () => {
             "flex flex-col gap-0 overflow-hidden p-4 sm:p-6",
             isMobile ? "max-h-[90vh] mb-0 rounded-t-2xl" : "h-full w-full sm:max-w-md",
             "[&>button]:!flex [&>button]:!h-8 [&>button]:!w-8 [&>button]:!items-center [&>button]:!justify-center",
-            "[&>button]:!rounded-full [&>button]:!bg-red-500 [&>button]:!text-white [&>button]:!opacity-100",
+            "[&>button]:!rounded-md [&>button]:!bg-red-500 [&>button]:!text-white [&>button]:!opacity-100",
             "[&>button]:!shadow-md [&>button]:transition-colors [&>button]:hover:!bg-red-600",
             "[&>button]:focus:!ring-2 [&>button]:focus:!ring-white/60 [&>button]:focus:!ring-offset-2 [&>button]:focus:!ring-offset-red-500",
           )}
@@ -3350,12 +3334,12 @@ const ApplicationDetail = () => {
             <Button
               variant="outline"
               onClick={() => setCreateExtensionOpen(false)}
-              className="w-full sm:w-auto rounded-full uppercase tracking-wide"
+              className="w-full sm:w-auto rounded-md uppercase tracking-wide"
             >
               Cancel
             </Button>
             <Button
-              className="w-full sm:w-auto rounded-full uppercase tracking-wide"
+              className="w-full sm:w-auto rounded-md uppercase tracking-wide"
               disabled={
                 createExtension.isPending ||
                 !extensionForm.extensionStartDate ||
@@ -3459,7 +3443,7 @@ const ApplicationDetail = () => {
                 setSelectedRejectedDoc(null);
               }}
               disabled={uploadDocument.isPending}
-              className="w-full sm:w-auto rounded-full uppercase tracking-wide"
+              className="w-full sm:w-auto rounded-md uppercase tracking-wide"
             >
               Cancel
             </Button>
@@ -3528,7 +3512,7 @@ const ApplicationDetail = () => {
                 }
               }}
               disabled={!uploadFile || uploadDocument.isPending}
-              className="w-full sm:w-auto rounded-full uppercase tracking-wide"
+              className="w-full sm:w-auto rounded-md uppercase tracking-wide"
             >
               {uploadDocument.isPending ? "Uploading..." : "Upload"}
             </Button>
@@ -3556,7 +3540,7 @@ const ApplicationDetail = () => {
             <Button
               type="button"
               variant="outline"
-              className="w-full sm:w-auto rounded-full uppercase tracking-wide"
+              className="w-full sm:w-auto rounded-md uppercase tracking-wide"
               onClick={() => setDiscardDialogOpen(false)}
               disabled={discardDraftApplication.isPending}
             >
@@ -3565,7 +3549,7 @@ const ApplicationDetail = () => {
             <Button
               type="button"
               variant="destructive"
-              className="w-full sm:w-auto rounded-full uppercase tracking-wide"
+              className="w-full sm:w-auto rounded-md uppercase tracking-wide"
               onClick={() => discardDraftApplication.mutate()}
               disabled={discardDraftApplication.isPending}
             >

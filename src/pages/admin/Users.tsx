@@ -47,20 +47,28 @@ import {
 import { logActivity } from "@/utils/auditLog";
 import { useAuth } from "@/contexts/AuthContext";
 import type { StaffSubrole } from "@/contexts/AuthContext";
+import {
+  formatStaffSubroleLabel,
+  getStaffSubroleBadgeClass,
+  getUserRoleBadgeClass,
+} from "@/utils/badgeStyles";
 
-// Helper function to format sub-role for display
-const formatSubrole = (subrole: string | null): string => {
-  if (!subrole) return "";
-  return subrole
-    .split("_")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-};
+/** Website CMS sub-roles — managed separately, not on this portal staff page */
+const WEBSITE_STAFF_SUBROLES = new Set([
+  "seo_editor",
+  "content_editor",
+  "marketing_manager",
+  "customer_support",
+]);
+
+const isPortalUser = (staffSubrole: string | null | undefined) =>
+  !staffSubrole || !WEBSITE_STAFF_SUBROLES.has(staffSubrole);
 
 const Users = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { role: currentUserRole, profile: currentUserProfile } = useAuth();
+  const { profile: currentUserProfile } = useAuth();
+  const accountRole = currentUserProfile?.role;
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteFirstName, setInviteFirstName] = useState("");
@@ -81,14 +89,14 @@ const Users = () => {
 
   // Determine which roles the current user can see based on visibility rules
   const getVisibleRoles = () => {
-    if (currentUserRole === "superadmin") {
+    if (accountRole === "superadmin") {
       // Superadmin can see everyone (including other superadmins)
       return ["staff", "superadmin", "admin"];
-    } else if (currentUserRole === "admin") {
-      // Admin can see all staff roles (including sub-roles) and admin, but NOT superadmin
+    } else if (accountRole === "admin") {
+      // Admin can see staff and other admins, but NOT superadmin
       return ["staff", "admin"];
-    } else if (currentUserRole === "staff") {
-      // Staff sub-roles can only see other staff users
+    } else if (accountRole === "staff") {
+      // Staff can only see other staff users
       return ["staff"];
     }
     return [];
@@ -96,7 +104,7 @@ const Users = () => {
 
   // Fetch all users with profiles based on visibility rules
   const { data: users, isLoading } = useQuery({
-    queryKey: ["admin-users", currentUserRole],
+    queryKey: ["admin-users", accountRole],
     queryFn: async () => {
       const visibleRoles = getVisibleRoles();
       
@@ -116,11 +124,12 @@ const Users = () => {
         throw profilesError;
       }
 
-      // Filter out superadmins if current user is admin
+      // Exclude superadmins for admin accounts; exclude website CMS users
       let filteredProfiles = profiles || [];
-      if (currentUserRole === "admin") {
+      if (accountRole === "admin") {
         filteredProfiles = filteredProfiles.filter((p) => p.role !== "superadmin");
       }
+      filteredProfiles = filteredProfiles.filter((p) => isPortalUser(p.staff_subrole));
 
       if (import.meta.env.DEV) console.log("Fetched profiles:", filteredProfiles?.length || 0, filteredProfiles);
 
@@ -187,12 +196,12 @@ const Users = () => {
 
   // Check if current user can create a specific role
   const canCreateRole = (role: "staff" | "superadmin" | "admin"): boolean => {
-    if (currentUserRole === "superadmin") {
+    if (accountRole === "superadmin") {
       return true; // Can create all roles
-    } else if (currentUserRole === "admin") {
+    } else if (accountRole === "admin") {
       return role !== "superadmin"; // Can create admin, staff, but not superadmin
     }
-    return false; // Staff sub-roles cannot create users
+    return false; // Staff cannot create users
   };
 
   // Create user mutation (changed from invite)
@@ -548,7 +557,7 @@ const Users = () => {
       mobileActionButton={
         <Button
           size="sm"
-          className="rounded-full uppercase tracking-wide gap-2 flex-shrink-0 h-7 px-2 text-xs"
+          className="rounded-md uppercase tracking-wide gap-2 flex-shrink-0 h-7 px-2 text-xs"
           onClick={() => setInviteDialogOpen(true)}
         >
           <Plus className="h-4 w-4" />
@@ -567,7 +576,7 @@ const Users = () => {
           </div>
           <Button
             onClick={() => setInviteDialogOpen(true)}
-            className="rounded-full uppercase tracking-wide gap-2"
+            className="rounded-md uppercase tracking-wide gap-2"
           >
             <Plus className="h-4 w-4" />
             Create User
@@ -613,12 +622,12 @@ const Users = () => {
                           <Shield className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                           <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
                             <span className="text-muted-foreground">Role:</span>
-                            <Badge variant="outline" className="uppercase text-xs">
+                            <Badge variant="outline" className={getUserRoleBadgeClass(role)}>
                               {role}
                             </Badge>
                             {role === "staff" && subrole && (
-                              <Badge variant="secondary" className="text-xs">
-                                {formatSubrole(subrole)}
+                              <Badge variant="outline" className={getStaffSubroleBadgeClass(subrole)}>
+                                {formatStaffSubroleLabel(subrole)}
                               </Badge>
                             )}
                           </div>
@@ -637,7 +646,7 @@ const Users = () => {
                               });
                             }}
                           >
-                            <SelectTrigger className="w-full rounded-full">
+                            <SelectTrigger className="w-full rounded-md">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -657,7 +666,7 @@ const Users = () => {
                                 })
                               }
                             >
-                              <SelectTrigger className="w-full rounded-full">
+                              <SelectTrigger className="w-full rounded-md">
                                 <SelectValue placeholder="Select sub-role" />
                               </SelectTrigger>
                               <SelectContent>
@@ -675,7 +684,7 @@ const Users = () => {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="flex-1 rounded-full uppercase tracking-wide text-xs"
+                              className="flex-1 rounded-md uppercase tracking-wide text-xs"
                               onClick={() => handleEdit(user)}
                             >
                               <Pencil className="h-3 w-3 mr-1" />
@@ -684,7 +693,7 @@ const Users = () => {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="flex-1 rounded-full uppercase tracking-wide text-xs text-destructive hover:text-destructive"
+                              className="flex-1 rounded-md uppercase tracking-wide text-xs text-destructive hover:text-destructive"
                               onClick={() => handleDelete(user)}
                             >
                               <Trash2 className="h-3 w-3 mr-1" />
@@ -722,12 +731,12 @@ const Users = () => {
                           <TableCell>{user.email}</TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2 flex-wrap">
-                              <Badge variant="outline" className="uppercase">
+                              <Badge variant="outline" className={getUserRoleBadgeClass(user.role)}>
                                 {user.role}
                               </Badge>
                               {user.role === "staff" && subrole && (
-                                <Badge variant="secondary" className="text-xs">
-                                  {formatSubrole(subrole)}
+                                <Badge variant="outline" className={getStaffSubroleBadgeClass(subrole)}>
+                                  {formatStaffSubroleLabel(subrole)}
                                 </Badge>
                               )}
                             </div>
@@ -745,7 +754,7 @@ const Users = () => {
                                   });
                                 }}
                               >
-                                <SelectTrigger className="w-40 rounded-full">
+                                <SelectTrigger className="w-40 rounded-md">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -765,7 +774,7 @@ const Users = () => {
                                   })
                                 }
                               >
-                                <SelectTrigger className="w-40 rounded-full">
+                                <SelectTrigger className="w-40 rounded-md">
                                   <SelectValue placeholder="Sub-role" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -774,12 +783,14 @@ const Users = () => {
                                   <SelectItem value="reservationist">Reservationist</SelectItem>
                                   <SelectItem value="accountant">Accountant</SelectItem>
                                   <SelectItem value="front_desk">Front Desk</SelectItem>
+                                  <SelectItem value="maintenance_officer">Maintenance Officer</SelectItem>
+                                  <SelectItem value="housekeeper">Housekeeper</SelectItem>
                                 </SelectContent>
                               </Select>
                             )}
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-md">
                                     <MoreVertical className="h-4 w-4" />
                                     <span className="sr-only">Open menu</span>
                                   </Button>
@@ -822,7 +833,7 @@ const Users = () => {
             <CardContent>
               <Button
                 onClick={() => setInviteDialogOpen(true)}
-                className="rounded-full uppercase tracking-wide gap-2"
+                className="rounded-md uppercase tracking-wide gap-2"
               >
                 <Plus className="h-4 w-4" />
                 Create User
@@ -948,7 +959,7 @@ const Users = () => {
             <Button variant="outline" onClick={() => {
               setInviteDialogOpen(false);
               setInviteStaffSubrole(null);
-            }} className="rounded-full uppercase tracking-wide">
+            }} className="rounded-md uppercase tracking-wide">
               Cancel
             </Button>
             <Button
@@ -961,7 +972,7 @@ const Users = () => {
                 staffSubrole: inviteRole === "staff" ? inviteStaffSubrole : undefined
               })}
               disabled={!inviteEmail || !inviteFirstName.trim() || !inviteLastName.trim() || (invitePassword.length > 0 && invitePassword.length < 6) || inviteUser.isPending}
-              className="rounded-full uppercase tracking-wide"
+              className="rounded-md uppercase tracking-wide"
             >
               {inviteUser.isPending ? "Creating..." : "Create User"}
             </Button>
@@ -1071,7 +1082,7 @@ const Users = () => {
             <Button variant="outline" onClick={() => {
               setEditDialogOpen(false);
               setEditStaffSubrole(null);
-            }} className="rounded-full uppercase tracking-wide">
+            }} className="rounded-md uppercase tracking-wide">
               Cancel
             </Button>
             <Button
@@ -1088,7 +1099,7 @@ const Users = () => {
                 }
               }}
               disabled={!editFirstName.trim() || !editLastName.trim() || (editPassword.length > 0 && editPassword.length < 6) || updateUser.isPending}
-              className="rounded-full uppercase tracking-wide"
+              className="rounded-md uppercase tracking-wide"
             >
               {updateUser.isPending ? "Updating..." : "Update User"}
             </Button>
@@ -1109,7 +1120,7 @@ const Users = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-full uppercase tracking-wide">Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="rounded-md uppercase tracking-wide">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (selectedUser) {
@@ -1117,7 +1128,7 @@ const Users = () => {
                 }
               }}
               disabled={deleteUser.isPending}
-              className="rounded-full uppercase tracking-wide bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="rounded-md uppercase tracking-wide bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteUser.isPending ? "Deleting..." : "Delete User"}
             </AlertDialogAction>

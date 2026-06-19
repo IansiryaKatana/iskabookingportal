@@ -425,7 +425,7 @@ const Expenses = () => {
                 <Button
                   variant="outline"
                   onClick={exportToCSV}
-                  className="rounded-full gap-2 text-xs md:text-sm"
+                  className="rounded-md gap-2 text-xs md:text-sm"
                 >
                   <Download className="h-3 w-3 md:h-4 md:w-4" />
                   <span className="hidden sm:inline">Export CSV</span>
@@ -445,7 +445,7 @@ const Expenses = () => {
                     });
                     setCreateDialogOpen(true);
                   }}
-                  className="rounded-full uppercase tracking-wide gap-2 text-xs md:text-sm"
+                  className="rounded-md uppercase tracking-wide gap-2 text-xs md:text-sm"
                 >
                   <Plus className="h-3 w-3 md:h-4 md:w-4" />
                   <span className="hidden sm:inline">New Expense</span>
@@ -461,7 +461,7 @@ const Expenses = () => {
                   placeholder="Search expenses..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="rounded-full text-sm md:text-base"
+                  className="rounded-md text-sm md:text-base"
                 />
               </div>
               <div>
@@ -473,7 +473,7 @@ const Expenses = () => {
               </div>
               <div>
                 <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                  <SelectTrigger className="rounded-full text-sm md:text-base">
+                  <SelectTrigger className="rounded-md text-sm md:text-base">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -495,7 +495,7 @@ const Expenses = () => {
                   type="date"
                   value={startDateFilter}
                   onChange={(e) => setStartDateFilter(e.target.value)}
-                  className="rounded-full text-sm md:text-base"
+                  className="rounded-md text-sm md:text-base"
                 />
               </div>
               <div>
@@ -503,7 +503,7 @@ const Expenses = () => {
                   type="date"
                   value={endDateFilter}
                   onChange={(e) => setEndDateFilter(e.target.value)}
-                  className="rounded-full text-sm md:text-base"
+                  className="rounded-md text-sm md:text-base"
                 />
               </div>
             </div>
@@ -530,7 +530,7 @@ const Expenses = () => {
                 </p>
                 <Button
                   onClick={() => setCreateDialogOpen(true)}
-                  className="rounded-full uppercase tracking-wide gap-2 text-xs md:text-sm"
+                  className="rounded-md uppercase tracking-wide gap-2 text-xs md:text-sm"
                 >
                   <Plus className="h-3 w-3 md:h-4 md:w-4" />
                   Create First Expense
@@ -555,7 +555,7 @@ const Expenses = () => {
                       <TableRow key={expense.id}>
                         <TableCell className="text-xs md:text-sm">{format(new Date(expense.payment_date), "MMM d, yyyy")}</TableCell>
                         <TableCell>
-                          <Badge variant="outline" className="rounded-full text-[10px] md:text-xs">
+                          <Badge variant="outline" className="rounded-md text-[10px] md:text-xs">
                             {getCategoryLabel(expense.expense_category)}
                           </Badge>
                         </TableCell>
@@ -569,7 +569,7 @@ const Expenses = () => {
                               variant="ghost"
                               size="sm"
                               onClick={() => handleEdit(expense.id)}
-                              className="rounded-full h-7 w-7 md:h-8 md:w-8 p-0"
+                              className="rounded-md h-7 w-7 md:h-8 md:w-8 p-0"
                             >
                               <Edit className="h-3 w-3 md:h-4 md:w-4" />
                             </Button>
@@ -580,7 +580,7 @@ const Expenses = () => {
                                 setSelectedExpense(expense.id);
                                 setDeleteDialogOpen(true);
                               }}
-                              className="rounded-full text-destructive hover:text-destructive h-7 w-7 md:h-8 md:w-8 p-0"
+                              className="rounded-md text-destructive hover:text-destructive h-7 w-7 md:h-8 md:w-8 p-0"
                             >
                               <Trash2 className="h-3 w-3 md:h-4 md:w-4" />
                             </Button>
@@ -630,7 +630,7 @@ const Expenses = () => {
                   value={formData.expense_category}
                   onValueChange={(value: any) => setFormData((prev) => ({ ...prev, expense_category: value }))}
                 >
-                  <SelectTrigger id="expense_category" className="rounded-full text-sm md:text-base">
+                  <SelectTrigger id="expense_category" className="rounded-md text-sm md:text-base">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -654,7 +654,7 @@ const Expenses = () => {
                   value={formData.description}
                   onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
                   placeholder="Brief description of the expense"
-                  className="rounded-full text-sm md:text-base"
+                  className="rounded-md text-sm md:text-base"
                 />
               </div>
 
@@ -669,7 +669,7 @@ const Expenses = () => {
                     value={formData.amount}
                     onChange={(e) => setFormData((prev) => ({ ...prev, amount: e.target.value }))}
                     placeholder="0.00"
-                    className="rounded-full text-sm md:text-base"
+                    className="rounded-md text-sm md:text-base"
                   />
                 </div>
 
@@ -680,7 +680,7 @@ const Expenses = () => {
                     type="date"
                     value={formData.payment_date}
                     onChange={(e) => setFormData((prev) => ({ ...prev, payment_date: e.target.value }))}
-                    className="rounded-full text-sm md:text-base"
+                    className="rounded-md text-sm md:text-base"
                   />
                 </div>
               </div>
@@ -693,7 +693,7 @@ const Expenses = () => {
                     value={formData.vendor_name}
                     onChange={(e) => setFormData((prev) => ({ ...prev, vendor_name: e.target.value }))}
                     placeholder="Vendor/Supplier name"
-                    className="rounded-full text-sm md:text-base"
+                    className="rounded-md text-sm md:text-base"
                   />
                 </div>
 
@@ -704,7 +704,7 @@ const Expenses = () => {
                     value={formData.invoice_number}
                     onChange={(e) => setFormData((prev) => ({ ...prev, invoice_number: e.target.value }))}
                     placeholder="Invoice/Receipt number"
-                    className="rounded-full text-sm md:text-base"
+                    className="rounded-md text-sm md:text-base"
                   />
                 </div>
               </div>
@@ -738,7 +738,7 @@ const Expenses = () => {
                           setReceiptPreview(null);
                           setReceiptFile(null);
                         }}
-                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                        className="absolute top-2 right-2 bg-red-500 text-white rounded-md p-1 hover:bg-red-600"
                       >
                         <X className="h-3 w-3 md:h-4 md:w-4" />
                       </button>
@@ -757,7 +757,7 @@ const Expenses = () => {
                         type="button"
                         variant="outline"
                         onClick={() => fileInputRef.current?.click()}
-                        className="w-full rounded-full gap-2 text-xs md:text-sm"
+                        className="w-full rounded-md gap-2 text-xs md:text-sm"
                       >
                         <ImageIcon className="h-3 w-3 md:h-4 md:w-4" />
                         Upload Receipt/Invoice
@@ -778,14 +778,14 @@ const Expenses = () => {
                   setReceiptPreview(null);
                   setReceiptFile(null);
                 }}
-                className="rounded-full text-xs md:text-sm"
+                className="rounded-md text-xs md:text-sm"
               >
                 Cancel
               </Button>
               <Button
                 onClick={() => handleSubmit(editDialogOpen)}
                 disabled={createExpense.isPending || updateExpense.isPending || uploadingReceipt}
-                className="rounded-full uppercase tracking-wide gap-2 text-xs md:text-sm"
+                className="rounded-md uppercase tracking-wide gap-2 text-xs md:text-sm"
               >
                 {createExpense.isPending || updateExpense.isPending || uploadingReceipt ? (
                   <>
@@ -816,11 +816,11 @@ const Expenses = () => {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter className="gap-2">
-              <AlertDialogCancel className="rounded-full text-xs md:text-sm">Cancel</AlertDialogCancel>
+              <AlertDialogCancel className="rounded-md text-xs md:text-sm">Cancel</AlertDialogCancel>
               <AlertDialogAction
                 onClick={handleDelete}
                 disabled={deleteExpense.isPending}
-                className="rounded-full bg-destructive hover:bg-destructive/90 text-xs md:text-sm"
+                className="rounded-md bg-destructive hover:bg-destructive/90 text-xs md:text-sm"
               >
                 {deleteExpense.isPending ? "Deleting..." : "Delete"}
               </AlertDialogAction>

@@ -164,7 +164,7 @@ const PortalLayout = ({
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full rounded-full flex justify-between items-center bg-black hover:bg-black/90 text-white hover:text-white border-0 mt-2"
+                className="w-full rounded-md flex justify-between items-center bg-black hover:bg-black/90 text-white hover:text-white border-0 mt-2"
                 onClick={() => setShowSignOutDialog(true)}
               >
                 <span>Sign out</span>
@@ -182,7 +182,7 @@ const PortalLayout = ({
                     <Button
                       variant="outline"
                       size="sm"
-                      className="rounded-full uppercase tracking-wide gap-2"
+                      className="rounded-md uppercase tracking-wide gap-2"
                       onClick={handleBack}
                     >
                       <ChevronLeft className="h-4 w-4" />
@@ -206,7 +206,7 @@ const PortalLayout = ({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="rounded-full uppercase tracking-wide"
+                    className="rounded-md uppercase tracking-wide"
                     onClick={() => setMobileNavOpen(!mobileNavOpen)}
                   >
                     Menu
@@ -238,7 +238,7 @@ const PortalLayout = ({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="w-full rounded-full flex justify-between items-center bg-black hover:bg-black/90 text-white hover:text-white border-0 mt-4"
+                    className="w-full rounded-md flex justify-between items-center bg-black hover:bg-black/90 text-white hover:text-white border-0 mt-4"
                     onClick={() => setShowSignOutDialog(true)}
                   >
                     <span>Sign out</span>
@@ -264,7 +264,7 @@ const PortalLayout = ({
                       <Button
                         variant="outline"
                         size="icon"
-                        className="h-9 w-9 rounded-full shrink-0 border-border/60"
+                        className="h-9 w-9 rounded-md shrink-0 border-border/60"
                         onClick={handleBack}
                       >
                         <ChevronLeft className="h-4 w-4" />
@@ -279,7 +279,7 @@ const PortalLayout = ({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="rounded-full flex justify-between items-center gap-2 bg-black hover:bg-black/90 text-white hover:text-white border-0 text-xs shrink-0"
+                    className="rounded-md flex justify-between items-center gap-2 bg-black hover:bg-black/90 text-white hover:text-white border-0 text-xs shrink-0"
                     onClick={() => setShowSignOutDialog(true)}
                   >
                     <span>Sign out</span>
@@ -312,7 +312,7 @@ const PortalLayout = ({
                       variant="outline"
                       size="sm"
                       className={clsx(
-                        "rounded-full uppercase tracking-wide gap-2",
+                        "rounded-md uppercase tracking-wide gap-2",
                         "bg-background/80 border-border/60",
                       )}
                       onClick={handleBack}
@@ -349,7 +349,7 @@ const PortalLayout = ({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="rounded-full flex justify-between items-center gap-2 bg-black hover:bg-black/90 text-white hover:text-white border-0"
+                    className="rounded-md flex justify-between items-center gap-2 bg-black hover:bg-black/90 text-white hover:text-white border-0"
                     onClick={() => setShowSignOutDialog(true)}
                   >
                     <span>Sign out</span>
@@ -377,12 +377,12 @@ const PortalLayout = ({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-full uppercase tracking-wide">
+            <AlertDialogCancel className="rounded-md uppercase tracking-wide">
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleSignOut}
-              className="rounded-full uppercase tracking-wide bg-primary hover:bg-primary/90"
+              className="rounded-md uppercase tracking-wide bg-primary hover:bg-primary/90"
             >
               Sign Out
             </AlertDialogAction>

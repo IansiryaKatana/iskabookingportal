@@ -56,7 +56,7 @@ const generateContractSlug = async (
     .replace(/\s*weeks\s*·\s*/i, "-weeks-")
     .replace(/\s*\/\s*/g, "-")
     .replace(/[^a-z0-9-]+/g, "-")
-    .replace(/(^-|-$)/g, "");
+    .replace(/(^-|-$)/g);
 
   if (academicYearName) {
     if (slug.match(/-\d{2}-\d{2}$/)) {
@@ -524,7 +524,7 @@ export const useDuplicateContracts = () => {
           contractData.name
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, "-")
-            .replace(/(^-|-$)/g, "") +
+            .replace(/(^-|-$)/g) +
           "-" +
           targetAcademicYearId.slice(0, 8); // Add year ID suffix for uniqueness
 
