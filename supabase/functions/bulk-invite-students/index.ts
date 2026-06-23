@@ -9,6 +9,32 @@ const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
 const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
+/** PostgREST `.in()` with hundreds of UUIDs exceeds URL limits and returns 400. */
+const IN_QUERY_CHUNK_SIZE = 80;
+
+const chunkArray = <T,>(items: T[], size: number): T[][] => {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+};
+
+const APPLICATION_SELECT = `
+        id,
+        student_id,
+        status,
+        contract:contracts!student_applications_contract_id_fkey (
+          id,
+          name,
+          academic_year_id,
+          academic_years:academic_years (
+            id,
+            name
+          )
+        )
+      `;
+
 interface InvitationRequest {
   application_ids?: string[];
   filters?: {
@@ -90,58 +116,73 @@ serve(async (req) => {
 
     const { application_ids, filters, email_template_id, resend = false } = requestBody;
 
-    // Build query to find applications with placeholder users
-    // NOTE: Explicitly select the contracts relationship via the correct FK
-    // to avoid PostgREST PGRST201 ambiguity when multiple relationships exist.
-    let query = supabaseAdmin
-      .from("student_applications")
-      .select(`
-        id,
-        student_id,
-        status,
-        contract:contracts!student_applications_contract_id_fkey (
-          id,
-          name,
-          academic_year_id,
-          academic_years:academic_years (
-            id,
-            name
-          )
-        )
-      `);
-
-    // Filter by application IDs if provided
-    if (application_ids && application_ids.length > 0) {
-      query = query.in("id", application_ids);
-    }
-
-    // Apply filters
-    if (filters) {
-      if (filters.contract_id) {
-        query = query.eq("contract_id", filters.contract_id);
-      }
-      if (filters.status) {
-        query = query.eq("status", filters.status);
-      }
-      if (filters.academic_year_id) {
-        query = query.eq("contract.academic_year_id", filters.academic_year_id);
-      }
-      if (filters.imported_after) {
-        query = query.gte("created_at", filters.imported_after);
-      }
-    }
-
-    const { data: applications, error: appsError } = await query;
-
-    if (appsError) {
-      console.error("Error fetching applications:", appsError);
-      return new Response(
-        JSON.stringify({ error: "Failed to fetch applications", details: appsError.message }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+    const applyApplicationFilters = (query: ReturnType<typeof supabaseAdmin.from>) => {
+      let filteredQuery = query;
+      if (filters) {
+        if (filters.contract_id) {
+          filteredQuery = filteredQuery.eq("contract_id", filters.contract_id);
         }
-      );
+        if (filters.status) {
+          filteredQuery = filteredQuery.eq("status", filters.status);
+        }
+        if (filters.academic_year_id) {
+          filteredQuery = filteredQuery.eq("contract.academic_year_id", filters.academic_year_id);
+        }
+        if (filters.imported_after) {
+          filteredQuery = filteredQuery.gte("created_at", filters.imported_after);
+        }
+      }
+      return filteredQuery;
+    };
+
+    let applications: any[] = [];
+
+    if (application_ids && application_ids.length > 0) {
+      for (const applicationIdChunk of chunkArray(application_ids, IN_QUERY_CHUNK_SIZE)) {
+        let chunkQuery = supabaseAdmin
+          .from("student_applications")
+          .select(APPLICATION_SELECT)
+          .in("id", applicationIdChunk);
+
+        chunkQuery = applyApplicationFilters(chunkQuery);
+
+        const { data: chunkApps, error: chunkError } = await chunkQuery;
+        if (chunkError) {
+          console.error("Error fetching applications:", chunkError);
+          return new Response(
+            JSON.stringify({ error: "Failed to fetch applications", details: chunkError.message }),
+            {
+              status: 500,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+          );
+        }
+
+        if (chunkApps?.length) {
+          applications.push(...chunkApps);
+        }
+      }
+    } else {
+      let query = supabaseAdmin
+        .from("student_applications")
+        .select(APPLICATION_SELECT);
+
+      query = applyApplicationFilters(query);
+
+      const { data: filteredApps, error: appsError } = await query;
+
+      if (appsError) {
+        console.error("Error fetching applications:", appsError);
+        return new Response(
+          JSON.stringify({ error: "Failed to fetch applications", details: appsError.message }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      applications = filteredApps || [];
     }
 
     if (!applications || applications.length === 0) {
@@ -165,15 +206,18 @@ serve(async (req) => {
     const applicationIds = applications.map((app: any) => app.id).filter(Boolean);
     const step2ByApplicationId = new Map<string, any>();
     if (applicationIds.length > 0) {
-      const { data: stepRows, error: stepRowsError } = await supabaseAdmin
-        .from("student_application_steps")
-        .select("application_id, step_number, payload")
-        .in("application_id", applicationIds)
-        .eq("step_number", 2);
+      for (const applicationIdChunk of chunkArray(applicationIds, IN_QUERY_CHUNK_SIZE)) {
+        const { data: stepRows, error: stepRowsError } = await supabaseAdmin
+          .from("student_application_steps")
+          .select("application_id, step_number, payload")
+          .in("application_id", applicationIdChunk)
+          .eq("step_number", 2);
 
-      if (stepRowsError) {
-        console.warn("Failed to fetch step 2 rows for bulk invitations:", stepRowsError);
-      } else {
+        if (stepRowsError) {
+          console.warn("Failed to fetch step 2 rows for bulk invitations:", stepRowsError);
+          break;
+        }
+
         (stepRows || []).forEach((row: any) => {
           step2ByApplicationId.set(row.application_id, row.payload || {});
         });

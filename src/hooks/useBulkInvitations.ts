@@ -1,6 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
+/** PostgREST `.in()` with hundreds of UUIDs exceeds URL limits and returns 400. */
+const IN_QUERY_CHUNK_SIZE = 80;
+
+const chunkArray = <T,>(items: T[], size: number): T[][] => {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+};
+
 export type InvitationStatus = "pending_activation" | "invited" | "activated" | "active";
 
 export type ApplicationWithInvitation = {
@@ -81,9 +92,10 @@ const fetchApplicationsWithPlaceholders = async (
   let contractsMap: Map<string, any> = new Map();
   if (contractIds.length > 0) {
     try {
-      const { data: contractsData, error: contractsError } = await supabase
-        .from("contracts")
-        .select(`
+      for (const contractIdChunk of chunkArray(contractIds, IN_QUERY_CHUNK_SIZE)) {
+        const { data: contractsData, error: contractsError } = await supabase
+          .from("contracts")
+          .select(`
           id,
           name,
           academic_year_id,
@@ -92,10 +104,14 @@ const fetchApplicationsWithPlaceholders = async (
             name
           )
         `)
-        .in("id", contractIds);
+          .in("id", contractIdChunk);
 
-      if (!contractsError && contractsData) {
-        contractsData.forEach((contract: any) => {
+        if (contractsError) {
+          console.warn("Could not fetch contracts separately:", contractsError);
+          break;
+        }
+
+        (contractsData || []).forEach((contract: any) => {
           contractsMap.set(contract.id, contract);
         });
       }
@@ -111,18 +127,21 @@ const fetchApplicationsWithPlaceholders = async (
   const step2ByApplicationId = new Map<string, any>();
   if (applicationIds.length > 0) {
     try {
-      const { data: step2Rows, error: step2Error } = await supabase
-        .from("student_application_steps")
-        .select("application_id, step_number, payload")
-        .in("application_id", applicationIds)
-        .eq("step_number", 2);
+      for (const applicationIdChunk of chunkArray(applicationIds, IN_QUERY_CHUNK_SIZE)) {
+        const { data: step2Rows, error: step2Error } = await supabase
+          .from("student_application_steps")
+          .select("application_id, step_number, payload")
+          .in("application_id", applicationIdChunk)
+          .eq("step_number", 2);
 
-      if (!step2Error && step2Rows) {
-        step2Rows.forEach((row: any) => {
+        if (step2Error) {
+          console.warn("Could not fetch step 2 payloads:", step2Error);
+          break;
+        }
+
+        (step2Rows || []).forEach((row: any) => {
           step2ByApplicationId.set(row.application_id, row.payload || {});
         });
-      } else if (step2Error) {
-        console.warn("Could not fetch step 2 payloads:", step2Error);
       }
     } catch (err) {
       console.warn("Could not fetch step 2 payloads:", err);
@@ -133,17 +152,20 @@ const fetchApplicationsWithPlaceholders = async (
   const profileMap = new Map<string, { first_name?: string | null; last_name?: string | null }>();
   if (studentIds.length > 0) {
     try {
-      const { data: profilesData, error: profilesError } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
-        .in("id", studentIds);
+      for (const studentIdChunk of chunkArray(studentIds, IN_QUERY_CHUNK_SIZE)) {
+        const { data: profilesData, error: profilesError } = await supabase
+          .from("profiles")
+          .select("id, first_name, last_name")
+          .in("id", studentIdChunk);
 
-      if (!profilesError && profilesData) {
-        profilesData.forEach((p: any) => {
+        if (profilesError) {
+          console.warn("Could not fetch profile names:", profilesError);
+          break;
+        }
+
+        (profilesData || []).forEach((p: any) => {
           profileMap.set(p.id, { first_name: p.first_name, last_name: p.last_name });
         });
-      } else if (profilesError) {
-        console.warn("Could not fetch profile names:", profilesError);
       }
     } catch (err) {
       console.warn("Could not fetch profile names:", err);
@@ -154,16 +176,21 @@ const fetchApplicationsWithPlaceholders = async (
   const emailsMap = new Map<string, string>();
   if (studentIds.length > 0) {
     try {
-      const { data: emailsData, error: emailsError } = await supabase.functions.invoke("get-user-emails", {
-        body: { userIds: studentIds },
-      });
-
-      if (!emailsError && emailsData?.emails) {
-        Object.entries(emailsData.emails).forEach(([userId, email]) => {
-          emailsMap.set(userId, String(email || ""));
+      for (const studentIdChunk of chunkArray(studentIds, IN_QUERY_CHUNK_SIZE)) {
+        const { data: emailsData, error: emailsError } = await supabase.functions.invoke("get-user-emails", {
+          body: { userIds: studentIdChunk },
         });
-      } else if (emailsError) {
-        console.warn("Could not fetch auth emails:", emailsError);
+
+        if (emailsError) {
+          console.warn("Could not fetch auth emails:", emailsError);
+          break;
+        }
+
+        if (emailsData?.emails) {
+          Object.entries(emailsData.emails).forEach(([userId, email]) => {
+            emailsMap.set(userId, String(email || ""));
+          });
+        }
       }
     } catch (err) {
       console.warn("Could not fetch auth emails:", err);
@@ -174,14 +201,19 @@ const fetchApplicationsWithPlaceholders = async (
   let metadataMap: Record<string, { account_status?: string; invitation_sent_at?: string; invitation_expires_at?: string }> = {};
   if (studentIds.length > 0) {
     try {
-      const { data: metadataData, error: metadataError } = await supabase.functions.invoke("get-user-metadata", {
-        body: { userIds: studentIds },
-      });
+      for (const studentIdChunk of chunkArray(studentIds, IN_QUERY_CHUNK_SIZE)) {
+        const { data: metadataData, error: metadataError } = await supabase.functions.invoke("get-user-metadata", {
+          body: { userIds: studentIdChunk },
+        });
 
-      if (!metadataError && metadataData?.metadata) {
-        metadataMap = metadataData.metadata;
-      } else if (metadataError) {
-        console.warn("Could not fetch user metadata via edge function:", metadataError);
+        if (metadataError) {
+          console.warn("Could not fetch user metadata via edge function:", metadataError);
+          break;
+        }
+
+        if (metadataData?.metadata) {
+          metadataMap = { ...metadataMap, ...metadataData.metadata };
+        }
       }
     } catch (err) {
       console.warn("Could not fetch user metadata:", err);
