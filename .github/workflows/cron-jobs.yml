@@ -1,14 +1,15 @@
-name: Scheduled Jobs
+# Disabled: studio hold release is handled by pg_cron on Supabase
+# (job: release-expired-studio-holds → SELECT public.release_expired_studio_holds();)
+#
+# Manual trigger only — use if you need to invoke the edge function outside pg_cron.
+name: Scheduled Jobs (disabled)
 
 on:
-  schedule:
-    # Release expired reservations every 15 minutes
-    - cron: '*/15 * * * *'
-  workflow_dispatch: # Allow manual trigger
+  workflow_dispatch:
 
 jobs:
   release-expired-reservations:
-    name: Release Expired Studio Reservations
+    name: Release Expired Studio Reservations (manual)
     runs-on: ubuntu-latest
     steps:
       - name: Call Edge Function
@@ -18,8 +19,7 @@ jobs:
             -H "Content-Type: application/json" \
             -H "apikey: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
             "${{ secrets.SUPABASE_URL }}/functions/v1/release-expired-reservations"
-        
+
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-

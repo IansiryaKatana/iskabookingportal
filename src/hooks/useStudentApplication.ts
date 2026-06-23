@@ -114,27 +114,15 @@ const upsertStep = async (payload: {
 
   if (error) throw error;
 
-  // Update application status based on step completion
-  // Step 1: Keep as draft (already created with draft status)
-  // Step 4: Move to awaiting_deposit
-  if (isComplete) {
-    let newStatus: string | null = null;
-    if (stepNumber === 4) {
-      newStatus = "awaiting_deposit";
-    }
-    // Note: Step 5 completion moves to awaiting_signature (handled elsewhere)
-    // Step 6 completion moves to awaiting_verification (handled elsewhere)
+  // Step 4 complete: move to awaiting_deposit and extend studio hold to 48 hours.
+  if (isComplete && stepNumber === 4) {
+    const { error: extendError } = await supabase.rpc(
+      "extend_studio_hold_for_deposit",
+      { p_application_id: applicationId },
+    );
 
-    if (newStatus) {
-      const { error: statusError } = await supabase
-        .from("student_applications")
-        .update({ status: newStatus })
-        .eq("id", applicationId);
-
-      if (statusError) {
-        console.error("Failed to update application status:", statusError);
-        // Don't throw - step save succeeded, status update is secondary
-      }
+    if (extendError) {
+      console.error("Failed to extend studio hold for deposit:", extendError);
     }
   }
 

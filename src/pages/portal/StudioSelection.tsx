@@ -113,7 +113,7 @@ const StudioSelection = () => {
       toast({
         title: "Studio reserved",
         description:
-          "Finish your booking journey within 30 minutes to confirm this studio.",
+          "Finish the next steps within 30 minutes. After you complete documentation, your hold extends to 48 hours to pay the deposit.",
       });
     } catch (error) {
       console.error(error);

@@ -10,6 +10,11 @@ const fetchStudios = async (
   studioGradeId: string,
   academicYearId?: string | null
 ): Promise<StudioRow[]> => {
+  // Release stale holds before reading availability (no external cron required).
+  await supabase.rpc("release_expired_studio_holds").then(({ error }) => {
+    if (error) console.warn("release_expired_studio_holds:", error.message);
+  });
+
   if (academicYearId) {
     const { data, error } = await supabase
       .from("studio_status_by_academic_year")

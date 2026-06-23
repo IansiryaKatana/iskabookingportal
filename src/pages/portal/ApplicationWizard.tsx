@@ -1555,6 +1555,39 @@ useEffect(() => {
     }
   }, [application, isLoading, navigate]);
 
+  useEffect(() => {
+    if (
+      isLoading ||
+      !application?.assigned_studio_id ||
+      !application.reserved_studio_expires_at
+    ) {
+      return;
+    }
+
+    const isPreDeposit = ["draft", "awaiting_deposit"].includes(
+      application.status,
+    );
+    const expired =
+      new Date(application.reserved_studio_expires_at).getTime() < Date.now();
+
+    if (isPreDeposit && expired) {
+      void supabase.rpc("release_expired_studio_holds");
+      toast({
+        title: "Studio hold expired",
+        description: "Please select a studio again to continue your application.",
+      });
+      navigate(
+        `/portal/applications/${application.id}/select-studio`,
+        { replace: true },
+      );
+    }
+  }, [
+    application,
+    isLoading,
+    navigate,
+    toast,
+  ]);
+
   const handleStepSubmit = async (
     stepNumber: number,
     data: Record<string, unknown>,
