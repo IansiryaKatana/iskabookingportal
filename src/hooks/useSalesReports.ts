@@ -3,7 +3,12 @@ import { supabase, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "@/integrations
 
 export type SalesDemographicsRow = {
   application_id: string;
-  application_status: "confirmed" | "awaiting_deposit" | "awaiting_signature" | "awaiting_verification";
+  application_status:
+    | "confirmed"
+    | "checked_out"
+    | "awaiting_deposit"
+    | "awaiting_signature"
+    | "awaiting_verification";
   student_id: string;
   ucas_id: string | null;
   first_name: string | null;
@@ -67,18 +72,35 @@ export type SalesReportCashSummary = {
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const SALES_REPORT_ALLOWED_STATUSES = [
   "confirmed",
+  "checked_out",
   "awaiting_deposit",
   "awaiting_signature",
   "awaiting_verification",
 ] as const;
 export type SalesReportStatus = (typeof SALES_REPORT_ALLOWED_STATUSES)[number];
 
+export const SALES_REPORT_REALIZED_STATUSES = ["confirmed", "checked_out"] as const satisfies readonly SalesReportStatus[];
+
+export type SalesReportPreset = "all_sales" | "realized_only" | "in_residence";
+
+export const SALES_REPORT_PRESET_STATUSES: Record<SalesReportPreset, SalesReportStatus[]> = {
+  all_sales: [...SALES_REPORT_ALLOWED_STATUSES],
+  realized_only: [...SALES_REPORT_REALIZED_STATUSES],
+  in_residence: ["confirmed"],
+};
+
+export const SALES_REPORT_PRESET_LABELS: Record<SalesReportPreset, string> = {
+  all_sales: "All Sales",
+  realized_only: "Realized Only",
+  in_residence: "In Residence",
+};
+
 const toValidStatusFilter = (statuses?: SalesReportStatus[] | null): SalesReportStatus[] => {
-  if (!statuses?.length) return [...SALES_REPORT_ALLOWED_STATUSES];
+  if (!statuses?.length) return [...SALES_REPORT_PRESET_STATUSES.all_sales];
   const valid = statuses.filter((status): status is SalesReportStatus =>
     SALES_REPORT_ALLOWED_STATUSES.includes(status),
   );
-  return valid.length ? valid : [...SALES_REPORT_ALLOWED_STATUSES];
+  return valid.length ? valid : [...SALES_REPORT_PRESET_STATUSES.all_sales];
 };
 
 const toValidAcademicYearParam = (id?: string | null): string | null => {

@@ -12,6 +12,9 @@ import {
   useDownloadSalesReport,
   useSalesReportCashSummary,
   SALES_REPORT_ALLOWED_STATUSES,
+  SALES_REPORT_PRESET_LABELS,
+  SALES_REPORT_PRESET_STATUSES,
+  type SalesReportPreset,
   type SalesReportStatus,
 } from "@/hooks/useSalesReports";
 import { useToast } from "@/hooks/use-toast";
@@ -21,6 +24,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 const STATUS_LABELS: Record<SalesReportStatus, string> = {
   confirmed: "Confirmed",
+  checked_out: "Checked Out",
   awaiting_deposit: "Awaiting Deposit",
   awaiting_signature: "Awaiting Signature",
   awaiting_verification: "Awaiting Verification",
@@ -28,21 +32,36 @@ const STATUS_LABELS: Record<SalesReportStatus, string> = {
 
 const SalesReports = () => {
   const [academicYearId, setAcademicYearId] = useState<string | undefined>();
-  const [selectedStatus, setSelectedStatus] = useState<SalesReportStatus>("confirmed");
+  const [selectedPreset, setSelectedPreset] = useState<SalesReportPreset>("all_sales");
+  const [selectedStatus, setSelectedStatus] = useState<SalesReportStatus | null>(null);
   const { toast } = useToast();
+
+  const activeStatuses = useMemo(
+    () => (selectedStatus ? [selectedStatus] : SALES_REPORT_PRESET_STATUSES[selectedPreset]),
+    [selectedPreset, selectedStatus],
+  );
 
   const { data: demographics, isLoading: loadingDemographics } = useSalesDemographicsReport(
     academicYearId,
-    [selectedStatus],
+    activeStatuses,
   );
   const { data: occupancy, isLoading: loadingOccupancy } = useSalesOccupancyMonthly(academicYearId);
   const { data: rebookers, isLoading: loadingRebookers } = useSalesRebookersMonthly(academicYearId);
   const { data: cashSummary, isLoading: loadingCash } = useSalesReportCashSummary(academicYearId);
   const downloadMutation = useDownloadSalesReport();
 
+  const handlePresetChange = (preset: SalesReportPreset) => {
+    setSelectedPreset(preset);
+    setSelectedStatus(null);
+  };
+
+  const handleStatusChange = (status: SalesReportStatus) => {
+    setSelectedStatus((current) => (current === status ? null : status));
+  };
+
   const handleDownload = async () => {
     try {
-      await downloadMutation.mutateAsync({ academicYearId, statuses: [selectedStatus] });
+      await downloadMutation.mutateAsync({ academicYearId, statuses: activeStatuses });
       toast({
         title: "Sales report downloaded",
         description: "Your Excel sales report has been generated using the selected application statuses.",
@@ -72,7 +91,9 @@ const SalesReports = () => {
   );
 
   const rebookerRate = totalContracts > 0 ? Math.round((totalRebookers / totalContracts) * 100 * 100) / 100 : 0;
-  const selectedStatusSummary = STATUS_LABELS[selectedStatus];
+  const selectedStatusSummary = selectedStatus
+    ? STATUS_LABELS[selectedStatus]
+    : SALES_REPORT_PRESET_LABELS[selectedPreset];
   const academicYearName =
     demographics?.[0]?.academic_year_name ||
     occupancy?.[0]?.academic_year_name ||
@@ -85,7 +106,7 @@ const SalesReports = () => {
   return (
     <AdminLayout
       pageTitle="Sales & Demographics"
-      subtitle="Live sales and demographics by selected application statuses"
+      subtitle="Academic year sales and demographics including checked-out students"
       mobileActionButton={
         <Button
           size="sm"
@@ -108,7 +129,7 @@ const SalesReports = () => {
             <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide">
               Filters
             </CardTitle>
-            <CardDescription>Select the academic year to analyse sales and demographics.</CardDescription>
+            <CardDescription>Select the academic year and sales cohort to analyse.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 md:grid-cols-2">
@@ -118,30 +139,52 @@ const SalesReports = () => {
                   <AcademicYearSelector value={academicYearId} onValueChange={setAcademicYearId} />
                 </div>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Data is calculated from live applications in the selected academic year and statuses.
+                  Includes confirmed, checked-out, and in-pipeline applications for the selected year.
                 </p>
               </div>
-              <div>
-                <Label>Application Statuses</Label>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {SALES_REPORT_ALLOWED_STATUSES.map((status) => {
-                    const active = selectedStatus === status;
-                    return (
-                      <Button
-                        key={status}
-                        type="button"
-                        variant={active ? "default" : "outline"}
-                        size="sm"
-                        className="rounded-md"
-                        onClick={() => setSelectedStatus(status)}
-                      >
-                        {STATUS_LABELS[status]}
-                      </Button>
-                    );
-                  })}
+              <div className="space-y-3">
+                <div>
+                  <Label>Sales Cohort</Label>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {(Object.keys(SALES_REPORT_PRESET_LABELS) as SalesReportPreset[]).map((preset) => {
+                      const active = !selectedStatus && selectedPreset === preset;
+                      return (
+                        <Button
+                          key={preset}
+                          type="button"
+                          variant={active ? "default" : "outline"}
+                          size="sm"
+                          className="rounded-md"
+                          onClick={() => handlePresetChange(preset)}
+                        >
+                          {SALES_REPORT_PRESET_LABELS[preset]}
+                        </Button>
+                      );
+                    })}
+                  </div>
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Occupancy and rebooker charts remain confirmed-only for consistency.
+                <div>
+                  <Label>Drill Down by Status</Label>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {SALES_REPORT_ALLOWED_STATUSES.map((status) => {
+                      const active = selectedStatus === status;
+                      return (
+                        <Button
+                          key={status}
+                          type="button"
+                          variant={active ? "default" : "outline"}
+                          size="sm"
+                          className="rounded-md"
+                          onClick={() => handleStatusChange(status)}
+                        >
+                          {STATUS_LABELS[status]}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Occupancy and rebooker charts include confirmed and checked-out sales by contract start month.
                 </p>
               </div>
             </div>
@@ -156,7 +199,7 @@ const SalesReports = () => {
                   Sales Overview
                 </CardTitle>
                 <CardDescription className="mt-1">
-                  {academicYearName} • Status: {selectedStatusSummary}
+                  {academicYearName} • {selectedStatusSummary}
                 </CardDescription>
               </div>
               <Button
@@ -179,7 +222,6 @@ const SalesReports = () => {
             </div>
           </CardHeader>
           <CardContent>
-            {/* Desktop: one row of 7 cards (xl). Mobile: 2 cols; sm 3; md 4 */}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7 gap-3 sm:gap-4 mb-6">
               <div className="rounded-2xl bg-primary/5 p-3 sm:p-4 flex flex-col gap-1 min-w-0 min-h-[88px] sm:min-h-[100px]">
                 <p className="text-xs text-muted-foreground uppercase tracking-wide">Contracts in Selected Statuses</p>
@@ -269,7 +311,7 @@ const SalesReports = () => {
               Demographics (Per Contract)
             </CardTitle>
             <CardDescription className="mt-1">
-              Each row represents an application in the selected statuses, aligned with the Demographics sheet in your Excel sample.
+              Each row represents an application in the selected cohort, aligned with the Demographics sheet in your Excel export.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -378,5 +420,3 @@ const SalesReports = () => {
 };
 
 export default SalesReports;
-
-

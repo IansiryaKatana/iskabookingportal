@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +8,11 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import { useBookingCalendar, type BookingCalendarFilters } from "@/hooks/useBookingCalendar";
+import {
+  useBookingCalendar,
+  type BookingCalendarFilters,
+  type BookingCalendarItem,
+} from "@/hooks/useBookingCalendar";
 import { useAdminStudioGrades } from "@/hooks/useAdminStudioGrades";
 import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
 import { useToast } from "@/hooks/use-toast";
@@ -36,8 +40,74 @@ import {
   LogIn,
   LogOut
 } from "lucide-react";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, addMonths, subMonths, isToday, isSameDay } from "date-fns";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isToday, isSameDay } from "date-fns";
 import { cn } from "@/lib/utils";
+
+type BookingSpan = {
+  start: Date;
+  end: Date;
+  info: {
+    studentName: string;
+    applicationStatus: string | null;
+    contractName: string;
+    applicationId: string;
+    hasActualCheckIn: boolean;
+    hasActualCheckOut: boolean;
+    contractStart: Date | null;
+    contractEnd: Date | null;
+    actualCheckIn: Date | null;
+    actualCheckOut: Date | null;
+    checkInNotes: string | null;
+    checkOutNotes: string | null;
+  };
+};
+
+const buildBookingSpans = (bookings: BookingCalendarItem[]): BookingSpan[] =>
+  bookings.flatMap((booking) => {
+    const start = booking.effective_check_in_date
+      ? new Date(booking.effective_check_in_date)
+      : booking.contract_start
+        ? new Date(booking.contract_start)
+        : null;
+    const end = booking.effective_check_out_date
+      ? new Date(booking.effective_check_out_date)
+      : booking.contract_end
+        ? new Date(booking.contract_end)
+        : null;
+
+    if (!start || !end || !booking.application_id) return [];
+
+    return [
+      {
+        start,
+        end,
+        info: {
+          studentName: booking.student_name || "Unknown",
+          applicationStatus: booking.application_status ?? null,
+          contractName: booking.contract_name || "",
+          applicationId: booking.application_id,
+          hasActualCheckIn: !!booking.actual_check_in_date,
+          hasActualCheckOut: !!booking.actual_check_out_date,
+          contractStart: booking.contract_start ? new Date(booking.contract_start) : null,
+          contractEnd: booking.contract_end ? new Date(booking.contract_end) : null,
+          actualCheckIn: booking.actual_check_in_date ? new Date(booking.actual_check_in_date) : null,
+          actualCheckOut: booking.actual_check_out_date ? new Date(booking.actual_check_out_date) : null,
+          checkInNotes: booking.check_in_notes,
+          checkOutNotes: booking.check_out_notes,
+        },
+      },
+    ];
+  });
+
+const spanCoversDay = (span: BookingSpan, day: Date): boolean => {
+  const spanStart = new Date(span.start);
+  const spanEnd = new Date(span.end);
+  spanStart.setHours(0, 0, 0, 0);
+  spanEnd.setHours(23, 59, 59, 999);
+  const checkDay = new Date(day);
+  checkDay.setHours(0, 0, 0, 0);
+  return checkDay >= spanStart && checkDay <= spanEnd;
+};
 
 const BookingCalendar = () => {
   const navigate = useNavigate();
@@ -76,48 +146,28 @@ const BookingCalendar = () => {
 
   // Build filters
   const filters: BookingCalendarFilters = useMemo(() => {
-    const filters: BookingCalendarFilters = {
-      start_date: format(monthStart, "yyyy-MM-dd"),
-      end_date: format(monthEnd, "yyyy-MM-dd"),
-    };
+    const next: BookingCalendarFilters = {};
 
     if (allocationFilter !== "all") {
-      filters.allocation = allocationFilter === "null" ? null : allocationFilter;
+      next.allocation = allocationFilter === "null" ? null : allocationFilter;
     }
 
     if (studioGradeFilter !== "all") {
-      filters.studio_grade_id = studioGradeFilter;
+      next.studio_grade_id = studioGradeFilter;
     }
 
     if (academicYearFilter) {
-      filters.academic_year_id = academicYearFilter;
+      next.academic_year_id = academicYearFilter;
     }
 
-    return filters;
-  }, [allocationFilter, studioGradeFilter, academicYearFilter, monthStart, monthEnd]);
+    return next;
+  }, [allocationFilter, studioGradeFilter, academicYearFilter]);
 
   const { data: bookingData, isLoading } = useBookingCalendar(filters);
 
-  // Use booking data (will be enhanced if needed)
   const dataToUse = bookingData;
 
-  // Group studios by grade
-  const studiosByGrade = useMemo(() => {
-    if (!dataToUse) return new Map();
-
-    const grouped = new Map<string, typeof dataToUse>();
-    dataToUse.forEach((studio) => {
-      const gradeId = studio.studio_grade_id;
-      if (!grouped.has(gradeId)) {
-        grouped.set(gradeId, []);
-      }
-      grouped.get(gradeId)!.push(studio);
-    });
-
-    return grouped;
-  }, [dataToUse]);
-
-  // Filter studios by selected studio (for sidebar)
+  // Filter studios for sidebar and chart rows (always show every studio; bars reflect visible month)
   const filteredStudios = useMemo(() => {
     if (!dataToUse) return [];
     
@@ -156,30 +206,6 @@ const BookingCalendar = () => {
       return a.studio_number.localeCompare(b.studio_number);
     });
   }, [dataToUse, allocationFilter, studioGradeFilter, studioSearch]);
-
-  // Check if a date is occupied for a studio
-  const isDateOccupied = (studio: typeof bookingData[0], date: Date): boolean => {
-    if (!studio.contract_start || !studio.contract_end || !studio.application_id) {
-      return false;
-    }
-
-    const bookingStart = new Date(studio.contract_start);
-    const bookingEnd = new Date(studio.contract_end);
-    const checkDate = new Date(date);
-
-    return checkDate >= bookingStart && checkDate <= bookingEnd;
-  };
-
-  // Get booking info for a studio on a specific date
-  const getBookingInfo = (studio: typeof bookingData[0], date: Date) => {
-    if (!isDateOccupied(studio, date)) return null;
-
-    return {
-      studentName: studio.student_name || "Unknown",
-      contractName: studio.contract_name || "",
-      applicationId: studio.application_id,
-    };
-  };
 
   const handlePreviousMonth = () => {
     setCurrentDate(subMonths(currentDate, 1));
@@ -223,14 +249,6 @@ const BookingCalendar = () => {
     return "bg-blue-500/30 border-blue-500/50";
   };
 
-  const handleDateClick = (studio: typeof bookingData[0], date: Date) => {
-    const bookingInfo = getBookingInfo(studio, date);
-    if (bookingInfo?.applicationId) {
-      // Navigate to application detail - check the correct route
-      navigate(`/admin/applications/${bookingInfo.applicationId}`);
-    }
-  };
-
   const exportToCSV = () => {
     if (!bookingData || bookingData.length === 0) {
       toast({
@@ -254,20 +272,20 @@ const BookingCalendar = () => {
       "Academic Year",
     ];
 
-    const rows = dataToUse
-      .filter(s => s.application_id) // Only export booked studios
-      .map((studio) => [
+    const rows = dataToUse.flatMap((studio) =>
+      studio.bookings.map((booking) => [
         studio.studio_number,
         studio.studio_grade_name,
         studio.allocation || "Unallocated",
         studio.studio_status,
-        studio.student_name || "",
-        studio.student_email || "",
-        studio.contract_name || "",
-        studio.contract_start || "",
-        studio.contract_end || "",
-        studio.academic_year_name || "",
-      ]);
+        booking.student_name || "",
+        booking.student_email || "",
+        booking.contract_name || "",
+        booking.contract_start || "",
+        booking.contract_end || "",
+        booking.academic_year_name || "",
+      ]),
+    );
 
     const csvContent = [
       headers.join(","),
@@ -451,7 +469,11 @@ const BookingCalendar = () => {
                       ) : (
                         filteredStudios.map((studio) => {
                           const isSelected = selectedStudioId === studio.studio_id;
-                          const hasBooking = !!studio.application_id;
+                          const bookingSpans = buildBookingSpans(studio.bookings);
+                          const hasBookingInMonth = bookingSpans.some(
+                            (span) => spanCoversDay(span, monthStart) || spanCoversDay(span, monthEnd) ||
+                              (span.start <= monthEnd && span.end >= monthStart),
+                          );
 
                           return (
                             <div
@@ -474,11 +496,15 @@ const BookingCalendar = () => {
                                   {studio.studio_grade_name}
                                 </div>
                               </div>
-                              {hasBooking && (
+                              {hasBookingInMonth ? (
                                 <Badge variant="outline" className="text-[10px] md:text-xs hidden md:inline-flex">
                                   Booked
                                 </Badge>
-                              )}
+                              ) : studio.bookings.length === 0 ? (
+                                <Badge variant="secondary" className="text-[10px] md:text-xs hidden md:inline-flex">
+                                  Available
+                                </Badge>
+                              ) : null}
                             </div>
                           );
                         })
@@ -563,59 +589,7 @@ const BookingCalendar = () => {
                       {filteredStudios.length > 0 && (
                         <div>
                           {filteredStudios.map((studio) => {
-                            // Calculate booking spans for this studio
-                            const bookingSpans: Array<{
-                              start: Date;
-                              end: Date;
-                              info: {
-                                studentName: string;
-                                applicationStatus: string | null;
-                                contractName: string;
-                                applicationId: string;
-                                hasActualCheckIn?: boolean;
-                                hasActualCheckOut?: boolean;
-                                contractStart?: Date | null;
-                                contractEnd?: Date | null;
-                                actualCheckIn?: Date | null;
-                                actualCheckOut?: Date | null;
-                                checkInNotes?: string | null;
-                                checkOutNotes?: string | null;
-                              };
-                            }> = [];
-
-                            if (studio.application_id) {
-                              const start = studio.effective_check_in_date 
-                                ? new Date(studio.effective_check_in_date)
-                                : studio.contract_start 
-                                ? new Date(studio.contract_start)
-                                : null;
-                              const end = studio.effective_check_out_date
-                                ? new Date(studio.effective_check_out_date)
-                                : studio.contract_end
-                                ? new Date(studio.contract_end)
-                                : null;
-                              
-                              if (start && end) {
-                                bookingSpans.push({
-                                  start,
-                                  end,
-                                  info: {
-                                    studentName: studio.student_name || "Unknown",
-                                    applicationStatus: studio.application_status ?? null,
-                                    contractName: studio.contract_name || "",
-                                    applicationId: studio.application_id,
-                                    hasActualCheckIn: !!studio.actual_check_in_date,
-                                    hasActualCheckOut: !!studio.actual_check_out_date,
-                                    contractStart: studio.contract_start ? new Date(studio.contract_start) : null,
-                                    contractEnd: studio.contract_end ? new Date(studio.contract_end) : null,
-                                    actualCheckIn: studio.actual_check_in_date ? new Date(studio.actual_check_in_date) : null,
-                                    actualCheckOut: studio.actual_check_out_date ? new Date(studio.actual_check_out_date) : null,
-                                    checkInNotes: studio.check_in_notes,
-                                    checkOutNotes: studio.check_out_notes,
-                                  },
-                                });
-                              }
-                            }
+                            const bookingSpans = buildBookingSpans(studio.bookings);
 
                             return (
                               <div
@@ -626,17 +600,7 @@ const BookingCalendar = () => {
                                 {/* Date cells */}
                                 {daysInMonth.map((day, dayIndex) => {
                                   const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-                                  const bookingSpan = bookingSpans.find(
-                                    (span) => {
-                                      const spanStart = new Date(span.start);
-                                      const spanEnd = new Date(span.end);
-                                      spanStart.setHours(0, 0, 0, 0);
-                                      spanEnd.setHours(23, 59, 59, 999);
-                                      const checkDay = new Date(day);
-                                      checkDay.setHours(0, 0, 0, 0);
-                                      return checkDay >= spanStart && checkDay <= spanEnd;
-                                    }
-                                  );
+                                  const bookingSpan = bookingSpans.find((span) => spanCoversDay(span, day));
                                   const isOccupied = !!bookingSpan;
                                   const isStartDate = bookingSpan && isSameDay(bookingSpan.start, day);
                                   const isEndDate = bookingSpan && isSameDay(bookingSpan.end, day);

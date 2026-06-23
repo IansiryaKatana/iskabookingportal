@@ -1,7 +1,7 @@
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, Users, FileText, TrendingUp, AlertCircle, Gift, CreditCard, Info } from "lucide-react";
+import { Info, ArrowUpRight } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDashboardStats, useDashboardBreakdowns } from "@/hooks/useDashboardStats";
 import { useActiveCashbackCampaigns } from "@/hooks/useCashback";
@@ -15,6 +15,12 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+
+const metricSectionLabelClass =
+  "text-[11px] uppercase tracking-wide text-muted-foreground";
+
+const dashboardMetricValueClass =
+  "font-black font-display tabular-nums leading-none tracking-tight text-4xl sm:text-5xl xl:text-5xl 2xl:text-6xl";
 
 function MetricLabelWithTooltip({
   label,
@@ -42,6 +48,131 @@ function MetricLabelWithTooltip({
           {tooltip}
         </TooltipContent>
       </Tooltip>
+    </div>
+  );
+}
+
+function BreakdownRow({
+  label,
+  value,
+  total,
+  tooltip,
+  accentClass = "bg-primary",
+  stretch = false,
+}: {
+  label: string;
+  value: number;
+  total: number;
+  tooltip?: string;
+  accentClass?: string;
+  stretch?: boolean;
+}) {
+  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+
+  return (
+    <div
+      className={cn(
+        "flex flex-col min-h-0",
+        stretch ? "flex-1 gap-2" : "space-y-1.5",
+      )}
+    >
+      <div className="flex items-center justify-between gap-2 text-sm shrink-0">
+        {tooltip ? (
+          <MetricLabelWithTooltip
+            label={label}
+            tooltip={tooltip}
+            className="text-muted-foreground font-medium"
+          />
+        ) : (
+          <span className="text-muted-foreground font-medium truncate">{label}</span>
+        )}
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs tabular-nums text-muted-foreground">{pct}%</span>
+          <span className="font-bold font-display tabular-nums">{value}</span>
+        </div>
+      </div>
+      <div
+        className={cn(
+          "w-full rounded-md bg-muted overflow-hidden",
+          stretch ? "flex-1 min-h-[10px]" : "h-2",
+        )}
+      >
+        <div
+          className={cn("h-full rounded-md transition-all", accentClass)}
+          style={{ width: `${Math.min(pct, 100)}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+type OverviewMetricAccent = "students" | "applications" | "revenue" | "recent";
+
+const overviewMetricStyles: Record<
+  OverviewMetricAccent,
+  { card: string; value: string }
+> = {
+  students: {
+    card: "border-blue-200/80 dark:border-blue-800/40 bg-gradient-to-br from-blue-50 via-sky-50/90 to-white dark:from-blue-950/45 dark:via-blue-900/20 dark:to-background",
+    value: "text-blue-950 dark:text-blue-50",
+  },
+  applications: {
+    card: "border-violet-200/80 dark:border-violet-800/40 bg-gradient-to-br from-violet-50 via-purple-50/90 to-white dark:from-violet-950/45 dark:via-violet-900/20 dark:to-background",
+    value: "text-violet-950 dark:text-violet-50",
+  },
+  revenue: {
+    card: "border-emerald-200/80 dark:border-emerald-800/40 bg-gradient-to-br from-emerald-50 via-green-50/90 to-white dark:from-emerald-950/45 dark:via-emerald-900/20 dark:to-background",
+    value: "text-emerald-950 dark:text-emerald-50",
+  },
+  recent: {
+    card: "border-amber-200/80 dark:border-amber-800/40 bg-gradient-to-br from-amber-50 via-yellow-50/90 to-white dark:from-amber-950/45 dark:via-amber-900/20 dark:to-background",
+    value: "text-amber-950 dark:text-amber-50",
+  },
+};
+
+const reviewQueueActionClassName =
+  "rounded-md uppercase tracking-wide mt-auto w-full sm:w-auto border-0 shadow-none bg-yellow-400 hover:bg-yellow-500 text-yellow-950 dark:bg-yellow-500 dark:hover:bg-yellow-400 dark:text-yellow-950";
+
+function OverviewMetric({
+  label,
+  value,
+  tooltip,
+  formatted,
+  accent,
+  compactValue = false,
+}: {
+  label: string;
+  value: number;
+  tooltip: string;
+  accent: OverviewMetricAccent;
+  formatted?: string;
+  compactValue?: boolean;
+}) {
+  const styles = overviewMetricStyles[accent];
+
+  return (
+    <div
+      className={cn(
+        "rounded-2xl border p-4 flex flex-col gap-3 h-full min-h-[5.5rem]",
+        styles.card,
+      )}
+    >
+      <MetricLabelWithTooltip
+        label={label}
+        tooltip={tooltip}
+        className={metricSectionLabelClass}
+      />
+      <p
+        className={cn(
+          "font-black font-display tabular-nums leading-none mt-auto tracking-tight",
+          compactValue
+            ? "text-2xl sm:text-3xl xl:text-4xl"
+            : "text-4xl sm:text-5xl xl:text-5xl 2xl:text-6xl",
+          styles.value,
+        )}
+      >
+        {formatted ?? value}
+      </p>
     </div>
   );
 }
@@ -84,20 +215,24 @@ const Dashboard = () => {
     .sort((a, b) => b[1] - a[1]);
 
   return (
-    <AdminLayout hideDesktopHeader>
-      <div className="mb-6 flex items-center justify-start md:justify-end">
+    <AdminLayout
+      hideDesktopHeader
+      pageTitle="Dashboard"
+      subtitle="Overview of occupancy, applications, and operational queues"
+      pageToolbar={
         <AcademicYearSelector
           value={selectedAcademicYearId}
           onValueChange={(value) => setSelectedAcademicYearId(value)}
           className="w-full md:w-64"
           allowEmpty={false}
         />
-      </div>
+      }
+    >
       {isLoading ? (
         <>
-          <section className="grid gap-6 lg:grid-cols-2 xl:grid-cols-4 mb-10">
+          <section className="grid gap-6 lg:grid-cols-3 mb-10 items-stretch">
             {/* Occupancy Overview Skeleton */}
-            <Card className="bg-primary text-primary-foreground rounded-3xl shadow-lg">
+            <Card className="bg-primary text-primary-foreground rounded-3xl">
               <CardHeader>
                 <div className="h-6 w-48 bg-primary-foreground/20 animate-pulse rounded" />
                 <div className="h-4 w-full bg-primary-foreground/20 animate-pulse rounded mt-2" />
@@ -109,7 +244,7 @@ const Dashboard = () => {
               </CardContent>
             </Card>
             {/* Active Cashback Campaign Skeleton */}
-            <Card className="rounded-3xl shadow-md bg-yellow-50 dark:bg-yellow-950/20">
+            <Card className="rounded-3xl bg-yellow-50 dark:bg-yellow-950/20">
               <CardHeader>
                 <div className="h-6 w-40 bg-yellow-100 dark:bg-yellow-900/30 animate-pulse rounded" />
                 <div className="h-4 w-full bg-yellow-100 dark:bg-yellow-900/30 animate-pulse rounded mt-2" />
@@ -120,43 +255,42 @@ const Dashboard = () => {
                 <div className="h-4 w-5/6 bg-yellow-100 dark:bg-yellow-900/30 animate-pulse rounded mt-2" />
               </CardContent>
             </Card>
-            {/* Pending Verifications Skeleton */}
-            <Card className="rounded-3xl shadow-md">
+            {/* Review queue skeleton */}
+            <Card className="rounded-3xl border border-border/60">
               <CardHeader>
                 <div className="h-6 w-44 bg-muted animate-pulse rounded" />
                 <div className="h-4 w-full bg-muted animate-pulse rounded mt-2" />
-                <div className="h-4 w-3/4 bg-muted animate-pulse rounded mt-1" />
               </CardHeader>
               <CardContent>
-                <div className="h-4 w-full bg-muted animate-pulse rounded" />
-                <div className="h-4 w-4/5 bg-muted animate-pulse rounded mt-2" />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="h-20 bg-muted animate-pulse rounded-2xl" />
+                  <div className="h-20 bg-muted animate-pulse rounded-2xl" />
+                </div>
               </CardContent>
             </Card>
           </section>
 
-          <section>
-            <div className="h-6 w-32 bg-muted animate-pulse rounded mb-4" />
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              {[1, 2, 3].map((i) => (
-                <Card key={i} className="rounded-3xl shadow-sm">
-                  <CardHeader>
-                    <div className="h-5 w-32 bg-muted animate-pulse rounded" />
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="h-4 w-full bg-muted animate-pulse rounded" />
-                    <div className="h-4 w-5/6 bg-muted animate-pulse rounded" />
-                    <div className="h-10 w-full bg-muted animate-pulse rounded-md" />
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+          <section className="grid gap-6 lg:grid-cols-3 mb-10 items-stretch">
+            {[1, 2, 3].map((i) => (
+              <Card key={i} className="rounded-3xl border border-border/60 h-full flex flex-col">
+                <CardHeader>
+                  <Skeleton className="h-5 w-36" />
+                  <Skeleton className="h-4 w-full mt-2" />
+                </CardHeader>
+                <CardContent className="flex-1 space-y-4">
+                  {[1, 2, 3, 4, 5].map((j) => (
+                    <Skeleton key={j} className="h-10 w-full rounded-lg" />
+                  ))}
+                </CardContent>
+              </Card>
+            ))}
           </section>
         </>
       ) : (
         <TooltipProvider delayDuration={200}>
         <>
-          <section className="grid gap-6 lg:grid-cols-2 xl:grid-cols-4 mb-10">
-            <Card className="bg-primary text-primary-foreground rounded-3xl shadow-lg border border-border/60">
+          <section className="grid gap-6 lg:grid-cols-3 mb-10 items-stretch">
+            <Card className="bg-primary text-primary-foreground rounded-3xl border border-border/60 h-full flex flex-col">
               <CardHeader>
                 <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide">
                   Occupancy Overview
@@ -171,11 +305,13 @@ const Dashboard = () => {
                   )}
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <p className="text-2xl md:text-4xl font-bold font-display tracking-tight">
-                  {stats?.occupancy.percentage ?? 0}%
-                </p>
-                <p className="text-xs uppercase tracking-[0.3em] text-primary-foreground/80 mt-2">
+              <CardContent className="flex-1 flex flex-col pt-0 min-h-0">
+                <div className="flex-1 flex items-center">
+                  <p className="text-6xl sm:text-7xl md:text-8xl font-black font-display tracking-tight leading-none">
+                    {stats?.occupancy.percentage ?? 0}%
+                  </p>
+                </div>
+                <p className={cn(metricSectionLabelClass, "text-primary-foreground/80 mt-auto tracking-[0.3em]")}>
                   {stats?.occupancy.total ? (
                     `${stats.occupancy.occupied} occupied / ${stats.occupancy.total} total`
                   ) : (
@@ -184,10 +320,9 @@ const Dashboard = () => {
                 </p>
               </CardContent>
             </Card>
-            <Card className="rounded-3xl shadow-md border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950/20">
+            <Card className="rounded-3xl border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950/20 h-full flex flex-col">
               <CardHeader>
-                <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide flex items-center gap-2">
-                  <Gift className="h-4 w-4 md:h-5 md:w-5 text-yellow-600 dark:text-yellow-400" />
+                <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide">
                   Active Cashback Campaign
                 </CardTitle>
                 <CardDescription>
@@ -245,12 +380,12 @@ const Dashboard = () => {
                     ))}
                     {activeCampaigns.length > 2 && (
                       <Button
-                        variant="ghost"
                         size="sm"
-                        className="w-full text-yellow-700 dark:text-yellow-300 hover:text-yellow-900 dark:hover:text-yellow-100 hover:bg-yellow-100 dark:hover:bg-yellow-900/30"
+                        className="w-full flex justify-between items-center bg-black hover:bg-black/90 text-white hover:text-white border-0 rounded-md"
                         onClick={() => navigate("/admin/cashback-campaigns")}
                       >
-                        View all {activeCampaigns.length} campaigns
+                        <span>View all {activeCampaigns.length} campaigns</span>
+                        <ArrowUpRight className="h-4 w-4 shrink-0" />
                       </Button>
                     )}
                   </div>
@@ -271,302 +406,319 @@ const Dashboard = () => {
                 )}
               </CardContent>
             </Card>
-            <Card className="rounded-3xl shadow-md border border-border/60">
+            <Card className="rounded-3xl border border-border/60 h-full flex flex-col">
               <CardHeader>
-                <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4 md:h-5 md:w-5" />
-                  Pending Verifications
+                <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide">
+                  Review Queue
                 </CardTitle>
                 <CardDescription>
-                  {stats?.pendingVerifications ? (
-                    <>
-                      {stats.pendingVerifications} document{stats.pendingVerifications !== 1 ? "s" : ""} awaiting review
-                    </>
-                  ) : (
-                    "Document checks appear in this queue"
-                  )}
+                  {stats?.pendingVerifications || (showPaymentRequestQueue && pendingPaymentRequests > 0)
+                    ? "Documents and payments waiting for staff action"
+                    : "Document checks and payment requests appear here"}
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                {stats?.pendingVerifications ? (
-                  <div className="space-y-2">
-                    <p className="text-2xl font-bold font-display">
-                      {stats.pendingVerifications}
-                    </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="rounded-md uppercase tracking-wide"
-                      onClick={() => navigate("/admin/applications")}
-                    >
-                      Review Documents
-                    </Button>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No outstanding items. Keep an eye here to approve documents fast and keep allocations moving.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-            {showPaymentRequestQueue && (
-              <Card className="rounded-3xl shadow-md border border-border/60">
-                <CardHeader>
-                  <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide flex items-center gap-2">
-                    <CreditCard className="h-4 w-4 md:h-5 md:w-5" />
-                    Payment Approvals
-                  </CardTitle>
-                  <CardDescription>
-                    {pendingPaymentRequestsLoading
-                      ? "Loading payment requests..."
-                      : pendingPaymentRequests > 0
-                        ? `${pendingPaymentRequests} student payment request${pendingPaymentRequests !== 1 ? "s" : ""} awaiting approval`
-                        : "Student bank transfer requests appear here"}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {pendingPaymentRequestsLoading ? (
-                    <div className="space-y-2">
-                      <Skeleton className="h-8 w-12" />
-                      <Skeleton className="h-9 w-36" />
-                    </div>
-                  ) : pendingPaymentRequests > 0 ? (
-                    <div className="space-y-2">
-                      <p className="text-2xl font-bold font-display">{pendingPaymentRequests}</p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="rounded-md uppercase tracking-wide"
-                        onClick={() => navigate("/admin/manual-payment-entry")}
-                      >
-                        Review Requests
-                      </Button>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      No pending student payment requests right now.
-                    </p>
+              <CardContent className="flex-1">
+                <div
+                  className={cn(
+                    "grid gap-4 h-full",
+                    showPaymentRequestQueue ? "sm:grid-cols-2" : "grid-cols-1",
                   )}
-                </CardContent>
-              </Card>
-            )}
-          </section>
+                >
+                  <div className="rounded-2xl border border-border/60 bg-muted/20 p-4 flex flex-col gap-3">
+                    <p className={metricSectionLabelClass}>
+                      Pending Verifications
+                    </p>
+                    {stats?.pendingVerifications ? (
+                      <>
+                        <p className={dashboardMetricValueClass}>
+                          {stats.pendingVerifications}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          document{stats.pendingVerifications !== 1 ? "s" : ""} awaiting review
+                        </p>
+                        <Button
+                          size="sm"
+                          className={reviewQueueActionClassName}
+                          onClick={() => navigate("/admin/applications")}
+                        >
+                          Review Documents
+                        </Button>
+                      </>
+                    ) : (
+                      <p className="text-sm text-muted-foreground flex-1">
+                        No documents awaiting review.
+                      </p>
+                    )}
+                  </div>
 
-          {/* Statistics Grid */}
-          <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-10">
-            <Card className="rounded-3xl border border-border/60 shadow-md">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-display uppercase tracking-wide">
-                  <MetricLabelWithTooltip
-                    label="Total Students"
-                    tooltip="Registered students in scope for the selected academic year."
-                  />
-                </CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold font-display">{stats?.totalStudents ?? 0}</div>
-              </CardContent>
-            </Card>
-            <Card className="rounded-3xl border border-border/60 shadow-md">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-display uppercase tracking-wide">
-                  <MetricLabelWithTooltip
-                    label="Total Applications"
-                    tooltip="All applications for the selected academic year, including confirmed, pending, and other statuses."
-                  />
-                </CardTitle>
-                <FileText className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold font-display">{stats?.totalApplications ?? 0}</div>
-              </CardContent>
-            </Card>
-            <Card className="rounded-3xl border border-border/60 shadow-md">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-display uppercase tracking-wide">
-                  <MetricLabelWithTooltip
-                    label="Total Revenue"
-                    tooltip="Total collected from completed payments."
-                  />
-                </CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold font-display">
-                  {formatCurrency(stats?.totalRevenue ?? 0)}
+                  {showPaymentRequestQueue && (
+                    <div className="rounded-2xl border border-border/60 bg-muted/20 p-4 flex flex-col gap-3">
+                      <p className={metricSectionLabelClass}>
+                        Payment Approvals
+                      </p>
+                      {pendingPaymentRequestsLoading ? (
+                        <div className="space-y-2 flex-1">
+                          <Skeleton className="h-8 w-12" />
+                          <Skeleton className="h-9 w-full" />
+                        </div>
+                      ) : pendingPaymentRequests > 0 ? (
+                        <>
+                          <p className={dashboardMetricValueClass}>
+                            {pendingPaymentRequests}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            payment request{pendingPaymentRequests !== 1 ? "s" : ""} awaiting approval
+                          </p>
+                          <Button
+                            size="sm"
+                            className={reviewQueueActionClassName}
+                            onClick={() => navigate("/admin/manual-payment-entry")}
+                          >
+                            Review Requests
+                          </Button>
+                        </>
+                      ) : (
+                        <p className="text-sm text-muted-foreground flex-1">
+                          No pending payment requests.
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
-            <Card className="rounded-3xl border border-border/60 shadow-md">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-display uppercase tracking-wide">
-                  <MetricLabelWithTooltip
-                    label="Recent Applications"
-                    tooltip="Applications created in the last 7 days."
-                  />
+          </section>
+
+          {/* Overview · Students · Applications — three equal columns */}
+          <section className="grid gap-6 lg:grid-cols-3 mb-10 items-stretch">
+            {/* Column 1: Key metrics */}
+            <Card className="rounded-3xl border border-border/60 h-full flex flex-col">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-display font-bold uppercase tracking-wide">
+                  Overview
                 </CardTitle>
-                <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                <CardDescription>Headline metrics for the selected academic year</CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold font-display">{stats?.recentApplications ?? 0}</div>
+              <CardContent className="flex-1 flex flex-col min-h-0">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-3 flex-1 h-full auto-rows-fr">
+                  <OverviewMetric
+                    label="Total Students"
+                    value={stats?.totalStudents ?? 0}
+                    tooltip="Registered students in scope for the selected academic year."
+                    accent="students"
+                  />
+                  <OverviewMetric
+                    label="Total Applications"
+                    value={stats?.totalApplications ?? 0}
+                    tooltip="All applications for the selected academic year, including confirmed, pending, and other statuses."
+                    accent="applications"
+                  />
+                  <OverviewMetric
+                    label="Total Revenue"
+                    value={stats?.totalRevenue ?? 0}
+                    formatted={formatCurrency(stats?.totalRevenue ?? 0)}
+                    tooltip="Total collected from completed payments."
+                    accent="revenue"
+                    compactValue
+                  />
+                  <OverviewMetric
+                    label="Recent Applications"
+                    value={stats?.recentApplications ?? 0}
+                    tooltip="Applications created in the last 7 days."
+                    accent="recent"
+                  />
+                </div>
               </CardContent>
             </Card>
-          </section>
 
-          <section className="mb-10">
-            <h3 className="text-lg font-semibold uppercase tracking-wide mb-4">
-              Students Breakdown
-            </h3>
-            {breakdownsLoading ? (
-              <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <Card key={i} className="rounded-3xl border border-border/60 shadow-sm">
-                    <CardContent className="p-4">
-                      <Skeleton className="h-4 w-24 mb-3" />
-                      <Skeleton className="h-8 w-12" />
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-5">
-                <Card className="rounded-3xl border border-border/60 shadow-sm">
-                  <CardContent className="p-4">
-                    <MetricLabelWithTooltip
-                      label="Total Students"
-                      tooltip="All registered student profiles."
-                      className="text-xs uppercase tracking-wide text-muted-foreground"
-                    />
-                    <p className="text-2xl font-bold font-display mt-2">{breakdowns?.students.total ?? 0}</p>
-                  </CardContent>
-                </Card>
-                <Card className="rounded-3xl border border-border/60 shadow-sm">
-                  <CardContent className="p-4">
-                    <MetricLabelWithTooltip
-                      label="With Applications"
-                      tooltip="Students who submitted at least one application."
-                      className="text-xs uppercase tracking-wide text-muted-foreground"
-                    />
-                    <p className="text-2xl font-bold font-display mt-2">{breakdowns?.students.withApplication ?? 0}</p>
-                  </CardContent>
-                </Card>
-                <Card className="rounded-3xl border border-border/60 shadow-sm">
-                  <CardContent className="p-4">
-                    <MetricLabelWithTooltip
-                      label="Confirmed Students"
-                      tooltip="Unique students with a confirmed booking."
-                      className="text-xs uppercase tracking-wide text-muted-foreground"
-                    />
-                    <p className="text-2xl font-bold font-display mt-2">{breakdowns?.students.confirmed ?? 0}</p>
-                  </CardContent>
-                </Card>
-                <Card className="rounded-3xl border border-border/60 shadow-sm">
-                  <CardContent className="p-4">
-                    <MetricLabelWithTooltip
-                      label="In Pipeline"
-                      tooltip="Awaiting signature or awaiting deposit."
-                      className="text-xs uppercase tracking-wide text-muted-foreground"
-                    />
-                    <p className="text-2xl font-bold font-display mt-2">{breakdowns?.students.inPipeline ?? 0}</p>
-                  </CardContent>
-                </Card>
-                <Card className="rounded-3xl border border-border/60 shadow-sm">
-                  <CardContent className="p-4">
-                    <MetricLabelWithTooltip
-                      label="Without Applications"
-                      tooltip="Registered students with no application yet."
-                      className="text-xs uppercase tracking-wide text-muted-foreground"
-                    />
-                    <p className="text-2xl font-bold font-display mt-2">{breakdowns?.students.withoutApplication ?? 0}</p>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-          </section>
-
-          <section>
-            <h3 className="text-lg font-semibold uppercase tracking-wide mb-4">
-              Applications Breakdown
-            </h3>
-            {breakdownsLoading ? (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <Card key={i} className="rounded-3xl border border-border/60 shadow-sm">
-                    <CardContent className="p-4">
-                      <Skeleton className="h-4 w-24 mb-3" />
-                      <Skeleton className="h-8 w-12" />
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <Card className="rounded-3xl border border-primary/20 bg-primary/5 shadow-sm">
-                  <CardContent className="p-4 md:p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Contract Type Mix</p>
-                      <p className="text-lg font-semibold mt-1">Applications by default vs custom contracts</p>
+            {/* Column 2: Students breakdown */}
+            <Card className="rounded-3xl border border-border/60 h-full flex flex-col">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-display font-bold uppercase tracking-wide">
+                  Students
+                </CardTitle>
+                <CardDescription>
+                  {breakdownsLoading
+                    ? "Loading student breakdown…"
+                    : `${breakdowns?.students.total ?? 0} registered · share of total population`}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex-1 flex flex-col min-h-0">
+                {breakdownsLoading ? (
+                  <div className="space-y-4 flex-1">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <Skeleton key={i} className="h-10 w-full rounded-lg" />
+                    ))}
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-3xl font-bold font-display tabular-nums mb-4 shrink-0">
+                      {breakdowns?.students.total ?? 0}
+                      <span className={cn(metricSectionLabelClass, "ml-2")}>total</span>
+                    </p>
+                    <div className="flex flex-col flex-1 gap-3 min-h-0">
+                      <BreakdownRow
+                        stretch
+                        label="With Applications"
+                        value={breakdowns?.students.withApplication ?? 0}
+                        total={breakdowns?.students.total ?? 0}
+                        tooltip="Students who submitted at least one application."
+                        accentClass="bg-blue-500"
+                      />
+                      <BreakdownRow
+                        stretch
+                        label="Confirmed"
+                        value={breakdowns?.students.confirmed ?? 0}
+                        total={breakdowns?.students.total ?? 0}
+                        tooltip="Unique students with a confirmed booking."
+                        accentClass="bg-emerald-500"
+                      />
+                      <BreakdownRow
+                        stretch
+                        label="In Pipeline"
+                        value={breakdowns?.students.inPipeline ?? 0}
+                        total={breakdowns?.students.total ?? 0}
+                        tooltip="Awaiting signature or awaiting deposit."
+                        accentClass="bg-amber-500"
+                      />
+                      <BreakdownRow
+                        stretch
+                        label="Without Applications"
+                        value={breakdowns?.students.withoutApplication ?? 0}
+                        total={breakdowns?.students.total ?? 0}
+                        tooltip="Registered students with no application yet."
+                        accentClass="bg-muted-foreground/40"
+                      />
                     </div>
-                    <div className="grid grid-cols-2 gap-2 w-full md:w-auto">
-                      <div className="rounded-2xl border border-border/60 bg-background px-3 py-2">
-                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Default Contracts</p>
-                        <p className="text-xl font-bold font-display">{breakdowns?.applications.defaultContracts ?? 0}</p>
-                      </div>
-                      <div className="rounded-2xl border border-border/60 bg-background px-3 py-2">
-                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Custom Contracts</p>
-                        <p className="text-xl font-bold font-display">{breakdowns?.applications.customContracts ?? 0}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                  </>
+                )}
+              </CardContent>
+            </Card>
 
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-                <Card className="rounded-3xl border border-border/60 shadow-sm">
-                  <CardContent className="p-4">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Total Applications</p>
-                    <p className="text-2xl font-bold font-display mt-2">{breakdowns?.applications.total ?? 0}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Every application row in current scope</p>
-                  </CardContent>
-                </Card>
-                <Card className="rounded-3xl border border-border/60 shadow-sm">
-                  <CardContent className="p-4">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Confirmed</p>
-                    <p className="text-2xl font-bold font-display mt-2">{breakdowns?.applications.byStatus.confirmed ?? 0}</p>
-                  </CardContent>
-                </Card>
-                <Card className="rounded-3xl border border-border/60 shadow-sm">
-                  <CardContent className="p-4">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Awaiting Deposit</p>
-                    <p className="text-2xl font-bold font-display mt-2">{breakdowns?.applications.byStatus.awaiting_deposit ?? 0}</p>
-                  </CardContent>
-                </Card>
-                <Card className="rounded-3xl border border-border/60 shadow-sm">
-                  <CardContent className="p-4">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Awaiting Signature</p>
-                    <p className="text-2xl font-bold font-display mt-2">{breakdowns?.applications.byStatus.awaiting_signature ?? 0}</p>
-                  </CardContent>
-                </Card>
-                <Card className="rounded-3xl border border-border/60 shadow-sm">
-                  <CardContent className="p-4">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Other Statuses</p>
-                    {otherStatusEntries.length > 0 ? (
-                      <div className="mt-2 space-y-1.5">
-                        {otherStatusEntries.map(([status, count]) => (
-                          <div key={status} className="flex items-center justify-between text-sm">
-                            <span className="capitalize text-muted-foreground">{status.replace(/_/g, " ")}</span>
-                            <span className="font-bold font-display">{count}</span>
+            {/* Column 3: Applications breakdown */}
+            <Card className="rounded-3xl border border-border/60 h-full flex flex-col">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-display font-bold uppercase tracking-wide">
+                  Applications
+                </CardTitle>
+                <CardDescription>
+                  {breakdownsLoading
+                    ? "Loading application breakdown…"
+                    : "Status pipeline and contract mix"}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex-1 flex flex-col gap-4 min-h-0">
+                {breakdownsLoading ? (
+                  <div className="space-y-4 flex-1">
+                    {[1, 2, 3, 4, 5, 6].map((i) => (
+                      <Skeleton key={i} className="h-10 w-full rounded-lg" />
+                    ))}
+                  </div>
+                ) : (
+                  <>
+                    <div className="rounded-2xl border border-border/60 bg-muted/20 p-4 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 shrink-0">
+                      <div className="flex flex-col justify-center sm:min-w-[9rem] sm:shrink-0 sm:border-r sm:border-border/60 sm:pr-6">
+                        <p className="text-3xl font-bold font-display tabular-nums leading-none">
+                          {breakdowns?.applications.total ?? 0}
+                          <span className={cn(metricSectionLabelClass, "ml-2")}>total</span>
+                        </p>
+                        <p className={cn(metricSectionLabelClass, "mt-2")}>
+                          Every application in current scope
+                        </p>
+                      </div>
+
+                      {(breakdowns?.applications.total ?? 0) > 0 && (
+                        <div className="flex flex-col flex-1 justify-center gap-2 min-w-0">
+                          <MetricLabelWithTooltip
+                            label="Contract type mix"
+                            tooltip="Applications on default vs custom contract templates."
+                            className={metricSectionLabelClass}
+                          />
+                          <div className="flex h-2.5 w-full rounded-md overflow-hidden bg-muted">
+                            <div
+                              className="bg-primary transition-all h-full"
+                              style={{
+                                width: `${Math.round(
+                                  ((breakdowns?.applications.defaultContracts ?? 0) /
+                                    (breakdowns?.applications.total ?? 1)) *
+                                    100,
+                                )}%`,
+                              }}
+                              title="Default contracts"
+                            />
+                            <div
+                              className="bg-violet-500 transition-all h-full"
+                              style={{
+                                width: `${Math.round(
+                                  ((breakdowns?.applications.customContracts ?? 0) /
+                                    (breakdowns?.applications.total ?? 1)) *
+                                    100,
+                                )}%`,
+                              }}
+                              title="Custom contracts"
+                            />
                           </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground mt-2">No additional statuses</p>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-              </div>
-            )}
+                          <div className="flex flex-wrap gap-x-4 gap-y-1">
+                            <span className={cn("flex items-center gap-1.5", metricSectionLabelClass)}>
+                              <span className="h-2 w-2 rounded-sm bg-primary shrink-0" />
+                              Default
+                              <strong className="font-display text-foreground tabular-nums">
+                                {breakdowns?.applications.defaultContracts ?? 0}
+                              </strong>
+                            </span>
+                            <span className={cn("flex items-center gap-1.5", metricSectionLabelClass)}>
+                              <span className="h-2 w-2 rounded-sm bg-violet-500 shrink-0" />
+                              Custom
+                              <strong className="font-display text-foreground tabular-nums">
+                                {breakdowns?.applications.customContracts ?? 0}
+                              </strong>
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col flex-1 gap-3 min-h-0">
+                      <BreakdownRow
+                        stretch
+                        label="Confirmed"
+                        value={breakdowns?.applications.byStatus.confirmed ?? 0}
+                        total={breakdowns?.applications.total ?? 0}
+                        accentClass="bg-emerald-500"
+                      />
+                      <BreakdownRow
+                        stretch
+                        label="Awaiting Deposit"
+                        value={breakdowns?.applications.byStatus.awaiting_deposit ?? 0}
+                        total={breakdowns?.applications.total ?? 0}
+                        accentClass="bg-amber-500"
+                      />
+                      <BreakdownRow
+                        stretch
+                        label="Awaiting Signature"
+                        value={breakdowns?.applications.byStatus.awaiting_signature ?? 0}
+                        total={breakdowns?.applications.total ?? 0}
+                        accentClass="bg-blue-500"
+                      />
+                      {otherStatusEntries.length > 0 ? (
+                        otherStatusEntries.map(([status, count]) => (
+                          <BreakdownRow
+                            stretch
+                            key={status}
+                            label={status.replace(/_/g, " ")}
+                            value={count}
+                            total={breakdowns?.applications.total ?? 0}
+                            accentClass="bg-muted-foreground/50"
+                          />
+                        ))
+                      ) : (
+                        <p className="text-xs text-muted-foreground pt-1">No other statuses in scope</p>
+                      )}
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
           </section>
         </>
         </TooltipProvider>

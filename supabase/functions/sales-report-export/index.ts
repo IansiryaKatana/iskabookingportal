@@ -5,13 +5,20 @@ import { getCorsHeaders, handleCorsPrelight } from "../_shared/cors.ts";
 
 interface SalesReportRequest {
   academicYearId?: string;
-  statuses?: Array<"confirmed" | "awaiting_deposit" | "awaiting_signature" | "awaiting_verification">;
+  statuses?: Array<
+    | "confirmed"
+    | "checked_out"
+    | "awaiting_deposit"
+    | "awaiting_signature"
+    | "awaiting_verification"
+  >;
 }
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ALLOWED_STATUSES = [
   "confirmed",
+  "checked_out",
   "awaiting_deposit",
   "awaiting_signature",
   "awaiting_verification",

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,6 +40,17 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
 import { Input } from "@/components/ui/input";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from "@/components/ui/pagination";
+
+const ITEMS_PER_PAGE = 25;
 
 const statusLabels: Record<string, string> = {
   available: "Available",
@@ -65,6 +76,7 @@ const Studios = () => {
   const [targetOtaStudioId, setTargetOtaStudioId] = useState<string>("");
   const [allocationPrecheck, setAllocationPrecheck] = useState<{ impactedBookings: number } | null>(null);
   const [isPrecheckingAllocation, setIsPrecheckingAllocation] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // When using the virtual "occupied_can_release" filter, we still fetch all
   // statuses from the backend and apply the "can release" condition in the UI.
@@ -74,20 +86,24 @@ const Studios = () => {
       : statusFilter;
 
   const { data: gradesData } = useAdminStudioGrades(selectedAcademicYearId);
-  const { data: studios, isLoading } = useAdminStudios({
+  const { data: studios, isLoading: studiosLoading } = useAdminStudios({
     gradeId: gradeFilter === "all" ? undefined : gradeFilter,
     status: effectiveStatusFilter,
     allocation: allocationFilter === "all" ? undefined : allocationFilter,
     floor: floorFilter === "all" ? undefined : floorFilter,
     academicYearId: selectedAcademicYearId,
+    enabled: Boolean(selectedAcademicYearId),
   });
   const updateStudio = useUpdateStudio();
   const bulkUpdateStudios = useBulkUpdateStudios();
   const reassignStudioAllocation = useReassignStudioAllocation();
-  const { data: otaStudiosForMove } = useAdminStudios({
-    allocation: "OTA",
-    academicYearId: selectedAcademicYearId,
-  });
+
+  const otaStudiosForMove = useMemo(
+    () => (studios ?? []).filter((s) => s.allocation === "OTA"),
+    [studios],
+  );
+
+  const isLoading = !selectedAcademicYearId || studiosLoading;
 
   const gradeOptions = useMemo(
     () =>
@@ -185,6 +201,30 @@ const Studios = () => {
       (studio) => studio.status === "occupied" && studioCanReleaseMap.get(studio.id),
     );
   }, [filteredStudios, statusFilter, studioCanReleaseMap]);
+
+  const totalPages = Math.ceil(displayStudios.length / ITEMS_PER_PAGE);
+
+  const paginatedStudios = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    return displayStudios.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [displayStudios, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    gradeFilter,
+    statusFilter,
+    allocationFilter,
+    floorFilter,
+    searchQuery,
+    selectedAcademicYearId,
+  ]);
+
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const selectAll = selectedStudios.size === displayStudios.length && displayStudios.length > 0;
   const someSelected = selectedStudios.size > 0 && selectedStudios.size < displayStudios.length;
@@ -515,15 +555,18 @@ const Studios = () => {
                   />
                   <span className="text-sm text-muted-foreground">
                     {selectAll ? "Deselect all" : "Select all"}
+                    {displayStudios.length > ITEMS_PER_PAGE && (
+                      <span className="text-xs ml-1">({displayStudios.length} total)</span>
+                    )}
                   </span>
-                    {searchQuery.trim() && (
+                  {(searchQuery.trim() || displayStudios.length > ITEMS_PER_PAGE) && (
                     <span className="text-xs text-muted-foreground">
                       {displayStudios.length} of {studios?.length ?? 0} studios
                     </span>
                   )}
                 </div>
               )}
-              {displayStudios.map((studio) => (
+              {paginatedStudios.map((studio) => (
                 <div
                   key={studio.id}
                   className={`rounded-2xl border px-5 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 ${
@@ -589,7 +632,7 @@ const Studios = () => {
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                     <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                       <Badge
-                        className={`uppercase tracking-wide rounded-md px-2.5 py-0.5 text-xs font-medium flex-shrink-0 ${
+                        className={`uppercase tracking-wide rounded-md px-3 h-9 min-w-[7rem] items-center justify-center text-xs font-medium shrink-0 border-0 ${
                           studio.status === "available"
                             ? "bg-green-500 hover:bg-green-600 text-white"
                             : studio.status === "reserved"
@@ -609,7 +652,7 @@ const Studios = () => {
                         onValueChange={(value) => handleStatusChange(studio.id, value)}
                         defaultValue={studio.status}
                       >
-                        <SelectTrigger className="w-full sm:w-40 rounded-md">
+                        <SelectTrigger className="w-full sm:w-40 h-9 rounded-md">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -622,9 +665,9 @@ const Studios = () => {
                       </Select>
                     </div>
                     <Button
-                      variant="ghost"
+                      variant="secondary"
                       size="sm"
-                      className="rounded-md uppercase tracking-wide gap-2 w-full sm:w-auto"
+                      className="rounded-md uppercase tracking-wide gap-2 w-full sm:w-auto bg-slate-200 text-slate-800 hover:bg-slate-300"
                       onClick={async () => {
                         const canRelease = studio.status === "occupied" && studioCanReleaseMap.get(studio.id);
                         if (!canRelease) {
@@ -681,6 +724,72 @@ const Studios = () => {
                 <p className="text-sm text-muted-foreground">
                   No studios match your search. Try a different term or clear the search.
                 </p>
+              )}
+              {displayStudios.length > ITEMS_PER_PAGE && (
+                <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-border/60">
+                  <p className="text-sm text-muted-foreground">
+                    Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to{" "}
+                    {Math.min(currentPage * ITEMS_PER_PAGE, displayStudios.length)} of{" "}
+                    {displayStudios.length} studio{displayStudios.length !== 1 ? "s" : ""}
+                  </p>
+                  <Pagination>
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            if (currentPage > 1) setCurrentPage(currentPage - 1);
+                          }}
+                          className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                        />
+                      </PaginationItem>
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                        if (
+                          page === 1 ||
+                          page === totalPages ||
+                          (page >= currentPage - 1 && page <= currentPage + 1)
+                        ) {
+                          return (
+                            <PaginationItem key={page}>
+                              <PaginationLink
+                                href="#"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setCurrentPage(page);
+                                }}
+                                isActive={currentPage === page}
+                                className="cursor-pointer"
+                              >
+                                {page}
+                              </PaginationLink>
+                            </PaginationItem>
+                          );
+                        }
+                        if (page === currentPage - 2 || page === currentPage + 2) {
+                          return (
+                            <PaginationItem key={page}>
+                              <PaginationEllipsis />
+                            </PaginationItem>
+                          );
+                        }
+                        return null;
+                      })}
+                      <PaginationItem>
+                        <PaginationNext
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+                          }}
+                          className={
+                            currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"
+                          }
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                </div>
               )}
             </div>
           )}

@@ -127,17 +127,40 @@ const fetchStudios = async (options?: {
   return (data as unknown as AdminStudio[]) ?? [];
 };
 
-export const useAdminStudios = (options?: { 
-  gradeId?: string; 
-  status?: string; 
+export type UseAdminStudiosOptions = {
+  gradeId?: string;
+  status?: string;
   allocation?: string;
   floor?: string;
   academicYearId?: string;
-}) =>
-  useQuery({
-    queryKey: ["admin-studios", options],
-    queryFn: () => fetchStudios(options),
+  enabled?: boolean;
+};
+
+export const useAdminStudios = (options?: UseAdminStudiosOptions) => {
+  const {
+    enabled = true,
+    gradeId,
+    status,
+    allocation,
+    floor,
+    academicYearId,
+  } = options ?? {};
+
+  return useQuery({
+    queryKey: [
+      "admin-studios",
+      gradeId ?? null,
+      status ?? null,
+      allocation ?? null,
+      floor ?? null,
+      academicYearId ?? null,
+    ],
+    queryFn: () =>
+      fetchStudios({ gradeId, status, allocation, floor, academicYearId }),
+    enabled,
+    staleTime: 60_000,
   });
+};
 
 /** When set with status 'maintenance', write to per-year override only (no global). When clearing maintenance, delete override and update global. */
 export type UpdateStudioPayload = Partial<StudioRow> & {

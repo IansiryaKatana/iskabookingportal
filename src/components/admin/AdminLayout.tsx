@@ -379,6 +379,8 @@ type AdminLayoutProps = {
   pageTitle?: string;
   subtitle?: string;
   mobileActionButton?: React.ReactNode;
+  /** Renders on the right of the inline page header row when hideDesktopHeader is true. */
+  pageToolbar?: React.ReactNode;
   /** Hides the desktop sticky page header (e.g. dashboard provides its own). */
   hideDesktopHeader?: boolean;
 };
@@ -388,6 +390,7 @@ const AdminLayout = ({
   pageTitle,
   subtitle,
   mobileActionButton,
+  pageToolbar,
   hideDesktopHeader = false,
 }: AdminLayoutProps) => {
   const navigate = useNavigate();
@@ -874,7 +877,33 @@ const AdminLayout = ({
             </div>
           </header>
         )}
-        <main className="px-4 py-6 md:px-8 md:py-10">{children}</main>
+        <main className="px-4 py-6 md:px-8 md:py-10">
+          {hideDesktopHeader && pageTitle && (
+            <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="min-w-0">
+                {loading ? (
+                  <>
+                    <div className="h-8 w-48 bg-muted animate-pulse rounded" />
+                    <div className="h-4 w-64 bg-muted animate-pulse rounded mt-2" />
+                  </>
+                ) : (
+                  <>
+                    <h2 className="text-2xl md:text-3xl font-display font-black uppercase tracking-wide">
+                      {pageTitle}
+                    </h2>
+                    {subtitle && (
+                      <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
+                    )}
+                  </>
+                )}
+              </div>
+              {pageToolbar && (
+                <div className="w-full md:w-auto md:shrink-0">{pageToolbar}</div>
+              )}
+            </div>
+          )}
+          {children}
+        </main>
       </div>
 
       {/* Command Palette */}
