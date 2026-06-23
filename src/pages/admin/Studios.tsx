@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useAdminStudios, useUpdateStudio, useBulkUpdateStudios } from "@/hooks/useAdminStudios";
+import { formatReservationExpiry } from "@/utils/formatReservationExpiry";
 import { useAdminStudioGrades } from "@/hooks/useAdminStudioGrades";
 import {
   previewStudioAllocationChange,
@@ -618,7 +619,8 @@ const Studios = () => {
                     )}
                     {studio.reservation_expires_at && (
                       <p className="text-xs text-amber-600">
-                        Reservation expires {studio.reservation_expires_at}
+                        Reservation expires{" "}
+                        {formatReservationExpiry(studio.reservation_expires_at)}
                       </p>
                     )}
                     {studio.status === "occupied" && studioCanReleaseMap.get(studio.id) && (

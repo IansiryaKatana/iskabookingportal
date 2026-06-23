@@ -9,9 +9,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { formatDistanceToNow } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { formatReservationExpiry } from "@/utils/formatReservationExpiry";
 
 const StudioSelection = () => {
   const { applicationId } = useParams<{ applicationId: string }>();
@@ -169,10 +169,7 @@ const StudioSelection = () => {
   };
 
   const reservationExpiry = application?.reserved_studio_expires_at
-    ? formatDistanceToNow(
-        new Date(application.reserved_studio_expires_at),
-        { addSuffix: true },
-      )
+    ? formatReservationExpiry(application.reserved_studio_expires_at)
     : null;
 
   const StudioSelectionSkeleton = () => (
@@ -382,10 +379,7 @@ const StudioSelection = () => {
                             <p className="flex items-center gap-2 text-xs text-amber-600">
                               <Clock className="h-4 w-4" />
                               Reserved until{" "}
-                              {formatDistanceToNow(
-                                new Date(studio.reservation_expires_at),
-                                { addSuffix: true },
-                              )}
+                              {formatReservationExpiry(studio.reservation_expires_at)}
                             </p>
                           )}
                         {isReservedByOther && (
@@ -444,8 +438,8 @@ const StudioSelection = () => {
                   <p className="text-sm text-muted-foreground flex items-center gap-2">
                     <Clock className="h-4 w-4 shrink-0 text-primary" />
                     <span>
-                      Complete before{" "}
-                      <strong>{reservationExpiry ?? "the reservation expires"}</strong>
+                      Complete by{" "}
+                      <strong>{reservationExpiry ?? "the reservation deadline"}</strong>
                     </span>
                   </p>
                 </>
