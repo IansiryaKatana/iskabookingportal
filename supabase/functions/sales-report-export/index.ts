@@ -33,6 +33,14 @@ const sanitizeStatuses = (statuses?: SalesReportRequest["statuses"]): AllowedSta
   return valid.length ? valid : [...ALLOWED_STATUSES];
 };
 
+/** Export rule for all academic years: exclude awaiting_deposit unless drill-down only. */
+const getExportStatuses = (statuses: AllowedStatus[]): AllowedStatus[] => {
+  if (statuses.length === 1 && statuses[0] === "awaiting_deposit") {
+    return statuses;
+  }
+  return statuses.filter((status) => status !== "awaiting_deposit");
+};
+
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
@@ -99,7 +107,7 @@ serve(async (req) => {
       body.academicYearId && UUID_REGEX.test(body.academicYearId)
         ? body.academicYearId
         : undefined;
-    const statuses = sanitizeStatuses(body.statuses);
+    const statuses = getExportStatuses(sanitizeStatuses(body.statuses));
 
     // -----------------------------------------------------------------------
     // Fetch data from reporting views

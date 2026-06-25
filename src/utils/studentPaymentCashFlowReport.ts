@@ -348,3 +348,7 @@ export const exportCashFlowToPDF = (
     `student_payment_cash_flow_${academicYearName.replace(/\s+/g, "_")}_${viewMode}_${format(new Date(), "yyyy-MM-dd")}.pdf`
   );
 };
+
+/** Export rule for all academic years: exclude awaiting_deposit from cash flow downloads. */
+export const filterCashFlowRowsForExport = (rows: CashFlowReportRow[]): CashFlowReportRow[] =>
+  rows.filter((row) => row.application_status !== "awaiting_deposit");

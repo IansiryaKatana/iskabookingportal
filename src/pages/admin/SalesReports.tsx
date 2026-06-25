@@ -14,6 +14,7 @@ import {
   SALES_REPORT_ALLOWED_STATUSES,
   SALES_REPORT_PRESET_LABELS,
   SALES_REPORT_PRESET_STATUSES,
+  getSalesReportExportStatuses,
   type SalesReportPreset,
   type SalesReportStatus,
 } from "@/hooks/useSalesReports";
@@ -61,7 +62,8 @@ const SalesReports = () => {
 
   const handleDownload = async () => {
     try {
-      await downloadMutation.mutateAsync({ academicYearId, statuses: activeStatuses });
+      const exportStatuses = getSalesReportExportStatuses(selectedStatus, activeStatuses);
+      await downloadMutation.mutateAsync({ academicYearId, statuses: exportStatuses });
       toast({
         title: "Sales report downloaded",
         description: "Your Excel sales report has been generated using the selected application statuses.",

@@ -23,6 +23,7 @@ import {
   buildCashFlowMonthColumns,
   exportCashFlowToCSV,
   exportCashFlowToPDF,
+  filterCashFlowRowsForExport,
   formatDepositStatus,
   formatMonthCellText,
   getCellDisplayAmount,
@@ -687,28 +688,30 @@ const AccountingReports = () => {
         filename = `paid_in_full_${format(new Date(), "yyyy-MM-dd")}.csv`;
         break;
 
-      case "cash-flow":
-        if (!filteredCashFlowRows.length || !selectedCashFlowYear) {
+      case "cash-flow": {
+        const exportRows = filterCashFlowRowsForExport(filteredCashFlowRows);
+        if (!exportRows.length || !selectedCashFlowYear) {
           toast({
             title: "No data to export",
             description: cashFlowAcademicYearId
-              ? "No student payment cash flow records match your filters."
+              ? "No student payment cash flow records match your export filters."
               : "Select an academic year to export the cash flow report.",
             variant: "destructive",
           });
           return;
         }
         exportCashFlowToCSV(
-          filteredCashFlowRows,
+          exportRows,
           cashFlowMonthColumns,
           cashFlowViewMode,
           selectedCashFlowYear.name
         );
         toast({
           title: "Report exported",
-          description: `Successfully exported ${filteredCashFlowRows.length} records to CSV.`,
+          description: `Successfully exported ${exportRows.length} records to CSV.`,
         });
         return;
+      }
     }
 
     const csvContent = [
@@ -756,25 +759,26 @@ const AccountingReports = () => {
   };
 
   const exportCashFlowPdf = () => {
-    if (!filteredCashFlowRows.length || !selectedCashFlowYear) {
+    const exportRows = filterCashFlowRowsForExport(filteredCashFlowRows);
+    if (!exportRows.length || !selectedCashFlowYear) {
       toast({
         title: "No data to export",
         description: cashFlowAcademicYearId
-          ? "No student payment cash flow records match your filters."
+          ? "No student payment cash flow records match your export filters."
           : "Select an academic year to export the cash flow report.",
         variant: "destructive",
       });
       return;
     }
     exportCashFlowToPDF(
-      filteredCashFlowRows,
+      exportRows,
       cashFlowMonthColumns,
       cashFlowViewMode,
       selectedCashFlowYear.name
     );
     toast({
       title: "Report exported",
-      description: `Successfully exported ${filteredCashFlowRows.length} records to PDF.`,
+      description: `Successfully exported ${exportRows.length} records to PDF.`,
     });
   };
 

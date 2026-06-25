@@ -103,6 +103,15 @@ const toValidStatusFilter = (statuses?: SalesReportStatus[] | null): SalesReport
   return valid.length ? valid : [...SALES_REPORT_PRESET_STATUSES.all_sales];
 };
 
+/** Export rule for all academic years: exclude awaiting_deposit unless drill-down only. */
+export const getSalesReportExportStatuses = (
+  selectedStatus: SalesReportStatus | null,
+  activeStatuses: SalesReportStatus[],
+): SalesReportStatus[] => {
+  if (selectedStatus) return activeStatuses;
+  return activeStatuses.filter((status) => status !== "awaiting_deposit");
+};
+
 const toValidAcademicYearParam = (id?: string | null): string | null => {
   if (!id || id === "all") return null;
   return UUID_REGEX.test(id) ? id : null;
