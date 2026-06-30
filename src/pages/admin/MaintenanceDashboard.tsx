@@ -409,7 +409,7 @@ const MaintenanceDashboard = () => {
   const isOpsManager = role === "operations_manager" || role === "staff" || role === "superadmin" || role === "admin";
 
   // Skeleton loader
-  if (isLoading) {
+  if (isLoading && !requests) {
     return (
       <AdminLayout pageTitle="Maintenance" subtitle="Manage maintenance requests and work orders">
         <div className="space-y-6">
@@ -540,13 +540,7 @@ const MaintenanceDashboard = () => {
 
         {/* Filters and Search */}
         <Card className="rounded-3xl border border-border/60 shadow-xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base md:text-lg font-display font-bold uppercase tracking-wide">
-              <Filter className="h-4 w-4 md:h-5 md:w-5" />
-              Filters
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             <div className="flex flex-col md:flex-row gap-4 items-start md:items-end">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 w-full md:w-auto">
                 <div>

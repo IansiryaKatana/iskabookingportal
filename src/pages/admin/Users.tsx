@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
+import { TitleWithTooltip } from "@/components/ui/title-with-tooltip";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, constrainedFlexButtonClassName } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Mail, User, Shield, AtSign, MoreVertical, Pencil, Trash2, Eye, EyeOff } from "lucide-react";
 import {
@@ -540,7 +541,7 @@ const Users = () => {
     </>
   );
 
-  if (isLoading) {
+  if (isLoading && !users) {
     return (
       <AdminLayout pageTitle="User Management" subtitle="Manage staff and admin users">
         <div className="space-y-6">
@@ -567,12 +568,13 @@ const Users = () => {
       <div className="space-y-6">
         <div className="hidden lg:flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-display font-bold uppercase tracking-wide">
+            <TitleWithTooltip
+              tooltip="Create staff members and manage user roles"
+              tooltipLabel="About Users"
+              titleClassName="text-2xl font-display font-bold uppercase tracking-wide"
+            >
               Users
-            </h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Create staff members and manage user roles
-            </p>
+            </TitleWithTooltip>
           </div>
           <Button
             onClick={() => setInviteDialogOpen(true)}
@@ -680,11 +682,11 @@ const Users = () => {
                               </SelectContent>
                             </Select>
                           )}
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 min-w-0">
                             <Button
                               variant="outline"
                               size="sm"
-                              className="flex-1 rounded-md uppercase tracking-wide text-xs"
+                              className={`${constrainedFlexButtonClassName} rounded-md uppercase tracking-wide text-xs`}
                               onClick={() => handleEdit(user)}
                             >
                               <Pencil className="h-3 w-3 mr-1" />
@@ -693,7 +695,7 @@ const Users = () => {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="flex-1 rounded-md uppercase tracking-wide text-xs text-destructive hover:text-destructive"
+                              className={`${constrainedFlexButtonClassName} rounded-md uppercase tracking-wide text-xs text-destructive hover:text-destructive`}
                               onClick={() => handleDelete(user)}
                             >
                               <Trash2 className="h-3 w-3 mr-1" />

@@ -1219,12 +1219,13 @@ const PaymentHistorySection = ({ applications }: PaymentHistorySectionProps) => 
   return (
     <Card className="rounded-3xl border border-border/60 shadow-xl mt-8">
       <CardHeader>
-        <CardTitle className="text-xl font-display uppercase tracking-wide">
+        <CardTitle
+          className="text-xl font-display uppercase tracking-wide"
+          tooltip="View all your completed payments including deposits and instalments"
+          tooltipLabel="About Payment History"
+        >
           Payment History
         </CardTitle>
-        <CardDescription>
-          View all your completed payments including deposits and instalments
-        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {applications.length > 1 && (

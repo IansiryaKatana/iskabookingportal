@@ -15,7 +15,6 @@ import {
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -533,12 +532,13 @@ const Studios = () => {
 
       <Card className="rounded-3xl border border-border/60 shadow-xl">
         <CardHeader>
-          <CardTitle className="text-lg font-display uppercase tracking-wide">
+          <CardTitle
+            className="text-lg font-display uppercase tracking-wide"
+            tooltip="Assign maintenance status, mark units occupied, or release reservations from this panel."
+            tooltipLabel="About Studio roster"
+          >
             Studio roster
           </CardTitle>
-          <CardDescription>
-            Assign maintenance status, mark units occupied, or release reservations from this panel.
-          </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -677,7 +677,7 @@ const Studios = () => {
                             variant: "destructive",
                             title: "Cannot release studio",
                             description:
-                              "This studio is still linked to an active confirmed contract. End or check out the contract from the Applications panel first.",
+                              "This studio is still linked to an active confirmed contract. Use Early checkout on the application detail page, or wait until the contract ends.",
                           });
                           return;
                         }

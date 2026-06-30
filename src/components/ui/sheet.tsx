@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
+import { preventDismissOnTabBlur } from "@/utils/modalFocus";
 
 const Sheet = SheetPrimitive.Root;
 
@@ -59,6 +60,9 @@ const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Con
         ref={ref}
         className={cn(sheetVariants({ side }), className)}
         aria-describedby={ariaDescribedBy ?? undefined}
+        onFocusOutside={preventDismissOnTabBlur}
+        onInteractOutside={preventDismissOnTabBlur}
+        onPointerDownOutside={preventDismissOnTabBlur}
         {...props}
       >
         {children}

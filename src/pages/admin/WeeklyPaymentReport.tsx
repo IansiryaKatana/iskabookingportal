@@ -160,11 +160,14 @@ const WeeklyPaymentReport = () => {
       <div className="space-y-6">
         <Card className="rounded-3xl">
           <CardHeader>
-            <CardTitle className="text-xl font-display uppercase tracking-wide flex items-center gap-2">
+            <CardTitle
+              className="text-xl font-display uppercase tracking-wide flex items-center gap-2"
+              tooltip="Select the week to generate the payment report"
+              tooltipLabel="About Report Parameters"
+            >
               <Calendar className="h-5 w-5" />
               Report Parameters
             </CardTitle>
-            <CardDescription>Select the week to generate the payment report</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

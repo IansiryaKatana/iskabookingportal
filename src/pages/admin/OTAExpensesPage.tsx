@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
-import { Edit, Filter, Loader2, Plus, Receipt, Trash2, Download } from "lucide-react";
+import { Edit, Loader2, Plus, Receipt, Trash2, Download } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -248,7 +248,7 @@ const OTAExpensesPage = () => {
     document.body.removeChild(link);
   };
 
-  if (isLoading) {
+  if (isLoading && !expenses) {
     return (
       <AdminLayout pageTitle="OTA Expenses" subtitle="Track operational OTA costs">
         <Card className="rounded-3xl">
@@ -286,12 +286,7 @@ const OTAExpensesPage = () => {
         </div>
 
         <Card className="rounded-3xl border border-border/60 shadow-xl">
-          <CardHeader>
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <CardTitle className="flex items-center gap-2 text-base md:text-lg font-display font-bold uppercase tracking-wide">
-                <Filter className="h-4 w-4 md:h-5 md:w-5" />
-                Filters
-              </CardTitle>
+          <CardHeader className="flex flex-row items-center justify-end space-y-0 pb-4">
               <div className="flex items-center gap-2">
                 <Button variant="outline" onClick={exportToCSV} className="rounded-md gap-2 text-xs md:text-sm">
                   <Download className="h-3 w-3 md:h-4 md:w-4" />
@@ -308,7 +303,6 @@ const OTAExpensesPage = () => {
                   New OTA Expense
                 </Button>
               </div>
-            </div>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">

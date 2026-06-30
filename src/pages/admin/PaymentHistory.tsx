@@ -5,7 +5,7 @@ import { useAdminContracts } from "@/hooks/useAdminContracts";
 import { useAdminAcademicYears } from "@/hooks/useAdminAcademicYears";
 import { useBrandingSettings } from "@/hooks/useBranding";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FinanceStatusBadge } from "@/components/finance/FinanceStatusBadge";
@@ -18,7 +18,6 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Download,
   Calendar,
-  Filter,
   FileText,
   RefreshCw,
   CheckCircle2,
@@ -1075,13 +1074,7 @@ const PaymentHistory = () => {
 
         {/* Filters */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide flex items-center gap-2">
-              <Filter className="h-4 w-4 md:h-5 md:w-5" />
-              Filters
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <div className="space-y-2 lg:col-span-2 md:col-span-2">
                 <Label htmlFor="searchByName">Search by student name</Label>
@@ -1189,10 +1182,13 @@ const PaymentHistory = () => {
           <CardHeader>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
-                <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">Payment Records</CardTitle>
-                <CardDescription>
-                  All payment transactions sorted by date (newest first)
-                </CardDescription>
+                <CardTitle
+                  className="text-base md:text-lg font-display font-bold uppercase tracking-wide"
+                  tooltip="All payment transactions sorted by date (newest first)"
+                  tooltipLabel="About Payment Records"
+                >
+                  Payment Records
+                </CardTitle>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <Button
@@ -1279,7 +1275,7 @@ const PaymentHistory = () => {
             </div>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
+            {isLoading && !payments ? (
               <div className="space-y-4">
                 {[...Array(5)].map((_, i) => (
                   <Skeleton key={i} className="h-20 w-full" />

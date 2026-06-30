@@ -98,6 +98,51 @@ const checkEnvelopeStatus = async (envelopeId: string) => {
   return response.json();
 };
 
+type DocuSignRecipientStatus = {
+  roleName?: string;
+  name?: string;
+  email?: string;
+  status?: string;
+  routingOrder?: string;
+};
+
+const checkEnvelopeRecipients = async (envelopeId: string) => {
+  const token = await getAccessToken();
+  const baseUrl = config.baseUrl.replace(/\/$/, "");
+  const response = await fetch(
+    `${baseUrl}/v2.1/accounts/${config.accountId}/envelopes/${envelopeId}/recipients`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    },
+  );
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    console.warn(
+      `DocuSign recipient status check failed (${response.status}): ${errorBody}`,
+    );
+    return [] as DocuSignRecipientStatus[];
+  }
+
+  const payload = await response.json();
+  const signers = Array.isArray(payload?.signers) ? payload.signers : [];
+  return signers.map((signer: Record<string, unknown>) => ({
+    roleName: typeof signer.roleName === "string" ? signer.roleName : undefined,
+    name: typeof signer.name === "string" ? signer.name : undefined,
+    email: typeof signer.email === "string" ? signer.email : undefined,
+    status: typeof signer.status === "string"
+      ? signer.status.toLowerCase()
+      : undefined,
+    routingOrder: typeof signer.routingOrder === "string"
+      ? signer.routingOrder
+      : undefined,
+  })) as DocuSignRecipientStatus[];
+};
+
 const updateApplicationStatus = async (applicationId: string) => {
   // First, check the current application status
   const { data: application, error: appError } = await supabaseAdmin
@@ -257,12 +302,14 @@ serve(async (req) => {
       envelopeId: string;
       status: string;
       updated: boolean;
+      recipientStatuses?: DocuSignRecipientStatus[];
     }> = [];
 
     // Check status for each envelope
     for (const envelopeId of envelopeIdsToCheck) {
       try {
         const envelopeData = await checkEnvelopeStatus(envelopeId);
+        const recipientStatuses = await checkEnvelopeRecipients(envelopeId);
         // DocuSign returns status like "completed", "Completed", "COMPLETED", etc.
         // Normalize to lowercase for consistent comparison
         const newStatus = envelopeData.status?.toLowerCase() || "unknown";
@@ -270,7 +317,7 @@ serve(async (req) => {
         // Get envelope type for logging
         const { data: envelopeInfo } = await supabaseAdmin
           .from("docusign_envelopes")
-          .select("envelope_type, status")
+          .select("envelope_type, status, metadata")
           .eq("envelope_id", envelopeId)
           .single();
 
@@ -278,6 +325,13 @@ serve(async (req) => {
           console.log(`Skipping DocuSign poll for superseded envelope ${envelopeId}`);
           continue;
         }
+
+        const previousRecipientStatuses =
+          (envelopeInfo?.metadata as { recipientStatuses?: DocuSignRecipientStatus[] } | null)
+            ?.recipientStatuses ?? [];
+        const recipientsChanged = JSON.stringify(previousRecipientStatuses) !==
+          JSON.stringify(recipientStatuses);
+        const statusChanged = envelopeInfo?.status?.toLowerCase() !== newStatus;
         
         console.log("Envelope status from DocuSign", {
           envelopeId,
@@ -285,15 +339,24 @@ serve(async (req) => {
           currentStatus: envelopeInfo?.status,
           rawStatus: envelopeData.status,
           normalizedStatus: newStatus,
-          statusChanged: envelopeInfo?.status?.toLowerCase() !== newStatus,
+          statusChanged,
+          recipientsChanged,
+          recipientStatuses,
         });
+
+        const mergedMetadata = {
+          ...(typeof envelopeData === "object" && envelopeData !== null
+            ? envelopeData
+            : {}),
+          recipientStatuses,
+        };
 
         // Update envelope status in database
         const { error: updateError } = await supabaseAdmin
           .from("docusign_envelopes")
           .update({
             status: newStatus,
-            metadata: envelopeData,
+            metadata: mergedMetadata,
             updated_at: new Date().toISOString(),
           })
           .eq("envelope_id", envelopeId);
@@ -305,7 +368,8 @@ serve(async (req) => {
           updates.push({
             envelopeId,
             status: newStatus,
-            updated: true,
+            updated: statusChanged || recipientsChanged,
+            recipientStatuses,
           });
         }
       } catch (error) {

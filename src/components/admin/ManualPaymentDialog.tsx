@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -15,10 +15,10 @@ import { useCreateManualPayment } from "@/hooks/useManualPayment";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useInstallmentBreakdown, usePaidInstalmentIds, usePaymentSummary, useUnifiedPayments } from "@/hooks/useUnifiedPayments";
 import { getEffectiveWeeks } from "@/utils/contractDuration";
+import { useFormDraft } from "@/hooks/useFormDraft";
 
 type DialogInstalment = {
   id: string;
@@ -53,6 +53,51 @@ const ManualPaymentDialog = ({
   const [receiptNumber, setReceiptNumber] = useState<string>("");
   const [paymentDate, setPaymentDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState<string>("");
+
+  const paymentDraft = useMemo(
+    () => ({
+      selectedType,
+      selectedInstalmentId,
+      amount,
+      paymentMethod,
+      receiptNumber,
+      paymentDate,
+      notes,
+    }),
+    [
+      selectedType,
+      selectedInstalmentId,
+      amount,
+      paymentMethod,
+      receiptNumber,
+      paymentDate,
+      notes,
+    ],
+  );
+
+  const applyPaymentDraft = useCallback(
+    (draft: Partial<typeof paymentDraft>) => {
+      if (draft.selectedType !== undefined) setSelectedType(draft.selectedType);
+      if (draft.selectedInstalmentId !== undefined) {
+        setSelectedInstalmentId(draft.selectedInstalmentId);
+      }
+      if (draft.amount !== undefined) setAmount(draft.amount);
+      if (draft.paymentMethod !== undefined) setPaymentMethod(draft.paymentMethod);
+      if (draft.receiptNumber !== undefined) setReceiptNumber(draft.receiptNumber);
+      if (draft.paymentDate !== undefined) setPaymentDate(draft.paymentDate);
+      if (draft.notes !== undefined) setNotes(draft.notes);
+    },
+    [],
+  );
+
+  const { clearDraft: clearPaymentDraft } = useFormDraft(
+    `manual-payment-draft-${applicationId}`,
+    paymentDraft,
+    applyPaymentDraft,
+    { enabled: open },
+  );
+
+  const lastAutoFillKeyRef = useRef("");
 
   const { data: paymentSummary } = usePaymentSummary(applicationId);
   const paymentCount = Number(paymentSummary?.payment_count ?? 0);
@@ -169,6 +214,7 @@ const ManualPaymentDialog = ({
       }));
     },
     enabled: open && selectedType === "instalment" && !!applicationId,
+    refetchOnWindowFocus: false,
   });
 
   const { data: paidInstalmentIds } = usePaidInstalmentIds(applicationId);
@@ -276,6 +322,7 @@ const ManualPaymentDialog = ({
       return null;
     },
     enabled: open && selectedType === "deposit",
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {
@@ -291,24 +338,43 @@ const ManualPaymentDialog = ({
   }, [open, hasDeposit, selectedType]);
 
   useEffect(() => {
+    if (!open) {
+      lastAutoFillKeyRef.current = "";
+      return;
+    }
+
+    const autoFillKey = `${selectedType}:${selectedInstalmentId}:${depositAmount ?? ""}`;
+    if (autoFillKey === lastAutoFillKeyRef.current) return;
+
     if (selectedType === "deposit" && depositAmount) {
+      lastAutoFillKeyRef.current = autoFillKey;
       setAmount(depositAmount.toString());
     } else if (selectedType === "instalment" && selectedInstalmentId) {
       const breakdown = installmentBreakdown?.find(
-        (b) => b.installment_id === selectedInstalmentId
+        (b) => b.installment_id === selectedInstalmentId,
       );
       if (breakdown && breakdown.remaining_amount > 0) {
+        lastAutoFillKeyRef.current = autoFillKey;
         setAmount(breakdown.remaining_amount.toString());
       } else {
         const instalment = instalments?.find((i) => i.id === selectedInstalmentId);
         if (instalment) {
+          lastAutoFillKeyRef.current = autoFillKey;
           setAmount(instalment.amount.toString());
         }
       }
-    } else {
+    } else if (selectedType === "deposit") {
+      lastAutoFillKeyRef.current = autoFillKey;
       setAmount("");
     }
-  }, [selectedType, depositAmount, selectedInstalmentId, instalments, installmentBreakdown]);
+  }, [
+    open,
+    selectedType,
+    depositAmount,
+    selectedInstalmentId,
+    instalments,
+    installmentBreakdown,
+  ]);
 
   // Clear selected instalment if it's no longer in unpaid list (e.g. just got paid)
   useEffect(() => {
@@ -459,6 +525,7 @@ const ManualPaymentDialog = ({
       setReceiptNumber("");
       setNotes("");
       setSelectedInstalmentId("");
+      clearPaymentDraft();
       onOpenChange(false);
     } catch (error: unknown) {
       console.error("Failed to record payment:", error);

@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
+import { TitleWithTooltip } from "@/components/ui/title-with-tooltip";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -248,7 +249,7 @@ const Permissions = () => {
     },
   });
 
-  if (isLoading) {
+  if (isLoading && !routePermissions) {
     return (
       <AdminLayout pageTitle="Route Permissions" subtitle="Manage which roles can access which pages">
         <div className="space-y-6">
@@ -268,12 +269,13 @@ const Permissions = () => {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="hidden lg:block">
-            <h2 className="text-2xl font-display font-bold uppercase tracking-wide">
+            <TitleWithTooltip
+              tooltip="Control which roles have access to which pages. Changes take effect immediately."
+              tooltipLabel="About Route Permissions"
+              titleClassName="text-2xl font-display font-bold uppercase tracking-wide"
+            >
               Route Permissions
-            </h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Control which roles have access to which pages. Changes take effect immediately.
-            </p>
+            </TitleWithTooltip>
           </div>
           <div className="flex gap-2">
             <Button

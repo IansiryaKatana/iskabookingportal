@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useStudentApplication } from "@/hooks/useStudentApplication";
 import { useUpdateApplicationStatus } from "@/hooks/useAdminApplications";
 import { useAdminStudios } from "@/hooks/useAdminStudios";
-import { ArrowLeft, ArrowUpLeft, User, Mail, Phone, MapPin, Calendar, Building2, CreditCard, FileText, CheckCircle2, XCircle, Download, Send, RotateCcw, Gift, Percent, Handshake, Pencil, Check, ChevronsUpDown, CalendarPlus } from "lucide-react";
+import { ArrowLeft, ArrowUpLeft, User, Mail, Phone, MapPin, Calendar, Building2, CreditCard, FileText, CheckCircle2, XCircle, Download, Send, RotateCcw, Gift, Percent, Handshake, Pencil, Check, ChevronsUpDown, CalendarPlus, LogOut } from "lucide-react";
 import { addDays, differenceInCalendarDays, format, isAfter, parseISO } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -25,6 +25,7 @@ import {
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetFooter,
   SheetHeader,
   SheetTitle,
@@ -64,6 +65,8 @@ import { useCreateExtensionApplication } from "@/hooks/useCreateExtensionApplica
 import { AmendBookingDialog } from "@/components/admin/AmendBookingDialog";
 import { isApplicationAmendable } from "@/hooks/useAmendStudentApplicationBooking";
 import { useResendAgreements } from "@/hooks/useResendAgreements";
+import { useEarlyCheckoutStudent } from "@/hooks/useEarlyCheckout";
+import { useRefreshAgreementStatus } from "@/hooks/useDocusignStatusSync";
 import {
   computeContractEndDate,
   datesToWeeksAndExtraDays,
@@ -72,11 +75,31 @@ import {
   canDownloadEnvelope,
   formatEnvelopeStatus,
   getActiveEnvelopeForType,
+  getEnvelopeDescription,
+  getEnvelopeProgressLabel,
+  getEnvelopeRecipientStatuses,
+  formatRecipientStatusLabel,
+  isRecipientSigningComplete,
   isEnvelopeCompleted,
   isEnvelopeSuperseded,
   allActiveEnvelopesCompleted,
 } from "@/utils/envelopeStatus";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
+
+const STATUS_DOT_CLASS: Record<string, string> = {
+  draft: "bg-muted-foreground",
+  awaiting_deposit: "bg-yellow-500",
+  awaiting_signature: "bg-blue-500",
+  awaiting_verification: "bg-purple-500",
+  confirmed: "bg-green-500",
+  cancelled: "bg-red-500",
+  expired: "bg-orange-500",
+  confirmed_ended: "bg-slate-500",
+  checked_out: "bg-slate-600",
+  checked_out_early: "bg-amber-600",
+};
+
 const getStatusBadge = (status: string) => {
   const statusConfig: Record<string, { className: string; label: string }> = {
     draft: {
@@ -117,6 +140,10 @@ const getStatusBadge = (status: string) => {
       className: "bg-slate-700 hover:bg-slate-800 text-white",
       label: "Checked Out",
     },
+    checked_out_early: {
+      className: "bg-amber-700 hover:bg-amber-800 text-white",
+      label: "Checked Out (Early)",
+    },
   };
 
   const config = statusConfig[status] || {
@@ -143,6 +170,8 @@ const ApplicationDetail = () => {
   const isMobile = useIsMobile();
   const { data: application, isLoading } = useStudentApplication(applicationId || "");
   const resendAgreements = useResendAgreements(applicationId);
+  const { refresh: refreshAgreementStatus, isRefreshing: refreshingAgreementStatus } =
+    useRefreshAgreementStatus(applicationId);
   const updateStatus = useUpdateApplicationStatus();
   const createNotification = useCreateNotification();
   const queryClient = useQueryClient();
@@ -155,6 +184,7 @@ const ApplicationDetail = () => {
   const [applicationNotes, setApplicationNotes] = useState<string>(
     ((application as any)?.internal_notes as string | null) ?? ""
   );
+  const [applicationNotesDirty, setApplicationNotesDirty] = useState(false);
   const [cashbackDialogOpen, setCashbackDialogOpen] = useState(false);
   const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
   const [partnerDialogOpen, setPartnerDialogOpen] = useState(false);
@@ -185,6 +215,12 @@ const ApplicationDetail = () => {
   const [uploadingTenancy, setUploadingTenancy] = useState(false);
   const [uploadingGuarantor, setUploadingGuarantor] = useState(false);
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
+  const [earlyCheckoutSheetOpen, setEarlyCheckoutSheetOpen] = useState(false);
+  const [earlyCheckoutDate, setEarlyCheckoutDate] = useState(
+    () => new Date().toISOString().slice(0, 10),
+  );
+  const [earlyCheckoutNotes, setEarlyCheckoutNotes] = useState("");
+  const earlyCheckout = useEarlyCheckoutStudent();
 
   // Extensions of this application (when this is the original booking)
   const { data: extensionApplications } = useQuery({
@@ -218,6 +254,24 @@ const ApplicationDetail = () => {
     if (!application) return "";
 
     const rawStatus = application.status;
+
+    if (rawStatus === "checked_out") {
+      const actualCheckout = (application as { actual_check_out_date?: string | null })
+        .actual_check_out_date;
+      const contractEnd = (application.contract as { contract_end?: string | null } | null)
+        ?.contract_end;
+      if (actualCheckout && contractEnd) {
+        try {
+          if (parseISO(actualCheckout) < parseISO(contractEnd)) {
+            return "checked_out_early";
+          }
+        } catch {
+          // fall through to checked_out
+        }
+      }
+      return rawStatus;
+    }
+
     if (rawStatus !== "confirmed") return rawStatus;
 
     const endDates: string[] = [];
@@ -258,6 +312,22 @@ const ApplicationDetail = () => {
     return rawStatus;
   }, [application, extensionApplications]);
 
+  const canEarlyCheckout = useMemo(() => {
+    if (!application || application.status !== "confirmed") return false;
+    if (!application.assigned_studio_id) return false;
+    if (displayStatus === "confirmed_ended") return false;
+
+    const hasActiveExtensions = (extensionApplications ?? []).some(
+      (ext: { status?: string }) =>
+        ["draft", "awaiting_deposit", "awaiting_signature", "awaiting_verification", "confirmed"].includes(
+          ext.status ?? "",
+        ),
+    );
+    if (hasActiveExtensions) return false;
+
+    return true;
+  }, [application, displayStatus, extensionApplications]);
+
   const { data: paymentSchedule } = useStudentPayments(applicationId);
   const { data: hasInstalmentPayments } = useQuery({
     queryKey: ["application-has-instalment-payments", applicationId],
@@ -267,10 +337,11 @@ const ApplicationDetail = () => {
   const createCustomContract = useCreateCustomContractFromApplication();
 
   useEffect(() => {
+    if (applicationNotesDirty) return;
     setApplicationNotes(
       ((application as any)?.internal_notes as string | null) ?? ""
     );
-  }, [application]);
+  }, [application, applicationNotesDirty]);
 
   // Cashback, Discount and Partner hooks
   const { data: cashback } = useApplicationCashback(applicationId);
@@ -656,6 +727,7 @@ const ApplicationDetail = () => {
       if (error) throw error;
     },
     onSuccess: () => {
+      setApplicationNotesDirty(false);
       queryClient.invalidateQueries({ queryKey: ["student-application", applicationId] });
       toast({
         title: "Notes saved",
@@ -784,6 +856,7 @@ const ApplicationDetail = () => {
       await queryClient.invalidateQueries({ queryKey: ["student-application", applicationId] });
       queryClient.invalidateQueries({ queryKey: ["admin-applications"] });
       queryClient.invalidateQueries({ queryKey: ["admin-studios"] });
+      queryClient.invalidateQueries({ queryKey: ["booking-calendar"] });
 
       toast({
         title: "Student checked out",
@@ -793,6 +866,35 @@ const ApplicationDetail = () => {
       console.error("Failed to check out and release studio:", error);
       toast({
         title: "Unable to complete checkout",
+        description:
+          error instanceof Error ? error.message : "Please try again or contact an administrator.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleEarlyCheckout = async () => {
+    if (!applicationId || !earlyCheckoutDate) return;
+
+    try {
+      await earlyCheckout.mutateAsync({
+        applicationId,
+        checkoutDate: earlyCheckoutDate,
+        notes: earlyCheckoutNotes.trim() || null,
+      });
+
+      setEarlyCheckoutSheetOpen(false);
+      setEarlyCheckoutNotes("");
+
+      toast({
+        title: "Early checkout complete",
+        description:
+          "Student checked out, studio released for reallocation. No refunds were issued and payment history is unchanged.",
+      });
+    } catch (error) {
+      console.error("Failed to complete early checkout:", error);
+      toast({
+        title: "Unable to complete early checkout",
         description:
           error instanceof Error ? error.message : "Please try again or contact an administrator.",
         variant: "destructive",
@@ -1047,7 +1149,7 @@ const ApplicationDetail = () => {
     }
   };
 
-  if (isLoading) {
+  if (isLoading && !application) {
     return (
       <AdminLayout pageTitle="Application Review" subtitle="Review and verify student application">
         <div className="space-y-6">
@@ -1097,91 +1199,149 @@ const ApplicationDetail = () => {
     >
       <div className="space-y-6">
         {/* Header - Hidden on mobile, shown on desktop */}
-        <div className="hidden lg:flex items-center justify-between">
-          <Button
-            onClick={navigateToApplications}
-            className="rounded-md uppercase tracking-wide gap-2 bg-black text-white hover:bg-accent hover:text-accent-foreground"
-          >
-            <ArrowUpLeft className="h-4 w-4" />
-            Back to Applications
-          </Button>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-3">
-              {getStatusBadge(displayStatus)}
-              {application.is_rebooking && (
-                <Badge className="bg-primary/10 text-primary border-primary/20 rounded-md px-3 py-1 text-xs font-medium uppercase tracking-wide flex items-center gap-1.5">
-                  <RotateCcw className="h-3 w-3" />
-                  Rebooking
-                </Badge>
-              )}
-              {isExtension && (
-                <Badge className="bg-primary/10 text-primary border-primary/20 rounded-md px-3 py-1 text-xs font-medium uppercase tracking-wide flex items-center gap-1.5">
-                  <CalendarPlus className="h-3 w-3" />
-                  Extension
-                </Badge>
-              )}
-              <Select
-                value={application.status}
-                onValueChange={handleStatusChange}
-              >
-                <SelectTrigger className="w-48 rounded-md">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="draft">Draft</SelectItem>
-                  <SelectItem value="awaiting_deposit">Awaiting Deposit</SelectItem>
-                  <SelectItem value="awaiting_signature">Awaiting Signature</SelectItem>
-                  <SelectItem value="awaiting_verification">Awaiting Verification</SelectItem>
-                  <SelectItem value="confirmed">Confirmed</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                  <SelectItem value="expired">Expired</SelectItem>
-                </SelectContent>
-              </Select>
+        <div className="hidden lg:block">
+          <div className="flex items-center gap-2 rounded-lg border bg-card px-2 py-2 shadow-sm">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={navigateToApplications}
+              className="shrink-0 gap-2 text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to applications
+            </Button>
+
+            <Separator orientation="vertical" className="h-6" />
+
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-5 gap-y-2 px-1">
+              {displayStatus !== application.status && getStatusBadge(displayStatus)}
+
               <div className="flex items-center gap-2">
-                <Label className="text-xs uppercase tracking-wide text-muted-foreground whitespace-nowrap">Booking source</Label>
+                <Label
+                  htmlFor="application-status"
+                  className="text-xs font-medium text-muted-foreground"
+                >
+                  Status
+                </Label>
+                <Select value={application.status} onValueChange={handleStatusChange}>
+                  <SelectTrigger id="application-status" className="h-8 w-44">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          "h-2 w-2 shrink-0 rounded-full",
+                          STATUS_DOT_CLASS[application.status] ?? "bg-muted-foreground",
+                        )}
+                        aria-hidden
+                      />
+                      <SelectValue />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="awaiting_deposit">Awaiting Deposit</SelectItem>
+                    <SelectItem value="awaiting_signature">Awaiting Signature</SelectItem>
+                    <SelectItem value="awaiting_verification">Awaiting Verification</SelectItem>
+                    <SelectItem value="confirmed">Confirmed</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                    <SelectItem value="expired">Expired</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Label
+                  htmlFor="booking-source"
+                  className="text-xs font-medium text-muted-foreground"
+                >
+                  Booking source
+                </Label>
                 <Select
                   value={application.booking_source || BOOKING_SOURCE_NONE}
                   onValueChange={handleBookingSourceChange}
                   disabled={updateBookingSource.isPending}
                 >
-                  <SelectTrigger className="w-40 rounded-md">
+                  <SelectTrigger id="booking-source" className="h-8 w-40">
                     <SelectValue placeholder="—" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={BOOKING_SOURCE_NONE}>—</SelectItem>
                     {BOOKING_SOURCE_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {application.status === "draft" && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="rounded-md uppercase tracking-wide border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                  onClick={() => setDiscardDialogOpen(true)}
-                  disabled={discardDraftApplication.isPending}
-                >
-                  <XCircle className="h-4 w-4 mr-1.5" />
-                  Discard draft
-                </Button>
+
+              {(application.is_rebooking || isExtension) && (
+                <div className="flex items-center gap-1.5">
+                  {application.is_rebooking && (
+                    <Badge variant="outline" className="gap-1 font-normal">
+                      <RotateCcw className="h-3 w-3" />
+                      Rebooking
+                    </Badge>
+                  )}
+                  {isExtension && (
+                    <Badge variant="outline" className="gap-1 font-normal">
+                      <CalendarPlus className="h-3 w-3" />
+                      Extension
+                    </Badge>
+                  )}
+                </div>
               )}
-              {application.status === "confirmed" &&
-                displayStatus === "confirmed_ended" &&
-                application.assigned_studio_id && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="rounded-md uppercase tracking-wide border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-                    onClick={handleCheckoutAndRelease}
-                  >
-                    Check out &amp; release studio
-                  </Button>
-                )}
             </div>
+
+            {(application.status === "draft" ||
+              canEarlyCheckout ||
+              (application.status === "confirmed" &&
+                displayStatus === "confirmed_ended" &&
+                application.assigned_studio_id)) && (
+              <>
+                <Separator orientation="vertical" className="h-6" />
+
+                <div className="flex shrink-0 items-center gap-2 pr-1">
+                  {canEarlyCheckout && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setEarlyCheckoutDate(new Date().toISOString().slice(0, 10));
+                        setEarlyCheckoutSheetOpen(true);
+                      }}
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Early checkout
+                    </Button>
+                  )}
+                  {application.status === "confirmed" &&
+                    displayStatus === "confirmed_ended" &&
+                    application.assigned_studio_id && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleCheckoutAndRelease}
+                      >
+                        Check out &amp; release studio
+                      </Button>
+                    )}
+                  {application.status === "draft" && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      onClick={() => setDiscardDialogOpen(true)}
+                      disabled={discardDraftApplication.isPending}
+                    >
+                      <XCircle className="h-4 w-4" />
+                      Discard draft
+                    </Button>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -1254,6 +1414,20 @@ const ApplicationDetail = () => {
                 Discard draft
               </Button>
             )}
+            {canEarlyCheckout && (
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-1 sm:mt-0 rounded-md uppercase tracking-wide border-amber-600 text-amber-700 hover:bg-amber-600 hover:text-white w-full sm:w-auto justify-center"
+                onClick={() => {
+                  setEarlyCheckoutDate(new Date().toISOString().slice(0, 10));
+                  setEarlyCheckoutSheetOpen(true);
+                }}
+              >
+                <LogOut className="h-4 w-4 mr-1.5" />
+                Early checkout
+              </Button>
+            )}
             {application.status === "confirmed" &&
               displayStatus === "confirmed_ended" &&
               application.assigned_studio_id && (
@@ -1305,11 +1479,14 @@ const ApplicationDetail = () => {
         {(application as { extension_of_application_id?: string | null }).extension_of_application_id && (
           <Card className="rounded-3xl border-primary/20 bg-primary/5">
             <CardHeader>
-              <CardTitle className="text-base sm:text-lg font-display uppercase tracking-wide flex items-center gap-2">
+              <CardTitle
+                className="text-base sm:text-lg font-display uppercase tracking-wide flex items-center gap-2"
+                tooltip="This application is an extension of an original booking."
+                tooltipLabel="About Contract Extension"
+              >
                 <CalendarPlus className="h-4 w-4 sm:h-5 sm:w-5" />
                 Contract Extension
               </CardTitle>
-              <CardDescription className="text-sm">This application is an extension of an original booking.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <div>
@@ -1332,11 +1509,14 @@ const ApplicationDetail = () => {
             <CardHeader>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
-                  <CardTitle className="text-base sm:text-lg font-display uppercase tracking-wide flex items-center gap-2">
+                  <CardTitle
+                    className="text-base sm:text-lg font-display uppercase tracking-wide flex items-center gap-2"
+                    tooltip="Add an extension period (e.g. extra weeks with a new instalment schedule) for this booking."
+                    tooltipLabel="About Contract Extensions"
+                  >
                     <CalendarPlus className="h-4 w-4 sm:h-5 sm:w-5" />
                     Contract Extensions
                   </CardTitle>
-                  <CardDescription className="text-sm mt-1">Add an extension period (e.g. extra weeks with a new instalment schedule) for this booking.</CardDescription>
                 </div>
                 <Button
                   className="rounded-md uppercase tracking-wide gap-2"
@@ -1905,13 +2085,38 @@ const ApplicationDetail = () => {
                 <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm">
                   <div className="rounded-xl border border-border/60 px-3 py-2 bg-muted/30">
                     <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Check-in</p>
-                    <p className="mt-0.5 font-medium">{formatStayDate(application.contract?.contract_start)}</p>
+                    <p className="mt-0.5 font-medium">
+                      {formatStayDate(
+                        (application as { actual_check_in_date?: string | null }).actual_check_in_date ??
+                          application.contract?.contract_start,
+                      )}
+                    </p>
                   </div>
                   <div className="rounded-xl border border-border/60 px-3 py-2 bg-muted/30">
                     <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Check-out</p>
-                    <p className="mt-0.5 font-medium">{formatStayDate(application.contract?.contract_end)}</p>
+                    <p className="mt-0.5 font-medium">
+                      {formatStayDate(
+                        (application as { actual_check_out_date?: string | null }).actual_check_out_date ??
+                          application.contract?.contract_end,
+                      )}
+                    </p>
+                    {(application as { actual_check_out_date?: string | null }).actual_check_out_date &&
+                      application.contract?.contract_end &&
+                      new Date(
+                        (application as { actual_check_out_date?: string }).actual_check_out_date!,
+                      ) < new Date(application.contract.contract_end) && (
+                        <p className="mt-1 text-[10px] text-amber-700 uppercase tracking-wide font-medium">
+                          Early checkout
+                        </p>
+                      )}
                   </div>
                 </div>
+                {(application as { check_out_notes?: string | null }).check_out_notes && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">Checkout notes: </span>
+                    {(application as { check_out_notes?: string | null }).check_out_notes}
+                  </p>
+                )}
               </div>
               {application.contract?.contract_payment_plans && application.contract.contract_payment_plans.length > 0 && (
                 <div>
@@ -2300,32 +2505,54 @@ const ApplicationDetail = () => {
             <CardContent className="space-y-6">
               {/* Agreements block */}
               <div className="space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="flex flex-col gap-3">
                   <h3 className="text-xs sm:text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                     Agreements
                   </h3>
-                  {agreementEnvelopeState.canResend && (
+                  <div className="flex flex-col xl:flex-row xl:flex-wrap gap-2 w-full">
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="rounded-md uppercase tracking-wide text-xs w-full sm:w-auto"
-                      onClick={() => void handleResendAgreements()}
-                      disabled={resendAgreements.isPending}
+                      className="rounded-md uppercase tracking-wide text-xs w-full xl:w-auto whitespace-normal h-auto min-h-9 py-2"
+                      onClick={() => void refreshAgreementStatus()}
+                      disabled={refreshingAgreementStatus || !applicationId}
                     >
-                      {resendAgreements.isPending ? (
+                      {refreshingAgreementStatus ? (
                         <>
-                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                          Sending…
+                          <Loader2 className="h-3 w-3 mr-1 shrink-0 animate-spin" />
+                          Refreshing…
                         </>
                       ) : (
                         <>
-                          <Send className="h-3 w-3 mr-1" />
-                          Resend agreements (updated terms)
+                          <RotateCcw className="h-3 w-3 mr-1 shrink-0" />
+                          Refresh agreement status
                         </>
                       )}
                     </Button>
-                  )}
+                    {agreementEnvelopeState.canResend && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="rounded-md uppercase tracking-wide text-xs w-full xl:w-auto whitespace-normal h-auto min-h-9 py-2"
+                        onClick={() => void handleResendAgreements()}
+                        disabled={resendAgreements.isPending}
+                      >
+                        {resendAgreements.isPending ? (
+                          <>
+                            <Loader2 className="h-3 w-3 mr-1 shrink-0 animate-spin" />
+                            Sending…
+                          </>
+                        ) : (
+                          <>
+                            <Send className="h-3 w-3 mr-1 shrink-0" />
+                            Resend agreements (updated terms)
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
                 {agreementEnvelopeState.needsAttention && (
@@ -2349,6 +2576,10 @@ const ApplicationDetail = () => {
                     const isTenancy = type === "tenancy";
                     const downloadKey = envelope?.envelope_id ?? `${application.id}-${type}`;
                     const hasEnvelope = !!envelope;
+                    const progressLabel = envelope ? getEnvelopeProgressLabel(envelope) : null;
+                    const recipientStatuses = envelope
+                      ? getEnvelopeRecipientStatuses(envelope)
+                      : [];
 
                     return (
                       <div
@@ -2365,13 +2596,43 @@ const ApplicationDetail = () => {
                           </div>
                           <p className="text-[11px] sm:text-xs text-muted-foreground leading-snug">
                             {hasEnvelope
-                              ? isTenancy
-                                ? "Signed tenancy paperwork for this application."
-                                : "Signed guarantor agreement linked to this application."
+                              ? getEnvelopeDescription(
+                                  envelope,
+                                  isTenancy ? "Tenancy agreement" : "Guarantor agreement",
+                                )
                               : isTenancy
                                 ? "Tenancy agreement not uploaded or generated yet."
                                 : "Guarantor agreement not uploaded or generated yet."}
                           </p>
+                          {recipientStatuses.length > 0 && !isEnvelopeCompleted(envelope?.status) && (
+                            <ul className="space-y-1 pt-1">
+                              {recipientStatuses.map((recipient) => {
+                                const done = isRecipientSigningComplete(recipient.status);
+                                return (
+                                  <li
+                                    key={`${recipient.roleName}-${recipient.email}`}
+                                    className="flex items-center justify-between gap-2 text-[10px] sm:text-[11px]"
+                                  >
+                                    <span className="text-muted-foreground truncate">
+                                      {recipient.roleName ?? "Signer"}
+                                      {recipient.name ? `: ${recipient.name}` : ""}
+                                    </span>
+                                    <Badge
+                                      variant="outline"
+                                      className={cn(
+                                        "text-[10px] shrink-0",
+                                        done
+                                          ? "border-green-300 text-green-800 bg-green-50"
+                                          : "border-border text-muted-foreground",
+                                      )}
+                                    >
+                                      {formatRecipientStatusLabel(recipient.status)}
+                                    </Badge>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
                         </div>
 
                         {/* Divider */}
@@ -2451,18 +2712,18 @@ const ApplicationDetail = () => {
                         <div className="border-t border-border/50 my-2" />
 
                         {/* Last updated + status at bottom */}
-                        <div className="mt-auto flex items-center justify-between gap-2 text-[11px] sm:text-xs text-muted-foreground">
-                          <div className="flex items-center gap-1.5">
-                            <Calendar className="h-3 w-3" />
+                        <div className="mt-auto flex flex-col items-start gap-1.5 text-[11px] sm:text-xs text-muted-foreground">
+                          <div className="flex items-center gap-1.5 whitespace-nowrap">
+                            <Calendar className="h-3 w-3 shrink-0" />
                             <span>
                               {envelope?.updated_at
-                                ? `Last updated ${format(new Date(envelope.updated_at), "d MMM yyyy")}`
+                                ? `Updated ${format(new Date(envelope.updated_at), "d MMM yyyy")}`
                                 : "Not updated yet"}
                             </span>
                           </div>
-                          <div>
-                            {hasEnvelope ? (
-                              isEnvelopeSuperseded(envelope?.status) ? (
+                          {hasEnvelope && (
+                            <div>
+                              {isEnvelopeSuperseded(envelope?.status) ? (
                                 <Badge
                                   variant="outline"
                                   className="text-[11px] sm:text-xs border-amber-300 text-amber-800 bg-amber-50"
@@ -2474,22 +2735,37 @@ const ApplicationDetail = () => {
                                   <CheckCircle2 className="h-3 w-3" />
                                   Completed
                                 </span>
+                              ) : progressLabel ? (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[11px] sm:text-xs border-amber-300 text-amber-800 bg-amber-50"
+                                >
+                                  {progressLabel}
+                                </Badge>
+                              ) : recipientStatuses.length > 0 ? (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[11px] sm:text-xs border-amber-300 text-amber-800 bg-amber-50"
+                                >
+                                  Awaiting signatures
+                                </Badge>
                               ) : (
                                 <Badge variant="secondary" className="text-[11px] sm:text-xs">
                                   {envelope?.status
                                     ? formatEnvelopeStatus(envelope.status)
                                     : "Not sent"}
                                 </Badge>
-                              )
-                            ) : (
-                              <Badge
-                                variant="outline"
-                                className="text-[11px] sm:text-xs text-muted-foreground"
-                              >
-                                Not uploaded
-                              </Badge>
-                            )}
-                          </div>
+                              )}
+                            </div>
+                          )}
+                          {!hasEnvelope && (
+                            <Badge
+                              variant="outline"
+                              className="text-[11px] sm:text-xs text-muted-foreground"
+                            >
+                              Not uploaded
+                            </Badge>
+                          )}
                         </div>
                       </div>
                     );
@@ -2610,7 +2886,10 @@ const ApplicationDetail = () => {
                   </p>
                   <Textarea
                     value={applicationNotes}
-                    onChange={(e) => setApplicationNotes(e.target.value)}
+                    onChange={(e) => {
+                      setApplicationNotesDirty(true);
+                      setApplicationNotes(e.target.value);
+                    }}
                     placeholder="Add notes here"
                     className="min-h-[80px] sm:min-h-[100px] rounded-2xl resize-none bg-background"
                   />
@@ -2656,13 +2935,7 @@ const ApplicationDetail = () => {
 
         {/* Quick Actions */}
         <Card className="rounded-3xl">
-          <CardHeader>
-            <CardTitle className="text-base sm:text-lg font-display uppercase tracking-wide flex items-center gap-2">
-              <Send className="h-4 w-4 sm:h-5 sm:w-5" />
-              <span className="text-sm sm:text-base">Quick Actions</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             <div className="flex flex-col sm:flex-row flex-wrap gap-3">
               <Button
                 variant="outline"
@@ -3519,6 +3792,88 @@ const ApplicationDetail = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Early Checkout Sheet */}
+      <Sheet open={earlyCheckoutSheetOpen} onOpenChange={setEarlyCheckoutSheetOpen}>
+        <SheetContent
+          side={isMobile ? "bottom" : "right"}
+          className={cn(
+            "flex flex-col gap-0 overflow-hidden p-4 sm:p-6",
+            isMobile ? "max-h-[90vh] mb-0 rounded-t-2xl" : "h-full w-full sm:max-w-md",
+            "[&>button]:!flex [&>button]:!h-8 [&>button]:!w-8 [&>button]:!items-center [&>button]:!justify-center",
+            "[&>button]:!rounded-md [&>button]:!bg-red-500 [&>button]:!text-white [&>button]:!opacity-100",
+            "[&>button]:!shadow-md [&>button]:transition-colors [&>button]:hover:!bg-red-600",
+            "[&>button]:focus:!ring-2 [&>button]:focus:!ring-white/60 [&>button]:focus:!ring-offset-2 [&>button]:focus:!ring-offset-red-500",
+          )}
+        >
+          <SheetHeader className="flex-shrink-0 text-left space-y-1 pr-10">
+            <SheetTitle className="text-xl font-display uppercase tracking-wide">
+              Early checkout
+            </SheetTitle>
+            <SheetDescription>
+              End this student&apos;s stay before the contract end date. The studio will be released for reallocation immediately.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="space-y-4 px-1.5 py-4">
+              <Alert>
+                <AlertTitle className="text-sm font-semibold">No refunds</AlertTitle>
+                <AlertDescription className="text-sm">
+                  This is the student&apos;s choice to leave early. Payment history and instalment schedules are not changed. No refunds will be issued.
+                </AlertDescription>
+              </Alert>
+              <div className="space-y-2">
+                <Label htmlFor="early_checkout_date">Checkout date</Label>
+                <Input
+                  id="early_checkout_date"
+                  type="date"
+                  value={earlyCheckoutDate}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setEarlyCheckoutDate(e.target.value)}
+                  className="rounded-md"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="early_checkout_notes">Reason / notes (optional)</Label>
+                <Textarea
+                  id="early_checkout_notes"
+                  value={earlyCheckoutNotes}
+                  onChange={(e) => setEarlyCheckoutNotes(e.target.value)}
+                  placeholder="e.g. Personal reasons — student requested early departure"
+                  rows={3}
+                  className="rounded-md"
+                />
+              </div>
+            </div>
+          </div>
+          <SheetFooter className="flex-shrink-0 flex-col gap-2 pt-4 mt-0 border-t border-border/60 sm:flex-row sm:justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full sm:w-auto rounded-md uppercase tracking-wide"
+              onClick={() => setEarlyCheckoutSheetOpen(false)}
+              disabled={earlyCheckout.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="w-full sm:w-auto rounded-md uppercase tracking-wide bg-amber-600 hover:bg-amber-700"
+              onClick={handleEarlyCheckout}
+              disabled={earlyCheckout.isPending || !earlyCheckoutDate}
+            >
+              {earlyCheckout.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                "Confirm early checkout"
+              )}
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       {/* Discard Draft Dialog */}
       <Dialog open={discardDialogOpen} onOpenChange={setDiscardDialogOpen}>

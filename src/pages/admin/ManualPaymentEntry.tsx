@@ -3,7 +3,6 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -934,12 +933,13 @@ const ManualPaymentEntry = () => {
         {/* Pending student manual payment requests */}
         <Card className="rounded-3xl border border-border/60 shadow-xl">
           <CardHeader>
-            <CardTitle className="text-lg font-display uppercase tracking-wide">
+            <CardTitle
+              className="text-lg font-display uppercase tracking-wide"
+              tooltip="Students who said they paid by bank transfer or other. Approve to record the payment and mark the instalment as paid in the portal."
+              tooltipLabel="About Pending student requests"
+            >
               Pending student requests
             </CardTitle>
-            <CardDescription>
-              Students who said they paid by bank transfer or other. Approve to record the payment and mark the instalment as paid in the portal.
-            </CardDescription>
           </CardHeader>
           <CardContent>
             {pendingLoading ? (
@@ -1041,12 +1041,13 @@ const ManualPaymentEntry = () => {
         {/* Previously approved / rejected – so they don't just disappear */}
         <Card className="rounded-3xl border border-border/60 shadow-xl">
           <CardHeader>
-            <CardTitle className="text-lg font-display uppercase tracking-wide">
+            <CardTitle
+              className="text-lg font-display uppercase tracking-wide"
+              tooltip="Recent student payment requests you approved or rejected. Sorted by review date."
+              tooltipLabel="About Previously approved / rejected"
+            >
               Previously approved / rejected
             </CardTitle>
-            <CardDescription>
-              Recent student payment requests you approved or rejected. Sorted by review date.
-            </CardDescription>
           </CardHeader>
           <CardContent>
             {resolvedLoading ? (
@@ -1190,12 +1191,13 @@ const ManualPaymentEntry = () => {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-lg font-display uppercase tracking-wide">
+                <CardTitle
+                  className="text-lg font-display uppercase tracking-wide"
+                  tooltip="Create a payment record that students can verify using the receipt/cheque number."
+                  tooltipLabel="About Record New Payment"
+                >
                   Record New Payment
                 </CardTitle>
-                <CardDescription>
-                  Create a payment record that students can verify using the receipt/cheque number.
-                </CardDescription>
               </div>
               <Button
                 variant={showForm ? "outline" : "default"}
@@ -1498,12 +1500,13 @@ const ManualPaymentEntry = () => {
           <CardHeader>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
-                <CardTitle className="text-lg font-display uppercase tracking-wide">
+                <CardTitle
+                  className="text-lg font-display uppercase tracking-wide"
+                  tooltip="Payments waiting to be verified and linked by students."
+                  tooltipLabel="About Unlinked Payments"
+                >
                   Unlinked Payments
                 </CardTitle>
-                <CardDescription>
-                  Payments waiting to be verified and linked by students.
-                </CardDescription>
               </div>
               <div className="relative w-full md:w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -1517,7 +1520,7 @@ const ManualPaymentEntry = () => {
             </div>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
+            {isLoading && !orphanedPayments ? (
               <div className="py-12 text-center">
                 <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
                 <p className="text-sm text-muted-foreground mt-2">Loading payments...</p>

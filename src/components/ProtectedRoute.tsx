@@ -70,7 +70,8 @@ const ProtectedRoute = ({ children, allowedRoles, checkDatabase = true }: Protec
 
   // Show loading only if auth is loading, not if permission check is loading
   // This prevents flickering when navigating between pages
-  if (loading) {
+  // Keep page mounted during background token refresh if we already have a session.
+  if (loading && !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />

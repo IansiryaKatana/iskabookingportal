@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { preventDismissOnTabBlur } from "@/utils/modalFocus";
 
 const Dialog = DialogPrimitive.Root;
 
@@ -46,6 +47,9 @@ const DialogContent = React.forwardRef<
       <DialogPrimitive.Content
         ref={ref}
         className={cn(isMobile ? mobileBottomSheetClasses : baseDesktopClasses, className)}
+        onFocusOutside={preventDismissOnTabBlur}
+        onInteractOutside={preventDismissOnTabBlur}
+        onPointerDownOutside={preventDismissOnTabBlur}
         {...props}
       >
         {children}

@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -424,14 +424,14 @@ const Secrets = () => {
         {/* Secrets List */}
         <Card className="rounded-3xl">
           <CardHeader>
-            <CardTitle className="text-base md:text-lg font-semibold flex items-center gap-2">
+            <CardTitle
+              className="text-base md:text-lg font-semibold flex items-center gap-2"
+              tooltip="Manage all your API keys and credentials. Secrets are stored in the database and used by Edge Functions immediately. Edge Functions read from database first, with automatic fallback to environment variables for safety."
+              tooltipLabel="About Secrets"
+            >
               <Lock className="h-5 w-5" />
               Secrets ({filteredCredentials?.length || 0})
             </CardTitle>
-            <CardDescription className="text-xs md:text-sm">
-              Manage all your API keys and credentials. Secrets are stored in the database and used by Edge Functions immediately. 
-              Edge Functions read from database first, with automatic fallback to environment variables for safety.
-            </CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (

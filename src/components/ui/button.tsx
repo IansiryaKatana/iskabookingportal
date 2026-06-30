@@ -44,4 +44,12 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 );
 Button.displayName = "Button";
 
-export { Button, buttonVariants };
+/** Full-width, wrapping labels — use inside narrow grid/flex columns */
+const constrainedButtonClassName =
+  "w-full min-w-0 whitespace-normal text-center leading-tight h-auto min-h-9 py-2";
+
+/** Wrapping labels for equal-width siblings in a flex row */
+const constrainedFlexButtonClassName =
+  "flex-1 min-w-0 basis-0 whitespace-normal text-center leading-tight h-auto min-h-9 py-2";
+
+export { Button, buttonVariants, constrainedButtonClassName, constrainedFlexButtonClassName };

@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { ChevronLeft, ChevronRight, Download, Eye, Mail, Pencil, Plus, Send, Trash2, Upload, Users } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { TitleWithTooltip } from "@/components/ui/title-with-tooltip";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -633,8 +634,13 @@ const MarketingCampaigns = () => {
       <div className="space-y-6">
         <div className="hidden lg:flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-display font-bold uppercase tracking-wide">Marketing Campaigns</h2>
-            <p className="text-sm text-muted-foreground mt-1">Dedicated lead/outreach campaigns, isolated from student messaging.</p>
+            <TitleWithTooltip
+              tooltip="Dedicated lead/outreach campaigns, isolated from student messaging."
+              tooltipLabel="About Marketing Campaigns"
+              titleClassName="text-2xl font-display font-bold uppercase tracking-wide"
+            >
+              Marketing Campaigns
+            </TitleWithTooltip>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" className="rounded-md h-10 w-10 p-0" onClick={downloadCsvTemplate} aria-label="Download CSV template">

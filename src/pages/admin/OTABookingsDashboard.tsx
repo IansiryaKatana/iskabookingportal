@@ -1,6 +1,9 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
+import { TitleWithTooltip } from "@/components/ui/title-with-tooltip";
 import { useOTABookings, useCreateOTABooking, useUpdateOTABooking, useBulkUpdateOTABookings, type OTABookingWithRelations } from "@/hooks/useOTABookings";
+import { useFormDraft } from "@/hooks/useFormDraft";
+import { guardOpenChangeOnTabBlur } from "@/utils/modalFocus";
 import OTABookingPaymentsSection from "@/components/admin/ota/OTABookingPaymentsSection";
 import { useActivityLog } from "@/hooks/useActivityLog";
 import { useAdminStudios } from "@/hooks/useAdminStudios";
@@ -11,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format, parseISO, isToday, isPast, isFuture, differenceInDays } from "date-fns";
 import {
   Calendar, Clock, UserCheck, XCircle, CheckCircle2, AlertCircle, 
-  Loader2, Building2, Filter, Trash2, Phone, Mail, ExternalLink,
+  Loader2, Building2, Trash2, Phone, Mail, ExternalLink,
   Check, X, Users, TrendingUp, TrendingDown, FileText, Plus, Search, ChevronsUpDown, Pencil
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -206,6 +209,82 @@ const OTABookingsDashboard = () => {
   const [formInternalNotes, setFormInternalNotes] = useState<string>("");
   const [formPricePerNight, setFormPricePerNight] = useState<string>("");
   const [formCommission, setFormCommission] = useState<string>("");
+
+  type OTACreateDraft = {
+    createDialogOpen?: boolean;
+    formExternalRef: string;
+    formChannel: "airbnb" | "booking" | "agoda" | "expedia" | "other";
+    formGuestName: string;
+    formGuestPhone: string;
+    formGuestEmail: string;
+    formStudioId: string;
+    formCheckIn: string;
+    formCheckOut: string;
+    formStatus: string;
+    formNotes: string;
+    formInternalNotes: string;
+    formPricePerNight: string;
+    formCommission: string;
+  };
+
+  const otaCreateDraft = useMemo(
+    (): OTACreateDraft => ({
+      createDialogOpen,
+      formExternalRef,
+      formChannel,
+      formGuestName,
+      formGuestPhone,
+      formGuestEmail,
+      formStudioId,
+      formCheckIn,
+      formCheckOut,
+      formStatus,
+      formNotes,
+      formInternalNotes,
+      formPricePerNight,
+      formCommission,
+    }),
+    [
+      createDialogOpen,
+      formExternalRef,
+      formChannel,
+      formGuestName,
+      formGuestPhone,
+      formGuestEmail,
+      formStudioId,
+      formCheckIn,
+      formCheckOut,
+      formStatus,
+      formNotes,
+      formInternalNotes,
+      formPricePerNight,
+      formCommission,
+    ],
+  );
+
+  const applyOtaCreateDraft = useCallback((draft: Partial<OTACreateDraft>) => {
+    if (draft.createDialogOpen) setCreateDialogOpen(true);
+    if (draft.formExternalRef !== undefined) setFormExternalRef(draft.formExternalRef);
+    if (draft.formChannel !== undefined) setFormChannel(draft.formChannel);
+    if (draft.formGuestName !== undefined) setFormGuestName(draft.formGuestName);
+    if (draft.formGuestPhone !== undefined) setFormGuestPhone(draft.formGuestPhone);
+    if (draft.formGuestEmail !== undefined) setFormGuestEmail(draft.formGuestEmail);
+    if (draft.formStudioId !== undefined) setFormStudioId(draft.formStudioId);
+    if (draft.formCheckIn !== undefined) setFormCheckIn(draft.formCheckIn);
+    if (draft.formCheckOut !== undefined) setFormCheckOut(draft.formCheckOut);
+    if (draft.formStatus !== undefined) setFormStatus(draft.formStatus);
+    if (draft.formNotes !== undefined) setFormNotes(draft.formNotes);
+    if (draft.formInternalNotes !== undefined) setFormInternalNotes(draft.formInternalNotes);
+    if (draft.formPricePerNight !== undefined) setFormPricePerNight(draft.formPricePerNight);
+    if (draft.formCommission !== undefined) setFormCommission(draft.formCommission);
+  }, []);
+
+  const { clearDraft: clearOtaCreateDraft } = useFormDraft(
+    "ota-booking-create-draft",
+    otaCreateDraft,
+    applyOtaCreateDraft,
+    { enabled: true },
+  );
 
   const today = format(new Date(), "yyyy-MM-dd");
   
@@ -585,6 +664,7 @@ const OTABookingsDashboard = () => {
       setFormInternalNotes("");
       setFormPricePerNight("");
       setFormCommission("");
+      clearOtaCreateDraft();
       setCreateDialogOpen(false);
     } catch (error: any) {
       toast({
@@ -1029,7 +1109,7 @@ const OTABookingsDashboard = () => {
   );
 
   // Skeleton loader
-  if (isLoading) {
+  if (isLoading && !bookings) {
     return (
       <AdminLayout pageTitle="OTA Bookings" subtitle="Manage OTA bookings and allocations">
         <div className="space-y-6">
@@ -1074,12 +1154,13 @@ const OTABookingsDashboard = () => {
         {/* Header with Create Button (Desktop) */}
         <div className="hidden lg:flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-display font-bold uppercase tracking-wide">
+            <TitleWithTooltip
+              tooltip="Manage OTA bookings and allocations"
+              tooltipLabel="About OTA Bookings"
+              titleClassName="text-2xl font-display font-bold uppercase tracking-wide"
+            >
               OTA Bookings
-            </h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Manage OTA bookings and allocations
-            </p>
+            </TitleWithTooltip>
           </div>
           <Button
             onClick={() => setCreateDialogOpen(true)}
@@ -1168,13 +1249,8 @@ const OTABookingsDashboard = () => {
 
         {/* Filters and Bulk Actions */}
         <Card className="rounded-3xl border border-border/60 shadow-xl">
-          <CardHeader>
-            <div className="flex items-center justify-between gap-3">
-              <CardTitle className="flex items-center gap-2 text-base md:text-lg font-display font-bold uppercase tracking-wide">
-                <Filter className="h-4 w-4 md:h-5 md:w-5" />
-                Filters & Actions
-              </CardTitle>
-              <div className="hidden lg:flex items-center gap-2">
+          <CardHeader className="hidden lg:flex flex-row items-center justify-end space-y-0 pb-4">
+              <div className="flex items-center gap-2">
                 <Button
                   type="button"
                   variant={unallocatedOnly ? "default" : "outline"}
@@ -1202,7 +1278,6 @@ const OTABookingsDashboard = () => {
                   Clear Filters
                 </Button>
               </div>
-            </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -1664,7 +1739,7 @@ const OTABookingsDashboard = () => {
 
         {/* Create Booking Sheet */}
         {isMobile ? (
-          <Drawer open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+          <Drawer open={createDialogOpen} onOpenChange={(open) => guardOpenChangeOnTabBlur(open, setCreateDialogOpen)}>
             <DrawerContent className="max-h-[90vh] rounded-t-[28px] mb-0">
               <DrawerHeader className="text-left px-4 pt-6 pb-2">
                 <DrawerTitle>Create New OTA Booking</DrawerTitle>
@@ -1681,7 +1756,7 @@ const OTABookingsDashboard = () => {
             </DrawerContent>
           </Drawer>
         ) : (
-          <Sheet open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+          <Sheet open={createDialogOpen} onOpenChange={(open) => guardOpenChangeOnTabBlur(open, setCreateDialogOpen)}>
             <SheetContent side="right" className="w-full sm:max-w-[600px] overflow-y-auto flex flex-col">
               <SheetHeader>
                 <SheetTitle>Create New OTA Booking</SheetTitle>

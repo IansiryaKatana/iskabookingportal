@@ -1,5 +1,5 @@
 import { useMemo, useId } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
@@ -181,13 +181,14 @@ export function SalesReportCharts({
           <CardHeader className="pb-2">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <CardTitle className="flex items-center gap-2 text-sm font-display md:text-base">
+                <CardTitle
+                  className="flex items-center gap-2 text-sm font-display md:text-base"
+                  tooltip="Weighted occupancy across all studio grades (confirmed contracts only)."
+                  tooltipLabel="About Occupancy by Month"
+                >
                   <BarChart3 className="h-4 w-4 text-primary" />
                   Occupancy by Month
                 </CardTitle>
-                <CardDescription className="text-xs">
-                  Weighted occupancy across all studio grades (confirmed contracts only).
-                </CardDescription>
               </div>
               {!loadingOccupancy && occupancyChartData.length > 0 && (
                 <div className="flex flex-wrap gap-2">
@@ -249,13 +250,14 @@ export function SalesReportCharts({
           <CardHeader className="pb-2">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <CardTitle className="flex items-center gap-2 text-sm font-display md:text-base">
+                <CardTitle
+                  className="flex items-center gap-2 text-sm font-display md:text-base"
+                  tooltip="Share of confirmed contracts that are returning students."
+                  tooltipLabel="About Rebookers by Month"
+                >
                   <Users className="h-4 w-4 text-primary" />
                   Rebookers by Month
                 </CardTitle>
-                <CardDescription className="text-xs">
-                  Share of confirmed contracts that are returning students.
-                </CardDescription>
               </div>
               {!loadingRebookers && rebookerChartData.length > 0 && (
                 <div className="flex flex-wrap gap-2">
@@ -330,13 +332,14 @@ export function SalesReportCharts({
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
         <Card className="rounded-2xl">
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm font-display md:text-base">
+            <CardTitle
+              className="flex items-center gap-2 text-sm font-display md:text-base"
+              tooltip="Distribution for the selected application statuses."
+              tooltipLabel="About Payment Plans"
+            >
               <CreditCard className="h-4 w-4 text-primary" />
               Payment Plans
             </CardTitle>
-            <CardDescription className="text-xs">
-              Distribution for the selected application statuses.
-            </CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
             {loadingDemographics ? (
@@ -371,13 +374,14 @@ export function SalesReportCharts({
 
         <Card className="rounded-2xl">
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm font-display md:text-base">
+            <CardTitle
+              className="flex items-center gap-2 text-sm font-display md:text-base"
+              tooltip="Where your selected contracts are coming from."
+              tooltipLabel="About Top Countries"
+            >
               <Globe className="h-4 w-4 text-primary" />
               Top Countries
             </CardTitle>
-            <CardDescription className="text-xs">
-              Where your selected contracts are coming from.
-            </CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
             {loadingDemographics ? (
@@ -413,13 +417,14 @@ export function SalesReportCharts({
 
         <Card className="rounded-2xl md:col-span-2 xl:col-span-1">
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm font-display md:text-base">
+            <CardTitle
+              className="flex items-center gap-2 text-sm font-display md:text-base"
+              tooltip="Received vs expected sales value for the academic year."
+              tooltipLabel="About Cash Collection"
+            >
               <TrendingUp className="h-4 w-4 text-primary" />
               Cash Collection
             </CardTitle>
-            <CardDescription className="text-xs">
-              Received vs expected sales value for the academic year.
-            </CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
             {loadingCash ? (

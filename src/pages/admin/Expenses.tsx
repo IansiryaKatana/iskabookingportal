@@ -41,7 +41,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
-import { Receipt, Plus, Edit, Trash2, Download, Filter, Loader2, Image as ImageIcon, X } from "lucide-react";
+import { Receipt, Plus, Edit, Trash2, Download, Loader2, Image as ImageIcon, X } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -380,7 +380,7 @@ const Expenses = () => {
     </div>
   );
 
-  if (isLoading) {
+  if (isLoading && !expenses) {
     return (
       <AdminLayout pageTitle="Expenses" subtitle="Track utility and expense payments">
         <ExpensesSkeleton />
@@ -415,12 +415,7 @@ const Expenses = () => {
 
         {/* Filters and Actions */}
         <Card className="rounded-3xl border border-border/60 shadow-xl">
-          <CardHeader>
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <CardTitle className="flex items-center gap-2 text-base md:text-lg font-display font-bold uppercase tracking-wide">
-                <Filter className="h-4 w-4 md:h-5 md:w-5" />
-                Filters
-              </CardTitle>
+          <CardHeader className="flex flex-row items-center justify-end space-y-0 pb-4">
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
@@ -452,7 +447,6 @@ const Expenses = () => {
                   <span className="sm:hidden">New</span>
                 </Button>
               </div>
-            </div>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">

@@ -142,10 +142,13 @@ const PartnerCommissions = () => {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-xl font-display uppercase tracking-wide">
+                <CardTitle
+                  className="text-xl font-display uppercase tracking-wide"
+                  tooltip="All your commission records"
+                  tooltipLabel="About Commission History"
+                >
                   Commission History
                 </CardTitle>
-                <CardDescription>All your commission records</CardDescription>
               </div>
               {referrals && referrals.length > 0 && (
                 <Button

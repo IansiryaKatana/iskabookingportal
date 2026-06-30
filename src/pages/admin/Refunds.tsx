@@ -427,7 +427,7 @@ const Refunds = () => {
     });
   };
 
-  if (isLoading) {
+  if (isLoading && !refunds) {
     return (
       <AdminLayout pageTitle="Refunds" subtitle="Process payment refunds">
         <div className="space-y-4">

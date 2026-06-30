@@ -7,7 +7,7 @@ import {
   useDeleteDocuSignTemplate,
 } from "@/hooks/useDocuSignTemplates";
 import { useAdminAcademicYears } from "@/hooks/useAdminAcademicYears";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Pencil, Trash2, Plus, CheckCircle2, AlertCircle } from "lucide-react";
@@ -443,12 +443,13 @@ const DocuSignTemplates = () => {
 
       <Card className="rounded-3xl border border-border/60 shadow-xl">
         <CardHeader>
-          <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">
+          <CardTitle
+            className="text-base md:text-lg font-display font-bold uppercase tracking-wide"
+            tooltip="Each academic year requires both tenancy and guarantor templates to be configured."
+            tooltipLabel="About Templates by Academic Year"
+          >
             Templates by Academic Year
           </CardTitle>
-          <CardDescription>
-            Each academic year requires both tenancy and guarantor templates to be configured.
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-6">

@@ -21,7 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format, isBefore, parseISO } from "date-fns";
 import {
   Sparkles, Clock, CheckCircle2, XCircle, AlertCircle, Loader2,
-  UserCheck, Calendar, Building2, Filter, Check, X, Plus, Pencil, Trash2
+  UserCheck, Calendar, Building2, Check, X, Plus, Pencil, Trash2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -524,7 +524,7 @@ const CommunalAreaHousekeepingDashboard = () => {
     }));
   };
 
-  if (isLoading) {
+  if (isLoading && !housekeepingStatuses) {
     return (
       <AdminLayout pageTitle="Communal Areas" subtitle="Manage communal areas and cleaning">
         <div className="space-y-4">
@@ -856,13 +856,7 @@ const CommunalAreaHousekeepingDashboard = () => {
 
         {/* Filters */}
         <Card className="rounded-3xl border border-border/60 shadow-xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm md:text-lg font-display font-bold uppercase tracking-wide">
-              <Filter className="h-3 w-3 md:h-5 md:w-5" />
-              Filters
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 pt-6">
             <div className="flex flex-col md:flex-row gap-4 items-start md:items-end">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 w-full md:w-auto">
                 <div>

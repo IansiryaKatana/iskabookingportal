@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, parseISO, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, addWeeks, subMonths, addMonths } from "date-fns";
 import {
-  DollarSign, TrendingUp, TrendingDown, Download, Calendar, Filter,
+  DollarSign, TrendingUp, TrendingDown, Download, Calendar,
   Loader2, Building2, CreditCard, FileText, BarChart3, Receipt
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -277,13 +277,7 @@ const OTAFinancePage = () => {
         </div>
 
         <Card className="rounded-3xl border border-border/60 shadow-xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base md:text-lg font-display font-bold uppercase tracking-wide">
-              <Filter className="h-4 w-4 md:h-5 md:w-5" />
-              Filters
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             <div className="flex flex-col md:flex-row gap-3 md:gap-4 items-end">
               <div className="flex-1 min-w-[150px]">
                 <Select value={dateRange} onValueChange={(value: "this_week" | "this_month" | "custom") => setDateRange(value)}>

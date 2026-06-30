@@ -31,7 +31,6 @@ import {
   ChevronLeft, 
   ChevronRight, 
   Download, 
-  Filter,
   Building2,
   Users,
   Briefcase,
@@ -323,13 +322,7 @@ const BookingCalendar = () => {
       <div className="space-y-6">
         {/* Filters */}
         <Card className="rounded-3xl border border-border/60 shadow-xl">
-          <CardHeader>
-            <CardTitle className="text-lg font-display uppercase tracking-wide flex items-center gap-2">
-              <Filter className="h-5 w-5" />
-              Filters
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
               <div className="space-y-2">
                 <Label htmlFor="studio-search" className="text-xs md:text-sm">Search Studio</Label>

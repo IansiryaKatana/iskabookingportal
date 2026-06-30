@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -726,12 +726,13 @@ const Branding = () => {
         {/* Company Name */}
         <Card className="rounded-3xl">
           <CardHeader>
-            <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">
+            <CardTitle
+              className="text-base md:text-lg font-display font-bold uppercase tracking-wide"
+              tooltip="Your company name used throughout the system (emails, invoices, UI). Default: Urban Hub"
+              tooltipLabel="About Company Name"
+            >
               Company Name
             </CardTitle>
-            <CardDescription className="text-xs md:text-sm">
-              Your company name used throughout the system (emails, invoices, UI). Default: Urban Hub
-            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -771,12 +772,13 @@ const Branding = () => {
         {/* SEO & Social Media */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">
+            <CardTitle
+              className="text-base md:text-lg font-display font-bold uppercase tracking-wide"
+              tooltip="Meta tags for search engines and social media sharing"
+              tooltipLabel="About SEO & Social Media"
+            >
               SEO & Social Media
             </CardTitle>
-            <CardDescription className="text-xs md:text-sm">
-              Meta tags for search engines and social media sharing
-            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -835,8 +837,13 @@ const Branding = () => {
         {/* Logo & Favicon */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">Brand Assets</CardTitle>
-            <CardDescription className="text-xs md:text-sm">Upload your logo and favicon</CardDescription>
+            <CardTitle
+              className="text-base md:text-lg font-display font-bold uppercase tracking-wide"
+              tooltip="Upload your logo and favicon"
+              tooltipLabel="About Brand Assets"
+            >
+              Brand Assets
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
@@ -966,12 +973,13 @@ const Branding = () => {
         {/* Colors & Fonts */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">
+            <CardTitle
+              className="text-base md:text-lg font-display font-bold uppercase tracking-wide"
+              tooltip="Customize your brand colors and typography. Changes will apply to PDFs, emails, and UI."
+              tooltipLabel="About Colors & Fonts"
+            >
               Colors & Fonts
             </CardTitle>
-            <CardDescription className="text-xs md:text-sm">
-              Customize your brand colors and typography. Changes will apply to PDFs, emails, and UI.
-            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Primary Colors */}
@@ -1390,8 +1398,13 @@ const Branding = () => {
         {/* Contact Information */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">Contact Information</CardTitle>
-            <CardDescription className="text-xs md:text-sm">Update contact details displayed in the footer</CardDescription>
+            <CardTitle
+              className="text-base md:text-lg font-display font-bold uppercase tracking-wide"
+              tooltip="Update contact details displayed in the footer"
+              tooltipLabel="About Contact Information"
+            >
+              Contact Information
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1481,8 +1494,13 @@ const Branding = () => {
         {/* Header Navigation */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">Header Navigation</CardTitle>
-            <CardDescription className="text-xs md:text-sm">Manage navigation items in the header menu</CardDescription>
+            <CardTitle
+              className="text-base md:text-lg font-display font-bold uppercase tracking-wide"
+              tooltip="Manage navigation items in the header menu"
+              tooltipLabel="About Header Navigation"
+            >
+              Header Navigation
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {headerNavItemsState.map((item, index) => (
@@ -1571,8 +1589,13 @@ const Branding = () => {
         {/* Footer Navigation */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">Footer Quick Links</CardTitle>
-            <CardDescription className="text-xs md:text-sm">Manage quick links in the footer</CardDescription>
+            <CardTitle
+              className="text-base md:text-lg font-display font-bold uppercase tracking-wide"
+              tooltip="Manage quick links in the footer"
+              tooltipLabel="About Footer Quick Links"
+            >
+              Footer Quick Links
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {footerNavItemsState.map((item, index) => (
@@ -1661,8 +1684,13 @@ const Branding = () => {
         {/* Opening Hours */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">Opening Hours</CardTitle>
-            <CardDescription className="text-xs md:text-sm">Set opening hours for each day of the week. Use bulk edit to set multiple days at once.</CardDescription>
+            <CardTitle
+              className="text-base md:text-lg font-display font-bold uppercase tracking-wide"
+              tooltip="Set opening hours for each day of the week. Use bulk edit to set multiple days at once."
+              tooltipLabel="About Opening Hours"
+            >
+              Opening Hours
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Bulk Edit Section */}
@@ -1915,8 +1943,13 @@ const Branding = () => {
         {/* Footer Content */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">Footer Content</CardTitle>
-            <CardDescription className="text-xs md:text-sm">Manage footer description and copyright text</CardDescription>
+            <CardTitle
+              className="text-base md:text-lg font-display font-bold uppercase tracking-wide"
+              tooltip="Manage footer description and copyright text"
+              tooltipLabel="About Footer Content"
+            >
+              Footer Content
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">

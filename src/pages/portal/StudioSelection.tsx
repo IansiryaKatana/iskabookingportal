@@ -254,13 +254,13 @@ const StudioSelection = () => {
       <section className="space-y-6 pb-28">
         <Card className="rounded-3xl border border-border/60 shadow-xl">
           <CardHeader>
-            <CardTitle className="text-xl font-display uppercase tracking-wide">
+            <CardTitle
+              className="text-xl font-display uppercase tracking-wide"
+              tooltip="Choose a studio to reserve it for 30 minutes while you finish your booking journey."
+              tooltipLabel="About Available Studios"
+            >
               Available Studios
             </CardTitle>
-            <CardDescription>
-              Choose a studio to reserve it for 30 minutes while you finish your
-              booking journey.
-            </CardDescription>
           </CardHeader>
           <CardContent>
             {studiosLoading ? (

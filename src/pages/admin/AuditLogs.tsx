@@ -147,7 +147,7 @@ const AuditLogs = () => {
     document.body.removeChild(link);
   };
 
-  if (isLoading) {
+  if (isLoading && !logs) {
     return (
       <AdminLayout pageTitle="Audit Logs" subtitle="View staff activity and system changes">
         <div className="space-y-4">
@@ -184,12 +184,7 @@ const AuditLogs = () => {
       <div className="space-y-6">
         {/* Filters */}
         <Card className="rounded-3xl">
-          <CardHeader>
-            <CardTitle className="text-xl font-display uppercase tracking-wide">
-              Filters
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             <div className="grid gap-4 md:grid-cols-3">
               <div>
                 <Label htmlFor="search">Search</Label>

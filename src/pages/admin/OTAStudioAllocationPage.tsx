@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select";
 import { format, parseISO, isAfter, isBefore, isWithinInterval } from "date-fns";
 import {
-  Building2, AlertTriangle, CheckCircle2, XCircle, Filter, Search,
+  Building2, AlertTriangle, CheckCircle2, XCircle, Search,
   Calendar, Clock, MapPin, Wrench, Sparkles
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -304,13 +304,7 @@ const OTAStudioAllocationPage = () => {
 
         {/* Filters */}
         <Card className="rounded-3xl border border-border/60 shadow-xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base md:text-lg font-display font-bold uppercase tracking-wide">
-              <Filter className="h-4 w-4 md:h-5 md:w-5" />
-              Filters
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label className="text-xs md:text-sm">Availability</Label>
@@ -456,12 +450,13 @@ const OTAStudioAllocationPage = () => {
         {bookings && bookings.filter((b) => !b.studio_id && b.status !== "cancelled" && b.status !== "no_show").length > 0 && (
           <Card className="rounded-3xl border border-border/60 shadow-xl">
             <CardHeader>
-              <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">
+              <CardTitle
+                className="text-base md:text-lg font-display font-bold uppercase tracking-wide"
+                tooltip="Bookings that need studio allocation"
+                tooltipLabel="About Unallocated Bookings"
+              >
                 Unallocated Bookings
               </CardTitle>
-              <CardDescription className="text-xs md:text-sm">
-                Bookings that need studio allocation
-              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">

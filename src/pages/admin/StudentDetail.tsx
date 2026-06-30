@@ -86,7 +86,7 @@ const StudentDetail = () => {
     }).format(amount);
   };
 
-  if (isLoading) {
+  if (isLoading && !application) {
     return (
       <AdminLayout pageTitle="Student Details" subtitle="View complete student information">
         <div className="space-y-6">

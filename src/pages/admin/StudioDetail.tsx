@@ -21,6 +21,7 @@ const statusLabelMap: Record<string, string> = {
   cancelled: "Cancelled",
   expired: "Expired",
   checked_out: "Checked Out",
+  checked_out_early: "Checked Out (Early)",
 };
 
 const statusBadgeClasses: Record<string, string> = {
@@ -32,6 +33,7 @@ const statusBadgeClasses: Record<string, string> = {
   cancelled: "bg-red-500 hover:bg-red-600 text-white",
   expired: "bg-orange-500 hover:bg-orange-600 text-white",
   checked_out: "bg-slate-700 hover:bg-slate-800 text-white",
+  checked_out_early: "bg-amber-700 hover:bg-amber-800 text-white",
 };
 
 const StudioDetail = () => {
@@ -187,11 +189,22 @@ const StudioDetail = () => {
             <div className="space-y-3">
               {applications.map((app) => {
                 const contractEnd = (app.contract as { contract_end?: string | null })?.contract_end;
-                const isCheckedOut =
-                  app.status === "confirmed" &&
+                const actualCheckout = (app as { actual_check_out_date?: string | null }).actual_check_out_date;
+                const isEarlyCheckout =
+                  app.status === "checked_out" &&
+                  actualCheckout &&
                   contractEnd &&
-                  new Date(contractEnd) < new Date();
-                const statusKey = (isCheckedOut ? "checked_out" : app.status) as string;
+                  new Date(actualCheckout) < new Date(contractEnd);
+                const isCheckedOut =
+                  app.status === "checked_out" ||
+                  (app.status === "confirmed" &&
+                    contractEnd &&
+                    new Date(contractEnd) < new Date());
+                const statusKey = (isEarlyCheckout
+                  ? "checked_out_early"
+                  : isCheckedOut
+                    ? "checked_out"
+                    : app.status) as string;
                 const badgeClass =
                   statusBadgeClasses[statusKey] ??
                   "bg-gray-500 hover:bg-gray-600 text-white";

@@ -4,6 +4,12 @@ import { Loader2, FileText, Download, CheckCircle2, Clock, User } from "lucide-r
 import PortalLayout from "@/components/portal/PortalLayout";
 import { useStudentApplicationsList } from "@/hooks/useStudentApplications";
 import { useStudentApplication } from "@/hooks/useStudentApplication";
+import {
+  buildSigningReturnUrl,
+  useInitialAgreementStatusSync,
+  useSigningCompleteSync,
+} from "@/hooks/useDocusignStatusSync";
+import { getActiveEnvelopeForType, isEnvelopeCompleted } from "@/utils/envelopeStatus";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,6 +42,22 @@ const Contracts = () => {
       ) ?? [],
     [applications],
   );
+
+  const agreementApplicationIds = useMemo(
+    () => applicationsWithAgreements.map((app) => app.id),
+    [applicationsWithAgreements],
+  );
+
+  const pendingSyncIds = useMemo(
+    () =>
+      applicationsWithAgreements
+        .filter((app) => app.status === "awaiting_signature")
+        .map((app) => app.id),
+    [applicationsWithAgreements],
+  );
+
+  useSigningCompleteSync(agreementApplicationIds);
+  useInitialAgreementStatusSync(pendingSyncIds, pendingSyncIds.length > 0);
 
   const downloadSignedDocument = async (envelopeIdOrKey: string, envelopeType: string, applicationId: string) => {
     const downloadKey = envelopeIdOrKey || `${applicationId}-${envelopeType}`;
@@ -106,9 +128,6 @@ const Contracts = () => {
         return normalized.replace(/_/g, " ");
     }
   };
-
-  const isEnvelopeCompleted = (status?: string | null) =>
-    (status ?? "").toLowerCase() === "completed";
 
   const startSigningTenancy = async (applicationId: string) => {
     if (!applicationId) return;
@@ -194,7 +213,7 @@ const Contracts = () => {
           envelopeType: "tenancy",
           returnUrl:
             typeof window !== "undefined"
-              ? `${window.location.origin}/portal/contracts?event=signing_complete`
+              ? `${window.location.origin}${buildSigningReturnUrl("/portal/contracts", applicationId)}`
               : undefined,
         },
       });
@@ -381,7 +400,7 @@ const Contracts = () => {
               downloadingId={downloadingId}
               canDownloadEnvelope={canDownloadEnvelope}
               formatEnvelopeStatus={formatEnvelopeStatus}
-              isEnvelopeCompleted={isEnvelopeCompleted}
+              isEnvelopeCompleted={(status) => isEnvelopeCompleted(status)}
               onSignTenancy={() => startSigningTenancy(app.id)}
               isSigningTenancy={signingApplicationId === app.id}
             />
@@ -455,8 +474,8 @@ const ContractCard = ({
   }
 
   const envelopes = application?.docusign_envelopes ?? [];
-  const tenancyEnvelope = envelopes.find((e) => e.envelope_type === "tenancy");
-  const guarantorEnvelope = envelopes.find((e) => e.envelope_type === "guarantor");
+  const tenancyEnvelope = getActiveEnvelopeForType(envelopes, "tenancy");
+  const guarantorEnvelope = getActiveEnvelopeForType(envelopes, "guarantor");
 
   return (
     <Card className="rounded-3xl border border-border/60 shadow-xl">

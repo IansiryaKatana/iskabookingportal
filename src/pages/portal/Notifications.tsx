@@ -18,7 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 type Notification = Database["public"]["Tables"]["notifications"]["Row"];
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, constrainedFlexButtonClassName } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Bell, CheckCheck, Check, Star, Mail, Search, X, ChevronLeft, ChevronRight, Eye } from "lucide-react";
@@ -314,11 +314,11 @@ const NotificationDetailView = ({
                   </div>
                 </div>
               )}
-              <div className="flex flex-col sm:flex-row gap-2">
+              <div className="flex flex-col sm:flex-row gap-2 min-w-0">
                 {notification.link && (
                   <Button
                     variant="outline"
-                    className="flex-1 rounded-md uppercase tracking-wide"
+                    className={clsx(constrainedFlexButtonClassName, "rounded-md uppercase tracking-wide")}
                     onClick={() => {
                       navigate(notification.link!);
                       onOpenChange(false);
@@ -330,7 +330,7 @@ const NotificationDetailView = ({
                 {!notification.is_read && (
                   <Button
                     variant="default"
-                    className="flex-1 rounded-md uppercase tracking-wide gap-2"
+                    className={clsx(constrainedFlexButtonClassName, "rounded-md uppercase tracking-wide gap-2")}
                     onClick={onMarkRead}
                     disabled={markReadPending}
                   >

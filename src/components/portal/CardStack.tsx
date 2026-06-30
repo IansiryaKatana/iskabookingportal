@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, constrainedFlexButtonClassName } from "@/components/ui/button";
 import { ExternalLink, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import MessageCard from "./MessageCard";
 import clsx from "clsx";
+import { cn } from "@/lib/utils";
 
 interface Notification {
   id: string;
@@ -120,21 +121,21 @@ const CardStack = ({ messages, onAllDismissed, onSkip }: CardStackProps) => {
       </div>
 
       {/* Action Buttons */}
-      <div className="mt-6 flex flex-col sm:flex-row gap-3">
+      <div className="mt-6 flex flex-col sm:flex-row gap-3 min-w-0">
         <Button
           variant="outline"
           onClick={handleSkip}
-          className="flex-1 rounded-md uppercase tracking-wide gap-2"
+          className={cn(constrainedFlexButtonClassName, "rounded-md uppercase tracking-wide gap-2")}
         >
-          <ExternalLink className="h-4 w-4" />
+          <ExternalLink className="h-4 w-4 shrink-0" />
           View All Messages
         </Button>
         <Button
           onClick={handleDismiss}
           disabled={isAnimating}
-          className="flex-1 rounded-md uppercase tracking-wide gap-2"
+          className={cn(constrainedFlexButtonClassName, "rounded-md uppercase tracking-wide gap-2")}
         >
-          <X className="h-4 w-4" />
+          <X className="h-4 w-4 shrink-0" />
           {currentIndex >= messages.length - 1 ? "Close" : "Next"}
         </Button>
       </div>

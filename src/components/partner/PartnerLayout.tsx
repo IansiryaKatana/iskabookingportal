@@ -16,6 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { TitleWithTooltip } from "@/components/ui/title-with-tooltip";
 
 const navItems = [
   {
@@ -170,10 +171,13 @@ const PartnerLayout = ({
                     </Button>
                   )}
                   <div className="flex-1 min-w-0">
-                    <h1 className="text-lg font-display font-black uppercase tracking-wide truncate">
+                    <TitleWithTooltip
+                      tooltip={subtitle}
+                      tooltipLabel={`About ${title || "Partner Portal"}`}
+                      titleClassName="text-lg font-display font-black uppercase tracking-wide truncate"
+                    >
                       {title || "Partner Portal"}
-                    </h1>
-                    {subtitle && <p className="text-xs text-muted-foreground truncate">{subtitle}</p>}
+                    </TitleWithTooltip>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
@@ -243,12 +247,13 @@ const PartnerLayout = ({
                   </Button>
                 )}
                 {title && (
-                  <div>
-                    <h1 className="text-xl md:text-2xl font-display font-black uppercase tracking-wide">
-                      {title}
-                    </h1>
-                    {subtitle && <p className="text-xs md:text-sm text-muted-foreground">{subtitle}</p>}
-                  </div>
+                  <TitleWithTooltip
+                    tooltip={subtitle}
+                    tooltipLabel={`About ${title}`}
+                    titleClassName="text-xl md:text-2xl font-display font-black uppercase tracking-wide"
+                  >
+                    {title}
+                  </TitleWithTooltip>
                 )}
               </div>
               <div className="flex items-center gap-3">

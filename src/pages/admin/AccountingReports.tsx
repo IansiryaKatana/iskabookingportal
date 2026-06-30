@@ -827,10 +827,13 @@ const AccountingReports = () => {
         {/* Report Type Selector */}
         <Card className="rounded-3xl">
           <CardHeader>
-            <CardTitle className="text-sm md:text-xl font-display font-bold uppercase tracking-wide">
+            <CardTitle
+              className="text-sm md:text-xl font-display font-bold uppercase tracking-wide"
+              tooltip="Choose an accounting report to view and export"
+              tooltipLabel="About Select Report Type"
+            >
               Select Report Type
             </CardTitle>
-            <CardDescription className="text-xs md:text-base">Choose an accounting report to view and export</CardDescription>
           </CardHeader>
           <CardContent>
             <Tabs value={selectedReport} onValueChange={(value) => setSelectedReport(value as ReportType)}>

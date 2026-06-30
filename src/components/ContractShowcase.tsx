@@ -1,8 +1,11 @@
 import { Button } from "@/components/ui/button";
+import { TitleWithTooltip } from "@/components/ui/title-with-tooltip";
 
 type ContractShowcaseProps<TContract> = {
   title?: string;
   subtitle?: string;
+  tooltip?: React.ReactNode;
+  tooltipLabel?: string;
   contracts: TContract[];
   getWeeks: (contract: TContract) => number;
   getWeeksLabel?: (contract: TContract, weeks: number) => string;
@@ -31,6 +34,8 @@ const formatDate = (value: string | null) => {
 const ContractShowcase = <TContract,>({
   title = "Available Contracts",
   subtitle,
+  tooltip,
+  tooltipLabel,
   contracts,
   getWeeks,
   getWeeksLabel,
@@ -45,7 +50,13 @@ const ContractShowcase = <TContract,>({
   return (
     <div className="rounded-3xl border border-border/60 bg-background/80 shadow-xl h-full flex flex-col">
       <div className="px-6 pt-6 pb-4">
-        <h2 className="text-3xl font-display font-black uppercase">{title}</h2>
+        <TitleWithTooltip
+          tooltip={tooltip}
+          tooltipLabel={tooltipLabel ?? `About ${title}`}
+          titleClassName="text-3xl font-display font-black uppercase"
+        >
+          {title}
+        </TitleWithTooltip>
         {subtitle && (
           <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
         )}

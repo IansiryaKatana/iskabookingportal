@@ -1,6 +1,6 @@
 import { useState } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useOTAStudioIncomeSummaryReport } from "@/hooks/useReports";
@@ -255,12 +255,13 @@ const OTAReports = () => {
           <CardHeader>
             <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between md:gap-4">
               <div className="min-w-0 flex-1">
-                <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide">
+                <CardTitle
+                  className="text-base md:text-xl font-display font-bold uppercase tracking-wide"
+                  tooltip="OTA-assigned studios with booking and revenue summary. Filter by date range."
+                  tooltipLabel="About OTA Studio Income Summary"
+                >
                   OTA Studio Income Summary
                 </CardTitle>
-                <CardDescription className="mt-1">
-                  OTA-assigned studios with booking and revenue summary. Filter by date range.
-                </CardDescription>
               </div>
               {hasData && (
                 <div className="flex gap-2 flex-shrink-0 rounded-lg bg-muted/80 p-2 md:p-2.5">

@@ -21,6 +21,12 @@ import {
   useSaveApplicationStep,
   useStudentApplication,
 } from "@/hooks/useStudentApplication";
+import { clearFormDraft, useFormDraft } from "@/hooks/useFormDraft";
+import {
+  buildSigningReturnUrl,
+  syncDocusignApplicationStatus,
+  useSigningCompleteSync,
+} from "@/hooks/useDocusignStatusSync";
 import {
   resolveApplicationPrefillSourceId,
   useRebookingData,
@@ -380,6 +386,7 @@ const StudentApplicationWizard = () => {
     isError,
     refetch: refetchApplication,
   } = useStudentApplication(applicationId);
+  useSigningCompleteSync(applicationId ? [applicationId] : []);
   const { mutateAsync: saveStep } = useSaveApplicationStep(
     applicationId ?? "",
   );
@@ -1223,6 +1230,54 @@ useEffect(() => {
     paymentDefaultsRef.current = serialized;
   }
 }, [paymentDefaults]);
+
+  const wizardFieldsDraft = useMemo(
+    () => ({
+      personalValues,
+      contactValues,
+      academicValues,
+      documentationValues,
+      paymentValues,
+    }),
+    [
+      personalValues,
+      contactValues,
+      academicValues,
+      documentationValues,
+      paymentValues,
+    ],
+  );
+
+  const applyWizardFieldsDraft = useCallback(
+    (draft: Partial<typeof wizardFieldsDraft>) => {
+      if (draft.personalValues) setPersonalValues(draft.personalValues);
+      if (draft.contactValues) setContactValues(draft.contactValues);
+      if (draft.academicValues) setAcademicValues(draft.academicValues);
+      if (draft.documentationValues) {
+        setDocumentationValues(draft.documentationValues);
+      }
+      if (draft.paymentValues) setPaymentValues(draft.paymentValues);
+    },
+    [],
+  );
+
+  useFormDraft(
+    applicationId ? `wizard-draft-${applicationId}` : "wizard-draft",
+    wizardFieldsDraft,
+    applyWizardFieldsDraft,
+    { enabled: Boolean(applicationId) },
+  );
+
+  useEffect(() => {
+    if (!applicationId) return;
+    const terminal =
+      application?.status === "confirmed" ||
+      application?.status === "cancelled" ||
+      application?.status === "checked_out";
+    if (terminal) {
+      clearFormDraft(`wizard-draft-${applicationId}`);
+    }
+  }, [applicationId, application?.status]);
 
   useEffect(() => {
     const fields: Array<{ key: string; path: string | null | undefined }> = [
@@ -2895,27 +2950,11 @@ useEffect(() => {
     
     setCheckingStatus(true);
     try {
-      const { data, error } = await supabase.functions.invoke(
-        "docusign-check-status",
-        {
-          body: { applicationId: application.id },
-        },
-      );
+      const { updated } = await syncDocusignApplicationStatus(application.id);
 
-      if (error) {
-        console.error("Error checking envelope status:", error);
-        toast({
-          variant: "destructive",
-          title: "Status check failed",
-          description: "Unable to check envelope status. Please try again.",
-        });
-        return;
-      }
-
-      // Refetch application to get updated envelope status
       await refetchApplication();
       
-      if (data?.updates?.some((u: { updated: boolean }) => u.updated)) {
+      if (updated) {
         toast({
           title: "Status updated",
           description: "Envelope status has been refreshed.",
@@ -2923,6 +2962,11 @@ useEffect(() => {
       }
     } catch (error) {
       console.error("Error checking envelope status:", error);
+      toast({
+        variant: "destructive",
+        title: "Status check failed",
+        description: "Unable to check envelope status. Please try again.",
+      });
     } finally {
       setCheckingStatus(false);
     }
@@ -3011,19 +3055,7 @@ useEffect(() => {
       
       setCheckingStatus(true);
       try {
-        const { error } = await supabase.functions.invoke(
-          "docusign-check-status",
-          {
-            body: { applicationId: application.id },
-          },
-        );
-
-        if (error) {
-          console.error("Error checking envelope status:", error);
-          return;
-        }
-
-        // Refetch application to get updated envelope status
+        await syncDocusignApplicationStatus(application.id);
         await refetchApplication();
       } catch (error) {
         console.error("Error checking envelope status:", error);
@@ -3158,7 +3190,7 @@ useEffect(() => {
     // User needs to review and click "Submit Application" to create envelopes
   };
 
-  if (isLoading) {
+  if (isLoading && !application) {
     return (
       <PortalLayout title="Booking Journey" subtitle="Loading your application">
         <div className="min-h-[50vh] flex items-center justify-center">
@@ -4090,13 +4122,13 @@ useEffect(() => {
             {requiresGuarantor && (
               <Card className="rounded-3xl border-dashed">
                 <CardHeader>
-                  <CardTitle className="text-lg font-semibold">
+                  <CardTitle
+                    className="text-lg font-semibold"
+                    tooltip="Your guarantor must be over 21 and resident in the UK or Ireland."
+                    tooltipLabel="About Guarantor Details"
+                  >
                     Guarantor Details
                   </CardTitle>
-                  <CardDescription>
-                    Your guarantor must be over 21 and resident in the UK or
-                    Ireland.
-                  </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-2">
                   <div>
@@ -4195,15 +4227,20 @@ useEffect(() => {
             {/* Witness fields - optional for all payment plans */}
             <Card className="rounded-3xl border-dashed">
               <CardHeader>
-                <CardTitle className="text-lg font-semibold">
+                <CardTitle
+                  className="text-lg font-semibold"
+                  tooltip={
+                    <>
+                      Optionally provide an independent adult witness who will view your tenancy agreement.
+                      {requiresGuarantor
+                        ? " If provided, the witness will view the agreement before the guarantor signs."
+                        : " If provided, the witness will view the agreement after you sign."}
+                    </>
+                  }
+                  tooltipLabel="About Witness Details"
+                >
                   Witness Details (Optional)
                 </CardTitle>
-                <CardDescription>
-                  Optionally provide an independent adult witness who will view your tenancy agreement. 
-                  {requiresGuarantor 
-                    ? " If provided, the witness will view the agreement before the guarantor signs."
-                    : " If provided, the witness will view the agreement after you sign."}
-                </CardDescription>
               </CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-2">
                   <div>
@@ -4584,12 +4621,13 @@ useEffect(() => {
                 <CardHeader>
                   <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div>
-                      <CardTitle className="text-lg font-display uppercase tracking-wide">
+                      <CardTitle
+                        className="text-lg font-display uppercase tracking-wide"
+                        tooltip="Choose how this application's tenancy and guarantor agreements are managed."
+                        tooltipLabel="About Agreements & Signing"
+                      >
                         Agreements & Signing (Staff)
                       </CardTitle>
-                      <CardDescription>
-                        Choose how this application&apos;s tenancy and guarantor agreements are managed.
-                      </CardDescription>
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
@@ -5162,8 +5200,8 @@ useEffect(() => {
           applicationId: application.id,
           envelopeType: "tenancy",
           returnUrl:
-            typeof window !== "undefined"
-              ? `${window.location.origin}/portal?event=signing_complete`
+            typeof window !== "undefined" && application.id
+              ? `${window.location.origin}${buildSigningReturnUrl(`/portal/applications/${application.id}`, application.id)}`
               : undefined,
         },
       });

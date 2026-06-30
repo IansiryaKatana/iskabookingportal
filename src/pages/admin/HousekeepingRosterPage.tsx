@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, parseISO, startOfWeek, endOfWeek, addWeeks, subWeeks, isSameDay } from "date-fns";
 import {
-  Calendar, Clock, UserCheck, Filter, Plus, ChevronLeft, ChevronRight,
+  Calendar, Clock, UserCheck, Plus, ChevronLeft, ChevronRight,
   Loader2, Building2, Users, CheckCircle2, XCircle, Sparkles
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -245,7 +245,7 @@ const HousekeepingRosterPage = () => {
   };
 
   // Skeleton loader
-  if (isLoading) {
+  if (isLoading && !housekeepingStatuses) {
     return (
       <AdminLayout pageTitle="Housekeeping Roster" subtitle="Manage cleaning assignments and schedules">
         <div className="space-y-6">
@@ -311,13 +311,7 @@ const HousekeepingRosterPage = () => {
 
         {/* Filters */}
         <Card className="rounded-3xl border border-border/60 shadow-xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base md:text-lg font-display font-bold uppercase tracking-wide">
-              <Filter className="h-4 w-4 md:h-5 md:w-5" />
-              Filters
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {viewMode === "by-studio" && (
                 <div className="space-y-2">

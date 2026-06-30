@@ -1,6 +1,6 @@
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, constrainedButtonClassName } from "@/components/ui/button";
 import { Info, ArrowUpRight } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDashboardStats, useDashboardBreakdowns } from "@/hooks/useDashboardStats";
@@ -130,8 +130,25 @@ const overviewMetricStyles: Record<
   },
 };
 
-const reviewQueueActionClassName =
-  "rounded-md uppercase tracking-wide mt-auto w-full sm:w-auto border-0 shadow-none bg-yellow-400 hover:bg-yellow-500 text-yellow-950 dark:bg-yellow-500 dark:hover:bg-yellow-400 dark:text-yellow-950";
+const reviewQueueLabelClass =
+  "text-[10px] uppercase tracking-wide text-muted-foreground leading-snug";
+
+const reviewQueueMetricValueClass =
+  "font-black font-display tabular-nums leading-none tracking-tight text-3xl sm:text-4xl";
+
+const reviewQueueDescriptionClass = "text-[11px] leading-snug text-muted-foreground";
+
+const reviewQueueGridClass =
+  "grid gap-3 h-full min-w-0 grid-cols-1 md:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2";
+
+const reviewQueueCellClass =
+  "rounded-2xl border border-border/60 bg-muted/20 p-3 sm:p-4 flex flex-col gap-2 sm:gap-3 min-w-0";
+
+const reviewQueueActionClassName = cn(
+  constrainedButtonClassName,
+  "rounded-md uppercase tracking-wide mt-auto border-0 shadow-none text-[11px] sm:text-xs",
+  "bg-yellow-400 hover:bg-yellow-500 text-yellow-950 dark:bg-yellow-500 dark:hover:bg-yellow-400 dark:text-yellow-950",
+);
 
 function OverviewMetric({
   label,
@@ -202,8 +219,7 @@ const Dashboard = () => {
   });
 
   const authReady = !!session && !loading;
-  // Only show skeleton while auth is loading or dashboard queries are in flight
-  const isLoading = !authReady || statsLoading;
+  const showSkeleton = !authReady || (statsLoading && !stats);
   const otherStatusEntries = Object.entries(breakdowns?.applications.byStatus ?? {})
     .filter(
       ([status]) =>
@@ -228,7 +244,7 @@ const Dashboard = () => {
         />
       }
     >
-      {isLoading ? (
+      {showSkeleton ? (
         <>
           <section className="grid gap-6 lg:grid-cols-3 mb-10 items-stretch">
             {/* Occupancy Overview Skeleton */}
@@ -262,9 +278,9 @@ const Dashboard = () => {
                 <div className="h-4 w-full bg-muted animate-pulse rounded mt-2" />
               </CardHeader>
               <CardContent>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="h-20 bg-muted animate-pulse rounded-2xl" />
-                  <div className="h-20 bg-muted animate-pulse rounded-2xl" />
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
+                  <div className="h-24 bg-muted animate-pulse rounded-2xl" />
+                  <div className="h-24 bg-muted animate-pulse rounded-2xl" />
                 </div>
               </CardContent>
             </Card>
@@ -417,23 +433,23 @@ const Dashboard = () => {
                     : "Document checks and payment requests appear here"}
                 </CardDescription>
               </CardHeader>
-              <CardContent className="flex-1">
+              <CardContent className="flex-1 min-w-0">
                 <div
                   className={cn(
-                    "grid gap-4 h-full",
-                    showPaymentRequestQueue ? "sm:grid-cols-2" : "grid-cols-1",
+                    reviewQueueGridClass,
+                    !showPaymentRequestQueue && "grid-cols-1 md:grid-cols-1 2xl:grid-cols-1",
                   )}
                 >
-                  <div className="rounded-2xl border border-border/60 bg-muted/20 p-4 flex flex-col gap-3">
-                    <p className={metricSectionLabelClass}>
+                  <div className={reviewQueueCellClass}>
+                    <p className={reviewQueueLabelClass}>
                       Pending Verifications
                     </p>
                     {stats?.pendingVerifications ? (
                       <>
-                        <p className={dashboardMetricValueClass}>
+                        <p className={reviewQueueMetricValueClass}>
                           {stats.pendingVerifications}
                         </p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className={reviewQueueDescriptionClass}>
                           document{stats.pendingVerifications !== 1 ? "s" : ""} awaiting review
                         </p>
                         <Button
@@ -441,19 +457,19 @@ const Dashboard = () => {
                           className={reviewQueueActionClassName}
                           onClick={() => navigate("/admin/applications")}
                         >
-                          Review Documents
+                          Review documents
                         </Button>
                       </>
                     ) : (
-                      <p className="text-sm text-muted-foreground flex-1">
+                      <p className="text-xs text-muted-foreground flex-1">
                         No documents awaiting review.
                       </p>
                     )}
                   </div>
 
                   {showPaymentRequestQueue && (
-                    <div className="rounded-2xl border border-border/60 bg-muted/20 p-4 flex flex-col gap-3">
-                      <p className={metricSectionLabelClass}>
+                    <div className={reviewQueueCellClass}>
+                      <p className={reviewQueueLabelClass}>
                         Payment Approvals
                       </p>
                       {pendingPaymentRequestsLoading ? (
@@ -463,10 +479,10 @@ const Dashboard = () => {
                         </div>
                       ) : pendingPaymentRequests > 0 ? (
                         <>
-                          <p className={dashboardMetricValueClass}>
+                          <p className={reviewQueueMetricValueClass}>
                             {pendingPaymentRequests}
                           </p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className={reviewQueueDescriptionClass}>
                             payment request{pendingPaymentRequests !== 1 ? "s" : ""} awaiting approval
                           </p>
                           <Button
@@ -474,11 +490,11 @@ const Dashboard = () => {
                             className={reviewQueueActionClassName}
                             onClick={() => navigate("/admin/manual-payment-entry")}
                           >
-                            Review Requests
+                            Review requests
                           </Button>
                         </>
                       ) : (
-                        <p className="text-sm text-muted-foreground flex-1">
+                        <p className="text-xs text-muted-foreground flex-1">
                           No pending payment requests.
                         </p>
                       )}
@@ -494,10 +510,13 @@ const Dashboard = () => {
             {/* Column 1: Key metrics */}
             <Card className="rounded-3xl border border-border/60 h-full flex flex-col">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base font-display font-bold uppercase tracking-wide">
+                <CardTitle
+                  className="text-base font-display font-bold uppercase tracking-wide"
+                  tooltip="Headline metrics for the selected academic year"
+                  tooltipLabel="About Overview"
+                >
                   Overview
                 </CardTitle>
-                <CardDescription>Headline metrics for the selected academic year</CardDescription>
               </CardHeader>
               <CardContent className="flex-1 flex flex-col min-h-0">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-3 flex-1 h-full auto-rows-fr">

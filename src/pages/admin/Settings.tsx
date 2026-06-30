@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, constrainedFlexButtonClassName } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
@@ -796,12 +796,13 @@ const Settings = () => {
         {/* Social Media Settings */}
         <Card className="rounded-3xl">
           <CardHeader>
-            <CardTitle className="text-base md:text-lg font-semibold">
+            <CardTitle
+              className="text-base md:text-lg font-semibold"
+              tooltip="Manage your social media profile URLs displayed throughout the site."
+              tooltipLabel="About Social Media Links"
+            >
               Social Media Links
             </CardTitle>
-            <CardDescription className="text-xs md:text-sm">
-              Manage your social media profile URLs displayed throughout the site.
-            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {isLoadingSocial ? (
@@ -856,12 +857,13 @@ const Settings = () => {
         <div className="grid gap-6 lg:grid-cols-2">
         <Card className="rounded-3xl">
           <CardHeader>
-            <CardTitle className="text-lg font-semibold">
+            <CardTitle
+              className="text-lg font-semibold"
+              tooltip="Control automated reminders and operational updates."
+              tooltipLabel="About Notifications"
+            >
               Notifications
             </CardTitle>
-            <CardDescription>
-              Control automated reminders and operational updates.
-            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
@@ -889,12 +891,13 @@ const Settings = () => {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-lg font-semibold">
+                <CardTitle
+                  className="text-lg font-semibold"
+                  tooltip="Connection status for Stripe, DocuSign, and Resend."
+                  tooltipLabel="About Integrations"
+                >
                   Integrations
                 </CardTitle>
-                <CardDescription>
-                  Connection status for Stripe, DocuSign, and Resend.
-                </CardDescription>
               </div>
               <Button
                 variant="outline"
@@ -1018,13 +1021,14 @@ const Settings = () => {
         {/* Email Credentials Section */}
         <Card className="rounded-3xl">
           <CardHeader>
-            <CardTitle className="text-base md:text-lg font-semibold flex items-center gap-2">
+            <CardTitle
+              className="text-base md:text-lg font-semibold flex items-center gap-2"
+              tooltip="Manage Resend API key and from email address for sending transactional emails."
+              tooltipLabel="About Email Credentials"
+            >
               <Lock className="h-5 w-5" />
               Email Credentials
             </CardTitle>
-            <CardDescription className="text-xs md:text-sm">
-              Manage Resend API key and from email address for sending transactional emails.
-            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {isLoadingCredentials ? (
@@ -1085,29 +1089,29 @@ const Settings = () => {
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex flex-col sm:flex-row gap-3 pt-4">
+                <div className="flex flex-col sm:flex-row gap-3 pt-4 min-w-0">
                   <Button
                     onClick={handleSaveCredentials}
                     disabled={isSavingCredentials}
-                    className="rounded-md uppercase tracking-wide gap-2 text-xs md:text-sm flex-1"
+                    className={`${constrainedFlexButtonClassName} rounded-md uppercase tracking-wide gap-2 text-xs md:text-sm`}
                   >
-                    <Save className="h-3 w-3 md:h-4 md:w-4" />
+                    <Save className="h-3 w-3 md:h-4 md:w-4 shrink-0" />
                     {isSavingCredentials ? "Saving..." : "Save Credentials"}
                   </Button>
                   <Button
                     variant="outline"
                     onClick={handleTestConnection}
                     disabled={isTestingConnection}
-                    className="rounded-md uppercase tracking-wide gap-2 text-xs md:text-sm"
+                    className={`${constrainedFlexButtonClassName} rounded-md uppercase tracking-wide gap-2 text-xs md:text-sm`}
                   >
                     {isTestingConnection ? (
                       <>
-                        <Loader2 className="h-3 w-3 md:h-4 md:w-4 animate-spin" />
+                        <Loader2 className="h-3 w-3 md:h-4 md:w-4 animate-spin shrink-0" />
                         Testing...
                       </>
                     ) : (
                       <>
-                        <RefreshCw className="h-3 w-3 md:h-4 md:w-4" />
+                        <RefreshCw className="h-3 w-3 md:h-4 md:w-4 shrink-0" />
                         Test Connection
                       </>
                     )}
@@ -1140,13 +1144,14 @@ const Settings = () => {
         {/* Data Management Section */}
         <Card className="rounded-3xl border-destructive/20">
           <CardHeader>
-            <CardTitle className="text-base md:text-lg font-semibold flex items-center gap-2 text-destructive">
+            <CardTitle
+              className="text-base md:text-lg font-semibold flex items-center gap-2 text-destructive"
+              tooltip="Development/Testing: Delete student applications and all related records. This action cannot be undone."
+              tooltipLabel="About Data Management"
+            >
               <Trash2 className="h-5 w-5" />
               Data Management
             </CardTitle>
-            <CardDescription className="text-xs md:text-sm">
-              Development/Testing: Delete student applications and all related records. This action cannot be undone.
-            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Statistics */}
@@ -1778,13 +1783,14 @@ const Settings = () => {
         {/* Database Export Section */}
         <Card className="rounded-3xl border-blue-200 dark:border-blue-800">
           <CardHeader>
-            <CardTitle className="text-base md:text-lg font-semibold flex items-center gap-2">
+            <CardTitle
+              className="text-base md:text-lg font-semibold flex items-center gap-2"
+              tooltip="Export complete database schema, functions, storage buckets, and configuration for migration to a new Supabase project."
+              tooltipLabel="About Database Migration Export"
+            >
               <Database className="h-5 w-5" />
               Database Migration Export
             </CardTitle>
-            <CardDescription className="text-xs md:text-sm">
-              Export complete database schema, functions, storage buckets, and configuration for migration to a new Supabase project.
-            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 p-4">

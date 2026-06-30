@@ -11,6 +11,7 @@ import PageTitle from "./components/PageTitle";
 import FaviconUpdater from "./components/FaviconUpdater";
 import MetaTagsUpdater from "./components/MetaTagsUpdater";
 import { FindInPageWrapper } from "./components/FindInPageWrapper";
+import { TabDiscardNotice } from "./components/TabDiscardNotice";
 import { Loader2 } from "lucide-react";
 
 // Lazy load all page components for code splitting
@@ -105,7 +106,16 @@ const PageLoader = () => (
   </div>
 );
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Staff often switch browser tabs mid-form; avoid refetch-on-focus remounting skeletons.
+      refetchOnWindowFocus: false,
+      staleTime: 60_000,
+      gcTime: 10 * 60_000,
+    },
+  },
+});
 
 /** Staff roles that can access finance / payment approval pages */
 const ADMIN_FINANCE_ROLES = ["staff", "superadmin", "accountant"] as const;
@@ -117,6 +127,7 @@ const App = () => (
         <TooltipProvider>
           <Toaster />
           <Sonner />
+          <TabDiscardNotice />
           <BrowserRouter
             future={{
               v7_startTransition: true,

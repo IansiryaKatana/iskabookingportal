@@ -1,5 +1,6 @@
 import { useState } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
+import { TitleWithTooltip } from "@/components/ui/title-with-tooltip";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1000,7 +1001,7 @@ const EmailTemplates = () => {
     }
   };
 
-  if (isLoading) {
+  if (isLoading && !templatesData) {
     return (
       <AdminLayout pageTitle="Email Templates" subtitle="Manage email templates for student communications">
         <div className="space-y-4">
@@ -1034,12 +1035,13 @@ const EmailTemplates = () => {
       <div className="space-y-6">
         <div className="hidden lg:flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-display font-bold uppercase tracking-wide">
+            <TitleWithTooltip
+              tooltip="Create and manage email templates for automated communications"
+              tooltipLabel="About Email Templates"
+              titleClassName="text-2xl font-display font-bold uppercase tracking-wide"
+            >
               Email Templates
-            </h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Create and manage email templates for automated communications
-            </p>
+            </TitleWithTooltip>
           </div>
           <Button
             onClick={() => handleOpenDialog()}

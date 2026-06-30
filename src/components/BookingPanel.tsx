@@ -160,7 +160,16 @@ const BookingPanel = () => {
     <Card className="sticky top-24" id="booking-panel">
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle className="text-2xl md:text-3xl font-display font-black uppercase">
+          <CardTitle
+            className="text-2xl md:text-3xl font-display font-black uppercase"
+            tooltip={
+              <>
+                A <strong>fixed deposit</strong> of <strong>£99</strong> will be required. After making your deposit, you will need to complete a{" "}
+                <strong>Booking Journey Form</strong> with your personal and relevant documents for review and verification. Then you&apos;ll pay the balance on the payment plan you wish to be on.
+              </>
+            }
+            tooltipLabel="About Tenancy Duration"
+          >
             TENANCY DURATION
           </CardTitle>
           <Dialog>
@@ -231,10 +240,6 @@ const BookingPanel = () => {
             </DialogContent>
           </Dialog>
         </div>
-        <CardDescription className="mt-2 text-black">
-          A <strong>fixed deposit</strong> of <strong>£99</strong> will be required. After making your deposit, you will need to complete a{" "}
-          <strong>Booking Journey Form</strong> with your personal and relevant documents for review and verification. Then you'll pay the balance on the payment plan you wish to be on.
-        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

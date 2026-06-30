@@ -96,10 +96,13 @@ const PartnerDashboard = () => {
         {/* Recent Referrals */}
         <Card className="rounded-3xl">
           <CardHeader>
-            <CardTitle className="text-xl font-display uppercase tracking-wide">
+            <CardTitle
+              className="text-xl font-display uppercase tracking-wide"
+              tooltip="Your most recent student referrals"
+              tooltipLabel="About Recent Referrals"
+            >
               Recent Referrals
             </CardTitle>
-            <CardDescription>Your most recent student referrals</CardDescription>
           </CardHeader>
           <CardContent>
             {loadingReferrals ? (

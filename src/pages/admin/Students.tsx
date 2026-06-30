@@ -167,12 +167,7 @@ const Students = () => {
       <div className="space-y-6">
         {/* Filters */}
         <Card className="rounded-3xl">
-          <CardHeader>
-            <CardTitle className="text-xl font-display uppercase tracking-wide">
-              Search & Filter
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             <div className="grid gap-4 md:grid-cols-4">
               <div className="md:col-span-2">
                 <Label htmlFor="search">Search</Label>
@@ -224,7 +219,7 @@ const Students = () => {
         </Card>
 
         {/* Results */}
-        {isLoading ? (
+        {isLoading && !students ? (
           <StudentsSkeleton />
         ) : students && students.length > 0 ? (
           <div className="space-y-4">

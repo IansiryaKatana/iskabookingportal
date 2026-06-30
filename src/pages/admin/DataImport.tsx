@@ -1,6 +1,6 @@
 import { useState } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -464,13 +464,14 @@ const DataImport = () => {
           <CardHeader>
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-1.5 p-0">
-                <CardTitle className="text-2xl md:text-3xl font-display font-black uppercase tracking-wide flex items-center gap-2">
+                <CardTitle
+                  className="text-2xl md:text-3xl font-display font-black uppercase tracking-wide flex items-center gap-2"
+                  tooltip="Import large datasets from CSV files. Templates include all current system data as examples."
+                  tooltipLabel="About Bulk Data Import"
+                >
                   <Database className="h-6 w-6" />
                   Bulk Data Import
                 </CardTitle>
-                <CardDescription className="text-sm md:text-base text-primary-foreground/90">
-                  Import large datasets from CSV files. Templates include all current system data as examples.
-                </CardDescription>
               </div>
               <div className="flex flex-col items-end gap-2">
                 <Badge variant="outline" className="hidden sm:inline-flex border-primary-foreground/40 text-primary-foreground">
@@ -485,12 +486,13 @@ const DataImport = () => {
         {/* Main Import Card */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">
+            <CardTitle
+              className="text-base md:text-lg font-display font-bold uppercase tracking-wide"
+              tooltip="Select the data type you want to import and upload your CSV file"
+              tooltipLabel="About Import Configuration"
+            >
               Import Configuration
             </CardTitle>
-            <CardDescription className="text-xs md:text-sm">
-              Select the data type you want to import and upload your CSV file
-            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Import Type Selection */}
@@ -852,13 +854,14 @@ const DataImport = () => {
         {/* Import Order Guide */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base md:text-lg font-display font-bold uppercase tracking-wide">
+            <CardTitle
+              className="flex items-center gap-2 text-base md:text-lg font-display font-bold uppercase tracking-wide"
+              tooltip="Follow this order to ensure all dependencies are met before importing related data"
+              tooltipLabel="About Recommended Import Order"
+            >
               <Info className="h-5 w-5 text-primary" />
               Recommended Import Order
             </CardTitle>
-            <CardDescription className="text-xs md:text-sm">
-              Follow this order to ensure all dependencies are met before importing related data
-            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">

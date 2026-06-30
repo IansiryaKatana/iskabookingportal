@@ -7237,6 +7237,14 @@ export type Database = {
       }
     }
     Functions: {
+      admin_early_checkout_student: {
+        Args: {
+          p_application_id: string
+          p_checkout_date?: string
+          p_notes?: string | null
+        }
+        Returns: Json
+      }
       admin_release_studio_occupancy: {
         Args: { p_academic_year_id?: string; p_studio_id: string }
         Returns: Json

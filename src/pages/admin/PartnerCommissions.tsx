@@ -7,7 +7,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Download, FileText, Handshake, DollarSign, Calendar, Filter, CheckCircle2 } from "lucide-react";
+import { Download, FileText, Handshake, DollarSign, Calendar, CheckCircle2 } from "lucide-react";
 import { format } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -270,13 +270,7 @@ const PartnerCommissions = () => {
       <div className="space-y-6">
         {/* Filters */}
         <Card className="rounded-3xl">
-          <CardHeader>
-            <CardTitle className="text-lg font-display uppercase tracking-wide flex items-center gap-2">
-              <Filter className="h-5 w-5" />
-              Filters
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label>Partner</Label>

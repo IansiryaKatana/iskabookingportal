@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, UserPlus, CheckCircle2, Mail, Info, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -181,12 +181,13 @@ const PartnerRegister = () => {
     <div className="min-h-screen bg-gradient-to-b from-background via-background to-primary/5 flex items-center justify-center px-4 py-12">
       <Card className="w-full max-w-2xl rounded-3xl shadow-2xl border border-border/60">
         <CardHeader className="space-y-2">
-          <CardTitle className="text-2xl font-display uppercase tracking-wide">
+          <CardTitle
+            className="text-2xl font-display uppercase tracking-wide"
+            tooltip="Create your partner account to track referrals and commissions"
+            tooltipLabel="About Partner Registration"
+          >
             Partner Registration
           </CardTitle>
-          <CardDescription>
-            Create your partner account to track referrals and commissions
-          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {registrationSuccess ? (

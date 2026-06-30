@@ -17,6 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { TitleWithTooltip } from "@/components/ui/title-with-tooltip";
 
 const navItems = [
   {
@@ -190,14 +191,13 @@ const PortalLayout = ({
                     </Button>
                   )}
                   <div>
-                    <h1 className="text-lg font-display font-black uppercase tracking-wide">
+                    <TitleWithTooltip
+                      tooltip={subtitle}
+                      tooltipLabel={`About ${title || "Student Portal"}`}
+                      titleClassName="text-lg font-display font-black uppercase tracking-wide"
+                    >
                       {title || "Student Portal"}
-                    </h1>
-                    {subtitle && (
-                      <p className="text-xs text-muted-foreground">
-                        {subtitle}
-                      </p>
-                    )}
+                    </TitleWithTooltip>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -271,9 +271,13 @@ const PortalLayout = ({
                       </Button>
                     )}
                     {title && (
-                      <h1 className="text-lg font-display font-black uppercase tracking-wide truncate">
+                      <TitleWithTooltip
+                        tooltip={subtitle}
+                        tooltipLabel={`About ${title}`}
+                        titleClassName="text-lg font-display font-black uppercase tracking-wide truncate"
+                      >
                         {title}
-                      </h1>
+                      </TitleWithTooltip>
                     )}
                   </div>
                   <Button
@@ -286,11 +290,6 @@ const PortalLayout = ({
                     <ArrowUpRight className="h-4 w-4" />
                   </Button>
                 </div>
-                {subtitle && (
-                  <p className="text-xs text-muted-foreground">
-                    {subtitle}
-                  </p>
-                )}
                 <div className="flex items-center gap-2 text-sm">
                   <UserCircle2 className="h-5 w-5 text-muted-foreground shrink-0" />
                   <div className="leading-tight min-w-0">
@@ -322,16 +321,13 @@ const PortalLayout = ({
                     </Button>
                   )}
                   {title && (
-                    <div>
-                      <h1 className="text-xl md:text-2xl font-display font-black uppercase tracking-wide">
-                        {title}
-                      </h1>
-                      {subtitle && (
-                        <p className="text-xs md:text-sm text-muted-foreground">
-                          {subtitle}
-                        </p>
-                      )}
-                    </div>
+                    <TitleWithTooltip
+                      tooltip={subtitle}
+                      tooltipLabel={`About ${title}`}
+                      titleClassName="text-xl md:text-2xl font-display font-black uppercase tracking-wide"
+                    >
+                      {title}
+                    </TitleWithTooltip>
                   )}
                 </div>
                 <div className="flex items-center gap-3">

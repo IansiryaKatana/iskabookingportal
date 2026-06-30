@@ -127,13 +127,7 @@ const SalesReports = () => {
     >
       <div className="space-y-6">
         <Card className="rounded-3xl">
-          <CardHeader>
-            <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide">
-              Filters
-            </CardTitle>
-            <CardDescription>Select the academic year and sales cohort to analyse.</CardDescription>
-          </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <Label>Academic Year</Label>
@@ -309,12 +303,13 @@ const SalesReports = () => {
 
         <Card className="rounded-3xl">
           <CardHeader>
-            <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide">
+            <CardTitle
+              className="text-base md:text-xl font-display font-bold uppercase tracking-wide"
+              tooltip="Each row represents an application in the selected cohort, aligned with the Demographics sheet in your Excel export."
+              tooltipLabel="About Demographics (Per Contract)"
+            >
               Demographics (Per Contract)
             </CardTitle>
-            <CardDescription className="mt-1">
-              Each row represents an application in the selected cohort, aligned with the Demographics sheet in your Excel export.
-            </CardDescription>
           </CardHeader>
           <CardContent>
             {loadingDemographics ? (

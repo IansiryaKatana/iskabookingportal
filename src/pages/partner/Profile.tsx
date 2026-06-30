@@ -1,5 +1,5 @@
 import PartnerLayout from "@/components/partner/PartnerLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { usePartner } from "@/hooks/usePartner";
 import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,11 +15,14 @@ const PartnerProfile = () => {
       <div className="space-y-6">
         <Card className="rounded-3xl">
           <CardHeader>
-            <CardTitle className="text-xl font-display uppercase tracking-wide flex items-center gap-2">
+            <CardTitle
+              className="text-xl font-display uppercase tracking-wide flex items-center gap-2"
+              tooltip="Your partner account details"
+              tooltipLabel="About Partner Information"
+            >
               <User className="h-5 w-5" />
               Partner Information
             </CardTitle>
-            <CardDescription>Your partner account details</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (

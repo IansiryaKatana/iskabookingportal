@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format, isBefore, parseISO } from "date-fns";
 import {
   Sparkles, Clock, CheckCircle2, XCircle, AlertCircle, Loader2, 
-  UserCheck, Calendar, Building2, Filter, Trash2, Check, X
+  UserCheck, Calendar, Building2, Trash2, Check, X
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -337,7 +337,7 @@ const HousekeepingDashboard = () => {
   };
 
   // Skeleton loader
-  if (isLoading) {
+  if (isLoading && !housekeepingStatuses) {
     return (
       <AdminLayout 
         pageTitle="Housekeeping" 
@@ -434,13 +434,7 @@ const HousekeepingDashboard = () => {
 
         {/* Filters and Bulk Actions */}
         <Card className="rounded-3xl border border-border/60 shadow-xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base md:text-lg font-display font-bold uppercase tracking-wide">
-              <Filter className="h-4 w-4 md:h-5 md:w-5" />
-              Filters & Actions
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label className="text-xs md:text-sm">Search Studio</Label>

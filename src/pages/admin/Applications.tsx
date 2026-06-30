@@ -9,7 +9,6 @@ import { useAdminStudios } from "@/hooks/useAdminStudios";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -19,6 +18,7 @@ import { ExternalLink, CreditCard, Plus, UserPlus, Users, ChevronsUpDown, Check,
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import ManualPaymentDialog from "@/components/admin/ManualPaymentDialog";
+import { guardOpenChangeOnTabBlur } from "@/utils/modalFocus";
 import {
   Select,
   SelectContent,
@@ -135,6 +135,10 @@ const getStatusBadge = (status: string) => {
     checked_out: {
       className: "bg-slate-700 hover:bg-slate-800 text-white",
       label: "Checked Out",
+    },
+    checked_out_early: {
+      className: "bg-amber-700 hover:bg-amber-800 text-white",
+      label: "Checked Out (Early)",
     },
   };
 
@@ -682,12 +686,13 @@ const Applications = () => {
   const filtered = useMemo(() => {
     let result = data ?? [];
     
-    // Apply status filter (checked_out is derived: confirmed + past contract end)
+    // Apply status filter (checked_out includes DB status and confirmed + past contract end)
     if (statusFilter !== "all") {
       if (statusFilter === "checked_out") {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         result = result.filter((application) => {
+          if (application.status === "checked_out") return true;
           if (application.status !== "confirmed") return false;
           const end = application.contract?.contract_end;
           if (!end) return false;
@@ -970,20 +975,20 @@ const Applications = () => {
 
       <Card className="rounded-3xl border border-border/60 shadow-xl">
         <CardHeader>
-          <CardTitle className="text-lg font-display uppercase tracking-wide">
+          <CardTitle
+            className="text-lg font-display uppercase tracking-wide"
+            tooltip="Track student progress, confirm documents, and promote students to confirmed residents once tenancy agreements are complete."
+            tooltipLabel="About Application pipeline"
+          >
             Application pipeline
           </CardTitle>
-          <CardDescription>
-            Track student progress, confirm documents, and promote students to
-            confirmed residents once tenancy agreements are complete.
-          </CardDescription>
           <p className="mt-1 text-xs text-muted-foreground">
             {filtered.length} application{filtered.length === 1 ? "" : "s"} matching
             current filters
           </p>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {isLoading && !data ? (
             <div className="space-y-4">
               {[1, 2, 3, 4].map((i) => (
                 <div
@@ -1030,11 +1035,24 @@ const Applications = () => {
                         </h3>
                         <div className="flex-shrink-0 flex items-center gap-1.5 flex-wrap">
                           {getStatusBadge(
-                            application.status === "confirmed" &&
-                              application.contract?.contract_end &&
-                              new Date(application.contract.contract_end) < new Date()
-                              ? "checked_out"
-                              : application.status
+                            (() => {
+                              if (application.status === "checked_out") {
+                                const actual = application.actual_check_out_date;
+                                const end = application.contract?.contract_end;
+                                if (actual && end && new Date(actual) < new Date(end)) {
+                                  return "checked_out_early";
+                                }
+                                return "checked_out";
+                              }
+                              if (
+                                application.status === "confirmed" &&
+                                application.contract?.contract_end &&
+                                new Date(application.contract.contract_end) < new Date()
+                              ) {
+                                return "checked_out";
+                              }
+                              return application.status;
+                            })(),
                           )}
                           {!application.deposit_payment_intent_id &&
                             (application.status === "confirmed" || application.status === "awaiting_deposit") && (
@@ -1107,11 +1125,11 @@ const Applications = () => {
                         }
                       />
                     </div>
-                    <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-2 flex-wrap min-w-0">
                       <Button
                         variant={!application.deposit_payment_intent_id ? "default" : "outline"}
                         size="sm"
-                        className="rounded-md uppercase tracking-wide gap-2 flex-1 sm:flex-initial text-xs"
+                        className="rounded-md uppercase tracking-wide gap-2 flex-1 min-w-0 whitespace-normal sm:flex-initial sm:whitespace-nowrap text-xs"
                         onClick={() => {
                           setSelectedApplicationId(application.id);
                           setManualPaymentInitialType(application.deposit_payment_intent_id ? "instalment" : "deposit");
@@ -1127,7 +1145,7 @@ const Applications = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="rounded-md uppercase tracking-wide gap-2 flex-1 sm:flex-initial text-xs"
+                        className="rounded-md uppercase tracking-wide gap-2 flex-1 min-w-0 whitespace-normal sm:flex-initial sm:whitespace-nowrap text-xs"
                         onClick={() => {
                           const currentQuery = buildListSearchParams().toString();
                           navigate(`/admin/applications/${application.id}`, {
@@ -1144,7 +1162,7 @@ const Applications = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="rounded-md uppercase tracking-wide gap-2 flex-1 sm:flex-initial text-xs"
+                        className="rounded-md uppercase tracking-wide gap-2 flex-1 min-w-0 whitespace-normal sm:flex-initial sm:whitespace-nowrap text-xs"
                         onClick={() =>
                           navigate(`/portal/applications/${application.id}`)
                         }
@@ -1250,7 +1268,7 @@ const Applications = () => {
         }}
       />
       {isMobile ? (
-        <Drawer open={createDialogOpen} onOpenChange={(open) => { setCreateDialogOpen(open); if (!open) resetCreateDialog(); }}>
+        <Drawer open={createDialogOpen} onOpenChange={(open) => guardOpenChangeOnTabBlur(open, (next) => { setCreateDialogOpen(next); if (!next) resetCreateDialog(); })}>
           <DrawerContent className="max-h-[90vh] rounded-t-[28px]">
             <DrawerHeader className="text-left px-4 pt-6 pb-2">
               <DrawerTitle className="text-xl font-display uppercase tracking-wide">
@@ -1536,7 +1554,7 @@ const Applications = () => {
           </DrawerContent>
         </Drawer>
       ) : (
-        <Sheet open={createDialogOpen} onOpenChange={(open) => { setCreateDialogOpen(open); if (!open) resetCreateDialog(); }}>
+        <Sheet open={createDialogOpen} onOpenChange={(open) => guardOpenChangeOnTabBlur(open, (next) => { setCreateDialogOpen(next); if (!next) resetCreateDialog(); })}>
           <SheetContent side="right" className="w-full sm:max-w-[34rem] overflow-y-auto">
             <SheetHeader>
               <SheetTitle className="text-xl font-display uppercase tracking-wide">

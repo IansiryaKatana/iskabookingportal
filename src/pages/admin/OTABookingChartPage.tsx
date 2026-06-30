@@ -3,7 +3,7 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import { useOTABookings, useUpdateOTABooking, type OTABookingWithRelations } from "@/hooks/useOTABookings";
 import { useOutOfOrderRecords } from "@/hooks/useOutOfOrder";
 import { useAdminStudios } from "@/hooks/useAdminStudios";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/select";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isToday, isSameDay, parseISO } from "date-fns";
 import {
-  Calendar, ChevronLeft, ChevronRight, Filter, Building2, AlertTriangle,
+  Calendar, ChevronLeft, ChevronRight, Building2, AlertTriangle,
   CheckCircle2, XCircle, Users, Clock, Pencil, Loader2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -318,13 +318,7 @@ const OTABookingChartPage = () => {
 
         {/* Filters */}
         <Card className="rounded-3xl border border-border/60 shadow-xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base md:text-lg font-display font-bold uppercase tracking-wide">
-              <Filter className="h-4 w-4 md:h-5 md:w-5" />
-              Filters
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label className="text-xs md:text-sm">Status</Label>
@@ -409,12 +403,13 @@ const OTABookingChartPage = () => {
         {/* Calendar Chart */}
         <Card className="rounded-3xl border border-border/60 shadow-xl">
           <CardHeader>
-            <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">
+            <CardTitle
+              className="text-base md:text-lg font-display font-bold uppercase tracking-wide"
+              tooltip="Studios as rows, dates as columns. Click a cell to view booking details."
+              tooltipLabel="About Booking Chart"
+            >
               Booking Chart
             </CardTitle>
-            <CardDescription className="text-xs md:text-sm">
-              Studios as rows, dates as columns. Click a cell to view booking details.
-            </CardDescription>
           </CardHeader>
           <CardContent>
             {filteredStudios.length === 0 ? (

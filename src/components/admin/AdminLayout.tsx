@@ -53,6 +53,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { CommandPalette } from "./CommandPalette";
+import { TitleWithTooltip } from "@/components/ui/title-with-tooltip";
 
 export type NavItem = {
   label: string;
@@ -705,14 +706,13 @@ const AdminLayout = ({
           <div className="px-4 py-3 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <div className="flex-1 min-w-0">
-                <h1 className="text-lg font-display font-black uppercase tracking-wide truncate">
+                <TitleWithTooltip
+                  tooltip={subtitle}
+                  tooltipLabel={`About ${pageTitle || "Admin Dashboard"}`}
+                  titleClassName="text-lg font-display font-black uppercase tracking-wide truncate"
+                >
                   {pageTitle || "Admin Dashboard"}
-                </h1>
-                {subtitle && (
-                  <p className="text-xs text-muted-foreground truncate">
-                    {subtitle}
-                  </p>
-                )}
+                </TitleWithTooltip>
               </div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
@@ -863,14 +863,13 @@ const AdminLayout = ({
                   </>
                 ) : (
                   <>
-                    <h2 className="text-2xl md:text-3xl font-display font-black uppercase tracking-wide">
+                    <TitleWithTooltip
+                      tooltip={subtitle}
+                      tooltipLabel={`About ${pageTitle ?? "Dashboard"}`}
+                      titleClassName="text-2xl md:text-3xl font-display font-black uppercase tracking-wide"
+                    >
                       {pageTitle ?? "Dashboard"}
-                    </h2>
-                    {subtitle && (
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {subtitle}
-                      </p>
-                    )}
+                    </TitleWithTooltip>
                   </>
                 )}
               </div>
@@ -888,12 +887,13 @@ const AdminLayout = ({
                   </>
                 ) : (
                   <>
-                    <h2 className="text-2xl md:text-3xl font-display font-black uppercase tracking-wide">
+                    <TitleWithTooltip
+                      tooltip={subtitle}
+                      tooltipLabel={`About ${pageTitle}`}
+                      titleClassName="text-2xl md:text-3xl font-display font-black uppercase tracking-wide"
+                    >
                       {pageTitle}
-                    </h2>
-                    {subtitle && (
-                      <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
-                    )}
+                    </TitleWithTooltip>
                   </>
                 )}
               </div>

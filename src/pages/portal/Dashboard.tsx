@@ -6,6 +6,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStudentApplicationsList } from "@/hooks/useStudentApplications";
+import {
+  useInitialAgreementStatusSync,
+  useSigningCompleteSync,
+} from "@/hooks/useDocusignStatusSync";
 import { supabase } from "@/integrations/supabase/client";
 import PortalLayout from "@/components/portal/PortalLayout";
 import RebookingCarousel from "@/components/RebookingCarousel";
@@ -42,6 +46,22 @@ const Dashboard = () => {
   useEffect(() => {
     refetch();
   }, [refetch]);
+
+  const agreementApplicationIds = useMemo(
+    () => applications?.map((app) => app.id) ?? [],
+    [applications],
+  );
+
+  const pendingSyncIds = useMemo(
+    () =>
+      applications
+        ?.filter((app) => app.status === "awaiting_signature")
+        .map((app) => app.id) ?? [],
+    [applications],
+  );
+
+  useSigningCompleteSync(agreementApplicationIds);
+  useInitialAgreementStatusSync(pendingSyncIds, !isLoading && pendingSyncIds.length > 0);
 
   // Fetch available contracts for rebooking
   useEffect(() => {

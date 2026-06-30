@@ -12,7 +12,7 @@ import {
 import { useAdminAcademicYears } from "@/hooks/useAdminAcademicYears";
 import { useAdminContracts } from "@/hooks/useAdminContracts";
 import { useEmailTemplates } from "@/hooks/useEmailTemplates";
-import { Mail, Send, Users, CheckCircle2, Clock, XCircle, Loader2, Filter, Search } from "lucide-react";
+import { Mail, Send, Users, CheckCircle2, Clock, XCircle, Loader2, Search } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -288,11 +288,7 @@ const BulkInvitations = () => {
 
         {/* Filters and Actions */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">Filters & Actions</CardTitle>
-            <CardDescription className="text-xs md:text-sm">Filter applications and send invitations</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 pt-6">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label>Search Student</Label>

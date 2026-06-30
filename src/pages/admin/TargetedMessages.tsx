@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
+import { TitleWithTooltip } from "@/components/ui/title-with-tooltip";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -256,7 +257,7 @@ const TargetedMessages = () => {
     setSelectedStudentIds((prev) => prev.filter((id) => id !== studentId));
   };
 
-  if (isLoading) {
+  if (isLoading && !messages) {
     return (
       <AdminLayout pageTitle="Targeted Messages" subtitle="Send messages to specific students">
         <div className="space-y-4">
@@ -290,12 +291,13 @@ const TargetedMessages = () => {
       <div className="space-y-6">
         <div className="hidden lg:flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-display font-bold uppercase tracking-wide">
+            <TitleWithTooltip
+              tooltip="Send personalized messages to specific students or groups"
+              tooltipLabel="About Targeted Messages"
+              titleClassName="text-2xl font-display font-bold uppercase tracking-wide"
+            >
               Targeted Messages
-            </h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Send personalized messages to specific students or groups
-            </p>
+            </TitleWithTooltip>
           </div>
           <Button
             onClick={() => setDialogOpen(true)}
