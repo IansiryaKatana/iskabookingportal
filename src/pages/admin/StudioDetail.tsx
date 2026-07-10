@@ -1,5 +1,7 @@
 import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { format, parseISO } from "date-fns";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +13,7 @@ import { useAdminStudios, useUpdateStudio } from "@/hooks/useAdminStudios";
 import { useStudioApplications } from "@/hooks/useStudioApplications";
 import { useToast } from "@/hooks/use-toast";
 import { useStudioAllocationHistory } from "@/hooks/useStudioAllocation";
+import { supabase } from "@/integrations/supabase/client";
 
 const statusLabelMap: Record<string, string> = {
   draft: "Draft",
@@ -60,6 +63,30 @@ const StudioDetail = () => {
     status: statusFilter === "all" ? null : statusFilter,
   });
   const { data: allocationHistory, isLoading: allocationHistoryLoading } = useStudioAllocationHistory(studioId);
+
+  const applicationIds = useMemo(() => (applications ?? []).map((a) => a.id), [applications]);
+  const { data: eciByApplicationId } = useQuery({
+    queryKey: ["studio-confirmed-eci", studioId, applicationIds],
+    queryFn: async () => {
+      if (applicationIds.length === 0) {
+        return {} as Record<string, string>;
+      }
+      const { data: rows, error } = await (supabase as any)
+        .from("early_check_ins")
+        .select("application_id, early_check_in_date")
+        .eq("status", "confirmed")
+        .in("application_id", applicationIds);
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      for (const row of rows ?? []) {
+        if (row.application_id && row.early_check_in_date) {
+          map[row.application_id as string] = row.early_check_in_date as string;
+        }
+      }
+      return map;
+    },
+    enabled: applicationIds.length > 0,
+  });
 
   return (
     <AdminLayout
@@ -235,6 +262,15 @@ const StudioDetail = () => {
                         <Badge className={badgeClass + " rounded-md px-2.5 py-0.5 text-xs font-medium uppercase tracking-wide"}>
                           {label}
                         </Badge>
+                        {eciByApplicationId?.[app.id] && (
+                          <Badge
+                            variant="outline"
+                            className="text-amber-700 border-amber-500 bg-amber-50 text-[10px] uppercase rounded-md"
+                          >
+                            Early check-in from{" "}
+                            {format(parseISO(eciByApplicationId[app.id]), "dd MMM yyyy")}
+                          </Badge>
+                        )}
                       </div>
                       <p className="text-xs text-muted-foreground">
                         {studentName}

@@ -6,6 +6,7 @@ import { useStudentApplicationsList } from "@/hooks/useStudentApplications";
 import { useStudentPayments } from "@/hooks/useStudentPayments";
 import { useApplicationCashback } from "@/hooks/useCashback";
 import { useApplicationDiscount } from "@/hooks/useDiscount";
+import { useEarlyCheckInSummary } from "@/hooks/useEarlyCheckIn";
 import { usePaymentSummary, useUnifiedPayments, useInstallmentBreakdown } from "@/hooks/useUnifiedPayments";
 import { useManualPaymentRequests, useManualPaymentRequestHistory } from "@/hooks/useManualPaymentRequests";
 import ManualPaymentRequestDialog from "@/components/portal/ManualPaymentRequestDialog";
@@ -23,7 +24,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { format, isPast, isToday, isFuture } from "date-fns";
+import { format, isPast, isToday, isFuture, parseISO } from "date-fns";
 import { Elements } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
 import StripePaymentForm from "@/components/StripePaymentForm";
@@ -580,6 +581,7 @@ const PaymentCard = ({
     amount: number;
   } | null>(null);
   const { data: instalments, isLoading, refetch } = useStudentPayments(application.id);
+  const { data: earlyCheckInSummary } = useEarlyCheckInSummary(application.id);
   const { data: pendingRequests } = useManualPaymentRequests(application.id);
   const { data: requestHistory } = useManualPaymentRequestHistory(application.id);
   const pendingInstalmentIds = useMemo(
@@ -781,7 +783,11 @@ const PaymentCard = ({
     );
   }
 
-  if (!instalments || instalments.length === 0) {
+  const showEarlyCheckIn =
+    earlyCheckInSummary?.status === "confirmed" &&
+    (earlyCheckInSummary.amount_due > 0 || earlyCheckInSummary.total_received > 0);
+
+  if ((!instalments || instalments.length === 0) && !showEarlyCheckIn) {
     return null;
   }
 
@@ -792,10 +798,63 @@ const PaymentCard = ({
           {contract?.name ?? "Contract"}
         </CardTitle>
         <CardDescription>
-          {gradeName} · {instalments.length} instalment{instalments.length !== 1 ? "s" : ""}
+          {gradeName}
+          {instalments && instalments.length > 0
+            ? ` · ${instalments.length} instalment${instalments.length !== 1 ? "s" : ""}`
+            : ""}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {showEarlyCheckIn && earlyCheckInSummary && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-semibold uppercase tracking-wide text-amber-900">
+                Early check-in
+              </p>
+              <FinanceStatusBadge
+                status={earlyCheckInSummary.payment_status}
+                className="text-xs uppercase"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {format(parseISO(earlyCheckInSummary.early_check_in_date), "dd MMM yyyy")}
+              {" → "}
+              {format(parseISO(earlyCheckInSummary.early_check_out_date), "dd MMM yyyy")}
+              {" · "}
+              {earlyCheckInSummary.nights} night{earlyCheckInSummary.nights !== 1 ? "s" : ""}
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
+              <div>
+                <span className="text-muted-foreground text-xs">Amount due</span>
+                <p className="font-medium">
+                  £
+                  {earlyCheckInSummary.amount_due.toLocaleString("en-GB", {
+                    minimumFractionDigits: 2,
+                  })}
+                </p>
+              </div>
+              <div>
+                <span className="text-muted-foreground text-xs">Received</span>
+                <p className="font-medium text-green-700">
+                  £
+                  {earlyCheckInSummary.total_received.toLocaleString("en-GB", {
+                    minimumFractionDigits: 2,
+                  })}
+                </p>
+              </div>
+              <div>
+                <span className="text-muted-foreground text-xs">Remaining</span>
+                <p className="font-medium">
+                  £
+                  {earlyCheckInSummary.remaining_balance.toLocaleString("en-GB", {
+                    minimumFractionDigits: 2,
+                  })}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Cashback Alert */}
         {cashback && cashback.cashback_amount > 0 && (
           <Alert className="border-primary/50 bg-primary/5">

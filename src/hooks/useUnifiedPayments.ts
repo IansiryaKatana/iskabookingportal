@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export type UnifiedPayment = {
-  payment_source: "stripe" | "manual";
+  payment_source: "stripe" | "manual" | "early_check_in";
   payment_id: string;
   student_application_id: string;
   payment_plan_id: string | null;
@@ -22,6 +22,8 @@ export type UnifiedPayment = {
   contract_name: string;
   academic_year_id: string;
   academic_year_name: string;
+  /** From view: deposit | instalment | early_check_in */
+  payment_type?: string | null;
   /** From view: human-readable for CSV/reports */
   student_name?: string | null;
   studio_number?: string | null;

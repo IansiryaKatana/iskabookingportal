@@ -20,6 +20,8 @@ export type AccountsReceivableItem = {
   total_due: number;
   total_paid: number;
   outstanding_balance: number;
+  early_check_in_outstanding?: number;
+  total_outstanding?: number;
   payment_status: string;
   assigned_studio_id: string | null;
   studio_number: string | null;
@@ -36,6 +38,7 @@ export type RevenueSummaryItem = {
   period_end: string;
   deposit_revenue: number;
   installment_revenue: number;
+  early_check_in_revenue: number;
   total_revenue: number;
   payment_count: number;
   stripe_revenue: number;
@@ -208,7 +211,17 @@ export const useAccountsReceivableReport = () => {
         throw error;
       }
 
-      return (data || []) as AccountsReceivableItem[];
+      return ((data || []) as AccountsReceivableItem[]).map((row) => ({
+        ...row,
+        early_check_in_outstanding: Number(
+          (row as AccountsReceivableItem).early_check_in_outstanding ?? 0,
+        ),
+        total_outstanding: Number(
+          (row as AccountsReceivableItem).total_outstanding ??
+            (row as AccountsReceivableItem).outstanding_balance ??
+            0,
+        ),
+      }));
     },
   });
 };
@@ -247,7 +260,24 @@ export const useRevenueSummary = (
         return [];
       }
 
-      return (data || []) as RevenueSummaryItem[];
+      return ((data || []) as Array<Partial<RevenueSummaryItem> & {
+        period_label: string;
+        period_start: string;
+        period_end: string;
+      }>).map((row) => ({
+        period_label: row.period_label,
+        period_start: row.period_start,
+        period_end: row.period_end,
+        deposit_revenue: Number(row.deposit_revenue ?? 0),
+        installment_revenue: Number(row.installment_revenue ?? 0),
+        early_check_in_revenue: Number(row.early_check_in_revenue ?? 0),
+        total_revenue: Number(row.total_revenue ?? 0),
+        payment_count: Number(row.payment_count ?? 0),
+        stripe_revenue: Number(row.stripe_revenue ?? 0),
+        manual_revenue: Number(row.manual_revenue ?? 0),
+        total_refunds: Number(row.total_refunds ?? 0),
+        net_revenue: Number(row.net_revenue ?? 0),
+      }));
     },
     enabled: startDate !== undefined && endDate !== undefined && !!startDate && !!endDate, // Only run when dates are provided
     retry: false, // Don't retry on error

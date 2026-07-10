@@ -36,7 +36,9 @@ import { useCreateManualPayment, useLinkManualPaymentById } from "@/hooks/useMan
 import { useToast } from "@/hooks/use-toast";
 import { useInstallmentBreakdown, usePaymentSummary, useUnifiedPayments } from "@/hooks/useUnifiedPayments";
 import { getEffectiveWeeks } from "@/utils/contractDuration";
-import { Loader2, Plus, Search, CheckCircle2, XCircle, Pencil } from "lucide-react";
+import { Loader2, Plus, Search, CheckCircle2, XCircle, Pencil, DoorOpen } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
@@ -930,6 +932,21 @@ const ManualPaymentEntry = () => {
       subtitle="Record payments made outside the system. Approve student payment requests or record unlinked payments."
     >
       <div className="space-y-6">
+        <Alert className="rounded-2xl border-amber-200 bg-amber-50 text-amber-950">
+          <DoorOpen className="h-4 w-4" />
+          <AlertTitle className="text-sm font-medium">Early check-in payments</AlertTitle>
+          <AlertDescription className="text-sm text-amber-900/80">
+            Deposit and instalment payments are recorded here. For early check-in charges, use{" "}
+            <Link
+              to="/admin/early-check-in-payments"
+              className="font-medium underline underline-offset-2 hover:text-amber-950"
+            >
+              Early Check-in Payments
+            </Link>{" "}
+            or the Early check-in section on an application.
+          </AlertDescription>
+        </Alert>
+
         {/* Pending student manual payment requests */}
         <Card className="rounded-3xl border border-border/60 shadow-xl">
           <CardHeader>

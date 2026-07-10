@@ -382,6 +382,8 @@ const AccountingReports = () => {
           "Total Due",
           "Total Paid",
           "Outstanding Balance",
+          "Early Check-in Outstanding",
+          "Total Outstanding",
           "Payment Status",
           "Studio Number",
           "Application Date",
@@ -403,6 +405,8 @@ const AccountingReports = () => {
           item.total_due.toString(),
           item.total_paid.toString(),
           item.outstanding_balance.toString(),
+          (item.early_check_in_outstanding ?? 0).toString(),
+          (item.total_outstanding ?? item.outstanding_balance).toString(),
           item.payment_status,
           item.studio_number || "",
           format(new Date(item.application_date), "yyyy-MM-dd"),
@@ -429,6 +433,7 @@ const AccountingReports = () => {
           "Period End",
           "Deposit Revenue",
           "Installment Revenue",
+          "Early Check-in Revenue",
           "Total Revenue",
           "Payment Count",
           "Stripe Revenue",
@@ -440,6 +445,7 @@ const AccountingReports = () => {
           format(new Date(item.period_end), "yyyy-MM-dd"),
           item.deposit_revenue.toString(),
           item.installment_revenue.toString(),
+          (item.early_check_in_revenue ?? 0).toString(),
           item.total_revenue.toString(),
           item.payment_count.toString(),
           item.stripe_revenue.toString(),
@@ -749,7 +755,11 @@ const AccountingReports = () => {
   );
 
   const filteredArTotalOutstanding = useMemo(
-    () => filteredArData.reduce((sum, item) => sum + item.outstanding_balance, 0),
+    () =>
+      filteredArData.reduce(
+        (sum, item) => sum + (item.total_outstanding ?? item.outstanding_balance),
+        0,
+      ),
     [filteredArData]
   );
 
@@ -1235,6 +1245,19 @@ const AccountingReports = () => {
                                 <div className="text-base md:text-lg font-bold text-destructive">
                                   Outstanding Balance: {formatCurrency(item.outstanding_balance)}
                                 </div>
+                                {(item.early_check_in_outstanding ?? 0) > 0 && (
+                                  <div className="text-sm text-muted-foreground space-y-1">
+                                    <div>
+                                      Early check-in outstanding:{" "}
+                                      {formatCurrency(item.early_check_in_outstanding ?? 0)}
+                                    </div>
+                                    {item.total_outstanding != null && (
+                                      <div className="font-semibold text-foreground">
+                                        Total outstanding: {formatCurrency(item.total_outstanding)}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </CardContent>
@@ -1336,6 +1359,7 @@ const AccountingReports = () => {
                           <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Period</th>
                           <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Deposit Revenue</th>
                           <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Installment Revenue</th>
+                          <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Early Check-in</th>
                           <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Total Revenue</th>
                           <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Payments</th>
                           <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Stripe</th>
@@ -1348,6 +1372,7 @@ const AccountingReports = () => {
                             <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-medium">{item.period_label}</td>
                             <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm text-right">{formatCurrency(item.deposit_revenue)}</td>
                             <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm text-right">{formatCurrency(item.installment_revenue)}</td>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm text-right">{formatCurrency(item.early_check_in_revenue ?? 0)}</td>
                             <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm text-right font-semibold">{formatCurrency(item.total_revenue)}</td>
                             <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm text-right">{item.payment_count}</td>
                             <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm text-right">{formatCurrency(item.stripe_revenue)}</td>

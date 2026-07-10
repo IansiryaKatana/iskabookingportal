@@ -230,6 +230,27 @@ const Applications = () => {
   const updateStatus = useUpdateApplicationStatus();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  const applicationIds = useMemo(() => (data ?? []).map((a) => a.id), [data]);
+  const { data: confirmedEciByApplicationId } = useQuery({
+    queryKey: ["applications-confirmed-eci", applicationIds],
+    queryFn: async () => {
+      if (applicationIds.length === 0) return {} as Record<string, true>;
+      const { data: rows, error: eciError } = await (supabase as any)
+        .from("early_check_ins")
+        .select("application_id")
+        .eq("status", "confirmed")
+        .in("application_id", applicationIds);
+      if (eciError) throw eciError;
+      const map: Record<string, true> = {};
+      for (const row of rows ?? []) {
+        if (row.application_id) map[row.application_id as string] = true;
+      }
+      return map;
+    },
+    enabled: applicationIds.length > 0,
+  });
+
   const [manualPaymentOpen, setManualPaymentOpen] = useState(false);
   const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(null);
   const [manualPaymentInitialType, setManualPaymentInitialType] = useState<"deposit" | "instalment">("deposit");
@@ -239,6 +260,11 @@ const Applications = () => {
   );
   const [contractTypeFilter, setContractTypeFilter] = useState<ContractTypeFilter>(
     parseContractTypeParam(searchParams.get("contractType")),
+  );
+  const [eciFilter, setEciFilter] = useState<"all" | "has_eci" | "no_eci">(
+    searchParams.get("eci") === "has_eci" || searchParams.get("eci") === "no_eci"
+      ? (searchParams.get("eci") as "has_eci" | "no_eci")
+      : "all",
   );
   const [currentPage, setCurrentPage] = useState(parsePageParam(searchParams.get("page")));
   const [searchQuery, setSearchQuery] = useState<string>(searchParams.get("q") ?? "");
@@ -661,6 +687,7 @@ const Applications = () => {
     if (statusFilter !== "all") params.set("status", statusFilter);
     if (bookingSourceFilter !== "all") params.set("bookingSource", bookingSourceFilter);
     if (contractTypeFilter !== "all") params.set("contractType", contractTypeFilter);
+    if (eciFilter !== "all") params.set("eci", eciFilter);
     if (selectedAcademicYearId) params.set("academicYearId", selectedAcademicYearId);
     if (searchQuery.trim()) params.set("q", searchQuery.trim());
     if (createdFrom) params.set("createdFrom", createdFrom);
@@ -675,6 +702,7 @@ const Applications = () => {
     statusFilter,
     bookingSourceFilter,
     contractTypeFilter,
+    eciFilter,
     selectedAcademicYearId,
     searchQuery,
     createdFrom,
@@ -715,6 +743,14 @@ const Applications = () => {
     // Apply contract type filter
     if (contractTypeFilter !== "all") {
       result = result.filter((application) => getContractType(application) === contractTypeFilter);
+    }
+
+    // Apply early check-in filter
+    if (eciFilter !== "all") {
+      result = result.filter((application) => {
+        const hasEci = Boolean(confirmedEciByApplicationId?.[application.id]);
+        return eciFilter === "has_eci" ? hasEci : !hasEci;
+      });
     }
     
     // Apply search filter
@@ -762,7 +798,17 @@ const Applications = () => {
     }
     
     return result;
-  }, [data, statusFilter, bookingSourceFilter, contractTypeFilter, searchQuery, createdFrom, createdTo]);
+  }, [
+    data,
+    statusFilter,
+    bookingSourceFilter,
+    contractTypeFilter,
+    eciFilter,
+    confirmedEciByApplicationId,
+    searchQuery,
+    createdFrom,
+    createdTo,
+  ]);
 
   // Pagination logic
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
@@ -775,7 +821,7 @@ const Applications = () => {
   // Reset to page 1 when filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, bookingSourceFilter, contractTypeFilter, selectedAcademicYearId, searchQuery, createdFrom, createdTo]);
+  }, [statusFilter, bookingSourceFilter, contractTypeFilter, eciFilter, selectedAcademicYearId, searchQuery, createdFrom, createdTo]);
 
   const handleStatusChange = async (
     id: string,
@@ -846,6 +892,22 @@ const Applications = () => {
                 <SelectItem value="default">Default contracts</SelectItem>
                 <SelectItem value="custom">Custom contracts</SelectItem>
                 <SelectItem value="extension">Extensions</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="w-full md:w-48">
+            <Label className="sr-only">Early check-in</Label>
+            <Select
+              value={eciFilter}
+              onValueChange={(value) => setEciFilter(value as "all" | "has_eci" | "no_eci")}
+            >
+              <SelectTrigger className="rounded-md text-xs sm:text-sm">
+                <SelectValue placeholder="Early check-in" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Early check-in: All</SelectItem>
+                <SelectItem value="has_eci">Has ECI</SelectItem>
+                <SelectItem value="no_eci">No ECI</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1058,6 +1120,14 @@ const Applications = () => {
                             (application.status === "confirmed" || application.status === "awaiting_deposit") && (
                             <Badge variant="outline" className="text-amber-600 border-amber-400 text-[10px] uppercase">
                               No deposit
+                            </Badge>
+                          )}
+                          {confirmedEciByApplicationId?.[application.id] && (
+                            <Badge
+                              variant="outline"
+                              className="text-amber-700 border-amber-500 bg-amber-50 text-[10px] uppercase"
+                            >
+                              Early check-in
                             </Badge>
                           )}
                         </div>

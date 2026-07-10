@@ -297,9 +297,17 @@ const PaymentHistory = () => {
     },
   });
 
-  // Client-side filter by student name; then split into deposits/installments
-  const { filteredPayments, deposits, installments, allPayments } = useMemo(() => {
-    if (!payments) return { filteredPayments: [], deposits: [], installments: [], allPayments: [] };
+  // Client-side filter by student name; then split into deposits/installments/early check-ins
+  const { filteredPayments, deposits, installments, earlyCheckIns, allPayments } = useMemo(() => {
+    if (!payments) {
+      return {
+        filteredPayments: [],
+        deposits: [],
+        installments: [],
+        earlyCheckIns: [],
+        allPayments: [],
+      };
+    }
     const searchTrim = searchByName.trim().toLowerCase();
     const filtered = searchTrim
       ? payments.filter(
@@ -307,7 +315,15 @@ const PaymentHistory = () => {
         )
       : payments;
 
+    const isEarlyCheckIn = (payment: UnifiedPayment) =>
+      payment.payment_source === "early_check_in" ||
+      payment.payment_type === "early_check_in" ||
+      payment.payment_metadata?.type === "early_check_in";
+
+    const earlyCheckInsList = filtered.filter(isEarlyCheckIn);
+
     const depositsList = filtered.filter((payment) => {
+      if (isEarlyCheckIn(payment)) return false;
       const isDeposit =
         !payment.installment_number &&
         (payment.payment_metadata?.type === "deposit" ||
@@ -318,14 +334,16 @@ const PaymentHistory = () => {
 
     const installmentsList = filtered.filter(
       (payment) =>
-        payment.installment_number !== null ||
-        payment.payment_metadata?.type === "instalment"
+        !isEarlyCheckIn(payment) &&
+        (payment.installment_number !== null ||
+          payment.payment_metadata?.type === "instalment")
     );
 
     return {
       filteredPayments: filtered,
       deposits: depositsList,
       installments: installmentsList,
+      earlyCheckIns: earlyCheckInsList,
       allPayments: filtered,
     };
   }, [payments, searchByName]);
@@ -496,8 +514,9 @@ const PaymentHistory = () => {
   const currentTabPayments = useMemo(() => {
     if (activePaymentTab === "deposits") return deposits;
     if (activePaymentTab === "installments") return installments;
+    if (activePaymentTab === "early_check_ins") return earlyCheckIns;
     return allPayments;
-  }, [activePaymentTab, deposits, installments, allPayments]);
+  }, [activePaymentTab, deposits, installments, earlyCheckIns, allPayments]);
 
   const allInCurrentTabSelected =
     currentTabPayments.length > 0 &&
@@ -857,6 +876,20 @@ const PaymentHistory = () => {
   };
 
   const handleEditManualPayment = async (payment: UnifiedPayment) => {
+    if (
+      payment.payment_source === "early_check_in" ||
+      payment.payment_type === "early_check_in" ||
+      payment.payment_metadata?.type === "early_check_in"
+    ) {
+      toast({
+        title: "Cannot edit payment",
+        description:
+          "Early check-in payments must be managed from the Early Check-in section on the application.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (payment.payment_source !== "manual") {
       toast({
         title: "Cannot edit payment",
@@ -934,6 +967,20 @@ const PaymentHistory = () => {
   };
 
   const handleDeleteManualPayment = (payment: UnifiedPayment) => {
+    if (
+      payment.payment_source === "early_check_in" ||
+      payment.payment_type === "early_check_in" ||
+      payment.payment_metadata?.type === "early_check_in"
+    ) {
+      toast({
+        title: "Cannot delete payment",
+        description:
+          "Early check-in payments must be managed from the Early Check-in section on the application.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (payment.payment_source !== "manual") {
       toast({
         title: "Cannot delete payment",
@@ -1295,7 +1342,7 @@ const PaymentHistory = () => {
                 onValueChange={setActivePaymentTab}
                 className="w-full"
               >
-                <TabsList className="grid w-full grid-cols-3 rounded-md bg-muted border border-border p-1 mb-4">
+                <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 rounded-md bg-muted border border-border p-1 mb-4 h-auto">
                   <TabsTrigger
                     value="all"
                     className="group rounded-md data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
@@ -1338,6 +1385,20 @@ const PaymentHistory = () => {
                       </Badge>
                     )}
                   </TabsTrigger>
+                  <TabsTrigger
+                    value="early_check_ins"
+                    className="group rounded-md data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+                  >
+                    Early check-in
+                    {earlyCheckIns.length > 0 && (
+                      <Badge
+                        variant="secondary"
+                        className="ml-2 text-xs group-data-[state=active]:bg-primary-foreground/20 group-data-[state=active]:text-primary-foreground group-data-[state=active]:border-primary-foreground/30"
+                      >
+                        {earlyCheckIns.length}
+                      </Badge>
+                    )}
+                  </TabsTrigger>
                 </TabsList>
                 
                 <TabsContent value="all" className="mt-4">
@@ -1376,6 +1437,23 @@ const PaymentHistory = () => {
                   ) : (
                     <PaymentList 
                       payments={installments} 
+                      selectedPayments={selectedPayments}
+                      togglePaymentSelection={togglePaymentSelection}
+                      handleDownloadReceipt={handleDownloadReceipt}
+                      handleDeleteManualPayment={handleDeleteManualPayment}
+                      handleEditManualPayment={handleEditManualPayment}
+                    />
+                  )}
+                </TabsContent>
+
+                <TabsContent value="early_check_ins" className="mt-4">
+                  {earlyCheckIns.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No early check-in payments found.
+                    </div>
+                  ) : (
+                    <PaymentList
+                      payments={earlyCheckIns}
                       selectedPayments={selectedPayments}
                       togglePaymentSelection={togglePaymentSelection}
                       handleDownloadReceipt={handleDownloadReceipt}
@@ -1612,8 +1690,20 @@ const PaymentList = ({
                   </Link>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <Badge variant={payment.payment_source === "stripe" ? "default" : "secondary"}>
-                    {payment.payment_source === "stripe" ? "Stripe" : "Manual"}
+                  <Badge
+                    variant={
+                      payment.payment_source === "stripe"
+                        ? "default"
+                        : payment.payment_source === "early_check_in"
+                          ? "outline"
+                          : "secondary"
+                    }
+                  >
+                    {payment.payment_source === "stripe"
+                      ? "Stripe"
+                      : payment.payment_source === "early_check_in"
+                        ? "Early check-in"
+                        : "Manual"}
                   </Badge>
                   <span className="text-sm font-medium">
                     £{payment.amount_paid.toLocaleString("en-GB", { minimumFractionDigits: 2 })}
@@ -1666,6 +1756,11 @@ const PaymentList = ({
                         Delete manual payment
                       </DropdownMenuItem>
                     </>
+                  )}
+                  {payment.payment_source === "early_check_in" && (
+                    <DropdownMenuItem disabled className="text-muted-foreground">
+                      Manage via application ECI section
+                    </DropdownMenuItem>
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>

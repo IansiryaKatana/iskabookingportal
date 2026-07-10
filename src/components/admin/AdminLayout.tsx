@@ -34,6 +34,7 @@ import {
   AlertTriangle,
   MapPin,
   Lock,
+  DoorOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -123,6 +124,11 @@ export const navSections: NavSection[] = [
         label: "Payment History",
         to: "/admin/payment-history",
         icon: CreditCard,
+      },
+      {
+        label: "Early Check-in Payments",
+        to: "/admin/early-check-in-payments",
+        icon: DoorOpen,
       },
       {
         label: "Weekly Payments",

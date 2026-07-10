@@ -12,6 +12,7 @@ const routeTitleMap: Record<string, string> = {
   "/admin/studio-grades": "Studio Grades",
   "/admin/payment-plans": "Payment Plans",
   "/admin/payment-history": "Payment History",
+  "/admin/early-check-in-payments": "Early Check-in Payments",
   "/admin/fully-paid-students": "Fully Paid Students",
   "/admin/contracts": "Contracts",
   "/admin/studios": "Studios",

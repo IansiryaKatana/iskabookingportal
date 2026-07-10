@@ -33,6 +33,8 @@ type WeeklyReportData = {
     stripeCount: number;
     manualAmount: number;
     manualCount: number;
+    earlyCheckInAmount?: number;
+    earlyCheckInCount?: number;
   };
   paymentsByDay: Record<string, any[]>;
   payments: any[];
@@ -105,6 +107,8 @@ const WeeklyPaymentReport = () => {
       "Stripe Count",
       "Manual Amount",
       "Manual Count",
+      "Early Check-in Amount",
+      "Early Check-in Count",
     ];
 
     const rows = [
@@ -117,6 +121,8 @@ const WeeklyPaymentReport = () => {
         reportData.summary.stripeCount.toString(),
         reportData.summary.manualAmount.toString(),
         reportData.summary.manualCount.toString(),
+        (reportData.summary.earlyCheckInAmount ?? 0).toString(),
+        (reportData.summary.earlyCheckInCount ?? 0).toString(),
       ],
     ];
 
@@ -251,7 +257,7 @@ const WeeklyPaymentReport = () => {
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <Card className="rounded-2xl border border-border/60">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-medium uppercase tracking-wide">
@@ -294,6 +300,23 @@ const WeeklyPaymentReport = () => {
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
                       {reportData.summary.manualCount} payment{reportData.summary.manualCount !== 1 ? "s" : ""}
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-2xl border border-border/60">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium uppercase tracking-wide">
+                      Early Check-in
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-amber-700">
+                      {formatCurrency(reportData.summary.earlyCheckInAmount ?? 0)}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {reportData.summary.earlyCheckInCount ?? 0} payment
+                      {(reportData.summary.earlyCheckInCount ?? 0) !== 1 ? "s" : ""}
                     </p>
                   </CardContent>
                 </Card>

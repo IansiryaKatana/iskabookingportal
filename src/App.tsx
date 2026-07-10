@@ -67,6 +67,7 @@ const OTAReports = lazy(() => import("./pages/admin/OTAReports"));
 const AdminExpenses = lazy(() => import("./pages/admin/Expenses"));
 const AdminAuditLogs = lazy(() => import("./pages/admin/AuditLogs"));
 const AdminPaymentHistory = lazy(() => import("./pages/admin/PaymentHistory"));
+const EarlyCheckInPaymentsPage = lazy(() => import("./pages/admin/EarlyCheckInPaymentsPage"));
 const AdminFullyPaidStudents = lazy(() => import("./pages/admin/FullyPaidStudents"));
 const AdminCashbackCampaigns = lazy(() => import("./pages/admin/CashbackCampaigns"));
 const AdminDiscountCampaigns = lazy(() => import("./pages/admin/DiscountCampaigns"));
@@ -580,6 +581,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={[...ADMIN_FINANCE_ROLES]}>
                   <AdminPaymentHistory />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/early-check-in-payments"
+              element={
+                <ProtectedRoute allowedRoles={[...ADMIN_FINANCE_ROLES]}>
+                  <EarlyCheckInPaymentsPage />
                 </ProtectedRoute>
               }
             />

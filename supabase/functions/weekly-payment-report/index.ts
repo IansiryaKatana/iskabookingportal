@@ -127,8 +127,14 @@ serve(async (req) => {
     const manualAmount = payments
       ?.filter((p) => p.payment_source === "manual")
       .reduce((sum, p) => sum + p.amount_paid, 0) || 0;
+    const earlyCheckInAmount = payments
+      ?.filter((p) => p.payment_source === "early_check_in" || p.payment_type === "early_check_in")
+      .reduce((sum, p) => sum + p.amount_paid, 0) || 0;
     const stripeCount = payments?.filter((p) => p.payment_source === "stripe").length || 0;
     const manualCount = payments?.filter((p) => p.payment_source === "manual").length || 0;
+    const earlyCheckInCount = payments?.filter(
+      (p) => p.payment_source === "early_check_in" || p.payment_type === "early_check_in",
+    ).length || 0;
 
     // Group by day
     const paymentsByDay: Record<string, typeof payments> = {};
@@ -151,6 +157,8 @@ serve(async (req) => {
           stripeCount,
           manualAmount,
           manualCount,
+          earlyCheckInAmount,
+          earlyCheckInCount,
         },
         paymentsByDay,
         payments: payments || [],

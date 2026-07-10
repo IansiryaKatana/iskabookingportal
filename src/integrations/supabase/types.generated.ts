@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -216,6 +216,13 @@ export type Database = {
             foreignKeyName: "application_cashbacks_application_id_fkey"
             columns: ["application_id"]
             isOneToOne: true
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "application_cashbacks_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
             referencedRelation: "upcoming_and_paid_installments_report"
             referencedColumns: ["application_id"]
           },
@@ -318,6 +325,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "student_applications"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "application_discounts_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["application_id"]
           },
           {
             foreignKeyName: "application_discounts_application_id_fkey"
@@ -674,6 +688,13 @@ export type Database = {
             foreignKeyName: "cashback_campaigns_academic_year_id_fkey"
             columns: ["academic_year_id"]
             isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["academic_year_id"]
+          },
+          {
+            foreignKeyName: "cashback_campaigns_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
             referencedRelation: "studio_grade_availability"
             referencedColumns: ["academic_year_id"]
           },
@@ -894,6 +915,13 @@ export type Database = {
             foreignKeyName: "contract_payment_plans_contract_id_fkey"
             columns: ["contract_id"]
             isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["contract_id"]
+          },
+          {
+            foreignKeyName: "contract_payment_plans_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
             referencedRelation: "studio_grade_availability"
             referencedColumns: ["contract_id"]
           },
@@ -964,6 +992,13 @@ export type Database = {
             columns: ["contract_id"]
             isOneToOne: false
             referencedRelation: "fully_paid_students"
+            referencedColumns: ["contract_id"]
+          },
+          {
+            foreignKeyName: "contract_payment_schedule_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
             referencedColumns: ["contract_id"]
           },
           {
@@ -1095,6 +1130,13 @@ export type Database = {
             foreignKeyName: "contracts_academic_year_id_fkey"
             columns: ["academic_year_id"]
             isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["academic_year_id"]
+          },
+          {
+            foreignKeyName: "contracts_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
             referencedRelation: "studio_grade_availability"
             referencedColumns: ["academic_year_id"]
           },
@@ -1138,6 +1180,13 @@ export type Database = {
             columns: ["source_contract_id"]
             isOneToOne: false
             referencedRelation: "fully_paid_students"
+            referencedColumns: ["contract_id"]
+          },
+          {
+            foreignKeyName: "contracts_source_contract_id_fkey"
+            columns: ["source_contract_id"]
+            isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
             referencedColumns: ["contract_id"]
           },
           {
@@ -1209,6 +1258,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "student_applications"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contracts_student_application_id_fkey"
+            columns: ["student_application_id"]
+            isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["application_id"]
           },
           {
             foreignKeyName: "contracts_student_application_id_fkey"
@@ -1431,6 +1487,13 @@ export type Database = {
             foreignKeyName: "discount_campaigns_academic_year_id_fkey"
             columns: ["academic_year_id"]
             isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["academic_year_id"]
+          },
+          {
+            foreignKeyName: "discount_campaigns_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
             referencedRelation: "studio_grade_availability"
             referencedColumns: ["academic_year_id"]
           },
@@ -1551,6 +1614,13 @@ export type Database = {
             foreignKeyName: "docusign_envelopes_application_id_fkey"
             columns: ["application_id"]
             isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "docusign_envelopes_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
             referencedRelation: "upcoming_and_paid_installments_report"
             referencedColumns: ["application_id"]
           },
@@ -1630,6 +1700,13 @@ export type Database = {
             foreignKeyName: "docusign_templates_academic_year_id_fkey"
             columns: ["academic_year_id"]
             isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["academic_year_id"]
+          },
+          {
+            foreignKeyName: "docusign_templates_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
             referencedRelation: "studio_grade_availability"
             referencedColumns: ["academic_year_id"]
           },
@@ -1646,6 +1723,297 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "studio_status_by_academic_year"
             referencedColumns: ["academic_year_id"]
+          },
+        ]
+      }
+      early_check_in_payments: {
+        Row: {
+          amount: number
+          application_id: string
+          created_at: string
+          currency: string
+          early_check_in_id: string
+          id: string
+          invoice_generated_at: string | null
+          invoice_number: string | null
+          notes: string | null
+          payment_date: string
+          payment_method: string
+          payment_type: string
+          recorded_by: string
+          reference_number: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          application_id: string
+          created_at?: string
+          currency?: string
+          early_check_in_id: string
+          id?: string
+          invoice_generated_at?: string | null
+          invoice_number?: string | null
+          notes?: string | null
+          payment_date: string
+          payment_method?: string
+          payment_type?: string
+          recorded_by: string
+          reference_number: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          application_id?: string
+          created_at?: string
+          currency?: string
+          early_check_in_id?: string
+          id?: string
+          invoice_generated_at?: string | null
+          invoice_number?: string | null
+          notes?: string | null
+          payment_date?: string
+          payment_method?: string
+          payment_type?: string
+          recorded_by?: string
+          reference_number?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "early_check_in_payments_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "accounts_receivable_report"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "early_check_in_payments_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "booking_calendar_data"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "early_check_in_payments_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "deposit_installment_breakdown"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "early_check_in_payments_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "fully_paid_students"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "early_check_in_payments_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "outstanding_balances_report"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "early_check_in_payments_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "partner_referred_applications"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "early_check_in_payments_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "sales_demographics_report"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "early_check_in_payments_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "student_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "early_check_in_payments_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "early_check_in_payments_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "upcoming_and_paid_installments_report"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "early_check_in_payments_early_check_in_id_fkey"
+            columns: ["early_check_in_id"]
+            isOneToOne: false
+            referencedRelation: "early_check_ins"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "early_check_in_payments_early_check_in_id_fkey"
+            columns: ["early_check_in_id"]
+            isOneToOne: false
+            referencedRelation: "early_check_ins_payment_ledger"
+            referencedColumns: ["early_check_in_id"]
+          },
+        ]
+      }
+      early_check_ins: {
+        Row: {
+          application_id: string
+          cancel_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          created_at: string
+          created_by: string | null
+          currency: string
+          early_check_in_date: string
+          early_check_out_date: string
+          id: string
+          nightly_rate: number
+          nights: number
+          notes: string | null
+          status: string
+          studio_id: string
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          application_id: string
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          early_check_in_date: string
+          early_check_out_date: string
+          id?: string
+          nightly_rate: number
+          nights: number
+          notes?: string | null
+          status?: string
+          studio_id: string
+          total_amount: number
+          updated_at?: string
+        }
+        Update: {
+          application_id?: string
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          early_check_in_date?: string
+          early_check_out_date?: string
+          id?: string
+          nightly_rate?: number
+          nights?: number
+          notes?: string | null
+          status?: string
+          studio_id?: string
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "early_check_ins_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "accounts_receivable_report"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "early_check_ins_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "booking_calendar_data"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "early_check_ins_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "deposit_installment_breakdown"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "early_check_ins_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "fully_paid_students"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "early_check_ins_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "outstanding_balances_report"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "early_check_ins_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "partner_referred_applications"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "early_check_ins_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "sales_demographics_report"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "early_check_ins_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "student_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "early_check_ins_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "early_check_ins_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "upcoming_and_paid_installments_report"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "early_check_ins_studio_id_fkey"
+            columns: ["studio_id"]
+            isOneToOne: false
+            referencedRelation: "booking_calendar_data"
+            referencedColumns: ["studio_id"]
+          },
+          {
+            foreignKeyName: "early_check_ins_studio_id_fkey"
+            columns: ["studio_id"]
+            isOneToOne: false
+            referencedRelation: "studio_status_by_academic_year"
+            referencedColumns: ["studio_id"]
+          },
+          {
+            foreignKeyName: "early_check_ins_studio_id_fkey"
+            columns: ["studio_id"]
+            isOneToOne: false
+            referencedRelation: "studios"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -1760,6 +2128,13 @@ export type Database = {
             columns: ["contract_id"]
             isOneToOne: false
             referencedRelation: "fully_paid_students"
+            referencedColumns: ["contract_id"]
+          },
+          {
+            foreignKeyName: "financial_forecast_breakdowns_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
             referencedColumns: ["contract_id"]
           },
           {
@@ -1898,6 +2273,13 @@ export type Database = {
             columns: ["academic_year_id"]
             isOneToOne: false
             referencedRelation: "sales_rebookers_monthly"
+            referencedColumns: ["academic_year_id"]
+          },
+          {
+            foreignKeyName: "financial_forecasts_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
             referencedColumns: ["academic_year_id"]
           },
           {
@@ -2169,6 +2551,13 @@ export type Database = {
             foreignKeyName: "maintenance_requests_academic_year_id_fkey"
             columns: ["academic_year_id"]
             isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["academic_year_id"]
+          },
+          {
+            foreignKeyName: "maintenance_requests_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
             referencedRelation: "studio_grade_availability"
             referencedColumns: ["academic_year_id"]
           },
@@ -2241,6 +2630,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "student_applications"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_requests_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["application_id"]
           },
           {
             foreignKeyName: "maintenance_requests_application_id_fkey"
@@ -2399,6 +2795,13 @@ export type Database = {
             foreignKeyName: "manual_payment_requests_application_id_fkey"
             columns: ["application_id"]
             isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "manual_payment_requests_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
             referencedRelation: "upcoming_and_paid_installments_report"
             referencedColumns: ["application_id"]
           },
@@ -2514,6 +2917,13 @@ export type Database = {
             foreignKeyName: "manual_payments_application_id_fkey"
             columns: ["application_id"]
             isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "manual_payments_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
             referencedRelation: "upcoming_and_paid_installments_report"
             referencedColumns: ["application_id"]
           },
@@ -2523,13 +2933,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "contract_payment_schedule"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "manual_payments_instalment_id_fkey"
-            columns: ["instalment_id"]
-            isOneToOne: false
-            referencedRelation: "upcoming_and_paid_installments_report"
-            referencedColumns: ["installment_id"]
           },
         ]
       }
@@ -3025,6 +3428,13 @@ export type Database = {
             referencedRelation: "ota_bookings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ota_expenses_ota_booking_id_fkey"
+            columns: ["ota_booking_id"]
+            isOneToOne: false
+            referencedRelation: "ota_bookings_payment_ledger"
+            referencedColumns: ["booking_id"]
+          },
         ]
       }
       ota_payments: {
@@ -3077,6 +3487,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "ota_bookings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ota_payments_ota_booking_id_fkey"
+            columns: ["ota_booking_id"]
+            isOneToOne: false
+            referencedRelation: "ota_bookings_payment_ledger"
+            referencedColumns: ["booking_id"]
           },
         ]
       }
@@ -3261,6 +3678,13 @@ export type Database = {
             foreignKeyName: "partner_referrals_application_id_fkey"
             columns: ["application_id"]
             isOneToOne: true
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "partner_referrals_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
             referencedRelation: "upcoming_and_paid_installments_report"
             referencedColumns: ["application_id"]
           },
@@ -3439,6 +3863,13 @@ export type Database = {
             foreignKeyName: "payment_plans_academic_year_id_fkey"
             columns: ["academic_year_id"]
             isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["academic_year_id"]
+          },
+          {
+            foreignKeyName: "payment_plans_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
             referencedRelation: "studio_grade_availability"
             referencedColumns: ["academic_year_id"]
           },
@@ -3523,6 +3954,13 @@ export type Database = {
             foreignKeyName: "payment_plans_student_application_id_fkey"
             columns: ["student_application_id"]
             isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "payment_plans_student_application_id_fkey"
+            columns: ["student_application_id"]
+            isOneToOne: false
             referencedRelation: "upcoming_and_paid_installments_report"
             referencedColumns: ["application_id"]
           },
@@ -3532,6 +3970,7 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string
+          email: string | null
           first_name: string | null
           id: string
           last_name: string | null
@@ -3544,6 +3983,7 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          email?: string | null
           first_name?: string | null
           id: string
           last_name?: string | null
@@ -3556,6 +3996,7 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           created_at?: string
+          email?: string | null
           first_name?: string | null
           id?: string
           last_name?: string | null
@@ -3683,6 +4124,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "student_applications"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "refunds_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["application_id"]
           },
           {
             foreignKeyName: "refunds_application_id_fkey"
@@ -3969,6 +4417,13 @@ export type Database = {
             foreignKeyName: "stripe_payments_student_application_id_fkey"
             columns: ["student_application_id"]
             isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "stripe_payments_student_application_id_fkey"
+            columns: ["student_application_id"]
+            isOneToOne: false
             referencedRelation: "upcoming_and_paid_installments_report"
             referencedColumns: ["application_id"]
           },
@@ -4058,6 +4513,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "student_applications"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_application_steps_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["application_id"]
           },
           {
             foreignKeyName: "student_application_steps_application_id_fkey"
@@ -4236,6 +4698,13 @@ export type Database = {
             foreignKeyName: "student_applications_contract_id_fkey"
             columns: ["contract_id"]
             isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["contract_id"]
+          },
+          {
+            foreignKeyName: "student_applications_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
             referencedRelation: "studio_grade_availability"
             referencedColumns: ["contract_id"]
           },
@@ -4306,6 +4775,13 @@ export type Database = {
             foreignKeyName: "student_applications_extension_of_application_id_fkey"
             columns: ["extension_of_application_id"]
             isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "student_applications_extension_of_application_id_fkey"
+            columns: ["extension_of_application_id"]
+            isOneToOne: false
             referencedRelation: "upcoming_and_paid_installments_report"
             referencedColumns: ["application_id"]
           },
@@ -4364,6 +4840,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "student_applications"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_applications_previous_application_id_fkey"
+            columns: ["previous_application_id"]
+            isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["application_id"]
           },
           {
             foreignKeyName: "student_applications_previous_application_id_fkey"
@@ -4540,6 +5023,13 @@ export type Database = {
             foreignKeyName: "student_documents_application_id_fkey"
             columns: ["application_id"]
             isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "student_documents_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
             referencedRelation: "upcoming_and_paid_installments_report"
             referencedColumns: ["application_id"]
           },
@@ -4635,6 +5125,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "student_applications"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_signatures_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["application_id"]
           },
           {
             foreignKeyName: "student_signatures_application_id_fkey"
@@ -5015,6 +5512,13 @@ export type Database = {
             foreignKeyName: "studio_grade_prices_academic_year_id_fkey"
             columns: ["academic_year_id"]
             isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["academic_year_id"]
+          },
+          {
+            foreignKeyName: "studio_grade_prices_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
             referencedRelation: "studio_grade_availability"
             referencedColumns: ["academic_year_id"]
           },
@@ -5168,6 +5672,13 @@ export type Database = {
             columns: ["academic_year_id"]
             isOneToOne: false
             referencedRelation: "sales_rebookers_monthly"
+            referencedColumns: ["academic_year_id"]
+          },
+          {
+            foreignKeyName: "studio_maintenance_by_academic_year_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
             referencedColumns: ["academic_year_id"]
           },
           {
@@ -5379,6 +5890,13 @@ export type Database = {
             columns: ["academic_year_id"]
             isOneToOne: false
             referencedRelation: "sales_rebookers_monthly"
+            referencedColumns: ["academic_year_id"]
+          },
+          {
+            foreignKeyName: "utility_payments_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
             referencedColumns: ["academic_year_id"]
           },
           {
@@ -6425,6 +6943,7 @@ export type Database = {
           contract_name: string | null
           contract_start: string | null
           discount_amount: number | null
+          early_check_in_outstanding: number | null
           outstanding_balance: number | null
           payment_plan: string | null
           payment_status: string | null
@@ -6434,6 +6953,7 @@ export type Database = {
           studio_number: string | null
           total_contract_value: number | null
           total_due: number | null
+          total_outstanding: number | null
           total_paid: number | null
         }
         Relationships: [
@@ -6558,6 +7078,13 @@ export type Database = {
             foreignKeyName: "contracts_academic_year_id_fkey"
             columns: ["academic_year_id"]
             isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["academic_year_id"]
+          },
+          {
+            foreignKeyName: "contracts_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
             referencedRelation: "studio_grade_availability"
             referencedColumns: ["academic_year_id"]
           },
@@ -6618,31 +7145,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      ota_bookings_payment_ledger: {
-        Row: {
-          amount_due: number | null
-          booking_id: string | null
-          booking_status: string | null
-          channel: string | null
-          check_in: string | null
-          check_out: string | null
-          commission_amount: number | null
-          currency: string | null
-          external_ref: string | null
-          gross_booking_value: number | null
-          guest_name: string | null
-          last_payment_date: string | null
-          number_of_nights: number | null
-          payment_count: number | null
-          payment_status: string | null
-          price_per_night: number | null
-          remaining_balance: number | null
-          studio_id: string | null
-          total_received: number | null
-          total_revenue: number | null
-        }
-        Relationships: []
       }
       debug_policies: {
         Row: {
@@ -6717,6 +7219,13 @@ export type Database = {
             foreignKeyName: "contracts_academic_year_id_fkey"
             columns: ["academic_year_id"]
             isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["academic_year_id"]
+          },
+          {
+            foreignKeyName: "contracts_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
             referencedRelation: "studio_grade_availability"
             referencedColumns: ["academic_year_id"]
           },
@@ -6733,6 +7242,195 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "studio_status_by_academic_year"
             referencedColumns: ["academic_year_id"]
+          },
+        ]
+      }
+      early_check_ins_payment_ledger: {
+        Row: {
+          academic_year_id: string | null
+          academic_year_name: string | null
+          amount_due: number | null
+          application_id: string | null
+          application_status:
+            | Database["public"]["Enums"]["application_status"]
+            | null
+          contract_name: string | null
+          contract_start: string | null
+          created_at: string | null
+          currency: string | null
+          early_check_in_date: string | null
+          early_check_in_id: string | null
+          early_check_out_date: string | null
+          eci_status: string | null
+          last_payment_date: string | null
+          nightly_rate: number | null
+          nights: number | null
+          notes: string | null
+          payment_count: number | null
+          payment_status: string | null
+          remaining_balance: number | null
+          student_id: string | null
+          student_name: string | null
+          studio_grade: string | null
+          studio_id: string | null
+          studio_number: string | null
+          total_amount: number | null
+          total_received: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contracts_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
+            referencedRelation: "academic_years"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contracts_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
+            referencedRelation: "fully_paid_students"
+            referencedColumns: ["academic_year_id"]
+          },
+          {
+            foreignKeyName: "contracts_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
+            referencedRelation: "sales_demographics_report"
+            referencedColumns: ["academic_year_id"]
+          },
+          {
+            foreignKeyName: "contracts_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
+            referencedRelation: "sales_occupancy_monthly"
+            referencedColumns: ["academic_year_id"]
+          },
+          {
+            foreignKeyName: "contracts_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
+            referencedRelation: "sales_rebookers_monthly"
+            referencedColumns: ["academic_year_id"]
+          },
+          {
+            foreignKeyName: "contracts_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["academic_year_id"]
+          },
+          {
+            foreignKeyName: "contracts_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
+            referencedRelation: "studio_grade_availability"
+            referencedColumns: ["academic_year_id"]
+          },
+          {
+            foreignKeyName: "contracts_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
+            referencedRelation: "studio_grade_availability_by_year"
+            referencedColumns: ["academic_year_id"]
+          },
+          {
+            foreignKeyName: "contracts_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
+            referencedRelation: "studio_status_by_academic_year"
+            referencedColumns: ["academic_year_id"]
+          },
+          {
+            foreignKeyName: "early_check_ins_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "accounts_receivable_report"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "early_check_ins_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "booking_calendar_data"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "early_check_ins_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "deposit_installment_breakdown"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "early_check_ins_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "fully_paid_students"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "early_check_ins_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "outstanding_balances_report"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "early_check_ins_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "partner_referred_applications"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "early_check_ins_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "sales_demographics_report"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "early_check_ins_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "student_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "early_check_ins_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "early_check_ins_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "upcoming_and_paid_installments_report"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "early_check_ins_studio_id_fkey"
+            columns: ["studio_id"]
+            isOneToOne: false
+            referencedRelation: "booking_calendar_data"
+            referencedColumns: ["studio_id"]
+          },
+          {
+            foreignKeyName: "early_check_ins_studio_id_fkey"
+            columns: ["studio_id"]
+            isOneToOne: false
+            referencedRelation: "studio_status_by_academic_year"
+            referencedColumns: ["studio_id"]
+          },
+          {
+            foreignKeyName: "early_check_ins_studio_id_fkey"
+            columns: ["studio_id"]
+            isOneToOne: false
+            referencedRelation: "studios"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -6786,6 +7484,13 @@ export type Database = {
             foreignKeyName: "utility_payments_academic_year_id_fkey"
             columns: ["academic_year_id"]
             isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["academic_year_id"]
+          },
+          {
+            foreignKeyName: "utility_payments_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
             referencedRelation: "studio_grade_availability"
             referencedColumns: ["academic_year_id"]
           },
@@ -6829,6 +7534,53 @@ export type Database = {
           total_paid: number | null
         }
         Relationships: []
+      }
+      ota_bookings_payment_ledger: {
+        Row: {
+          amount_due: number | null
+          booking_id: string | null
+          booking_status: string | null
+          channel: string | null
+          check_in: string | null
+          check_out: string | null
+          commission_amount: number | null
+          currency: string | null
+          external_ref: string | null
+          gross_booking_value: number | null
+          guest_name: string | null
+          last_payment_date: string | null
+          number_of_nights: number | null
+          payment_count: number | null
+          payment_status: string | null
+          price_per_night: number | null
+          remaining_balance: number | null
+          studio_id: string | null
+          total_received: number | null
+          total_revenue: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ota_bookings_studio_id_fkey"
+            columns: ["studio_id"]
+            isOneToOne: false
+            referencedRelation: "booking_calendar_data"
+            referencedColumns: ["studio_id"]
+          },
+          {
+            foreignKeyName: "ota_bookings_studio_id_fkey"
+            columns: ["studio_id"]
+            isOneToOne: false
+            referencedRelation: "studio_status_by_academic_year"
+            referencedColumns: ["studio_id"]
+          },
+          {
+            foreignKeyName: "ota_bookings_studio_id_fkey"
+            columns: ["studio_id"]
+            isOneToOne: false
+            referencedRelation: "studios"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       outstanding_balances_report: {
         Row: {
@@ -6886,6 +7638,13 @@ export type Database = {
             columns: ["academic_year_id"]
             isOneToOne: false
             referencedRelation: "sales_rebookers_monthly"
+            referencedColumns: ["academic_year_id"]
+          },
+          {
+            foreignKeyName: "contracts_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
             referencedColumns: ["academic_year_id"]
           },
           {
@@ -6994,6 +7753,120 @@ export type Database = {
           rebooker_share_percentage: number | null
           rebooker_total_sales_value: number | null
           total_contracts: number | null
+        }
+        Relationships: []
+      }
+      student_payment_cash_flow_applications: {
+        Row: {
+          academic_year_end: string | null
+          academic_year_id: string | null
+          academic_year_name: string | null
+          academic_year_start: string | null
+          application_id: string | null
+          application_status:
+            | Database["public"]["Enums"]["application_status"]
+            | null
+          contract_end: string | null
+          contract_id: string | null
+          contract_name: string | null
+          contract_start: string | null
+          contract_type: string | null
+          deposit_due: number | null
+          deposit_paid: number | null
+          deposit_status: string | null
+          extension_of_application_id: string | null
+          payment_plan: string | null
+          student_id: string | null
+          student_name: string | null
+          studio_grade: string | null
+          studio_number: string | null
+          total_installments_due: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_applications_extension_of_application_id_fkey"
+            columns: ["extension_of_application_id"]
+            isOneToOne: false
+            referencedRelation: "accounts_receivable_report"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "student_applications_extension_of_application_id_fkey"
+            columns: ["extension_of_application_id"]
+            isOneToOne: false
+            referencedRelation: "booking_calendar_data"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "student_applications_extension_of_application_id_fkey"
+            columns: ["extension_of_application_id"]
+            isOneToOne: false
+            referencedRelation: "deposit_installment_breakdown"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "student_applications_extension_of_application_id_fkey"
+            columns: ["extension_of_application_id"]
+            isOneToOne: false
+            referencedRelation: "fully_paid_students"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "student_applications_extension_of_application_id_fkey"
+            columns: ["extension_of_application_id"]
+            isOneToOne: false
+            referencedRelation: "outstanding_balances_report"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "student_applications_extension_of_application_id_fkey"
+            columns: ["extension_of_application_id"]
+            isOneToOne: false
+            referencedRelation: "partner_referred_applications"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "student_applications_extension_of_application_id_fkey"
+            columns: ["extension_of_application_id"]
+            isOneToOne: false
+            referencedRelation: "sales_demographics_report"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "student_applications_extension_of_application_id_fkey"
+            columns: ["extension_of_application_id"]
+            isOneToOne: false
+            referencedRelation: "student_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_applications_extension_of_application_id_fkey"
+            columns: ["extension_of_application_id"]
+            isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "student_applications_extension_of_application_id_fkey"
+            columns: ["extension_of_application_id"]
+            isOneToOne: false
+            referencedRelation: "upcoming_and_paid_installments_report"
+            referencedColumns: ["application_id"]
+          },
+        ]
+      }
+      student_payment_cash_flow_monthly: {
+        Row: {
+          academic_year_id: string | null
+          amount_collected: number | null
+          amount_due: number | null
+          amount_paid_on_due: number | null
+          amount_remaining: number | null
+          application_id: string | null
+          month_key: string | null
+          month_label: string | null
+          month_start: string | null
+          month_status: string | null
         }
         Relationships: []
       }
@@ -7216,6 +8089,13 @@ export type Database = {
             foreignKeyName: "contracts_academic_year_id_fkey"
             columns: ["academic_year_id"]
             isOneToOne: false
+            referencedRelation: "student_payment_cash_flow_applications"
+            referencedColumns: ["academic_year_id"]
+          },
+          {
+            foreignKeyName: "contracts_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
             referencedRelation: "studio_grade_availability"
             referencedColumns: ["academic_year_id"]
           },
@@ -7237,11 +8117,36 @@ export type Database = {
       }
     }
     Functions: {
+      admin_cancel_early_check_in: {
+        Args: { p_application_id: string; p_reason?: string }
+        Returns: Json
+      }
+      admin_create_early_check_in: {
+        Args: {
+          p_application_id: string
+          p_early_check_in_date: string
+          p_nightly_rate_override?: number
+          p_notes?: string
+        }
+        Returns: Json
+      }
       admin_early_checkout_student: {
         Args: {
           p_application_id: string
           p_checkout_date?: string
-          p_notes?: string | null
+          p_notes?: string
+        }
+        Returns: Json
+      }
+      admin_record_early_check_in_payment: {
+        Args: {
+          p_amount: number
+          p_application_id: string
+          p_notes?: string
+          p_payment_date: string
+          p_payment_method?: string
+          p_payment_type?: string
+          p_reference_number: string
         }
         Returns: Json
       }
@@ -7249,9 +8154,32 @@ export type Database = {
         Args: { p_academic_year_id?: string; p_studio_id: string }
         Returns: Json
       }
+      amend_student_application_booking: {
+        Args: {
+          p_application_id: string
+          p_contract_start: string
+          p_extra_days?: number
+          p_reason?: string
+          p_reset_signing?: boolean
+          p_studio_grade_id?: string
+          p_weeks: number
+        }
+        Returns: Json
+      }
       append_missing_contract_payment_schedule_rows: {
         Args: { p_contract_id: string; p_payment_plan_id: string }
         Returns: number
+      }
+      application_actively_holds_studio: {
+        Args: {
+          p_reserved_studio_expires_at: string
+          p_status: Database["public"]["Enums"]["application_status"]
+        }
+        Returns: boolean
+      }
+      application_has_instalment_payments: {
+        Args: { p_application_id: string }
+        Returns: boolean
       }
       apply_cashback_to_application: {
         Args: {
@@ -7434,22 +8362,6 @@ export type Database = {
         }
         Returns: number
       }
-      get_ota_amount_due: {
-        Args: { p_booking_id: string }
-        Returns: number
-      }
-      get_ota_payment_summary: {
-        Args: { p_booking_id: string }
-        Returns: {
-          amount_due: number
-          gross_booking_value: number
-          last_payment_date: string
-          payment_count: number
-          payment_status: string
-          remaining_balance: number
-          total_received: number
-        }[]
-      }
       calculate_partner_commission: {
         Args: { p_application_id: string }
         Returns: number
@@ -7484,6 +8396,13 @@ export type Database = {
           partner_id: string
           partner_name: string
         }[]
+      }
+      copy_application_journey_from_source: {
+        Args: {
+          p_source_application_id: string
+          p_target_application_id: string
+        }
+        Returns: boolean
       }
       create_partner_referral: {
         Args: {
@@ -7621,6 +8540,10 @@ export type Database = {
           view_definition: string
         }[]
       }
+      extend_studio_hold_for_deposit: {
+        Args: { p_application_id: string }
+        Returns: Json
+      }
       find_user_by_email: { Args: { p_email: string }; Returns: string }
       get_admin_dashboard_stats: {
         Args: { p_academic_year_id?: string }
@@ -7654,6 +8577,31 @@ export type Database = {
           id: string
           student_email: string
           student_name: string
+        }[]
+      }
+      get_bank_reconciliation_report: {
+        Args: { p_end_date?: string; p_start_date?: string }
+        Returns: {
+          amount_paid: number
+          contract_name: string
+          currency: string
+          entered_by_name: string
+          entered_by_user_id: string
+          invoice_generated_at: string
+          invoice_number: string
+          manual_entry_notes: string
+          payment_date: string
+          payment_id: string
+          payment_method: string
+          payment_plan: string
+          payment_source: string
+          payment_status: string
+          payment_type: string
+          stripe_payment_intent_id: string
+          student_application_id: string
+          student_id: string
+          student_name: string
+          studio_grade: string
         }[]
       }
       get_booking_calendar_data: {
@@ -7714,6 +8662,32 @@ export type Database = {
           message: string
         }[]
       }
+      get_early_check_in_nightly_rate: {
+        Args: { p_application_id: string }
+        Returns: number
+      }
+      get_early_check_in_payment_summary: {
+        Args: { p_application_id: string }
+        Returns: {
+          amount_due: number
+          currency: string
+          early_check_in_date: string
+          early_check_in_id: string
+          early_check_out_date: string
+          last_payment_date: string
+          nightly_rate: number
+          nights: number
+          payment_count: number
+          payment_status: string
+          remaining_balance: number
+          status: string
+          total_received: number
+        }[]
+      }
+      get_early_check_in_remaining: {
+        Args: { p_application_id: string }
+        Returns: number
+      }
       get_encryption_key: { Args: never; Returns: string }
       get_fully_paid_students: {
         Args: {
@@ -7755,6 +8729,19 @@ export type Database = {
           payment_status: string
           remaining_amount: number
           sequence: number
+        }[]
+      }
+      get_ota_amount_due: { Args: { p_booking_id: string }; Returns: number }
+      get_ota_payment_summary: {
+        Args: { p_booking_id: string }
+        Returns: {
+          amount_due: number
+          gross_booking_value: number
+          last_payment_date: string
+          payment_count: number
+          payment_status: string
+          remaining_balance: number
+          total_received: number
         }[]
       }
       get_partner_id: { Args: never; Returns: string }
@@ -7804,6 +8791,7 @@ export type Database = {
         }
         Returns: {
           deposit_revenue: number
+          early_check_in_revenue: number
           installment_revenue: number
           manual_revenue: number
           net_revenue: number
@@ -7833,6 +8821,10 @@ export type Database = {
         }[]
       }
       get_staff_subrole: { Args: { p_user_id: string }; Returns: string }
+      get_student_prefill_source_application: {
+        Args: { p_exclude_application_id?: string; p_student_id: string }
+        Returns: string
+      }
       get_studio_availability: {
         Args: { p_contract_id?: string; p_studio_grade_id: string }
         Returns: {
@@ -7853,9 +8845,30 @@ export type Database = {
           roles: string[]
         }[]
       }
+      get_website_admin_users: {
+        Args: never
+        Returns: {
+          created_at: string
+          email: string
+          first_name: string
+          id: string
+          last_name: string
+          role: string
+          staff_subrole: string
+        }[]
+      }
       is_admin: { Args: never; Returns: boolean }
+      is_committed_sale_status: {
+        Args: { p_status: Database["public"]["Enums"]["application_status"] }
+        Returns: boolean
+      }
       is_partner: { Args: never; Returns: boolean }
+      is_realized_sale_status: {
+        Args: { p_status: Database["public"]["Enums"]["application_status"] }
+        Returns: boolean
+      }
       is_staff: { Args: never; Returns: boolean }
+      is_staff_role_only: { Args: never; Returns: boolean }
       is_superadmin: { Args: never; Returns: boolean }
       link_manual_payment_to_application_by_id: {
         Args: {
@@ -7872,6 +8885,26 @@ export type Database = {
       link_payment_to_application: {
         Args: { p_application_id: string; p_receipt_number: string }
         Returns: string
+      }
+      list_bulk_invitation_applications: {
+        Args: { p_academic_year_id?: string; p_contract_id?: string }
+        Returns: {
+          academic_year_id: string
+          academic_year_name: string
+          account_status: string
+          contract_id: string
+          contract_name: string
+          created_at: string
+          id: string
+          invitation_expires_at: string
+          invitation_sent_at: string
+          last_sign_in_at: string
+          must_change_password: boolean
+          status: string
+          student_email: string
+          student_id: string
+          student_name: string
+        }[]
       }
       log_staff_activity:
         | {
@@ -7921,6 +8954,7 @@ export type Database = {
         }
         Returns: Json
       }
+      release_expired_studio_holds: { Args: never; Returns: Json }
       remove_cashback_from_application: {
         Args: { p_application_id: string }
         Returns: undefined
@@ -7937,6 +8971,14 @@ export type Database = {
           p_studio_id: string
         }
         Returns: Json
+      }
+      resolve_application_payment_plan_id: {
+        Args: { p_contract_id: string; p_selected_payment_plan_id: string }
+        Returns: string
+      }
+      resolve_payment_plan_label: {
+        Args: { p_plan_id: string }
+        Returns: string
       }
       search_applications_by_criteria: {
         Args: { p_search_term: string; p_search_type: string }
@@ -8007,6 +9049,10 @@ export type Database = {
       set_user_password_by_id: {
         Args: { p_password: string; p_user_id: string }
         Returns: boolean
+      }
+      sync_early_check_in_after_amend: {
+        Args: { p_application_id: string; p_new_contract_start: string }
+        Returns: undefined
       }
       trigger_release_expired_reservations: { Args: never; Returns: Json }
       update_credential_sync_status: {

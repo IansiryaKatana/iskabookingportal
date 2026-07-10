@@ -326,6 +326,10 @@ export const useUpdateApplicationStatus = () => {
         queryClient.invalidateQueries({ queryKey: ["application-has-deposit", variables.id] });
         queryClient.invalidateQueries({ queryKey: ["payment-summary", variables.id] });
         queryClient.invalidateQueries({ queryKey: ["deposit-installment-breakdown"] });
+        queryClient.invalidateQueries({ queryKey: ["early-check-in"] });
+        queryClient.invalidateQueries({ queryKey: ["early-check-in-summary", variables.id] });
+        queryClient.invalidateQueries({ queryKey: ["early-check-in-payments", variables.id] });
+        queryClient.invalidateQueries({ queryKey: ["early-check-in-nightly-rate", variables.id] });
       }
 
       // Application status transitions affect accounting views (AR/outstanding/paid-in-full/upcoming).
@@ -333,6 +337,7 @@ export const useUpdateApplicationStatus = () => {
       queryClient.invalidateQueries({ queryKey: ["outstanding-balances-report"] });
       queryClient.invalidateQueries({ queryKey: ["upcoming-paid-installments-report"] });
       queryClient.invalidateQueries({ queryKey: ["fully-paid-students-report"] });
+      queryClient.invalidateQueries({ queryKey: ["revenue-summary"] });
     },
   });
 };

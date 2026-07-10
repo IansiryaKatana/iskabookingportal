@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useStudentApplication } from "@/hooks/useStudentApplication";
 import { useUpdateApplicationStatus } from "@/hooks/useAdminApplications";
 import { useAdminStudios } from "@/hooks/useAdminStudios";
-import { ArrowLeft, ArrowUpLeft, User, Mail, Phone, MapPin, Calendar, Building2, CreditCard, FileText, CheckCircle2, XCircle, Download, Send, RotateCcw, Gift, Percent, Handshake, Pencil, Check, ChevronsUpDown, CalendarPlus, LogOut } from "lucide-react";
+import { ArrowLeft, ArrowUpLeft, User, Mail, Phone, MapPin, Calendar, Building2, CreditCard, FileText, CheckCircle2, XCircle, Download, Send, RotateCcw, Gift, Percent, Handshake, Pencil, Check, ChevronsUpDown, CalendarPlus, DoorOpen, DoorClosed } from "lucide-react";
 import { addDays, differenceInCalendarDays, format, isAfter, parseISO } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -66,6 +66,8 @@ import { AmendBookingDialog } from "@/components/admin/AmendBookingDialog";
 import { isApplicationAmendable } from "@/hooks/useAmendStudentApplicationBooking";
 import { useResendAgreements } from "@/hooks/useResendAgreements";
 import { useEarlyCheckoutStudent } from "@/hooks/useEarlyCheckout";
+import { useEarlyCheckInSummary } from "@/hooks/useEarlyCheckIn";
+import EarlyCheckInSection from "@/components/admin/EarlyCheckInSection";
 import { useRefreshAgreementStatus } from "@/hooks/useDocusignStatusSync";
 import {
   computeContractEndDate,
@@ -221,6 +223,8 @@ const ApplicationDetail = () => {
   );
   const [earlyCheckoutNotes, setEarlyCheckoutNotes] = useState("");
   const earlyCheckout = useEarlyCheckoutStudent();
+  const [earlyCheckInSheetOpen, setEarlyCheckInSheetOpen] = useState(false);
+  const { data: earlyCheckInSummary } = useEarlyCheckInSummary(applicationId);
 
   // Extensions of this application (when this is the original booking)
   const { data: extensionApplications } = useQuery({
@@ -327,6 +331,15 @@ const ApplicationDetail = () => {
 
     return true;
   }, [application, displayStatus, extensionApplications]);
+
+  const hasActiveEarlyCheckIn = earlyCheckInSummary?.status === "confirmed";
+  const canCreateEarlyCheckIn = useMemo(() => {
+    if (!application || application.status !== "confirmed") return false;
+    if (!application.assigned_studio_id) return false;
+    if (!application.contract?.contract_start) return false;
+    if (hasActiveEarlyCheckIn) return false;
+    return true;
+  }, [application, hasActiveEarlyCheckIn]);
 
   const { data: paymentSchedule } = useStudentPayments(applicationId);
   const { data: hasInstalmentPayments } = useQuery({
@@ -1294,6 +1307,7 @@ const ApplicationDetail = () => {
 
             {(application.status === "draft" ||
               canEarlyCheckout ||
+              canCreateEarlyCheckIn ||
               (application.status === "confirmed" &&
                 displayStatus === "confirmed_ended" &&
                 application.assigned_studio_id)) && (
@@ -1301,17 +1315,30 @@ const ApplicationDetail = () => {
                 <Separator orientation="vertical" className="h-6" />
 
                 <div className="flex shrink-0 items-center gap-2 pr-1">
+                  {canCreateEarlyCheckIn && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="border-amber-200 bg-amber-100 text-amber-800 hover:bg-amber-200 hover:text-amber-900"
+                      onClick={() => setEarlyCheckInSheetOpen(true)}
+                    >
+                      <DoorOpen className="h-4 w-4" />
+                      Early check-in
+                    </Button>
+                  )}
                   {canEarlyCheckout && (
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
+                      className="border-rose-200 bg-rose-100 text-rose-800 hover:bg-rose-200 hover:text-rose-900"
                       onClick={() => {
                         setEarlyCheckoutDate(new Date().toISOString().slice(0, 10));
                         setEarlyCheckoutSheetOpen(true);
                       }}
                     >
-                      <LogOut className="h-4 w-4" />
+                      <DoorClosed className="h-4 w-4" />
                       Early checkout
                     </Button>
                   )}
@@ -1414,17 +1441,28 @@ const ApplicationDetail = () => {
                 Discard draft
               </Button>
             )}
+            {canCreateEarlyCheckIn && (
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-1 sm:mt-0 rounded-md border-amber-200 bg-amber-100 text-amber-800 hover:bg-amber-200 hover:text-amber-900 w-full sm:w-auto justify-center"
+                onClick={() => setEarlyCheckInSheetOpen(true)}
+              >
+                <DoorOpen className="h-4 w-4 mr-1.5" />
+                Early check-in
+              </Button>
+            )}
             {canEarlyCheckout && (
               <Button
                 type="button"
                 variant="outline"
-                className="mt-1 sm:mt-0 rounded-md uppercase tracking-wide border-amber-600 text-amber-700 hover:bg-amber-600 hover:text-white w-full sm:w-auto justify-center"
+                className="mt-1 sm:mt-0 rounded-md border-rose-200 bg-rose-100 text-rose-800 hover:bg-rose-200 hover:text-rose-900 w-full sm:w-auto justify-center"
                 onClick={() => {
                   setEarlyCheckoutDate(new Date().toISOString().slice(0, 10));
                   setEarlyCheckoutSheetOpen(true);
                 }}
               >
-                <LogOut className="h-4 w-4 mr-1.5" />
+                <DoorClosed className="h-4 w-4 mr-1.5" />
                 Early checkout
               </Button>
             )}
@@ -2091,6 +2129,12 @@ const ApplicationDetail = () => {
                           application.contract?.contract_start,
                       )}
                     </p>
+                    {hasActiveEarlyCheckIn && earlyCheckInSummary && (
+                      <p className="mt-1 text-[10px] text-emerald-700 uppercase tracking-wide font-medium">
+                        Early check-in · {earlyCheckInSummary.nights} night
+                        {earlyCheckInSummary.nights !== 1 ? "s" : ""}
+                      </p>
+                    )}
                   </div>
                   <div className="rounded-xl border border-border/60 px-3 py-2 bg-muted/30">
                     <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Check-out</p>
@@ -2458,6 +2502,17 @@ const ApplicationDetail = () => {
               </Button>
             </CardContent>
           </Card>
+
+          {applicationId && (
+            <EarlyCheckInSection
+              applicationId={applicationId}
+              applicationStatus={application.status}
+              assignedStudioId={application.assigned_studio_id}
+              contractStart={application.contract?.contract_start ?? null}
+              createSheetOpen={earlyCheckInSheetOpen}
+              onCreateSheetOpenChange={setEarlyCheckInSheetOpen}
+            />
+          )}
 
           {isFlexiblePlaceholderContract && (requestedFlexibleStart || requestedFlexibleEnd) && (
             <Card className="rounded-3xl border border-dashed border-border/70">
