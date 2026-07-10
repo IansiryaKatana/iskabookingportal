@@ -224,26 +224,58 @@ serve(async (req) => {
       }
     }
 
-    // Get user metadata to check account status
+    // Get user metadata to check account status (paginate — listUsers defaults to 50)
     const studentIds = [...new Set(applications.map((app: any) => app.student_id))];
-    const { data: usersData, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
+    const users: any[] = [];
+    {
+      let page = 1;
+      const perPage = 1000;
+      let hasMore = true;
+      while (hasMore) {
+        const { data: usersData, error: usersError } = await supabaseAdmin.auth.admin.listUsers({
+          page,
+          perPage,
+        });
 
-    // More defensive handling in case the auth admin API returns an error or undefined data
-    if (usersError || !usersData) {
-      console.error("Error fetching users:", usersError);
-      return new Response(
-        JSON.stringify({
-          error: "Failed to fetch users",
-          details: usersError?.message || "Auth admin.listUsers returned no data",
-        }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        if (usersError || !usersData) {
+          console.error("Error fetching users:", usersError);
+          return new Response(
+            JSON.stringify({
+              error: "Failed to fetch users",
+              details: usersError?.message || "Auth admin.listUsers returned no data",
+            }),
+            {
+              status: 500,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+          );
         }
-      );
-    }
 
-    const { users } = usersData;
+        const pageUsers = usersData.users || [];
+        users.push(...pageUsers);
+
+        const foundIds = new Set(users.map((u) => u.id));
+        const allFound = studentIds.every((id) => foundIds.has(id));
+        if (allFound || pageUsers.length < perPage) {
+          hasMore = false;
+        } else {
+          page += 1;
+        }
+      }
+
+      // Fallback for any student IDs still missing
+      const missingIds = studentIds.filter((id) => !users.some((u) => u.id === id));
+      for (const userId of missingIds) {
+        try {
+          const { data, error } = await supabaseAdmin.auth.admin.getUserById(userId);
+          if (!error && data?.user) {
+            users.push(data.user);
+          }
+        } catch (err) {
+          console.warn(`Could not fetch auth user ${userId}:`, err);
+        }
+      }
+    }
 
     // Create map of user metadata
     const userMetadataMap = new Map(

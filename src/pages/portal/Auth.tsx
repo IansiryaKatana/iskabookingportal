@@ -17,6 +17,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, LogIn, UserPlus, CheckCircle2, Mail, Eye, EyeOff, ArrowRight, Check, Lock } from "lucide-react";
 import { useBrandingSettings } from "@/hooks/useBranding";
+import { userMustChangePassword } from "@/utils/mustChangePassword";
+import { supabase } from "@/integrations/supabase/client";
 
 const loginSchema = z.object({
   email: z.string().email("Enter a valid email"),
@@ -132,6 +134,10 @@ const PortalAuth = () => {
       }
       // Only students can access portal
       if (profile.role === "student") {
+        if (userMustChangePassword(user)) {
+          navigate("/portal/force-change-password", { replace: true });
+          return;
+        }
         navigate(redirectPath, { replace: true });
       }
     }
@@ -146,6 +152,14 @@ const PortalAuth = () => {
       setSubmitting(false);
       return;
     }
+
+    const { data: { user: signedInUser } } = await supabase.auth.getUser();
+    if (userMustChangePassword(signedInUser)) {
+      navigate("/portal/force-change-password", { replace: true });
+      setSubmitting(false);
+      return;
+    }
+
     navigate(redirectPath, { replace: true });
   };
 

@@ -89,6 +89,7 @@ const StudentApplicationWizardPrototype = lazy(() => import("./pages/portal/Appl
 const PortalAuth = lazy(() => import("./pages/portal/Auth"));
 const PortalRequestPasswordReset = lazy(() => import("./pages/portal/RequestPasswordReset"));
 const PortalResetPassword = lazy(() => import("./pages/portal/ResetPassword"));
+const PortalForceChangePassword = lazy(() => import("./pages/portal/ForceChangePassword"));
 const PortalDashboard = lazy(() => import("./pages/portal/Dashboard"));
 const StudioSelection = lazy(() => import("./pages/portal/StudioSelection"));
 const PortalPayments = lazy(() => import("./pages/portal/Payments"));
@@ -151,6 +152,14 @@ const App = () => (
             <Route path="/portal/login" element={<PortalAuth />} />
             <Route path="/portal/request-password-reset" element={<PortalRequestPasswordReset />} />
             <Route path="/portal/reset-password" element={<PortalResetPassword />} />
+            <Route
+              path="/portal/force-change-password"
+              element={
+                <ProtectedRoute allowedRoles={["student", "superadmin"]} checkDatabase={false}>
+                  <PortalForceChangePassword />
+                </ProtectedRoute>
+              }
+            />
                   <Route
                     path="/portal"
                     element={

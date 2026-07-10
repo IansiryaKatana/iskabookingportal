@@ -7,9 +7,36 @@ const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
 const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
+type UserInvitationMetadata = {
+  account_status: string;
+  invitation_sent_at: string | null;
+  invitation_expires_at: string | null;
+};
+
+function metadataFromUser(user: {
+  last_sign_in_at?: string | null;
+  user_metadata?: Record<string, unknown> | null;
+}): UserInvitationMetadata {
+  const meta = (user.user_metadata || {}) as Record<string, unknown>;
+  const explicitStatus = (meta.account_status as string) || "";
+
+  // Staff-created / self-signup users often have no account_status.
+  // If they've signed in, treat as activated so the Bulk Invitations UI matches reality.
+  let accountStatus = explicitStatus;
+  if (!accountStatus) {
+    accountStatus = user.last_sign_in_at ? "activated" : "pending_activation";
+  }
+
+  return {
+    account_status: accountStatus,
+    invitation_sent_at: (meta.invitation_sent_at as string) || null,
+    invitation_expires_at: (meta.invitation_expires_at as string) || null,
+  };
+}
+
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
-  
+
   const preflightResponse = handleCorsPrelight(req);
   if (preflightResponse) return preflightResponse;
 
@@ -22,12 +49,11 @@ serve(async (req) => {
       {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      },
     );
   }
 
   try {
-    // Verify user
     const {
       data: { user },
       error: userError,
@@ -39,11 +65,10 @@ serve(async (req) => {
         {
           status: 401,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        },
       );
     }
 
-    // Check if user is staff
     const { data: profile } = await supabaseAdmin
       .from("profiles")
       .select("role")
@@ -56,21 +81,20 @@ serve(async (req) => {
         {
           status: 403,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        },
       );
     }
 
-    // Parse request body
     let requestBody: { userIds: string[] };
     try {
       requestBody = await req.json();
-    } catch (parseError) {
+    } catch {
       return new Response(
         JSON.stringify({ error: "Invalid request body" }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        },
       );
     }
 
@@ -82,7 +106,7 @@ serve(async (req) => {
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        },
       );
     }
 
@@ -91,41 +115,84 @@ serve(async (req) => {
         JSON.stringify({ metadata: {} }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        },
       );
     }
 
-    // Fetch users from auth.users
-    const { data: { users }, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
+    const requested = new Set(userIds);
+    const metadataMap: Record<string, UserInvitationMetadata> = {};
 
-    if (usersError) {
-      console.error("Error fetching users:", usersError);
-      return new Response(
-        JSON.stringify({ error: "Failed to fetch users", details: usersError.message }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+    // Paginate listUsers — default page size is 50 and silently truncates without this.
+    let page = 1;
+    const perPage = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data, error: usersError } = await supabaseAdmin.auth.admin.listUsers({
+        page,
+        perPage,
+      });
+
+      if (usersError) {
+        console.error("Error fetching users:", usersError);
+        return new Response(
+          JSON.stringify({ error: "Failed to fetch users", details: usersError.message }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      const users = data?.users || [];
+      if (users.length === 0) {
+        break;
+      }
+
+      for (const authUser of users) {
+        if (requested.has(authUser.id)) {
+          metadataMap[authUser.id] = metadataFromUser(authUser);
         }
-      );
+      }
+
+      const allFound = userIds.every((id) => id in metadataMap);
+      if (allFound || users.length < perPage) {
+        hasMore = false;
+      } else {
+        page += 1;
+      }
     }
 
-    // Create map of user metadata
-    const metadataMap: Record<string, any> = {};
-    users.forEach((u) => {
-      if (userIds.includes(u.id)) {
-        metadataMap[u.id] = {
-          account_status: (u.user_metadata as any)?.account_status || "pending_activation",
-          invitation_sent_at: (u.user_metadata as any)?.invitation_sent_at || null,
-          invitation_expires_at: (u.user_metadata as any)?.invitation_expires_at || null,
+    // Fallback for any IDs still missing after pagination
+    const missingIds = userIds.filter((id) => !(id in metadataMap));
+    for (const userId of missingIds) {
+      try {
+        const { data, error } = await supabaseAdmin.auth.admin.getUserById(userId);
+        if (!error && data?.user) {
+          metadataMap[userId] = metadataFromUser(data.user);
+        } else {
+          // Keep UI consistent: unknown users stay pending until proven otherwise
+          metadataMap[userId] = {
+            account_status: "pending_activation",
+            invitation_sent_at: null,
+            invitation_expires_at: null,
+          };
+        }
+      } catch (err) {
+        console.warn(`Exception fetching user ${userId}:`, err);
+        metadataMap[userId] = {
+          account_status: "pending_activation",
+          invitation_sent_at: null,
+          invitation_expires_at: null,
         };
       }
-    });
+    }
 
     return new Response(
       JSON.stringify({ metadata: metadataMap }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      },
     );
   } catch (error: any) {
     console.error("Error in get-user-metadata:", error);
@@ -136,8 +203,7 @@ serve(async (req) => {
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      },
     );
   }
 });
-

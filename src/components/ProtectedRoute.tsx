@@ -8,6 +8,7 @@ import {
   ROUTE_PERMISSION_GC_MS,
   ROUTE_PERMISSION_STALE_MS,
 } from "@/hooks/useRoutePermission";
+import { userMustChangePassword } from "@/utils/mustChangePassword";
 
 /** UUID v4 pattern for last path segment (detail routes like /admin/applications/:id) */
 const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -106,6 +107,15 @@ const ProtectedRoute = ({ children, allowedRoles, checkDatabase = true }: Protec
         replace
       />
     );
+  }
+
+  // Temporary-password accounts must set a new password before using the portal
+  if (
+    userMustChangePassword(user) &&
+    location.pathname.startsWith("/portal") &&
+    location.pathname !== "/portal/force-change-password"
+  ) {
+    return <Navigate to="/portal/force-change-password" replace />;
   }
 
   // Check permissions: use database if enabled, otherwise use allowedRoles

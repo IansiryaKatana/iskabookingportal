@@ -96,6 +96,14 @@ const PortalResetPassword = () => {
         return;
       }
 
+      // Clear staff temp-password gate if present (app_metadata; service-role only)
+      try {
+        await supabase.functions.invoke("clear-must-change-password", { body: {} });
+        await supabase.auth.refreshSession();
+      } catch {
+        // Non-fatal: password already updated
+      }
+
       // Success!
       setSuccess(true);
       toast.success("Password set successfully!");

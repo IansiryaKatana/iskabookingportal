@@ -7,12 +7,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   useApplicationsWithPlaceholders,
   useSendBulkInvitations,
-  type ApplicationWithInvitation,
+  useSetTempPasswords,
+  type TempPasswordResult,
 } from "@/hooks/useBulkInvitations";
-import { useAdminAcademicYears } from "@/hooks/useAdminAcademicYears";
 import { useAdminContracts } from "@/hooks/useAdminContracts";
 import { useEmailTemplates } from "@/hooks/useEmailTemplates";
-import { Mail, Send, Users, CheckCircle2, Clock, XCircle, Loader2, Search } from "lucide-react";
+import { Mail, Send, CheckCircle2, Clock, XCircle, Loader2, Search, KeyRound, Copy } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -61,33 +61,45 @@ const BulkInvitations = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [sendToAll, setSendToAll] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [tempPasswordDialogOpen, setTempPasswordDialogOpen] = useState(false);
+  const [tempPasswordMode, setTempPasswordMode] = useState<"generate" | "shared">("generate");
+  const [sharedTempPassword, setSharedTempPassword] = useState("");
+  const [tempPasswordResults, setTempPasswordResults] = useState<TempPasswordResult[] | null>(null);
 
-  const { data: academicYears } = useAdminAcademicYears();
   const { data: contracts } = useAdminContracts(selectedAcademicYearId);
   const { data: templates } = useEmailTemplates();
   const { data: applications, isLoading, refetch } = useApplicationsWithPlaceholders({
     academic_year_id: selectedAcademicYearId,
     contract_id: contractFilter !== "all" ? contractFilter : undefined,
-    status: statusFilter !== "all" ? statusFilter : undefined,
   });
   const sendInvitations = useSendBulkInvitations();
+  const setTempPasswords = useSetTempPasswords();
 
-  // Filter applications
+  // Filter applications (account_status is invitation metadata, not application.status)
   const filteredApplications = useMemo(() => {
     if (!applications) return [];
-    
-    // Apply search filter if query exists
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim();
-      return applications.filter((app) => {
+
+    return applications.filter((app) => {
+      if (statusFilter === "pending_activation") {
+        if (app.account_status !== "pending_activation") return false;
+      } else if (statusFilter === "invited") {
+        if (app.account_status !== "invited") return false;
+      } else if (statusFilter === "activated") {
+        if (app.account_status === "pending_activation" || app.account_status === "invited") {
+          return false;
+        }
+      }
+
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase().trim();
         const name = (app.student_name || "").toLowerCase();
         const email = (app.student_email || "").toLowerCase();
         return name.includes(query) || email.includes(query);
-      });
-    }
-    
-    return applications;
-  }, [applications, searchQuery]);
+      }
+
+      return true;
+    });
+  }, [applications, searchQuery, statusFilter]);
 
   // Pagination
   const totalPages = Math.ceil(filteredApplications.length / ITEMS_PER_PAGE);
@@ -210,7 +222,63 @@ const BulkInvitations = () => {
     }
   };
 
-  const getStatusBadge = (status?: string) => {
+  const handleSetTempPasswords = async () => {
+    const appsToSend = applicationsToSend;
+    if (appsToSend.length === 0) {
+      toast({
+        title: "No applications selected",
+        description: "Please select at least one application.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (tempPasswordMode === "shared" && sharedTempPassword.trim().length < 6) {
+      toast({
+        title: "Password too short",
+        description: "Shared temporary password must be at least 6 characters.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const result = await setTempPasswords.mutateAsync({
+        application_ids: appsToSend,
+        password: tempPasswordMode === "shared" ? sharedTempPassword.trim() : undefined,
+      });
+
+      setTempPasswordResults(result.results || []);
+      await refetch();
+
+      toast({
+        title: "Temporary passwords set",
+        description: `${result.succeeded} succeeded, ${result.failed} failed. Students must change password on first login.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to set temporary passwords.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const copyTempPasswordCsv = async () => {
+    if (!tempPasswordResults?.length) return;
+    const lines = [
+      "email,name,password,error",
+      ...tempPasswordResults.map((r) =>
+        [r.email, r.name, r.password || "", r.error || ""]
+          .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+          .join(","),
+      ),
+    ];
+    await navigator.clipboard.writeText(lines.join("\n"));
+    toast({ title: "Copied", description: "Temporary passwords copied as CSV." });
+  };
+
+  const getStatusBadge = (status?: string, mustChangePassword?: boolean) => {
     // If status is pending_activation, show pending
     if (status === "pending_activation") {
       return (
@@ -224,19 +292,33 @@ const BulkInvitations = () => {
     // If status is invited, show invited
     if (status === "invited") {
       return (
-        <Badge className="bg-blue-500 hover:bg-blue-600 text-white rounded-md px-2.5 py-0.5 text-xs font-medium flex items-center gap-1">
-          <Mail className="h-3 w-3" />
-          Invited
-        </Badge>
+        <div className="flex flex-col gap-1">
+          <Badge className="bg-blue-500 hover:bg-blue-600 text-white rounded-md px-2.5 py-0.5 text-xs font-medium flex items-center gap-1 w-fit">
+            <Mail className="h-3 w-3" />
+            Invited
+          </Badge>
+          {mustChangePassword && (
+            <Badge className="bg-amber-600 hover:bg-amber-700 text-white rounded-md px-2.5 py-0.5 text-xs font-medium w-fit">
+              Temp password
+            </Badge>
+          )}
+        </div>
       );
     }
     
     // Everything else (activated, active, undefined, null, etc.) is considered activated
     return (
-      <Badge className="bg-green-500 hover:bg-green-600 text-white rounded-md px-2.5 py-0.5 text-xs font-medium flex items-center gap-1">
-        <CheckCircle2 className="h-3 w-3" />
-        Activated
-      </Badge>
+      <div className="flex flex-col gap-1">
+        <Badge className="bg-green-500 hover:bg-green-600 text-white rounded-md px-2.5 py-0.5 text-xs font-medium flex items-center gap-1 w-fit">
+          <CheckCircle2 className="h-3 w-3" />
+          Activated
+        </Badge>
+        {mustChangePassword && (
+          <Badge className="bg-amber-600 hover:bg-amber-700 text-white rounded-md px-2.5 py-0.5 text-xs font-medium w-fit">
+            Must change password
+          </Badge>
+        )}
+      </div>
     );
   };
 
@@ -362,13 +444,26 @@ const BulkInvitations = () => {
                   </Label>
                 </div>
               </div>
-              <Button
-                onClick={() => setDialogOpen(true)}
-                disabled={selectedApplications.size === 0 || sendInvitations.isPending}
-              >
-                <Send className="h-4 w-4 mr-2" />
-                Send Invitations ({selectedApplications.size})
-              </Button>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setTempPasswordResults(null);
+                    setTempPasswordDialogOpen(true);
+                  }}
+                  disabled={selectedApplications.size === 0 || setTempPasswords.isPending}
+                >
+                  <KeyRound className="h-4 w-4 mr-2" />
+                  Set Temp Password ({selectedApplications.size})
+                </Button>
+                <Button
+                  onClick={() => setDialogOpen(true)}
+                  disabled={selectedApplications.size === 0 || sendInvitations.isPending}
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  Send Invitations ({selectedApplications.size})
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -431,11 +526,13 @@ const BulkInvitations = () => {
                         </TableCell>
                         <TableCell>
                           <div className="text-sm text-muted-foreground">
-                            {app.contract?.academic_year?.name || "—"}
+                            {app.contract?.academic_year?.name
+                              || app.contract?.academic_years?.name
+                              || "—"}
                           </div>
                         </TableCell>
                         <TableCell>
-                          {getStatusBadge(app.account_status)}
+                          {getStatusBadge(app.account_status, app.must_change_password)}
                         </TableCell>
                         <TableCell>
                           {app.invitation_sent_at ? (
@@ -598,6 +695,147 @@ const BulkInvitations = () => {
                   </>
                 )}
               </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Temporary password dialog */}
+        <Dialog
+          open={tempPasswordDialogOpen}
+          onOpenChange={(open) => {
+            setTempPasswordDialogOpen(open);
+            if (!open) {
+              setTempPasswordResults(null);
+              setSharedTempPassword("");
+              setTempPasswordMode("generate");
+            }
+          }}
+        >
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="text-base md:text-lg font-display font-bold uppercase tracking-wide">
+                Set Temporary Password
+              </DialogTitle>
+              <DialogDescription className="text-xs md:text-sm">
+                Fallback when invite links fail. Students log in with the temp password, then must set a new one before using the portal.
+              </DialogDescription>
+            </DialogHeader>
+
+            {!tempPasswordResults ? (
+              <div className="space-y-4 py-2">
+                <div className="space-y-2">
+                  <Label>Apply to</Label>
+                  <Select value={sendToAll ? "all" : "current"} onValueChange={(value) => setSendToAll(value === "all")}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Selected ({selectedApplications.size})</SelectItem>
+                      <SelectItem value="current">Current Page Only ({applicationsToSend.length})</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Password mode</Label>
+                  <Select
+                    value={tempPasswordMode}
+                    onValueChange={(value) => setTempPasswordMode(value as "generate" | "shared")}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="generate">Generate unique password per student</SelectItem>
+                      <SelectItem value="shared">Use one shared password for selection</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {tempPasswordMode === "shared" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="sharedTempPassword">Shared temporary password</Label>
+                    <Input
+                      id="sharedTempPassword"
+                      type="text"
+                      value={sharedTempPassword}
+                      onChange={(e) => setSharedTempPassword(e.target.value)}
+                      placeholder="At least 6 characters"
+                    />
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Passwords are shown once after save so you can share them securely. They are not emailed automatically.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3 py-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm text-muted-foreground">
+                    Share these with students now. They will be prompted to change password on login.
+                  </p>
+                  <Button type="button" variant="outline" size="sm" onClick={copyTempPasswordCsv}>
+                    <Copy className="h-4 w-4 mr-2" />
+                    Copy CSV
+                  </Button>
+                </div>
+                <ScrollArea className="h-64 rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Student</TableHead>
+                        <TableHead>Password</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {tempPasswordResults.map((row) => (
+                        <TableRow key={`${row.application_id}-${row.student_id}`}>
+                          <TableCell>
+                            <div className="font-medium text-sm">{row.name || "Student"}</div>
+                            <div className="text-xs text-muted-foreground">{row.email}</div>
+                          </TableCell>
+                          <TableCell className="font-mono text-sm">
+                            {row.password || "—"}
+                          </TableCell>
+                          <TableCell>
+                            {row.error ? (
+                              <span className="text-xs text-destructive">{row.error}</span>
+                            ) : (
+                              <span className="text-xs text-green-700">Ready</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setTempPasswordDialogOpen(false);
+                  setTempPasswordResults(null);
+                }}
+              >
+                {tempPasswordResults ? "Close" : "Cancel"}
+              </Button>
+              {!tempPasswordResults && (
+                <Button onClick={handleSetTempPasswords} disabled={setTempPasswords.isPending}>
+                  {setTempPasswords.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <KeyRound className="h-4 w-4 mr-2" />
+                      Set passwords
+                    </>
+                  )}
+                </Button>
+              )}
             </DialogFooter>
           </DialogContent>
         </Dialog>
