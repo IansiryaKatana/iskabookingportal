@@ -185,12 +185,28 @@ serve(async (req) => {
       });
     }
 
-    const { data: envelope } = await supabaseAdmin
+    const { data: envelope, error: envelopeError } = await supabaseAdmin
       .from("docusign_envelopes")
       .select("*, recipients")
       .eq("application_id", application.id)
       .eq("envelope_type", envelopeType)
+      .neq("status", "superseded")
       .maybeSingle();
+
+    if (envelopeError) {
+      console.error("Unable to load active agreement envelope", {
+        applicationId: application.id,
+        envelopeType,
+        error: envelopeError.message,
+      });
+      return new Response(
+        JSON.stringify({ error: "Unable to load the agreement envelope." }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
 
     if (!envelope?.envelope_id) {
       return new Response(
