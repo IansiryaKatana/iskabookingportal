@@ -197,19 +197,34 @@ export const useMarketingCampaigns = () =>
       if (error) throw error;
       return (data ?? []) as MarketingCampaign[];
     },
+    // Campaigns send in the background (batched edge function), so poll while any
+    // campaign is actively sending to keep the counts live, then stop polling.
+    refetchInterval: (query) => {
+      const rows = query.state.data as MarketingCampaign[] | undefined;
+      return rows?.some((c) => c.status === "sending") ? 4000 : false;
+    },
   });
 
 export const useMarketingContacts = () =>
   useQuery({
     queryKey: ["marketing-contacts"],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("marketing_contacts")
-        .select("id, email, full_name, source, tags, is_subscribed, created_at")
-        .order("created_at", { ascending: false })
-        .limit(5000);
-      if (error) throw error;
-      return (data ?? []) as MarketingContact[];
+      // The Supabase API caps a single response at max-rows (1000) regardless of
+      // .limit(), so fetch every contact by paging with .range() until exhausted.
+      const pageSize = 1000;
+      const all: MarketingContact[] = [];
+      for (let from = 0; ; from += pageSize) {
+        const { data, error } = await (supabase as any)
+          .from("marketing_contacts")
+          .select("id, email, full_name, source, tags, is_subscribed, created_at")
+          .order("created_at", { ascending: false })
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        const batch = (data ?? []) as MarketingContact[];
+        all.push(...batch);
+        if (batch.length < pageSize) break;
+      }
+      return all;
     },
   });
 
@@ -299,6 +314,37 @@ export const useCreateAndSendMarketingCampaign = () => {
     },
   });
 };
+
+export const useSendTestMarketingEmail = () =>
+  useMutation({
+    mutationFn: async (payload: {
+      template_id?: string;
+      subject?: string;
+      body_html?: string;
+      body_text?: string;
+      to: string[];
+    }) => {
+      const recipients = Array.from(
+        new Set(
+          payload.to
+            .map((email) => email.trim().toLowerCase())
+            .filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)),
+        ),
+      );
+
+      if (recipients.length === 0) {
+        throw new Error("Enter at least one valid email address.");
+      }
+
+      const { data, error } = await supabase.functions.invoke("send-test-marketing-email", {
+        body: { ...payload, to: recipients },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data as { sent: number; failed: number; errors: string[] };
+    },
+  });
 
 export const useDeleteMarketingCampaign = () => {
   const queryClient = useQueryClient();

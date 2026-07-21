@@ -8,25 +8,54 @@ type MarketingRecipient = {
   full_name: string | null;
 };
 
-serve(async (req) => {
-  const corsHeaders = getCorsHeaders(req);
-  const preflightResponse = handleCorsPrelight(req);
-  if (preflightResponse) return preflightResponse;
+// Deno Edge Runtime background-task API (keeps the instance alive after the
+// response is returned so we can send emails without the client waiting).
+declare const EdgeRuntime: { waitUntil: (promise: Promise<unknown>) => void };
+
+// Process recipients in bounded batches so a single invocation never runs long
+// enough to hit the edge-function time limit. When more recipients remain after a
+// batch, the function re-invokes itself to continue (it is resumable because only
+// "pending" recipients are ever processed).
+const BATCH_SIZE = 100;
+const SEND_DELAY_MS = 650; // stay under Resend rate limits (~1.5/sec)
+
+// Runs one batch in the background and chains the next invocation if needed.
+async function processCampaignBatch(campaign_id: string) {
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    { auth: { autoRefreshToken: false, persistSession: false } },
+  );
 
   try {
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      { auth: { autoRefreshToken: false, persistSession: false } },
-    );
+    const countRecipients = async (status?: string) => {
+      let query = supabase
+        .from("marketing_campaign_recipients")
+        .select("id", { count: "exact", head: true })
+        .eq("campaign_id", campaign_id);
+      if (status) query = query.eq("send_status", status);
+      const { count, error } = await query;
+      if (error) throw error;
+      return count ?? 0;
+    };
 
-    const { campaign_id } = await req.json();
-    if (!campaign_id) {
-      return new Response(JSON.stringify({ error: "campaign_id is required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const finalizeCampaign = async () => {
+      const [total, sentTotal, failedTotal] = await Promise.all([
+        countRecipients(),
+        countRecipients("sent"),
+        countRecipients("failed"),
+      ]);
+      await supabase
+        .from("marketing_campaigns")
+        .update({
+          status: failedTotal > 0 && sentTotal === 0 ? "failed" : "completed",
+          total_recipients: total,
+          emails_sent: sentTotal,
+          failed_count: failedTotal,
+          sent_at: new Date().toISOString(),
+        })
+        .eq("id", campaign_id);
+    };
 
     const { data: campaign, error: campaignError } = await supabase
       .from("marketing_campaigns")
@@ -46,34 +75,32 @@ serve(async (req) => {
       throw templateError ?? new Error("Template not found or inactive");
     }
 
+    // Record the real recipient total + sending status up-front so the UI reflects
+    // it immediately (rather than showing 0 until the very end).
+    const totalRecipients = await countRecipients();
+    await supabase
+      .from("marketing_campaigns")
+      .update({ status: "sending", total_recipients: totalRecipients })
+      .eq("id", campaign_id);
+
+    // Fetch only the next batch of pending recipients (bounded to BATCH_SIZE).
     const { data: recipients, error: recipientsError } = await supabase
       .from("marketing_campaign_recipients")
       .select("id, email, full_name")
       .eq("campaign_id", campaign_id)
-      .eq("send_status", "pending");
+      .eq("send_status", "pending")
+      .order("id", { ascending: true })
+      .limit(BATCH_SIZE);
 
     if (recipientsError) throw recipientsError;
 
-    const pendingRecipients = (recipients ?? []) as MarketingRecipient[];
+    const batch = (recipients ?? []) as MarketingRecipient[];
 
-    if (pendingRecipients.length === 0) {
-      await supabase
-        .from("marketing_campaigns")
-        .update({
-          status: "completed",
-          total_recipients: 0,
-          emails_sent: 0,
-          failed_count: 0,
-          sent_at: new Date().toISOString(),
-        })
-        .eq("id", campaign_id);
-
-      return new Response(JSON.stringify({ message: "No pending recipients", sent: 0 }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (batch.length === 0) {
+      // Nothing left to send — finalize using authoritative DB counts.
+      await finalizeCampaign();
+      return;
     }
-
-    await supabase.from("marketing_campaigns").update({ status: "sending" }).eq("id", campaign_id);
 
     const { data: credentials } = await supabase
       .from("credentials")
@@ -109,7 +136,7 @@ serve(async (req) => {
         .replace(/\{current_year\}/gi, new Date().getFullYear().toString());
     };
 
-    for (const recipient of pendingRecipients) {
+    for (const recipient of batch) {
       try {
         const payload = {
           from: formattedFrom,
@@ -165,26 +192,69 @@ serve(async (req) => {
           .eq("id", recipient.id);
       }
 
-      // Keep below typical API rate limits
-      await new Promise((resolve) => setTimeout(resolve, 650));
+      await new Promise((resolve) => setTimeout(resolve, SEND_DELAY_MS));
     }
 
-    await supabase
-      .from("marketing_campaigns")
-      .update({
-        status: failed > 0 && sent === 0 ? "failed" : "completed",
-        total_recipients: pendingRecipients.length,
-        emails_sent: sent,
-        failed_count: failed,
-        sent_at: new Date().toISOString(),
-      })
-      .eq("id", campaign_id);
+    const remaining = await countRecipients("pending");
 
-    return new Response(JSON.stringify({ message: "Campaign processed", sent, failed }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    if (remaining > 0) {
+      // More recipients to go — record progress and continue in a fresh invocation.
+      const [sentTotal, failedTotal] = await Promise.all([
+        countRecipients("sent"),
+        countRecipients("failed"),
+      ]);
+      await supabase
+        .from("marketing_campaigns")
+        .update({ status: "sending", emails_sent: sentTotal, failed_count: failedTotal })
+        .eq("id", campaign_id);
+
+      // Fire-and-forget self re-invocation to process the next batch.
+      await supabase.functions
+        .invoke("send-marketing-campaign", { body: { campaign_id } })
+        .catch((err) => console.error("Failed to chain next batch:", err));
+
+      return;
+    }
+
+    await finalizeCampaign();
   } catch (error) {
     console.error("send-marketing-campaign error:", error);
+    // Surface a hard failure so the campaign doesn't appear stuck on "sending".
+    try {
+      await supabase
+        .from("marketing_campaigns")
+        .update({ status: "failed" })
+        .eq("id", campaign_id);
+    } catch (_) {
+      // ignore secondary failure
+    }
+  }
+}
+
+serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+  const preflightResponse = handleCorsPrelight(req);
+  if (preflightResponse) return preflightResponse;
+
+  try {
+    const { campaign_id } = await req.json();
+    if (!campaign_id) {
+      return new Response(JSON.stringify({ error: "campaign_id is required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Send in the background so the client isn't held open (avoids gateway 504s).
+    // The task processes one batch and chains itself until all recipients are done.
+    EdgeRuntime.waitUntil(processCampaignBatch(campaign_id));
+
+    return new Response(
+      JSON.stringify({ message: "Campaign send started", campaign_id }),
+      { status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  } catch (error) {
+    console.error("send-marketing-campaign invoke error:", error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
