@@ -56,10 +56,13 @@ export const useUpdateCheckInCheckOut = () => {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["booking-calendar"] });
       queryClient.invalidateQueries({ queryKey: ["admin-applications"] });
       queryClient.invalidateQueries({ queryKey: ["student-applications"] });
+      queryClient.invalidateQueries({
+        queryKey: ["student-application", variables.applicationId],
+      });
     },
   });
 };

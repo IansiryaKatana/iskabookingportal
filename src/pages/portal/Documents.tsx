@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, FileText, CheckCircle2, XCircle, Clock, Download, Upload, RefreshCw } from "lucide-react";
 import PortalLayout from "@/components/portal/PortalLayout";
-import { useStudentApplicationsList } from "@/hooks/useStudentApplications";
+import { useStudentApplicationsList, type ApplicationSummary } from "@/hooks/useStudentApplications";
 import { useStudentDocuments } from "@/hooks/useStudentDocuments";
 import { useDocumentUpload } from "@/hooks/useDocumentUpload";
 import { useAuth } from "@/contexts/AuthContext";
@@ -10,10 +10,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import type { ApplicationType } from "@/hooks/useStudentApplication";
+import { formatDocumentDisplayName, formatDocumentTypeTitle } from "@/utils/documentDisplay";
 
 const Documents = () => {
   const navigate = useNavigate();
@@ -335,78 +345,40 @@ const Documents = () => {
   );
 };
 
-type ApplicationType = ReturnType<typeof useStudentApplicationsList>["data"] extends (infer T)[] | undefined ? T : never;
-
-const DocumentsList = ({ applications }: { applications: NonNullable<ApplicationType>[] }) => {
-  const [allCardsLoaded, setAllCardsLoaded] = useState(false);
-  const [hasAnyDocuments, setHasAnyDocuments] = useState(false);
-  const [loadedCount, setLoadedCount] = useState(0);
-
-  const handleCardLoaded = (hasDocs: boolean) => {
-    setLoadedCount((prev) => {
-      const newCount = prev + 1;
-      if (newCount >= applications.length) {
-        setAllCardsLoaded(true);
-      }
-      return newCount;
-    });
-    if (hasDocs) {
-      setHasAnyDocuments(true);
-    }
+const DocumentsList = ({ applications }: { applications: ApplicationSummary[] }) => {
+  const handleCardLoaded = (_hasDocs: boolean) => {
+    // Cards notify when loaded; kept for compatibility with ApplicationDocumentsCard.
   };
 
-  // Render all cards immediately - they handle their own loading
-  const renderedCards = applications.map((application) => (
-    <ApplicationDocumentsCard 
-      key={application.id} 
-      application={application}
-      onLoaded={handleCardLoaded}
-    />
-  ));
-
-  // Filter out null cards (applications with no documents)
-  const visibleCards = renderedCards.filter((card) => card !== null);
-
-  // Show "No Documents Found" only after all cards have loaded and none have documents
-  if (allCardsLoaded && visibleCards.length === 0 && !hasAnyDocuments) {
-    return (
-      <Card className="rounded-3xl border-dashed">
-        <CardHeader>
-          <CardTitle className="text-2xl font-display uppercase tracking-wide">
-            No Documents Found
-          </CardTitle>
-          <CardDescription>
-            No documents have been uploaded for any of your applications yet. Complete the documentation step in your booking journey to upload documents, then click "Sync Documents" to display them here.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button
-            className="rounded-md uppercase tracking-wide"
-            onClick={() => window.location.href = "/portal"}
-          >
-            View Applications
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return <>{visibleCards}</>;
+  return (
+    <>
+      {applications.map((application) => (
+        <ApplicationDocumentsCard
+          key={application.id}
+          application={application}
+          onLoaded={handleCardLoaded}
+        />
+      ))}
+    </>
+  );
 };
 
 const ApplicationDocumentsCard = ({ 
   application,
   onLoaded,
 }: { 
-  application: NonNullable<ApplicationType>;
+  application: ApplicationSummary;
   onLoaded: (hasDocs: boolean) => void;
 }) => {
   const { data: documents, isLoading, error } = useStudentDocuments(application.id);
-  const navigate = useNavigate();
+  const { toast } = useToast();
   const contract = application.contract;
   const gradeName = contract?.studio_grade?.name ?? "Studio Grade";
   const [hasNotified, setHasNotified] = useState(false);
   const [uploadingDocId, setUploadingDocId] = useState<string | null>(null);
+  const [additionalDialogOpen, setAdditionalDialogOpen] = useState(false);
+  const [additionalFile, setAdditionalFile] = useState<File | null>(null);
+  const [additionalLabel, setAdditionalLabel] = useState("");
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const uploadDocument = useDocumentUpload();
 
@@ -491,6 +463,35 @@ const ApplicationDocumentsCard = ({
     }
   };
 
+  const handleAdditionalUpload = async () => {
+    if (!additionalFile) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast({
+        variant: "destructive",
+        title: "Authentication required",
+        description: "Please sign in to upload documents.",
+      });
+      return;
+    }
+
+    try {
+      await uploadDocument.mutateAsync({
+        file: additionalFile,
+        applicationId: application.id,
+        documentType: "additional",
+        uploadedBy: user.id,
+        notes: additionalLabel.trim() || undefined,
+      });
+      setAdditionalDialogOpen(false);
+      setAdditionalFile(null);
+      setAdditionalLabel("");
+      onLoaded(true);
+    } catch {
+      // toast handled by hook
+    }
+  };
+
   if (isLoading) {
     return (
       <Card className="rounded-3xl border border-border/60 shadow-xl">
@@ -530,115 +531,202 @@ const ApplicationDocumentsCard = ({
     return null;
   }
 
-  if (!documents || documents.length === 0) {
-    return null;
-  }
+  const docs = documents ?? [];
 
   return (
     <Card className="rounded-3xl border border-border/60 shadow-xl">
-      <CardHeader>
-        <CardTitle className="text-xl font-display uppercase tracking-wide">
-          {contract?.name ?? "Contract"}
-        </CardTitle>
-        <CardDescription>
-          {gradeName} · {documents.length} document{documents.length !== 1 ? "s" : ""}
-        </CardDescription>
+      <CardHeader className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div>
+          <CardTitle className="text-xl font-display uppercase tracking-wide">
+            {contract?.name ?? "Contract"}
+          </CardTitle>
+          <CardDescription>
+            {gradeName} · {docs.length} document{docs.length !== 1 ? "s" : ""}
+          </CardDescription>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="rounded-md uppercase tracking-wide gap-2 shrink-0"
+          onClick={() => {
+            setAdditionalFile(null);
+            setAdditionalLabel("");
+            setAdditionalDialogOpen(true);
+          }}
+        >
+          <Upload className="h-4 w-4" />
+          Upload additional
+        </Button>
       </CardHeader>
       <CardContent className="space-y-4">
-        {documents.map((doc) => (
-          <div
-            key={doc.id}
-            className="rounded-2xl border border-border/60 p-4 space-y-3"
-          >
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
-                  <FileText className="h-5 w-5 text-primary" />
-                  <h3 className="font-semibold text-lg capitalize">
-                    {doc.document_type.replace(/_/g, " ")}
-                  </h3>
-                  {getStatusBadge(doc.status)}
-                </div>
-                {doc.status.toLowerCase() === "rejected" && doc.notes && (
-                  <div className="mb-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-                    <p className="text-sm font-medium text-destructive mb-1">Rejection Reason:</p>
-                    <p className="text-sm text-destructive/90">{doc.notes}</p>
+        {docs.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No documents yet. Upload an additional document, or complete the documentation step in your booking journey.
+          </p>
+        ) : (
+          docs.map((doc) => (
+            <div
+              key={doc.id}
+              className="rounded-2xl border border-border/60 p-4 space-y-3"
+            >
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <FileText className="h-5 w-5 text-primary" />
+                    <h3 className="font-semibold text-lg capitalize">
+                      {formatDocumentDisplayName(doc)}
+                    </h3>
+                    {getStatusBadge(doc.status)}
                   </div>
-                )}
-                <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-                  <div>
-                    Uploaded {format(new Date(doc.uploaded_at), "d MMM yyyy")}
-                  </div>
-                  {doc.original_filename && (
-                    <div className="truncate max-w-xs">
-                      {doc.original_filename}
+                  {doc.document_type === "additional" && (
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
+                      {formatDocumentTypeTitle(doc.document_type)}
+                    </p>
+                  )}
+                  {doc.status.toLowerCase() === "rejected" && doc.notes && (
+                    <div className="mb-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                      <p className="text-sm font-medium text-destructive mb-1">Rejection Reason:</p>
+                      <p className="text-sm text-destructive/90">{doc.notes}</p>
                     </div>
                   )}
-                  {doc.verified_by_profile && (
+                  <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                     <div>
-                      Verified by {doc.verified_by_profile.first_name}{" "}
-                      {doc.verified_by_profile.last_name}
+                      Uploaded {format(new Date(doc.uploaded_at), "d MMM yyyy")}
                     </div>
-                  )}
+                    {doc.original_filename && (
+                      <div className="truncate max-w-xs">
+                        {doc.original_filename}
+                      </div>
+                    )}
+                    {doc.verified_by_profile && (
+                      <div>
+                        Verified by {doc.verified_by_profile.first_name}{" "}
+                        {doc.verified_by_profile.last_name}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {doc.status.toLowerCase() === "rejected" && (
-                  <>
-                    <input
-                      ref={(el) => (fileInputRefs.current[doc.id] = el)}
-                      type="file"
-                      accept=".pdf,.jpg,.jpeg,.png,.webp"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          handleReupload(doc.id, doc.document_type, file);
-                          // Reset input
-                          e.target.value = "";
-                        }
-                      }}
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="rounded-md uppercase tracking-wide gap-2"
-                      onClick={() => fileInputRefs.current[doc.id]?.click()}
-                      disabled={uploadingDocId === doc.id || uploadDocument.isPending}
-                    >
-                      {uploadingDocId === doc.id ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Uploading...
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="h-4 w-4" />
-                          Re-upload
-                        </>
-                      )}
-                    </Button>
-                  </>
-                )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="rounded-md uppercase tracking-wide gap-2"
-                  onClick={() =>
-                    downloadDocument(
-                      doc.storage_path,
-                      doc.original_filename || `${doc.document_type}.pdf`,
-                    )
-                  }
-                >
-                  <Download className="h-4 w-4" />
-                  Download
-                </Button>
+                <div className="flex items-center gap-2">
+                  {doc.status.toLowerCase() === "rejected" && (
+                    <>
+                      <input
+                        ref={(el) => (fileInputRefs.current[doc.id] = el)}
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png,.webp"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            handleReupload(doc.id, doc.document_type, file);
+                            e.target.value = "";
+                          }
+                        }}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="rounded-md uppercase tracking-wide gap-2"
+                        onClick={() => fileInputRefs.current[doc.id]?.click()}
+                        disabled={uploadingDocId === doc.id || uploadDocument.isPending}
+                      >
+                        {uploadingDocId === doc.id ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-4 w-4" />
+                            Re-upload
+                          </>
+                        )}
+                      </Button>
+                    </>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-md uppercase tracking-wide gap-2"
+                    onClick={() =>
+                      downloadDocument(
+                        doc.storage_path,
+                        doc.original_filename || `${doc.document_type}.pdf`,
+                      )
+                    }
+                  >
+                    <Download className="h-4 w-4" />
+                    Download
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          ))
+        )}
       </CardContent>
+
+      <Dialog
+        open={additionalDialogOpen}
+        onOpenChange={(open) => {
+          setAdditionalDialogOpen(open);
+          if (!open) {
+            setAdditionalFile(null);
+            setAdditionalLabel("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Upload additional document</DialogTitle>
+            <DialogDescription>
+              Attach a supporting file for this application. Staff will review it after upload.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor={`additional-label-${application.id}`}>Label (optional)</Label>
+              <Input
+                id={`additional-label-${application.id}`}
+                className="mt-1"
+                placeholder="e.g. University offer letter"
+                value={additionalLabel}
+                onChange={(e) => setAdditionalLabel(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor={`additional-file-${application.id}`}>Select file</Label>
+              <Input
+                id={`additional-file-${application.id}`}
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.webp"
+                className="mt-1"
+                onChange={(e) => setAdditionalFile(e.target.files?.[0] || null)}
+              />
+              {additionalFile && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Selected: {additionalFile.name}
+                </p>
+              )}
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setAdditionalDialogOpen(false)}
+              disabled={uploadDocument.isPending}
+              className="rounded-md uppercase tracking-wide"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAdditionalUpload}
+              disabled={!additionalFile || uploadDocument.isPending}
+              className="rounded-md uppercase tracking-wide"
+            >
+              {uploadDocument.isPending ? "Uploading..." : "Upload"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };

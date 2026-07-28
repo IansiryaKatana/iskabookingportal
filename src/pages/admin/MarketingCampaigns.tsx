@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { ChevronLeft, ChevronRight, Download, Eye, Mail, Pencil, Plus, Send, Trash2, Upload, Users } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { TitleWithTooltip } from "@/components/ui/title-with-tooltip";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -33,6 +32,7 @@ import {
   useMarketingCampaigns,
   useMarketingContacts,
   useMarketingTemplates,
+  useSendTestMarketingEmail,
   useUpdateMarketingTemplate,
   useUpdateMarketingContact,
 } from "@/hooks/useMarketingCampaigns";
@@ -144,12 +144,14 @@ const MarketingCampaigns = () => {
   const createCampaign = useCreateAndSendMarketingCampaign();
   const bulkSaveContacts = useBulkSaveMarketingContacts();
   const updateContact = useUpdateMarketingContact();
+  const sendTestEmail = useSendTestMarketingEmail();
 
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [campaignDialogOpen, setCampaignDialogOpen] = useState(false);
   const [contactsDialogOpen, setContactsDialogOpen] = useState(false);
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const [previewTemplateId, setPreviewTemplateId] = useState<string | null>(null);
+  const [testEmails, setTestEmails] = useState("");
   const [templateForm, setTemplateForm] = useState({
     name: "",
     subject: "",
@@ -273,6 +275,47 @@ const MarketingCampaigns = () => {
       setContactsPage(totalContactsPages);
     }
   }, [contactsPage, totalContactsPages]);
+
+  // Prefill the test-send box with the logged-in staff/admin's own email
+  useEffect(() => {
+    if (!previewTemplateId) return;
+    supabase.auth.getUser().then(({ data }) => {
+      const email = data.user?.email;
+      if (email) setTestEmails((current) => current || email);
+    });
+  }, [previewTemplateId]);
+
+  const handleSendTestEmail = async () => {
+    if (!previewTemplate) return;
+    const recipients = splitEmails(testEmails);
+    if (recipients.length === 0) {
+      toast({
+        title: "No recipients",
+        description: "Enter at least one valid email address to send a test.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      const result = await sendTestEmail.mutateAsync({
+        template_id: previewTemplate.id,
+        to: recipients,
+      });
+      toast({
+        title: "Test email sent",
+        description: `Sent ${result.sent} test email${result.sent === 1 ? "" : "s"}${
+          result.failed ? `, ${result.failed} failed` : ""
+        }. Check the inbox (and spam) for the [TEST] message.`,
+        variant: result.failed && !result.sent ? "destructive" : undefined,
+      });
+    } catch (error) {
+      toast({
+        title: "Failed to send test",
+        description: error instanceof Error ? error.message : "Something went wrong.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const openCreateTemplateDialog = () => {
     setEditingTemplateId(null);
@@ -630,31 +673,23 @@ const MarketingCampaigns = () => {
           <Plus className="h-4 w-4" />
         </Button>
       }
+      pageToolbar={
+        <div className="flex gap-2">
+          <Button variant="outline" className="rounded-md h-10 w-10 p-0" onClick={downloadCsvTemplate} aria-label="Download CSV template">
+            <Download className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" className="rounded-md uppercase tracking-wide gap-2" onClick={openCreateTemplateDialog}>
+            <Mail className="h-4 w-4" />
+            New Template
+          </Button>
+          <Button className="rounded-md uppercase tracking-wide gap-2" onClick={() => setCampaignDialogOpen(true)}>
+            <Send className="h-4 w-4" />
+            New Campaign
+          </Button>
+        </div>
+      }
     >
       <div className="space-y-6">
-        <div className="hidden lg:flex items-center justify-between">
-          <div>
-            <TitleWithTooltip
-              tooltip="Dedicated lead/outreach campaigns, isolated from student messaging."
-              tooltipLabel="About Marketing Campaigns"
-              titleClassName="text-2xl font-display font-bold uppercase tracking-wide"
-            >
-              Marketing Campaigns
-            </TitleWithTooltip>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" className="rounded-md h-10 w-10 p-0" onClick={downloadCsvTemplate} aria-label="Download CSV template">
-              <Download className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" className="rounded-md h-10 w-10 p-0" onClick={openCreateTemplateDialog} aria-label="Create new template">
-              <Mail className="h-4 w-4" />
-            </Button>
-            <Button className="rounded-md h-10 w-10 p-0" onClick={() => setCampaignDialogOpen(true)} aria-label="Create new campaign">
-              <Send className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-
         <div className="grid gap-4 md:grid-cols-3">
           <Card className="rounded-3xl">
             <CardHeader>
@@ -676,8 +711,8 @@ const MarketingCampaigns = () => {
           </Card>
         </div>
 
-        <Card className="rounded-3xl">
-          <CardContent className="pt-6">
+        <div>
+          <div>
             <Tabs defaultValue="campaigns" className="w-full">
               <TabsList className="grid w-full grid-cols-3 rounded-md">
                 <TabsTrigger
@@ -1048,8 +1083,8 @@ const MarketingCampaigns = () => {
                 )}
               </TabsContent>
             </Tabs>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
       <Sheet open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
@@ -1165,10 +1200,14 @@ const MarketingCampaigns = () => {
             <div className="mt-4 space-y-4">
               <div className="rounded-xl border p-4">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">HTML Preview</p>
-                <div
-                  className="prose prose-sm max-w-none"
-                  dangerouslySetInnerHTML={{ __html: previewTemplate.body_html }}
-                />
+                <div className="h-[500px] w-full rounded-lg border overflow-hidden bg-white">
+                  <iframe
+                    title="Email preview"
+                    sandbox=""
+                    srcDoc={previewTemplate.body_html}
+                    className="w-full h-full bg-white"
+                  />
+                </div>
               </div>
               {previewTemplate.body_text && (
                 <div className="rounded-xl border p-4">
@@ -1176,6 +1215,28 @@ const MarketingCampaigns = () => {
                   <pre className="text-xs whitespace-pre-wrap">{previewTemplate.body_text}</pre>
                 </div>
               )}
+              <div className="rounded-xl border p-4 space-y-2">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Send Test Email</p>
+                <p className="text-xs text-muted-foreground">
+                  Send a <span className="font-mono">[TEST]</span> copy to staff/admin to check how it renders in a real
+                  inbox. Variables are filled with sample data. Separate multiple addresses with commas.
+                </p>
+                <Textarea
+                  value={testEmails}
+                  onChange={(e) => setTestEmails(e.target.value)}
+                  rows={2}
+                  placeholder="admin@company.com, staff@company.com"
+                  className="text-sm"
+                />
+                <Button
+                  onClick={handleSendTestEmail}
+                  disabled={sendTestEmail.isPending}
+                  className="rounded-md uppercase tracking-wide gap-2"
+                >
+                  <Send className="h-4 w-4" />
+                  {sendTestEmail.isPending ? "Sending..." : "Send Test"}
+                </Button>
+              </div>
             </div>
           )}
         </SheetContent>

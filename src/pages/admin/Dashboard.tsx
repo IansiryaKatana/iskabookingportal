@@ -181,9 +181,9 @@ function OverviewMetric({
       />
       <p
         className={cn(
-          "font-black font-display tabular-nums leading-none mt-auto tracking-tight",
+          "font-black font-display tabular-nums leading-none mt-auto tracking-tight min-w-0 break-words",
           compactValue
-            ? "text-2xl sm:text-3xl xl:text-4xl"
+            ? "text-xl sm:text-2xl xl:text-3xl"
             : "text-4xl sm:text-5xl xl:text-5xl 2xl:text-6xl",
           styles.value,
         )}
@@ -353,14 +353,14 @@ const Dashboard = () => {
                   )}
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="flex-1 flex flex-col min-h-0">
                 {campaignsLoading ? (
                   <div className="space-y-2">
                     <Skeleton className="h-8 w-32" />
                     <Skeleton className="h-4 w-48" />
                   </div>
                 ) : activeCampaigns && activeCampaigns.length > 0 ? (
-                  <div className="space-y-3">
+                  <div className="space-y-3 flex-1 flex flex-col">
                     {activeCampaigns.slice(0, 2).map((campaign) => (
                       <div key={campaign.id} className="space-y-2 pb-3 border-b border-yellow-200 dark:border-yellow-800 last:border-0 last:pb-0">
                         <div className="flex items-start justify-between gap-2">
@@ -397,7 +397,7 @@ const Dashboard = () => {
                     {activeCampaigns.length > 2 && (
                       <Button
                         size="sm"
-                        className="w-full flex justify-between items-center bg-black hover:bg-black/90 text-white hover:text-white border-0 rounded-md"
+                        className="mt-auto w-full flex justify-between items-center bg-black hover:bg-black/90 text-white hover:text-white border-0 rounded-md"
                         onClick={() => navigate("/admin/cashback-campaigns")}
                       >
                         <span>View all {activeCampaigns.length} campaigns</span>
@@ -636,13 +636,15 @@ const Dashboard = () => {
                 ) : (
                   <>
                     <div className="rounded-2xl border border-border/60 bg-muted/20 p-4 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 shrink-0">
-                      <div className="flex flex-col justify-center sm:min-w-[9rem] sm:shrink-0 sm:border-r sm:border-border/60 sm:pr-6">
+                      <div className="flex flex-col justify-center sm:flex-1 sm:basis-0 min-w-0 sm:border-r sm:border-border/60 sm:pr-6">
                         <p className="text-3xl font-bold font-display tabular-nums leading-none">
                           {breakdowns?.applications.total ?? 0}
                           <span className={cn(metricSectionLabelClass, "ml-2")}>total</span>
                         </p>
                         <p className={cn(metricSectionLabelClass, "mt-2")}>
-                          Every application in current scope
+                          Every application
+                          <br />
+                          in current scope
                         </p>
                       </div>
 

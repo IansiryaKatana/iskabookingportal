@@ -162,7 +162,7 @@ export const LeadForm = ({ formType, onSuccess, onCancel }: LeadFormProps) => {
               <FormItem className="flex flex-col">
                 <FormLabel>Phone Number</FormLabel>
                 <FormControl>
-                  <div className={`flex w-full rounded-md border bg-background ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${fieldState.error ? 'border-destructive' : 'border-input'}`}>
+                  <div className={`flex w-full rounded-md border bg-background focus-within:ring-0 focus-within:ring-offset-0 focus-within:border-ring ${fieldState.error ? 'border-destructive' : 'border-input'}`}>
                     <PhoneInput
                       defaultCountry="gb"
                       value={field.value}

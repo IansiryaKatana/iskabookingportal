@@ -860,7 +860,7 @@ const AdminLayout = ({
       <div className="flex-1 w-full lg:ml-0 min-h-screen lg:overflow-y-auto">
         {!hideDesktopHeader && (
           <header className="hidden lg:block sticky top-0 z-20 bg-background/90 backdrop-blur border-b border-border px-4 py-4 md:px-8 flex-shrink-0">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-4">
               <div>
                 {loading ? (
                   <>
@@ -879,6 +879,9 @@ const AdminLayout = ({
                   </>
                 )}
               </div>
+              {pageToolbar && (
+                <div className="flex-shrink-0">{pageToolbar}</div>
+              )}
             </div>
           </header>
         )}

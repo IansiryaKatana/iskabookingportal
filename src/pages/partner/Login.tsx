@@ -377,7 +377,7 @@ const PartnerLogin = () => {
                   required
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  className="pl-11 h-12 bg-blue-50/50 border-primary/30 focus:border-primary focus:ring-primary rounded-lg"
+                  className="pl-11 h-12 bg-blue-50/50 border-primary/30 focus:border-primary focus:ring-0 focus:ring-offset-0 rounded-lg"
                   placeholder="Email address"
                 />
               </div>
@@ -393,7 +393,7 @@ const PartnerLogin = () => {
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   placeholder="Password"
-                  className="pr-11 h-12 bg-blue-50/50 border-primary/30 focus:border-primary focus:ring-primary rounded-lg"
+                  className="pr-11 h-12 bg-blue-50/50 border-primary/30 focus:border-primary focus:ring-0 focus:ring-offset-0 rounded-lg"
                 />
                 <button
                   type="button"
@@ -418,7 +418,7 @@ const PartnerLogin = () => {
                 id="keepSignedIn"
                 checked={keepSignedIn}
                 onChange={(e) => setKeepSignedIn(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-0 focus:ring-offset-0 focus:border-primary"
               />
               <Label htmlFor="keepSignedIn" className="text-sm text-muted-foreground cursor-pointer">
                 Keep me signed in on this device

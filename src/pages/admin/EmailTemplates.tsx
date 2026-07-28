@@ -1,6 +1,5 @@
 import { useState } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { TitleWithTooltip } from "@/components/ui/title-with-tooltip";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,8 +8,10 @@ import {
   useCreateEmailTemplate,
   useUpdateEmailTemplate,
   useDeleteEmailTemplate,
+  useBulkDeleteEmailTemplates,
+  useBulkUpdateEmailTemplatesActive,
 } from "@/hooks/useEmailTemplates";
-import { Plus, Edit, Trash2, Mail, Info, Sparkles } from "lucide-react";
+import { Plus, Edit, Trash2, Mail, Info, Sparkles, CheckCircle2, XCircle } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -33,6 +34,25 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const templateTypes = [
   { value: "welcome", label: "Welcome" },
@@ -158,6 +178,13 @@ const quillFormats = [
   "link",
   "image",
 ];
+
+// Detects a full HTML document / markup that ReactQuill would strip.
+// Such templates must open in raw HTML mode so Quill never mangles them.
+const isFullHtmlDocument = (html: string): boolean => {
+  if (!html) return false;
+  return /<!DOCTYPE|<html[\s>]|<head[\s>]|<style[\s>]|<body[\s>]|<link[\s>]|<meta[\s>]/i.test(html);
+};
 
 const getDefaultTemplate = (templateType: string): { subject: string; html: string; text: string } => {
   // Logo URL - will be replaced with actual logo URL when sending emails
@@ -873,9 +900,64 @@ const EmailTemplates = () => {
   const createTemplate = useCreateEmailTemplate();
   const updateTemplate = useUpdateEmailTemplate();
   const deleteTemplate = useDeleteEmailTemplate();
+  const bulkDeleteTemplates = useBulkDeleteEmailTemplates();
+  const bulkUpdateTemplatesActive = useBulkUpdateEmailTemplatesActive();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<string | null>(null);
+  const [editorMode, setEditorMode] = useState<"rich" | "html" | "preview">("rich");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+
+  const allSelected = templates.length > 0 && selectedIds.length === templates.length;
+  const someSelected = selectedIds.length > 0 && !allSelected;
+
+  const toggleSelectAll = () => {
+    setSelectedIds(allSelected ? [] : templates.map((t) => t.id));
+  };
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+
+  const handleBulkSetActive = async (is_active: boolean) => {
+    try {
+      await bulkUpdateTemplatesActive.mutateAsync({ templateIds: selectedIds, is_active });
+      toast({
+        title: is_active ? "Templates activated" : "Templates deactivated",
+        description: `${selectedIds.length} template(s) updated.`,
+      });
+      setSelectedIds([]);
+    } catch (error) {
+      console.error("Bulk update failed:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update selected templates. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    try {
+      await bulkDeleteTemplates.mutateAsync(selectedIds);
+      toast({
+        title: "Templates deleted",
+        description: `${selectedIds.length} template(s) removed.`,
+      });
+      setSelectedIds([]);
+      setBulkDeleteOpen(false);
+    } catch (error) {
+      console.error("Bulk delete failed:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete selected templates. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const form = useForm<EmailTemplateFormData>({
     resolver: zodResolver(emailTemplateSchema),
@@ -898,6 +980,12 @@ const EmailTemplates = () => {
     form.setValue("subject", defaultTemplate.subject);
     form.setValue("body_html", defaultTemplate.html);
     form.setValue("body_text", defaultTemplate.text);
+
+    // Default templates are full HTML documents; keep them out of the Quill
+    // editor so their <head>/<style>/fonts are not stripped.
+    if (isFullHtmlDocument(defaultTemplate.html)) {
+      setEditorMode("html");
+    }
     
     toast({
       title: "Template loaded",
@@ -910,6 +998,9 @@ const EmailTemplates = () => {
       const template = templates?.find((t) => t.id === templateId);
       if (template) {
         setEditingTemplate(templateId);
+        // Full HTML documents must open in raw HTML mode; otherwise ReactQuill
+        // would strip <!DOCTYPE>, <head>, <style>, fonts, etc. on mount.
+        setEditorMode(isFullHtmlDocument(template.body_html) ? "html" : "rich");
         form.reset({
           name: template.name,
           subject: template.subject,
@@ -920,6 +1011,7 @@ const EmailTemplates = () => {
         });
       }
     } else {
+      setEditorMode("rich");
       setEditingTemplate(null);
       form.reset({
         name: "",
@@ -1031,80 +1123,191 @@ const EmailTemplates = () => {
           <Plus className="h-4 w-4" />
         </Button>
       }
+      pageToolbar={
+        <Button
+          onClick={() => handleOpenDialog()}
+          className="rounded-md uppercase tracking-wide gap-2"
+        >
+          <Plus className="h-4 w-4" />
+          New Template
+        </Button>
+      }
     >
       <div className="space-y-6">
-        <div className="hidden lg:flex items-center justify-between">
-          <div>
-            <TitleWithTooltip
-              tooltip="Create and manage email templates for automated communications"
-              tooltipLabel="About Email Templates"
-              titleClassName="text-2xl font-display font-bold uppercase tracking-wide"
-            >
-              Email Templates
-            </TitleWithTooltip>
-          </div>
-          <Button
-            onClick={() => handleOpenDialog()}
-            className="rounded-md uppercase tracking-wide gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            New Template
-          </Button>
-        </div>
-
         {templates && templates.length > 0 ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {templates.map((template) => (
-              <Card key={template.id} className="rounded-3xl">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="text-lg font-display uppercase tracking-wide flex items-center gap-2">
-                        <Mail className="h-4 w-4" />
+          <>
+            {/* Desktop: table row layout */}
+            <div className="hidden lg:block">
+              {selectedIds.length > 0 && (
+                <div className="mb-3 flex flex-wrap items-center gap-2 rounded-2xl border bg-muted/40 px-4 py-3">
+                  <Badge variant="secondary" className="uppercase tracking-wide">
+                    {selectedIds.length} selected
+                  </Badge>
+                  <div className="flex-1" />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-md uppercase tracking-wide gap-2"
+                    disabled={bulkUpdateTemplatesActive.isPending}
+                    onClick={() => handleBulkSetActive(true)}
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    Activate
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-md uppercase tracking-wide gap-2"
+                    disabled={bulkUpdateTemplatesActive.isPending}
+                    onClick={() => handleBulkSetActive(false)}
+                  >
+                    <XCircle className="h-4 w-4" />
+                    Deactivate
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-md uppercase tracking-wide gap-2 text-destructive hover:text-destructive"
+                    onClick={() => setBulkDeleteOpen(true)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                  </Button>
+                </div>
+              )}
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-12">
+                      <Checkbox
+                        checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                        onCheckedChange={toggleSelectAll}
+                        aria-label="Select all templates"
+                      />
+                    </TableHead>
+                    <TableHead className="uppercase tracking-wide text-xs">Name</TableHead>
+                    <TableHead className="uppercase tracking-wide text-xs">Subject</TableHead>
+                    <TableHead className="uppercase tracking-wide text-xs">Type</TableHead>
+                    <TableHead className="uppercase tracking-wide text-xs">Status</TableHead>
+                    <TableHead className="uppercase tracking-wide text-xs text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {templates.map((template) => (
+                    <TableRow
+                      key={template.id}
+                      data-state={selectedIds.includes(template.id) ? "selected" : undefined}
+                    >
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedIds.includes(template.id)}
+                          onCheckedChange={() => toggleSelection(template.id)}
+                          aria-label={`Select ${template.name}`}
+                        />
+                      </TableCell>
+                      <TableCell className="font-sans font-medium">
                         {template.name}
-                      </CardTitle>
-                      <CardDescription className="mt-2">
-                        {template.subject}
-                      </CardDescription>
-                    </div>
-                    <Badge variant={template.is_active ? "default" : "outline"} className="uppercase">
-                      {template.is_active ? "Active" : "Inactive"}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Type</p>
-                      <p className="text-sm font-medium capitalize">
+                      </TableCell>
+                      <TableCell className="max-w-xs">
+                        <span className="block truncate text-muted-foreground">
+                          {template.subject}
+                        </span>
+                      </TableCell>
+                      <TableCell className="capitalize whitespace-nowrap">
                         {template.template_type.replace("_", " ")}
-                      </p>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={template.is_active ? "default" : "outline"}
+                          className="uppercase"
+                        >
+                          {template.is_active ? "Active" : "Inactive"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 rounded-md"
+                            onClick={() => handleOpenDialog(template.id)}
+                            aria-label="Edit template"
+                            title="Edit"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 rounded-md text-destructive hover:text-destructive"
+                            onClick={() => handleDelete(template.id)}
+                            aria-label="Delete template"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Mobile & tablet: card layout (unchanged) */}
+            <div className="grid gap-4 md:grid-cols-2 lg:hidden">
+              {templates.map((template) => (
+                <Card key={template.id} className="rounded-3xl">
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <CardTitle className="text-lg font-display uppercase tracking-wide flex items-center gap-2">
+                          <Mail className="h-4 w-4" />
+                          {template.name}
+                        </CardTitle>
+                        <CardDescription className="mt-2">
+                          {template.subject}
+                        </CardDescription>
+                      </div>
+                      <Badge variant={template.is_active ? "default" : "outline"} className="uppercase">
+                        {template.is_active ? "Active" : "Inactive"}
+                      </Badge>
                     </div>
-                    <div className="flex items-center gap-2 pt-2 border-t">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="rounded-md uppercase tracking-wide gap-2"
-                        onClick={() => handleOpenDialog(template.id)}
-                      >
-                        <Edit className="h-4 w-4" />
-                        Edit
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="rounded-md uppercase tracking-wide gap-2 text-destructive hover:text-destructive"
-                        onClick={() => handleDelete(template.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        Delete
-                      </Button>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Type</p>
+                        <p className="text-sm font-medium capitalize">
+                          {template.template_type.replace("_", " ")}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 pt-2 border-t">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="rounded-md uppercase tracking-wide gap-2"
+                          onClick={() => handleOpenDialog(template.id)}
+                        >
+                          <Edit className="h-4 w-4" />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="rounded-md uppercase tracking-wide gap-2 text-destructive hover:text-destructive"
+                          onClick={() => handleDelete(template.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Delete
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </>
         ) : (
           <Card className="rounded-3xl border-dashed">
             <CardHeader>
@@ -1261,21 +1464,77 @@ const EmailTemplates = () => {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="sr-only">Email Body *</FormLabel>
+                    <div className="flex items-center gap-1 mb-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={editorMode === "rich" ? "default" : "outline"}
+                        disabled={isFullHtmlDocument(field.value)}
+                        title={isFullHtmlDocument(field.value) ? "Rich Text is disabled for full HTML documents to avoid stripping your markup." : undefined}
+                        className="rounded-md uppercase tracking-wide text-xs h-7"
+                        onClick={() => setEditorMode("rich")}
+                      >
+                        Rich Text
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={editorMode === "html" ? "default" : "outline"}
+                        className="rounded-md uppercase tracking-wide text-xs h-7"
+                        onClick={() => setEditorMode("html")}
+                      >
+                        HTML
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={editorMode === "preview" ? "default" : "outline"}
+                        className="rounded-md uppercase tracking-wide text-xs h-7"
+                        onClick={() => setEditorMode("preview")}
+                      >
+                        Preview
+                      </Button>
+                    </div>
                     <FormControl>
-                      <div className="rounded-2xl border bg-background">
-                        <ReactQuill
-                          theme="snow"
+                      {editorMode === "rich" ? (
+                        <div className="rounded-2xl border bg-background">
+                          <ReactQuill
+                            theme="snow"
+                            value={field.value}
+                            onChange={field.onChange}
+                            onBlur={field.onBlur}
+                            placeholder="Write the email content here. Use the toolbar to format text, add links, and insert images."
+                            modules={quillModules}
+                            formats={quillFormats}
+                          />
+                        </div>
+                      ) : editorMode === "html" ? (
+                        <Textarea
                           value={field.value}
                           onChange={field.onChange}
                           onBlur={field.onBlur}
-                          placeholder="Write the email content here. Use the toolbar to format text, add links, and insert images."
-                          modules={quillModules}
-                          formats={quillFormats}
+                          rows={18}
+                          spellCheck={false}
+                          className="font-mono text-xs leading-relaxed"
+                          placeholder="Paste or write your full HTML page here, e.g. <!DOCTYPE html> ..."
                         />
-                      </div>
+                      ) : (
+                        <div className="rounded-2xl border bg-white overflow-hidden">
+                          <iframe
+                            title="Email preview"
+                            sandbox=""
+                            srcDoc={field.value || "<p style='font-family:sans-serif;color:#888;padding:20px'>Nothing to preview yet.</p>"}
+                            className="w-full h-[480px] bg-white"
+                          />
+                        </div>
+                      )}
                     </FormControl>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Rich formatting and images are supported. Variables like {"{student_name}"} and {"{portal_url}"} will be replaced automatically.
+                      {editorMode === "html"
+                        ? "Raw HTML is sent to the recipient exactly as written. Note: email clients ignore JavaScript and often block external fonts."
+                        : editorMode === "preview"
+                          ? "This is how the raw HTML renders to the recipient. Variables like {student_name} show as placeholders here and are replaced when the email is sent."
+                          : "Rich formatting and images are supported. Variables like {student_name} and {portal_url} will be replaced automatically."}
                     </p>
                     <FormMessage />
                   </FormItem>
@@ -1334,6 +1593,32 @@ const EmailTemplates = () => {
           </Form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent className="rounded-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-display uppercase tracking-wide">
+              Delete Templates
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {selectedIds.length} selected template
+              {selectedIds.length === 1 ? "" : "s"}? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-md uppercase tracking-wide">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkDelete}
+              disabled={bulkDeleteTemplates.isPending}
+              className="rounded-md uppercase tracking-wide bg-destructive hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AdminLayout>
   );
 };

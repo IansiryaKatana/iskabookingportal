@@ -1,23 +1,43 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { TitleWithTooltip } from "@/components/ui/title-with-tooltip";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useTargetedMessages, useSendTargetedMessage, type TargetedMessageFilters } from "@/hooks/useTargetedMessages";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useTargetedMessages, useSendTargetedMessage, useBulkDeleteTargetedMessages, type TargetedMessageFilters } from "@/hooks/useTargetedMessages";
 import { useEmailTemplates } from "@/hooks/useEmailTemplates";
+import { useSendTestEmail } from "@/hooks/useSendTestEmail";
 import { useStudents } from "@/hooks/useStudents";
 import { useAdminStudioGrades } from "@/hooks/useAdminStudioGrades";
 import { useAdminAcademicYears } from "@/hooks/useAdminAcademicYears";
-import { Plus, Send, Mail, Users, Eye, X, Search, Filter } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { Plus, Send, Mail, Users, Eye, X, Search, Filter, Trash2 } from "lucide-react";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,7 +46,6 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Check } from "lucide-react";
@@ -37,6 +56,8 @@ const TargetedMessages = () => {
   const { data: messages, isLoading } = useTargetedMessages();
   const { data: templates } = useEmailTemplates();
   const sendMessage = useSendTargetedMessage();
+  const bulkDeleteMessages = useBulkDeleteTargetedMessages();
+  const sendTestEmail = useSendTestEmail();
   const { data: students } = useStudents();
   const { data: studioGradesData } = useAdminStudioGrades();
   const { data: academicYears } = useAdminAcademicYears();
@@ -44,6 +65,9 @@ const TargetedMessages = () => {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [testEmails, setTestEmails] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [studentSearchOpen, setStudentSearchOpen] = useState(false);
   const [studentSearch, setStudentSearch] = useState("");
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
@@ -68,6 +92,58 @@ const TargetedMessages = () => {
     if (!formData.email_template_id || !templates) return null;
     return templates.find((t) => t.id === formData.email_template_id && t.is_active);
   }, [formData.email_template_id, templates]);
+
+  useEffect(() => {
+    if (!dialogOpen) return;
+    supabase.auth.getUser().then(({ data }) => {
+      const email = data.user?.email;
+      if (email) setTestEmails((current) => current || email);
+    });
+  }, [dialogOpen]);
+
+  const handleSendTest = async () => {
+    if (!selectedTemplate) {
+      toast({
+        title: "Select a template",
+        description: "Choose an email template before sending a test.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const recipients = testEmails
+      .split(/[\n,;\s]+/g)
+      .map((email) => email.trim())
+      .filter(Boolean);
+    if (recipients.length === 0) {
+      toast({
+        title: "No recipients",
+        description: "Enter at least one staff/admin email to send a test.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      const result = await sendTestEmail.mutateAsync({
+        subject: selectedTemplate.subject,
+        body_html: selectedTemplate.body_html,
+        body_text: selectedTemplate.body_text || undefined,
+        to: recipients,
+      });
+      toast({
+        title: "Test email sent",
+        description: `Sent ${result.sent} test email${result.sent === 1 ? "" : "s"}${
+          result.failed ? `, ${result.failed} failed` : ""
+        }. Check the inbox (and spam) for the [TEST] message.`,
+        variant: result.failed && !result.sent ? "destructive" : undefined,
+      });
+    } catch (error) {
+      toast({
+        title: "Failed to send test",
+        description: error instanceof Error ? error.message : "Something went wrong.",
+        variant: "destructive",
+      });
+    }
+  };
 
   // Filter students for search
   const filteredStudents = useMemo(() => {
@@ -257,6 +333,39 @@ const TargetedMessages = () => {
     setSelectedStudentIds((prev) => prev.filter((id) => id !== studentId));
   };
 
+  const messageList = messages ?? [];
+  const allSelected = messageList.length > 0 && selectedIds.length === messageList.length;
+  const someSelected = selectedIds.length > 0 && !allSelected;
+
+  const toggleSelectAll = () => {
+    setSelectedIds(allSelected ? [] : messageList.map((m) => m.id));
+  };
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+
+  const handleBulkDelete = async () => {
+    try {
+      await bulkDeleteMessages.mutateAsync(selectedIds);
+      toast({
+        title: "Messages deleted",
+        description: `${selectedIds.length} message(s) removed.`,
+      });
+      setSelectedIds([]);
+      setBulkDeleteOpen(false);
+    } catch (error) {
+      console.error("Bulk delete failed:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete selected messages. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (isLoading && !messages) {
     return (
       <AdminLayout pageTitle="Targeted Messages" subtitle="Send messages to specific students">
@@ -287,107 +396,174 @@ const TargetedMessages = () => {
           <Plus className="h-4 w-4" />
         </Button>
       }
+      pageToolbar={
+        <Button
+          onClick={() => setDialogOpen(true)}
+          className="rounded-md uppercase tracking-wide gap-2"
+        >
+          <Plus className="h-4 w-4" />
+          New Message
+        </Button>
+      }
     >
       <div className="space-y-6">
-        <div className="hidden lg:flex items-center justify-between">
-          <div>
-            <TitleWithTooltip
-              tooltip="Send personalized messages to specific students or groups"
-              tooltipLabel="About Targeted Messages"
-              titleClassName="text-2xl font-display font-bold uppercase tracking-wide"
-            >
-              Targeted Messages
-            </TitleWithTooltip>
-          </div>
-          <Button
-            onClick={() => setDialogOpen(true)}
-            className="rounded-md uppercase tracking-wide gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            New Message
-          </Button>
-        </div>
-
-        {messages && messages.length > 0 ? (
-          <div className="space-y-4">
-            {messages.map((message) => (
-              <Card key={message.id} className="rounded-3xl">
-                <CardHeader>
-                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
-                    <CardTitle className="text-lg font-display uppercase tracking-wide flex items-center gap-2 flex-1">
-                      <Mail className="h-4 w-4 flex-shrink-0" />
-                      <span className="break-words">{message.title}</span>
-                    </CardTitle>
-                    <div className="flex-shrink-0">
-                      {getStatusBadge(message.status)}
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <p className="text-sm text-muted-foreground mb-4 break-words">{message.message}</p>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div>
-                      <p className="text-muted-foreground">Recipients</p>
-                      <p className="font-medium flex items-center gap-1">
-                        <Users className="h-4 w-4" />
-                        {message.total_recipients}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Notifications</p>
-                      <p className="font-medium">{message.notifications_sent}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Emails</p>
-                      <p className="font-medium">{message.emails_sent}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Sent</p>
-                      <p className="font-medium">
+        {messageList.length > 0 ? (
+          <>
+            {/* Desktop: table row layout */}
+            <div className="hidden lg:block">
+              {selectedIds.length > 0 && (
+                <div className="mb-3 flex flex-wrap items-center gap-2 rounded-2xl border bg-muted/40 px-4 py-3">
+                  <Badge variant="secondary" className="uppercase tracking-wide">
+                    {selectedIds.length} selected
+                  </Badge>
+                  <div className="flex-1" />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-md uppercase tracking-wide gap-2 text-destructive hover:text-destructive"
+                    onClick={() => setBulkDeleteOpen(true)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                  </Button>
+                </div>
+              )}
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-12">
+                      <Checkbox
+                        checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                        onCheckedChange={toggleSelectAll}
+                        aria-label="Select all messages"
+                      />
+                    </TableHead>
+                    <TableHead className="uppercase tracking-wide text-xs">Title</TableHead>
+                    <TableHead className="uppercase tracking-wide text-xs">Status</TableHead>
+                    <TableHead className="uppercase tracking-wide text-xs text-right">Recipients</TableHead>
+                    <TableHead className="uppercase tracking-wide text-xs text-right">Notifications</TableHead>
+                    <TableHead className="uppercase tracking-wide text-xs text-right">Emails</TableHead>
+                    <TableHead className="uppercase tracking-wide text-xs">Sent</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {messageList.map((message) => (
+                    <TableRow
+                      key={message.id}
+                      data-state={selectedIds.includes(message.id) ? "selected" : undefined}
+                    >
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedIds.includes(message.id)}
+                          onCheckedChange={() => toggleSelection(message.id)}
+                          aria-label={`Select ${message.title}`}
+                        />
+                      </TableCell>
+                      <TableCell className="font-medium max-w-sm">
+                        <div className="flex items-center gap-2">
+                          <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          <div className="min-w-0">
+                            <p className="font-display uppercase tracking-wide truncate">
+                              {message.title}
+                            </p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {message.message}
+                            </p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>{getStatusBadge(message.status)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{message.total_recipients}</TableCell>
+                      <TableCell className="text-right tabular-nums">{message.notifications_sent}</TableCell>
+                      <TableCell className="text-right tabular-nums">{message.emails_sent}</TableCell>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">
                         {message.created_at
                           ? format(new Date(message.created_at), "d MMM yyyy HH:mm")
                           : "—"}
-                      </p>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Mobile & tablet: card layout */}
+            <div className="space-y-4 lg:hidden">
+              {messageList.map((message) => (
+                <Card key={message.id} className="rounded-3xl">
+                  <CardHeader>
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
+                      <CardTitle className="text-lg font-display uppercase tracking-wide flex items-center gap-2 flex-1">
+                        <Mail className="h-4 w-4 flex-shrink-0" />
+                        <span className="break-words">{message.title}</span>
+                      </CardTitle>
+                      <div className="flex-shrink-0">
+                        {getStatusBadge(message.status)}
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <p className="text-sm text-muted-foreground mb-4 break-words">{message.message}</p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <p className="text-muted-foreground">Recipients</p>
+                        <p className="font-medium flex items-center gap-1">
+                          <Users className="h-4 w-4" />
+                          {message.total_recipients}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Notifications</p>
+                        <p className="font-medium">{message.notifications_sent}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Emails</p>
+                        <p className="font-medium">{message.emails_sent}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Sent</p>
+                        <p className="font-medium">
+                          {message.created_at
+                            ? format(new Date(message.created_at), "d MMM yyyy HH:mm")
+                            : "—"}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </>
         ) : (
-          <Card className="rounded-3xl border-dashed">
-            <CardHeader>
-              <CardTitle className="text-xl font-display uppercase tracking-wide">
-                No Messages Sent
-              </CardTitle>
-              <CardDescription>
-                Send your first targeted message to get started.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button
-                onClick={() => setDialogOpen(true)}
-                className="rounded-md uppercase tracking-wide gap-2"
-              >
-                <Plus className="h-4 w-4" />
-                Send Message
-              </Button>
-            </CardContent>
-          </Card>
+          <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+            <h3 className="text-xl font-display uppercase tracking-wide">
+              No Messages Sent
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Send your first targeted message to get started.
+            </p>
+            <Button
+              onClick={() => setDialogOpen(true)}
+              className="rounded-md uppercase tracking-wide gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Send Message
+            </Button>
+          </div>
         )}
       </div>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[800px] rounded-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-display uppercase tracking-wide">
+      <Sheet open={dialogOpen} onOpenChange={setDialogOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="font-display uppercase tracking-wide">
               Send Targeted Message
-            </DialogTitle>
-            <DialogDescription>
+            </SheetTitle>
+            <SheetDescription>
               Select specific students or apply filters to send personalized messages.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-6 py-4">
+            </SheetDescription>
+          </SheetHeader>
+          <div className="space-y-6 mt-4">
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "select" | "filter")}>
               <TabsList className="grid w-full grid-cols-2 rounded-md">
                 <TabsTrigger value="select" className="rounded-md uppercase tracking-wide">
@@ -402,7 +578,10 @@ const TargetedMessages = () => {
 
               <TabsContent value="select" className="space-y-4 mt-4">
                 <div>
-                  <Label>Search and Select Students</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label>Search and Select Students</Label>
+                    <InfoTooltip content="Pick individual students by name or email. The message is sent only to those you select here." label="About selecting students" />
+                  </div>
                   <Popover open={studentSearchOpen} onOpenChange={setStudentSearchOpen}>
                     <PopoverTrigger asChild>
                       <Button
@@ -488,7 +667,10 @@ const TargetedMessages = () => {
               <TabsContent value="filter" className="space-y-4 mt-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label>Application Status</Label>
+                    <div className="flex items-center gap-1.5">
+                      <Label>Application Status</Label>
+                      <InfoTooltip content="Target students whose application is in the chosen status." label="About application status filter" />
+                    </div>
                     <Select
                       value={filters.application_status?.[0] || "all"}
                       onValueChange={(value) => {
@@ -515,7 +697,10 @@ const TargetedMessages = () => {
                   </div>
 
                   <div>
-                    <Label>Studio Grade</Label>
+                    <div className="flex items-center gap-1.5">
+                      <Label>Studio Grade</Label>
+                      <InfoTooltip content="Target students assigned to studios of the chosen grade." label="About studio grade filter" />
+                    </div>
                     <Select
                       value={filters.studio_grade_id?.[0] || "all"}
                       onValueChange={(value) => {
@@ -540,7 +725,10 @@ const TargetedMessages = () => {
                   </div>
 
                   <div>
-                    <Label>Academic Year</Label>
+                    <div className="flex items-center gap-1.5">
+                      <Label>Academic Year</Label>
+                      <InfoTooltip content="Target students whose contract falls in the chosen academic year." label="About academic year filter" />
+                    </div>
                     <Select
                       value={filters.academic_year_id?.[0] || "all"}
                       onValueChange={(value) => {
@@ -569,7 +757,10 @@ const TargetedMessages = () => {
 
             <div className="pt-4 border-t space-y-4">
               <div>
-                <Label htmlFor="email_template">Email Template *</Label>
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor="email_template">Email Template *</Label>
+                  <InfoTooltip content="The email + notification content sent to the selected/filtered students. Only active templates appear here." label="About email template" />
+                </div>
                 {templates && templates.filter((t) => t.is_active).length > 0 ? (
                   <Select
                     value={formData.email_template_id || undefined}
@@ -604,7 +795,10 @@ const TargetedMessages = () => {
               </div>
 
               <div>
-                <Label htmlFor="title">Notification Title *</Label>
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor="title">Notification Title *</Label>
+                  <InfoTooltip content="Appears as the notification title in the student portal." label="About notification title" />
+                </div>
                 <Input
                   id="title"
                   value={formData.title}
@@ -615,7 +809,10 @@ const TargetedMessages = () => {
               </div>
 
               <div>
-                <Label htmlFor="message">Notification Message *</Label>
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor="message">Notification Message *</Label>
+                  <InfoTooltip content="Appears as the notification message in the student portal." label="About notification message" />
+                </div>
                 <Textarea
                   id="message"
                   value={formData.message}
@@ -627,7 +824,10 @@ const TargetedMessages = () => {
               </div>
 
               <div>
-                <Label htmlFor="notification_type">Notification Type</Label>
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor="notification_type">Notification Type</Label>
+                  <InfoTooltip content="Controls the colour/severity styling of the in-portal notification." label="About notification type" />
+                </div>
                 <Select
                   value={formData.notification_type}
                   onValueChange={(value) =>
@@ -645,9 +845,52 @@ const TargetedMessages = () => {
                   </SelectContent>
                 </Select>
               </div>
+
+              {selectedTemplate && (
+                <div className="pt-2 border-t space-y-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setPreviewOpen(true)}
+                    className="rounded-md uppercase tracking-wide gap-2 w-full"
+                  >
+                    <Eye className="h-4 w-4" />
+                    Preview Email
+                  </Button>
+                  <div className="rounded-2xl border p-4 space-y-2">
+                    <div className="flex items-center gap-1.5">
+                      <Label htmlFor="targeted_test_emails" className="uppercase tracking-wide text-xs text-muted-foreground">
+                        Send Test to Staff / Admin
+                      </Label>
+                      <InfoTooltip content="Sends a [TEST] copy of this template to the addresses below (max 10) with sample data filled in. Does not affect students." label="About test email" />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Check how it renders in a real inbox before sending. Separate multiple addresses with commas.
+                    </p>
+                    <Textarea
+                      id="targeted_test_emails"
+                      value={testEmails}
+                      onChange={(e) => setTestEmails(e.target.value)}
+                      rows={2}
+                      placeholder="admin@company.com, staff@company.com"
+                      className="text-sm rounded-md"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleSendTest}
+                      disabled={sendTestEmail.isPending}
+                      className="rounded-md uppercase tracking-wide gap-2"
+                    >
+                      <Send className="h-4 w-4" />
+                      {sendTestEmail.isPending ? "Sending..." : "Send Test"}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-          <DialogFooter>
+          <div className="flex justify-end gap-2 mt-6">
             <Button variant="outline" onClick={() => setDialogOpen(false)} className="rounded-md uppercase tracking-wide">
               Cancel
             </Button>
@@ -659,9 +902,72 @@ const TargetedMessages = () => {
               <Send className="h-4 w-4" />
               {sendMessage.isPending ? "Sending..." : "Send Message"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={previewOpen} onOpenChange={setPreviewOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="font-display uppercase tracking-wide flex items-center gap-2">
+              <Eye className="h-5 w-5" />
+              Email Preview
+            </SheetTitle>
+            <SheetDescription>
+              Preview how the email will look to students (variables will be replaced with actual data).
+            </SheetDescription>
+          </SheetHeader>
+          {selectedTemplate && (
+            <div className="mt-4 space-y-2">
+              <div className="rounded-lg border overflow-hidden bg-white">
+                <iframe
+                  title="Email preview"
+                  sandbox=""
+                  srcDoc={
+                    selectedTemplate.body_html ||
+                    `<pre style="font-family:sans-serif;white-space:pre-wrap;padding:16px">${selectedTemplate.body_text || ""}</pre>`
+                  }
+                  className="w-full h-[520px] bg-white"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                This is how the email renders to students. Variables like {"{student_name}"} appear as-is here and are replaced with real data when sent.
+              </p>
+            </div>
+          )}
+          <div className="flex justify-end gap-2 mt-6">
+            <Button variant="outline" onClick={() => setPreviewOpen(false)} className="rounded-md uppercase tracking-wide">
+              Close
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent className="rounded-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-display uppercase tracking-wide">
+              Delete Messages
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {selectedIds.length} selected message
+              {selectedIds.length === 1 ? "" : "s"}? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-md uppercase tracking-wide">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkDelete}
+              disabled={bulkDeleteMessages.isPending}
+              className="rounded-md uppercase tracking-wide bg-destructive hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AdminLayout>
   );
 };

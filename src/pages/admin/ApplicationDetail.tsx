@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useStudentApplication } from "@/hooks/useStudentApplication";
 import { useUpdateApplicationStatus } from "@/hooks/useAdminApplications";
 import { useAdminStudios } from "@/hooks/useAdminStudios";
-import { ArrowLeft, ArrowUpLeft, User, Mail, Phone, MapPin, Calendar, Building2, CreditCard, FileText, CheckCircle2, XCircle, Download, Send, RotateCcw, Gift, Percent, Handshake, Pencil, Check, ChevronsUpDown, CalendarPlus, DoorOpen, DoorClosed } from "lucide-react";
+import { ArrowLeft, ArrowUpLeft, User, Mail, Phone, MapPin, Calendar, Building2, CreditCard, FileText, CheckCircle2, XCircle, Download, Send, RotateCcw, Gift, Percent, Handshake, Pencil, Check, ChevronsUpDown, CalendarPlus, DoorOpen, DoorClosed, Upload, LogIn } from "lucide-react";
 import { addDays, differenceInCalendarDays, format, isAfter, parseISO } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -46,6 +46,9 @@ import { useApplicationCashback, useActiveCashbackCampaigns, useApplyCashback, u
 import { useApplicationDiscount, useActiveDiscountCampaigns, useApplyDiscount, useRemoveDiscount } from "@/hooks/useDiscount";
 import { useApplicationPartnerReferral, usePartners, useCreatePartnerReferral } from "@/hooks/usePartners";
 import { useDocumentUpload } from "@/hooks/useDocumentUpload";
+import { CheckInCheckOutDialog } from "@/components/admin/CheckInCheckOutDialog";
+import { formatDocumentDisplayName, formatDocumentTypeTitle } from "@/utils/documentDisplay";
+import { getStayStatus, STAY_STATUS_LABELS } from "@/utils/stayStatus";
 import { logActivity } from "@/utils/auditLog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
@@ -68,7 +71,10 @@ import { useResendAgreements } from "@/hooks/useResendAgreements";
 import { useEarlyCheckoutStudent } from "@/hooks/useEarlyCheckout";
 import { useEarlyCheckInSummary } from "@/hooks/useEarlyCheckIn";
 import EarlyCheckInSection from "@/components/admin/EarlyCheckInSection";
-import { useRefreshAgreementStatus } from "@/hooks/useDocusignStatusSync";
+import {
+  usePendingEnvelopeStatusSync,
+  useRefreshAgreementStatus,
+} from "@/hooks/useDocusignStatusSync";
 import {
   computeContractEndDate,
   datesToWeeksAndExtraDays,
@@ -174,6 +180,19 @@ const ApplicationDetail = () => {
   const resendAgreements = useResendAgreements(applicationId);
   const { refresh: refreshAgreementStatus, isRefreshing: refreshingAgreementStatus } =
     useRefreshAgreementStatus(applicationId);
+  // Auto-pull DocuSign status when staff open an app still waiting on signatures.
+  usePendingEnvelopeStatusSync(
+    application
+      ? [
+          {
+            id: application.id,
+            status: application.status,
+            docusign_envelopes: application.docusign_envelopes,
+          },
+        ]
+      : undefined,
+    !!application,
+  );
   const updateStatus = useUpdateApplicationStatus();
   const createNotification = useCreateNotification();
   const queryClient = useQueryClient();
@@ -196,8 +215,11 @@ const ApplicationDetail = () => {
   const [partnerDropdownOpen, setPartnerDropdownOpen] = useState(false);
   const [partnerSearchQuery, setPartnerSearchQuery] = useState("");
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [uploadDialogMode, setUploadDialogMode] = useState<"rejected" | "additional">("rejected");
   const [selectedRejectedDoc, setSelectedRejectedDoc] = useState<{ id: string; documentType: string; notes?: string } | null>(null);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [additionalDocLabel, setAdditionalDocLabel] = useState("");
+  const [checkInOutDialogOpen, setCheckInOutDialogOpen] = useState(false);
   const [customScheduleOpen, setCustomScheduleOpen] = useState(false);
   const [customInstallments, setCustomInstallments] = useState<CustomInstallmentInput[]>([]);
   const [createExtensionOpen, setCreateExtensionOpen] = useState(false);
@@ -520,7 +542,7 @@ const ApplicationDetail = () => {
       // Get current document to log old status
       const { data: currentDoc } = await supabase
         .from("student_documents")
-        .select("status, document_type, application_id")
+        .select("status, document_type, application_id, notes")
         .eq("id", documentId)
         .single();
 
@@ -530,9 +552,16 @@ const ApplicationDetail = () => {
         verified_at: new Date().toISOString(),
       };
 
-      // Add notes if provided (check if column exists)
-      if (notes !== undefined) {
-        updateData.notes = notes || null;
+      // Preserve additional-doc labels on approve when no verification notes entered.
+      // On reject, notes become the rejection reason.
+      if (status === "rejected") {
+        updateData.notes = notes?.trim() || "Please review the document requirements and upload a new document.";
+      } else if (notes !== undefined && notes.trim()) {
+        if (currentDoc?.document_type === "additional" && currentDoc.notes?.trim()) {
+          updateData.notes = `${currentDoc.notes.trim()}\n\nVerification: ${notes.trim()}`;
+        } else {
+          updateData.notes = notes.trim();
+        }
       }
 
       const { error } = await supabase
@@ -1836,11 +1865,26 @@ const ApplicationDetail = () => {
 
           {/* Documents */}
           <Card className="rounded-3xl">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
               <CardTitle className="text-base sm:text-lg font-display uppercase tracking-wide flex items-center gap-2">
                 <FileText className="h-4 w-4 sm:h-5 sm:w-5" />
                 <span className="text-sm sm:text-base">Documents</span>
               </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-md uppercase tracking-wide text-xs gap-1 shrink-0"
+                onClick={() => {
+                  setUploadDialogMode("additional");
+                  setSelectedRejectedDoc(null);
+                  setUploadFile(null);
+                  setAdditionalDocLabel("");
+                  setUploadDialogOpen(true);
+                }}
+              >
+                <Upload className="h-3 w-3" />
+                Upload additional
+              </Button>
             </CardHeader>
             <CardContent className="space-y-3">
               {documents && documents.length > 0 ? (
@@ -1849,9 +1893,17 @@ const ApplicationDetail = () => {
                     <div key={doc.id} className="p-3 bg-muted/40 rounded-lg">
                       <div className="flex items-center justify-between mb-2">
                         <div>
-                          <p className="font-medium text-sm capitalize">{doc.document_type}</p>
+                          <p className="font-medium text-sm capitalize">
+                            {formatDocumentDisplayName(doc)}
+                          </p>
+                          {doc.document_type === "additional" && (
+                            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                              {formatDocumentTypeTitle(doc.document_type)}
+                            </p>
+                          )}
                           <p className="text-xs text-muted-foreground">
                             {format(new Date(doc.uploaded_at), "d MMM yyyy")}
+                            {doc.original_filename ? ` · ${doc.original_filename}` : ""}
                           </p>
                         </div>
                         <Badge
@@ -2025,11 +2077,14 @@ const ApplicationDetail = () => {
                             size="sm"
                             className="rounded-md uppercase tracking-wide gap-2 text-blue-600 text-xs w-full sm:w-auto"
                             onClick={() => {
+                              setUploadDialogMode("rejected");
                               setSelectedRejectedDoc({
                                 id: doc.id,
                                 documentType: doc.document_type,
                                 notes: doc.notes || undefined,
                               });
+                              setUploadFile(null);
+                              setAdditionalDocLabel("");
                               setUploadDialogOpen(true);
                             }}
                           >
@@ -2129,6 +2184,15 @@ const ApplicationDetail = () => {
                           application.contract?.contract_start,
                       )}
                     </p>
+                    {(application as { actual_check_in_date?: string | null }).actual_check_in_date ? (
+                      <p className="mt-1 text-[10px] text-emerald-700 uppercase tracking-wide font-medium">
+                        Actual check-in recorded
+                      </p>
+                    ) : application.status === "confirmed" ? (
+                      <p className="mt-1 text-[10px] text-amber-700 uppercase tracking-wide font-medium">
+                        Awaiting check-in
+                      </p>
+                    ) : null}
                     {hasActiveEarlyCheckIn && earlyCheckInSummary && (
                       <p className="mt-1 text-[10px] text-emerald-700 uppercase tracking-wide font-medium">
                         Early check-in · {earlyCheckInSummary.nights} night
@@ -2155,11 +2219,40 @@ const ApplicationDetail = () => {
                       )}
                   </div>
                 </div>
+                {(() => {
+                  const stay = getStayStatus({
+                    status: application.status,
+                    actual_check_in_date: (application as { actual_check_in_date?: string | null }).actual_check_in_date,
+                    actual_check_out_date: (application as { actual_check_out_date?: string | null }).actual_check_out_date,
+                  });
+                  return stay ? (
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                      Stay status:{" "}
+                      <span className="font-medium text-foreground uppercase tracking-wide">
+                        {STAY_STATUS_LABELS[stay]}
+                      </span>
+                    </p>
+                  ) : null;
+                })()}
                 {(application as { check_out_notes?: string | null }).check_out_notes && (
                   <p className="mt-2 text-xs text-muted-foreground">
                     <span className="font-medium text-foreground">Checkout notes: </span>
                     {(application as { check_out_notes?: string | null }).check_out_notes}
                   </p>
+                )}
+                {(application.status === "confirmed" ||
+                  application.status === "checked_out" ||
+                  (application as { actual_check_in_date?: string | null }).actual_check_in_date) && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-3 rounded-md uppercase tracking-wide text-xs gap-1"
+                    onClick={() => setCheckInOutDialogOpen(true)}
+                  >
+                    <LogIn className="h-3 w-3" />
+                    Manage check-in / out
+                  </Button>
                 )}
               </div>
               {application.contract?.contract_payment_plans && application.contract.contract_payment_plans.length > 0 && (
@@ -3717,51 +3810,82 @@ const ApplicationDetail = () => {
         </SheetContent>
       </Sheet>
 
-      {/* Upload New Document Dialog */}
-      <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
+      {/* Upload Document Dialog (replace rejected OR add additional) */}
+      <Dialog
+        open={uploadDialogOpen}
+        onOpenChange={(open) => {
+          setUploadDialogOpen(open);
+          if (!open) {
+            setUploadFile(null);
+            setSelectedRejectedDoc(null);
+            setAdditionalDocLabel("");
+            setUploadDialogMode("rejected");
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Upload New Document</DialogTitle>
+            <DialogTitle>
+              {uploadDialogMode === "additional" ? "Upload additional document" : "Upload new document"}
+            </DialogTitle>
             <DialogDescription>
-              Upload a new document to replace the rejected one. The student will be notified.
+              {uploadDialogMode === "additional"
+                ? "Attach any supporting file to this application (separate from agreements)."
+                : "Upload a new document to replace the rejected one. The student will be notified."}
             </DialogDescription>
           </DialogHeader>
-          {selectedRejectedDoc && (
-            <div className="space-y-4">
-              <div>
-                <Label className="text-sm font-medium">Document Type</Label>
-                <p className="text-sm text-muted-foreground capitalize mt-1">
-                  {selectedRejectedDoc.documentType.replace(/_/g, " ")}
-                </p>
-              </div>
-              {selectedRejectedDoc.notes && (
-                <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-                  <p className="text-xs font-medium text-destructive mb-1">Rejection Reason:</p>
-                  <p className="text-xs text-destructive/90">{selectedRejectedDoc.notes}</p>
+          <div className="space-y-4">
+            {uploadDialogMode === "rejected" && selectedRejectedDoc && (
+              <>
+                <div>
+                  <Label className="text-sm font-medium">Document type</Label>
+                  <p className="text-sm text-muted-foreground capitalize mt-1">
+                    {formatDocumentTypeTitle(selectedRejectedDoc.documentType)}
+                  </p>
                 </div>
-              )}
+                {selectedRejectedDoc.notes && (
+                  <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                    <p className="text-xs font-medium text-destructive mb-1">Rejection reason:</p>
+                    <p className="text-xs text-destructive/90">{selectedRejectedDoc.notes}</p>
+                  </div>
+                )}
+              </>
+            )}
+            {uploadDialogMode === "additional" && (
               <div>
-                <Label htmlFor="file-upload" className="text-sm font-medium">
-                  Select File
+                <Label htmlFor="additional-doc-label" className="text-sm font-medium">
+                  Label (optional)
                 </Label>
                 <Input
-                  id="file-upload"
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png,.webp"
+                  id="additional-doc-label"
                   className="mt-1"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    setUploadFile(file || null);
-                  }}
+                  placeholder="e.g. University offer letter"
+                  value={additionalDocLabel}
+                  onChange={(e) => setAdditionalDocLabel(e.target.value)}
                 />
-                {uploadFile && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Selected: {uploadFile.name} ({(uploadFile.size / 1024 / 1024).toFixed(2)} MB)
-                  </p>
-                )}
               </div>
+            )}
+            <div>
+              <Label htmlFor="file-upload" className="text-sm font-medium">
+                Select file
+              </Label>
+              <Input
+                id="file-upload"
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.webp"
+                className="mt-1"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  setUploadFile(file || null);
+                }}
+              />
+              {uploadFile && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Selected: {uploadFile.name} ({(uploadFile.size / 1024 / 1024).toFixed(2)} MB)
+                </p>
+              )}
             </div>
-          )}
+          </div>
           <DialogFooter className="flex flex-col sm:flex-row sm:justify-between gap-2">
             <Button
               variant="outline"
@@ -3769,6 +3893,7 @@ const ApplicationDetail = () => {
                 setUploadDialogOpen(false);
                 setUploadFile(null);
                 setSelectedRejectedDoc(null);
+                setAdditionalDocLabel("");
               }}
               disabled={uploadDocument.isPending}
               className="w-full sm:w-auto rounded-md uppercase tracking-wide"
@@ -3777,7 +3902,8 @@ const ApplicationDetail = () => {
             </Button>
             <Button
               onClick={async () => {
-                if (!uploadFile || !selectedRejectedDoc || !applicationId) return;
+                if (!uploadFile || !applicationId) return;
+                if (uploadDialogMode === "rejected" && !selectedRejectedDoc) return;
 
                 const { data: { user } } = await supabase.auth.getUser();
                 if (!user) {
@@ -3790,56 +3916,57 @@ const ApplicationDetail = () => {
                 }
 
                 try {
+                  const documentType =
+                    uploadDialogMode === "additional"
+                      ? "additional"
+                      : selectedRejectedDoc!.documentType;
+
                   await uploadDocument.mutateAsync({
                     file: uploadFile,
                     applicationId,
-                    documentType: selectedRejectedDoc.documentType,
+                    documentType,
                     uploadedBy: user.id,
+                    notes:
+                      uploadDialogMode === "additional"
+                        ? additionalDocLabel.trim() || undefined
+                        : undefined,
                   });
 
-                  // Send notification to student
-                  if (application?.student_id) {
+                  if (uploadDialogMode === "rejected" && application?.student_id && selectedRejectedDoc) {
                     try {
-                      // Get student name from Step 1
-                      const { data: step1 } = await supabase
-                        .from("student_application_steps")
-                        .select("payload")
-                        .eq("application_id", applicationId)
-                        .eq("step_number", 1)
-                        .single();
-
-                      const step1Data = step1?.payload as any;
-                      const studentName = step1Data?.first_name && step1Data?.last_name
-                        ? `${step1Data.first_name} ${step1Data.last_name}`
-                        : "Student";
-
-                      // Create notification
                       await createNotification.mutateAsync({
-                        userId: application.student_id,
+                        user_id: application.student_id,
                         title: "New Document Uploaded",
-                        message: `A new ${selectedRejectedDoc.documentType.replace(/_/g, " ")} document has been uploaded for your application. Please review it in your portal.`,
+                        message: `A new ${formatDocumentTypeTitle(selectedRejectedDoc.documentType)} document has been uploaded for your application. Please review it in your portal.`,
                         type: "info",
                         link: `/portal/documents`,
                       });
                     } catch (notifError) {
                       console.error("Error creating notification:", notifError);
-                      // Don't fail the upload if notification fails
                     }
                   }
 
                   setUploadDialogOpen(false);
                   setUploadFile(null);
                   setSelectedRejectedDoc(null);
-                  
+                  setAdditionalDocLabel("");
+
                   toast({
                     title: "Document uploaded",
-                    description: "The new document has been uploaded and the student has been notified.",
+                    description:
+                      uploadDialogMode === "additional"
+                        ? "Additional document uploaded and pending review."
+                        : "The new document has been uploaded and the student has been notified.",
                   });
                 } catch (error) {
                   console.error("Failed to upload document:", error);
                 }
               }}
-              disabled={!uploadFile || uploadDocument.isPending}
+              disabled={
+                !uploadFile ||
+                uploadDocument.isPending ||
+                (uploadDialogMode === "rejected" && !selectedRejectedDoc)
+              }
               className="w-full sm:w-auto rounded-md uppercase tracking-wide"
             >
               {uploadDocument.isPending ? "Uploading..." : "Upload"}
@@ -3847,6 +3974,23 @@ const ApplicationDetail = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <CheckInCheckOutDialog
+        open={checkInOutDialogOpen}
+        onOpenChange={setCheckInOutDialogOpen}
+        applicationId={applicationId!}
+        studentName={
+          step1Data?.first_name && step1Data?.last_name
+            ? `${step1Data.first_name} ${step1Data.last_name}`
+            : undefined
+        }
+        contractStart={application?.contract?.contract_start}
+        contractEnd={application?.contract?.contract_end}
+        actualCheckInDate={(application as { actual_check_in_date?: string | null } | undefined)?.actual_check_in_date}
+        actualCheckOutDate={(application as { actual_check_out_date?: string | null } | undefined)?.actual_check_out_date}
+        checkInNotes={(application as { check_in_notes?: string | null } | undefined)?.check_in_notes}
+        checkOutNotes={(application as { check_out_notes?: string | null } | undefined)?.check_out_notes}
+      />
 
       {/* Early Checkout Sheet */}
       <Sheet open={earlyCheckoutSheetOpen} onOpenChange={setEarlyCheckoutSheetOpen}>

@@ -357,7 +357,7 @@ const RequestPasswordReset = () => {
                   required
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  className="pl-11 h-12 bg-blue-50/50 border-primary/30 focus:border-primary focus:ring-primary rounded-lg"
+                  className="pl-11 h-12 bg-blue-50/50 border-primary/30 focus:border-primary focus:ring-0 focus:ring-offset-0 rounded-lg"
                   placeholder="Email address"
                 />
               </div>

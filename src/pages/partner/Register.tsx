@@ -341,8 +341,8 @@ const PartnerRegister = () => {
                             }}
                             className={codeValidation && (
                               codeValidation.is_available
-                                ? "border-green-500 focus-visible:ring-green-500"
-                                : "border-red-500 focus-visible:ring-red-500"
+                                ? "border-green-500"
+                                : "border-red-500"
                             )}
                           />
                           {normalizedCode && (

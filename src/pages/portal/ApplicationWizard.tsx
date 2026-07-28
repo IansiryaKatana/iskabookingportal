@@ -3378,9 +3378,9 @@ useEffect(() => {
                     className={cn(
                       personalValues.referral_code?.trim() &&
                         (referralValidation?.is_valid
-                          ? "border-green-500 focus-visible:ring-green-500"
+                          ? "border-green-500"
                           : referralValidation?.is_valid === false
-                            ? "border-red-500 focus-visible:ring-red-500"
+                            ? "border-red-500"
                             : ""),
                     )}
                   />
@@ -4427,10 +4427,10 @@ useEffect(() => {
                                 paymentValues.receipt_number?.trim() &&
                                   (paymentVerification
                                     ? paymentVerification.is_linked
-                                      ? "border-red-500 focus-visible:ring-red-500"
-                                      : "border-green-500 focus-visible:ring-green-500"
+                                      ? "border-red-500"
+                                      : "border-green-500"
                                     : paymentVerification === null && paymentValues.receipt_number?.trim()
-                                    ? "border-red-500 focus-visible:ring-red-500"
+                                    ? "border-red-500"
                                     : ""),
                               )}
                             />

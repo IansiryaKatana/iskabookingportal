@@ -123,6 +123,25 @@ All colors MUST be HSL.
     font-size: 12px;
   }
 
+  /* Form fields: focus on the element's border, never an outer ring */
+  input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]),
+  textarea,
+  select,
+  [role="combobox"],
+  [data-radix-select-trigger],
+  [data-slot="input-otp-slot"] {
+    --tw-ring-offset-width: 0px;
+  }
+
+  input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]):focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  [role="combobox"]:focus-visible,
+  [data-radix-select-trigger]:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
+
   @media (min-width: 768px) {
     body {
       font-size: 16px;

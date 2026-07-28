@@ -26,6 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -160,6 +161,11 @@ import {
   BOOKING_SOURCE_OPTIONS,
   BOOKING_SOURCE_BADGE_CONFIG,
 } from "@/constants/bookingSources";
+import {
+  getStayStatus,
+  STAY_STATUS_LABELS,
+  type StayStatus,
+} from "@/utils/stayStatus";
 
 const getBookingSourceBadge = (source?: string | null) => {
   if (!source) {
@@ -255,6 +261,7 @@ const Applications = () => {
   const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(null);
   const [manualPaymentInitialType, setManualPaymentInitialType] = useState<"deposit" | "instalment">("deposit");
   const [statusFilter, setStatusFilter] = useState<string>(searchParams.get("status") ?? "all");
+  const [stayFilter, setStayFilter] = useState<string>(searchParams.get("stay") ?? "all");
   const [bookingSourceFilter, setBookingSourceFilter] = useState<string>(
     searchParams.get("bookingSource") ?? "all",
   );
@@ -685,6 +692,7 @@ const Applications = () => {
   const buildListSearchParams = () => {
     const params = new URLSearchParams();
     if (statusFilter !== "all") params.set("status", statusFilter);
+    if (stayFilter !== "all") params.set("stay", stayFilter);
     if (bookingSourceFilter !== "all") params.set("bookingSource", bookingSourceFilter);
     if (contractTypeFilter !== "all") params.set("contractType", contractTypeFilter);
     if (eciFilter !== "all") params.set("eci", eciFilter);
@@ -700,6 +708,7 @@ const Applications = () => {
     setSearchParams(buildListSearchParams(), { replace: true });
   }, [
     statusFilter,
+    stayFilter,
     bookingSourceFilter,
     contractTypeFilter,
     eciFilter,
@@ -731,6 +740,18 @@ const Applications = () => {
       } else {
         result = result.filter((application) => application.status === statusFilter);
       }
+    }
+
+    // Apply stay filter (operational check-in / check-out)
+    if (stayFilter !== "all") {
+      result = result.filter((application) => {
+        const stay = getStayStatus({
+          status: application.status,
+          actual_check_in_date: application.actual_check_in_date,
+          actual_check_out_date: application.actual_check_out_date,
+        });
+        return stay === stayFilter;
+      });
     }
 
     // Apply booking source filter
@@ -801,6 +822,7 @@ const Applications = () => {
   }, [
     data,
     statusFilter,
+    stayFilter,
     bookingSourceFilter,
     contractTypeFilter,
     eciFilter,
@@ -821,7 +843,7 @@ const Applications = () => {
   // Reset to page 1 when filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, bookingSourceFilter, contractTypeFilter, eciFilter, selectedAcademicYearId, searchQuery, createdFrom, createdTo]);
+  }, [statusFilter, stayFilter, bookingSourceFilter, contractTypeFilter, eciFilter, selectedAcademicYearId, searchQuery, createdFrom, createdTo]);
 
   const handleStatusChange = async (
     id: string,
@@ -847,25 +869,68 @@ const Applications = () => {
     <AdminLayout
       pageTitle="Applications"
       subtitle="Review booking journey progress, confirm documents, and move applications to completion."
-    >
-      <div className="mb-6 space-y-4">
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-start md:justify-end gap-3">
-          <div className="relative flex-1 md:flex-initial md:w-64">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      pageToolbar={
+        <div className="flex items-center gap-3">
+          <div className="relative w-[22rem] xl:w-[28rem]">
+            <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Search by name, email, studio, contract, status..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="rounded-md pl-9 text-sm md:text-base placeholder:text-xs md:placeholder:text-sm"
+              className="rounded-md pl-9"
             />
           </div>
-          <div className="w-full md:w-56">
+          <Button size="sm" className="rounded-md gap-1.5 shrink-0" onClick={() => setCreateDialogOpen(true)}>
+            <Plus className="h-3.5 w-3.5" />
+            Create Application
+          </Button>
+        </div>
+      }
+      mobileActionButton={
+        <Button
+          size="xs"
+          className="rounded-md gap-1.5 flex-shrink-0"
+          onClick={() => setCreateDialogOpen(true)}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Create</span>
+        </Button>
+      }
+    >
+      <div className="mb-6 space-y-4">
+        <div className="relative w-full lg:hidden">
+          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search by name, email, studio, contract, status..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="rounded-md pl-9"
+          />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2">
+          <div className="min-w-0">
+            <Label className="sr-only">Stay status</Label>
+            <Select value={stayFilter} onValueChange={setStayFilter}>
+              <SelectTrigger className="rounded-md">
+                <SelectValue placeholder="Stay status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All stays</SelectItem>
+                {(Object.keys(STAY_STATUS_LABELS) as StayStatus[]).map((key) => (
+                  <SelectItem key={key} value={key}>
+                    {STAY_STATUS_LABELS[key]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="min-w-0">
             <Label className="sr-only">Booking source</Label>
             <Select
               value={bookingSourceFilter}
               onValueChange={setBookingSourceFilter}
             >
-              <SelectTrigger className="rounded-md text-xs sm:text-sm">
+              <SelectTrigger className="rounded-md">
                 <SelectValue placeholder="All booking sources" />
               </SelectTrigger>
               <SelectContent>
@@ -878,13 +943,13 @@ const Applications = () => {
               </SelectContent>
             </Select>
           </div>
-          <div className="w-full md:w-56">
+          <div className="min-w-0">
             <Label className="sr-only">Contract type</Label>
             <Select
               value={contractTypeFilter}
               onValueChange={(value) => setContractTypeFilter(value as ContractTypeFilter)}
             >
-              <SelectTrigger className="rounded-md text-xs sm:text-sm">
+              <SelectTrigger className="rounded-md">
                 <SelectValue placeholder="All contract types" />
               </SelectTrigger>
               <SelectContent>
@@ -895,13 +960,13 @@ const Applications = () => {
               </SelectContent>
             </Select>
           </div>
-          <div className="w-full md:w-48">
+          <div className="min-w-0">
             <Label className="sr-only">Early check-in</Label>
             <Select
               value={eciFilter}
               onValueChange={(value) => setEciFilter(value as "all" | "has_eci" | "no_eci")}
             >
-              <SelectTrigger className="rounded-md text-xs sm:text-sm">
+              <SelectTrigger className="rounded-md">
                 <SelectValue placeholder="Early check-in" />
               </SelectTrigger>
               <SelectContent>
@@ -914,16 +979,16 @@ const Applications = () => {
           <AcademicYearSelector
             value={selectedAcademicYearId}
             onValueChange={setSelectedAcademicYearId}
-            className="w-full md:w-64"
+            className="min-w-0 w-full"
           />
-          <div className="w-full md:w-64">
+          <div className="min-w-0">
             <Popover>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
-                  className="w-full justify-between rounded-md px-3 py-2 h-auto text-left"
+                  className="w-full justify-between rounded-md px-2.5 h-8 text-left"
                 >
-                  <span className="text-xs sm:text-sm text-foreground truncate">
+                  <span className="text-xs text-foreground truncate">
                     {createdFrom || createdTo
                       ? `Created · ${
                           createdFrom ? format(new Date(createdFrom), "dd/MM/yyyy") : "…"
@@ -932,7 +997,7 @@ const Applications = () => {
                         }`
                       : "Created · Any time"}
                   </span>
-                  <CalendarRange className="h-4 w-4 text-muted-foreground ml-2 flex-shrink-0" />
+                  <CalendarRange className="h-3.5 w-3.5 text-muted-foreground ml-2 flex-shrink-0" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-3" align="end">
@@ -1006,33 +1071,33 @@ const Applications = () => {
               </PopoverContent>
             </Popover>
           </div>
-          <Button
-            className="rounded-md uppercase tracking-wide gap-2"
-            onClick={() => setCreateDialogOpen(true)}
-          >
-            <Plus className="h-4 w-4" />
-            Create application
-          </Button>
         </div>
-        <div className="flex flex-wrap gap-2 md:gap-3 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 scrollbar-hide">
-          <Button
-            variant={statusFilter === "all" ? "default" : "outline"}
-            className="rounded-md uppercase tracking-wide text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
-            onClick={() => setStatusFilter("all")}
+        <ToggleGroup
+          type="single"
+          value={statusFilter}
+          onValueChange={(value) => {
+            if (value) setStatusFilter(value);
+          }}
+          variant="outline"
+          size="sm"
+          className="w-full flex-wrap justify-start gap-1"
+        >
+          <ToggleGroupItem
+            value="all"
+            className="rounded-md px-2.5 text-xs data-[state=on]:border-red-600 data-[state=on]:bg-red-600 data-[state=on]:text-white data-[state=on]:hover:bg-red-600/90"
           >
-            All applications
-          </Button>
+            All Applications
+          </ToggleGroupItem>
           {Object.keys(statusLabels).map((key) => (
-            <Button
+            <ToggleGroupItem
               key={key}
-              variant={statusFilter === key ? "default" : "outline"}
-              className="rounded-md uppercase tracking-wide text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
-              onClick={() => setStatusFilter(key)}
+              value={key}
+              className="rounded-md px-2.5 text-xs data-[state=on]:border-red-600 data-[state=on]:bg-red-600 data-[state=on]:text-white data-[state=on]:hover:bg-red-600/90"
             >
               {statusLabels[key]}
-            </Button>
+            </ToggleGroupItem>
           ))}
-        </div>
+        </ToggleGroup>
       </div>
 
       <Card className="rounded-3xl border border-border/60 shadow-xl">
@@ -1130,6 +1195,28 @@ const Applications = () => {
                               Early check-in
                             </Badge>
                           )}
+                          {(() => {
+                            const stay = getStayStatus({
+                              status: application.status,
+                              actual_check_in_date: application.actual_check_in_date,
+                              actual_check_out_date: application.actual_check_out_date,
+                            });
+                            if (!stay) return null;
+                            const stayClass =
+                              stay === "in_house"
+                                ? "text-emerald-700 border-emerald-500 bg-emerald-50"
+                                : stay === "awaiting_check_in"
+                                  ? "text-amber-700 border-amber-500 bg-amber-50"
+                                  : "text-slate-700 border-slate-400 bg-slate-50";
+                            return (
+                              <Badge
+                                variant="outline"
+                                className={`text-[10px] uppercase ${stayClass}`}
+                              >
+                                {STAY_STATUS_LABELS[stay]}
+                              </Badge>
+                            );
+                          })()}
                         </div>
                       </div>
                       <div className="flex-shrink-0 flex items-center gap-1.5 flex-wrap">
@@ -1195,18 +1282,18 @@ const Applications = () => {
                         }
                       />
                     </div>
-                    <div className="flex items-center gap-2 flex-wrap min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                       <Button
                         variant={!application.deposit_payment_intent_id ? "default" : "outline"}
-                        size="sm"
-                        className="rounded-md uppercase tracking-wide gap-2 flex-1 min-w-0 whitespace-normal sm:flex-initial sm:whitespace-nowrap text-xs"
+                        size="xs"
+                        className="rounded-md uppercase tracking-wide gap-1.5 flex-1 min-w-0 whitespace-normal sm:flex-initial sm:whitespace-nowrap"
                         onClick={() => {
                           setSelectedApplicationId(application.id);
                           setManualPaymentInitialType(application.deposit_payment_intent_id ? "instalment" : "deposit");
                           setManualPaymentOpen(true);
                         }}
                       >
-                        <CreditCard className="h-4 w-4" />
+                        <CreditCard className="h-3.5 w-3.5" />
                         <span className="hidden sm:inline">
                           {!application.deposit_payment_intent_id ? "Record deposit" : "Record Payment"}
                         </span>
@@ -1214,8 +1301,8 @@ const Applications = () => {
                       </Button>
                       <Button
                         variant="outline"
-                        size="sm"
-                        className="rounded-md uppercase tracking-wide gap-2 flex-1 min-w-0 whitespace-normal sm:flex-initial sm:whitespace-nowrap text-xs"
+                        size="xs"
+                        className="rounded-md uppercase tracking-wide gap-1.5 flex-1 min-w-0 whitespace-normal sm:flex-initial sm:whitespace-nowrap"
                         onClick={() => {
                           const currentQuery = buildListSearchParams().toString();
                           navigate(`/admin/applications/${application.id}`, {
@@ -1231,13 +1318,13 @@ const Applications = () => {
                       </Button>
                       <Button
                         variant="ghost"
-                        size="sm"
-                        className="rounded-md uppercase tracking-wide gap-2 flex-1 min-w-0 whitespace-normal sm:flex-initial sm:whitespace-nowrap text-xs"
+                        size="xs"
+                        className="rounded-md uppercase tracking-wide gap-1.5 flex-1 min-w-0 whitespace-normal sm:flex-initial sm:whitespace-nowrap"
                         onClick={() =>
                           navigate(`/portal/applications/${application.id}`)
                         }
                       >
-                        <ExternalLink className="h-4 w-4" />
+                        <ExternalLink className="h-3.5 w-3.5" />
                         <span className="hidden sm:inline">Open journey</span>
                         <span className="sm:hidden">Open</span>
                       </Button>
@@ -1930,7 +2017,7 @@ const SelectStatusButton = ({
       value={status}
       onValueChange={(value) => onChange(value)}
     >
-      <SelectTrigger className="w-full sm:w-48 rounded-md text-xs sm:text-sm">
+      <SelectTrigger className="w-full sm:w-48 rounded-md text-xs">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

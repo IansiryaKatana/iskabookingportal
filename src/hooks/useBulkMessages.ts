@@ -89,3 +89,23 @@ export const useSendBulkMessage = () => {
   });
 };
 
+export const useBulkDeleteBulkMessages = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (messageIds: string[]) => {
+      if (messageIds.length === 0) return;
+
+      const { error } = await supabase
+        .from("bulk_messages")
+        .delete()
+        .in("id", messageIds);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["bulk-messages"] });
+      queryClient.invalidateQueries({ queryKey: ["targeted-messages"] });
+    },
+  });
+};
+

@@ -16,16 +16,7 @@ import {
 import { useAdminStudioGrades } from "@/hooks/useAdminStudioGrades";
 import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
 import { useToast } from "@/hooks/use-toast";
-import { useUpdateCheckInCheckOut } from "@/hooks/useCheckInCheckOut";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
+import { CheckInCheckOutDialog } from "@/components/admin/CheckInCheckOutDialog";
 import { 
   Calendar, 
   ChevronLeft, 
@@ -35,9 +26,7 @@ import {
   Users,
   Briefcase,
   Key,
-  Search,
-  LogIn,
-  LogOut
+  Search
 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isToday, isSameDay } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -128,12 +117,6 @@ const BookingCalendar = () => {
     checkInNotes: string | null;
     checkOutNotes: string | null;
   } | null>(null);
-  const [checkInDate, setCheckInDate] = useState<string>("");
-  const [checkOutDate, setCheckOutDate] = useState<string>("");
-  const [checkInNotes, setCheckInNotes] = useState<string>("");
-  const [checkOutNotes, setCheckOutNotes] = useState<string>("");
-
-  const updateCheckInOut = useUpdateCheckInCheckOut();
 
   const { data: studioGradesData } = useAdminStudioGrades();
   const studioGrades = studioGradesData?.grades || [];
@@ -639,10 +622,6 @@ const BookingCalendar = () => {
                                             checkInNotes: info.checkInNotes || null,
                                             checkOutNotes: info.checkOutNotes || null,
                                           });
-                                          setCheckInDate(info.actualCheckIn?.toISOString().split('T')[0] || "");
-                                          setCheckOutDate(info.actualCheckOut?.toISOString().split('T')[0] || "");
-                                          setCheckInNotes(info.checkInNotes || "");
-                                          setCheckOutNotes(info.checkOutNotes || "");
                                           setCheckInOutDialogOpen(true);
                                         }
                                       }}
@@ -700,152 +679,27 @@ const BookingCalendar = () => {
         </Card>
       </div>
 
-        {/* Check-in/Check-out Dialog */}
-        <Dialog open={checkInOutDialogOpen} onOpenChange={setCheckInOutDialogOpen}>
-          <DialogContent className="sm:max-w-[600px] rounded-3xl">
-            <DialogHeader>
-              <DialogTitle>Check-in / Check-out</DialogTitle>
-              <DialogDescription>
-                {selectedApplication && (
-                  <>
-                    Manage check-in and check-out dates for <strong>{selectedApplication.studentName}</strong>
-                  </>
-                )}
-              </DialogDescription>
-            </DialogHeader>
-            {selectedApplication && (
-              <div className="space-y-4 py-4">
-                <div className="p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-900">
-                  <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">Contract Dates:</p>
-                  <p className="text-sm text-blue-800 dark:text-blue-200">
-                    {selectedApplication.contractStart && format(new Date(selectedApplication.contractStart), "MMM d, yyyy")} - {selectedApplication.contractEnd && format(new Date(selectedApplication.contractEnd), "MMM d, yyyy")}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="check_in_date" className="flex items-center gap-2">
-                      <LogIn className="h-4 w-4" />
-                      Check-in Date
-                    </Label>
-                    <Input
-                      id="check_in_date"
-                      type="date"
-                      value={checkInDate}
-                      onChange={(e) => setCheckInDate(e.target.value)}
-                      className="rounded-md"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Leave empty to use contract start date
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="check_out_date" className="flex items-center gap-2">
-                      <LogOut className="h-4 w-4" />
-                      Check-out Date
-                    </Label>
-                    <Input
-                      id="check_out_date"
-                      type="date"
-                      value={checkOutDate}
-                      onChange={(e) => setCheckOutDate(e.target.value)}
-                      className="rounded-md"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Leave empty to use contract end date
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="check_in_notes">Check-in Notes (Optional)</Label>
-                  <Textarea
-                    id="check_in_notes"
-                    value={checkInNotes}
-                    onChange={(e) => setCheckInNotes(e.target.value)}
-                    placeholder="Add any notes about check-in..."
-                    rows={2}
-                    className="rounded-2xl"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="check_out_notes">Check-out Notes (Optional)</Label>
-                  <Textarea
-                    id="check_out_notes"
-                    value={checkOutNotes}
-                    onChange={(e) => setCheckOutNotes(e.target.value)}
-                    placeholder="Add any notes about check-out..."
-                    rows={2}
-                    className="rounded-2xl"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      if (selectedApplication.id) {
-                        navigate(`/admin/applications/${selectedApplication.id}`);
-                      }
-                    }}
-                    className="rounded-md gap-2"
-                  >
-                    View Full Application
-                  </Button>
-                </div>
-              </div>
-            )}
-            <DialogFooter className="gap-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setCheckInOutDialogOpen(false);
-                  setSelectedApplication(null);
-                }}
-                className="rounded-md"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={async () => {
-                  if (!selectedApplication) return;
-
-                  try {
-                    await updateCheckInOut.mutateAsync({
-                      applicationId: selectedApplication.id,
-                      checkInDate: checkInDate || null,
-                      checkOutDate: checkOutDate || null,
-                      checkInNotes: checkInNotes.trim() || null,
-                      checkOutNotes: checkOutNotes.trim() || null,
-                    });
-
-                    toast({
-                      title: "Check-in/Check-out updated",
-                      description: "The dates have been updated successfully.",
-                    });
-
-                    setCheckInOutDialogOpen(false);
-                    setSelectedApplication(null);
-                  } catch (error: any) {
-                    console.error("Error updating check-in/check-out:", error);
-                    toast({
-                      variant: "destructive",
-                      title: "Error",
-                      description: error.message || "Failed to update dates. Please try again.",
-                    });
-                  }
-                }}
-                disabled={updateCheckInOut.isPending}
-                className="rounded-md uppercase tracking-wide gap-2"
-              >
-                {updateCheckInOut.isPending ? "Saving..." : "Save Changes"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        {selectedApplication && (
+          <CheckInCheckOutDialog
+            open={checkInOutDialogOpen}
+            onOpenChange={(open) => {
+              setCheckInOutDialogOpen(open);
+              if (!open) setSelectedApplication(null);
+            }}
+            applicationId={selectedApplication.id}
+            studentName={selectedApplication.studentName}
+            contractStart={selectedApplication.contractStart}
+            contractEnd={selectedApplication.contractEnd}
+            actualCheckInDate={selectedApplication.actualCheckIn}
+            actualCheckOutDate={selectedApplication.actualCheckOut}
+            checkInNotes={selectedApplication.checkInNotes}
+            checkOutNotes={selectedApplication.checkOutNotes}
+            showViewApplicationLink
+            onViewApplication={() => {
+              navigate(`/admin/applications/${selectedApplication.id}`);
+            }}
+          />
+        )}
     </AdminLayout>
   );
 };

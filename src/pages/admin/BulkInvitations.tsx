@@ -278,47 +278,81 @@ const BulkInvitations = () => {
     toast({ title: "Copied", description: "Temporary passwords copied as CSV." });
   };
 
+  const statusBadgeClass =
+    "rounded-md px-2.5 py-0.5 text-xs font-medium inline-flex items-center gap-1 whitespace-nowrap";
+
+  /** One status chip only — temp-password access wins over Invited/Activated. */
   const getStatusBadge = (status?: string, mustChangePassword?: boolean) => {
-    // If status is pending_activation, show pending
+    if (mustChangePassword) {
+      return (
+        <Badge
+          className={`${statusBadgeClass} bg-amber-500 hover:bg-amber-600 text-white`}
+          title="Temporary password set — student must change it on first login"
+        >
+          <KeyRound className="h-3 w-3 shrink-0" />
+          Temp access
+        </Badge>
+      );
+    }
+
     if (status === "pending_activation") {
       return (
-        <Badge className="bg-yellow-500 hover:bg-yellow-600 text-white rounded-md px-2.5 py-0.5 text-xs font-medium flex items-center gap-1">
-          <Clock className="h-3 w-3" />
+        <Badge className={`${statusBadgeClass} bg-yellow-500 hover:bg-yellow-600 text-white`}>
+          <Clock className="h-3 w-3 shrink-0" />
           Pending
         </Badge>
       );
     }
-    
-    // If status is invited, show invited
+
     if (status === "invited") {
       return (
-        <div className="flex flex-col gap-1">
-          <Badge className="bg-blue-500 hover:bg-blue-600 text-white rounded-md px-2.5 py-0.5 text-xs font-medium flex items-center gap-1 w-fit">
-            <Mail className="h-3 w-3" />
-            Invited
+        <Badge className={`${statusBadgeClass} bg-blue-500 hover:bg-blue-600 text-white`}>
+          <Mail className="h-3 w-3 shrink-0" />
+          Invited
+        </Badge>
+      );
+    }
+
+    return (
+      <Badge className={`${statusBadgeClass} bg-green-500 hover:bg-green-600 text-white`}>
+        <CheckCircle2 className="h-3 w-3 shrink-0" />
+        Activated
+      </Badge>
+    );
+  };
+
+  const getAccessBadge = (invitationSentAt?: string, mustChangePassword?: boolean) => {
+    if (invitationSentAt) {
+      return (
+        <div>
+          <Badge className={`${statusBadgeClass} bg-green-500 hover:bg-green-600 text-white`}>
+            <Mail className="h-3 w-3 shrink-0" />
+            Email sent
           </Badge>
-          {mustChangePassword && (
-            <Badge className="bg-amber-600 hover:bg-amber-700 text-white rounded-md px-2.5 py-0.5 text-xs font-medium w-fit">
-              Temp password
-            </Badge>
-          )}
+          <div className="text-xs text-muted-foreground mt-1">
+            {format(new Date(invitationSentAt), "MMM d, yyyy")}
+          </div>
         </div>
       );
     }
-    
-    // Everything else (activated, active, undefined, null, etc.) is considered activated
-    return (
-      <div className="flex flex-col gap-1">
-        <Badge className="bg-green-500 hover:bg-green-600 text-white rounded-md px-2.5 py-0.5 text-xs font-medium flex items-center gap-1 w-fit">
-          <CheckCircle2 className="h-3 w-3" />
-          Activated
+
+    if (mustChangePassword) {
+      return (
+        <Badge
+          className={`${statusBadgeClass} border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-50`}
+          title="Access via temporary password (no invitation email)"
+        >
+          <KeyRound className="h-3 w-3 shrink-0" />
+          Temp password
         </Badge>
-        {mustChangePassword && (
-          <Badge className="bg-amber-600 hover:bg-amber-700 text-white rounded-md px-2.5 py-0.5 text-xs font-medium w-fit">
-            Must change password
-          </Badge>
-        )}
-      </div>
+      );
+    }
+
+    return (
+      <Badge className={`${statusBadgeClass} bg-muted text-muted-foreground hover:bg-muted`}>
+        <XCircle className="h-3 w-3 shrink-0" />
+        Not sent
+      </Badge>
     );
   };
 
@@ -502,12 +536,19 @@ const BulkInvitations = () => {
                       <TableHead className="text-xs md:text-sm font-semibold uppercase">Contract</TableHead>
                       <TableHead className="text-xs md:text-sm font-semibold uppercase">Academic Year</TableHead>
                       <TableHead className="text-xs md:text-sm font-semibold uppercase">Status</TableHead>
-                      <TableHead className="text-xs md:text-sm font-semibold uppercase">Invitation Sent</TableHead>
+                      <TableHead className="text-xs md:text-sm font-semibold uppercase">Access</TableHead>
                       <TableHead className="text-xs md:text-sm font-semibold uppercase">Created</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {paginatedApplications.map((app) => (
+                    {paginatedApplications.map((app) => {
+                      const displayName = (app.student_name || "").trim();
+                      const email = (app.student_email || "").trim();
+                      const nameIsEmail =
+                        !displayName ||
+                        displayName.toLowerCase() === email.toLowerCase();
+
+                      return (
                       <TableRow key={app.id} className="hover:bg-muted/50">
                         <TableCell>
                           <Checkbox
@@ -516,10 +557,14 @@ const BulkInvitations = () => {
                           />
                         </TableCell>
                         <TableCell>
-                          <div>
-                            <div className="font-medium text-sm">{app.student_name || app.student_email}</div>
-                            <div className="text-xs text-muted-foreground">{app.student_email}</div>
-                          </div>
+                          {nameIsEmail ? (
+                            <div className="font-medium text-sm break-all">{email || "Student"}</div>
+                          ) : (
+                            <div>
+                              <div className="font-medium text-sm">{displayName}</div>
+                              <div className="text-xs text-muted-foreground break-all">{email}</div>
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell>
                           <div className="text-sm">{app.contract?.name || "N/A"}</div>
@@ -535,22 +580,7 @@ const BulkInvitations = () => {
                           {getStatusBadge(app.account_status, app.must_change_password)}
                         </TableCell>
                         <TableCell>
-                          {app.invitation_sent_at ? (
-                            <Badge className="bg-green-500 hover:bg-green-600 text-white rounded-md px-2.5 py-0.5 text-xs font-medium">
-                              <CheckCircle2 className="h-3 w-3 mr-1" />
-                              Sent
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-gray-400 hover:bg-gray-500 text-white rounded-md px-2.5 py-0.5 text-xs font-medium">
-                              <XCircle className="h-3 w-3 mr-1" />
-                              Not Sent
-                            </Badge>
-                          )}
-                          {app.invitation_sent_at && (
-                            <div className="text-xs text-muted-foreground mt-1">
-                              {format(new Date(app.invitation_sent_at), "MMM d, yyyy")}
-                            </div>
-                          )}
+                          {getAccessBadge(app.invitation_sent_at, app.must_change_password)}
                         </TableCell>
                         <TableCell>
                           <div className="text-sm text-muted-foreground">
@@ -558,7 +588,8 @@ const BulkInvitations = () => {
                           </div>
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>

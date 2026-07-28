@@ -17,6 +17,14 @@ verify_jwt = true
 [functions.docusign-check-status]
 verify_jwt = true
 
+# DocuSign Connect cannot send a Supabase JWT; auth is HMAC via DOCUSIGN_WEBHOOK_SECRET.
+[functions.docusign-webhook]
+verify_jwt = false
+
+# Called by pg_cron with x-cron-secret; polls DocuSign for stale open envelopes.
+[functions.sync-pending-docusign]
+verify_jwt = false
+
 [functions.check-payment-status]
 verify_jwt = true
 

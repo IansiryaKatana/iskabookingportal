@@ -205,3 +205,64 @@ export const useDeleteEmailTemplate = () => {
   });
 };
 
+export const useBulkDeleteEmailTemplates = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (templateIds: string[]) => {
+      if (templateIds.length === 0) return;
+
+      const { error } = await supabase
+        .from("email_templates")
+        .delete()
+        .in("id", templateIds);
+
+      if (error) throw error;
+
+      await logActivity({
+        action: "delete",
+        entityType: "email_template",
+        entityId: templateIds.join(","),
+        payload: {
+          bulk: true,
+          count: templateIds.length,
+          ids: templateIds,
+        },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["email-templates"] });
+    },
+  });
+};
+
+export const useBulkUpdateEmailTemplatesActive = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { templateIds: string[]; is_active: boolean }) => {
+      if (payload.templateIds.length === 0) return;
+
+      const { error } = await supabase
+        .from("email_templates")
+        .update({ is_active: payload.is_active })
+        .in("id", payload.templateIds);
+
+      if (error) throw error;
+
+      await logActivity({
+        action: "update",
+        entityType: "email_template",
+        entityId: payload.templateIds.join(","),
+        payload: {
+          bulk: true,
+          count: payload.templateIds.length,
+          ids: payload.templateIds,
+          is_active: payload.is_active,
+        },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["email-templates"] });
+    },
+  });
+};
+
