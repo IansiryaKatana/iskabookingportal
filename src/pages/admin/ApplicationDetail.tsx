@@ -2181,22 +2181,40 @@ const ApplicationDetail = () => {
                     <p className="mt-0.5 font-medium">
                       {formatStayDate(
                         (application as { actual_check_in_date?: string | null }).actual_check_in_date ??
+                          earlyCheckInSummary?.early_check_in_date ??
                           application.contract?.contract_start,
                       )}
                     </p>
-                    {(application as { actual_check_in_date?: string | null }).actual_check_in_date ? (
-                      <p className="mt-1 text-[10px] text-emerald-700 uppercase tracking-wide font-medium">
-                        Actual check-in recorded
-                      </p>
-                    ) : application.status === "confirmed" ? (
-                      <p className="mt-1 text-[10px] text-amber-700 uppercase tracking-wide font-medium">
-                        Awaiting check-in
-                      </p>
-                    ) : null}
+                    {(() => {
+                      const actualIn = (application as { actual_check_in_date?: string | null })
+                        .actual_check_in_date;
+                      const stay = getStayStatus({
+                        status: application.status,
+                        actual_check_in_date: actualIn,
+                        actual_check_out_date: (application as { actual_check_out_date?: string | null })
+                          .actual_check_out_date,
+                      });
+                      if (stay === "in_house") {
+                        return (
+                          <p className="mt-1 text-[10px] text-emerald-700 uppercase tracking-wide font-medium">
+                            In house
+                          </p>
+                        );
+                      }
+                      if (stay === "awaiting_check_in" || application.status === "confirmed") {
+                        return (
+                          <p className="mt-1 text-[10px] text-amber-700 uppercase tracking-wide font-medium">
+                            Awaiting check-in
+                          </p>
+                        );
+                      }
+                      return null;
+                    })()}
                     {hasActiveEarlyCheckIn && earlyCheckInSummary && (
-                      <p className="mt-1 text-[10px] text-emerald-700 uppercase tracking-wide font-medium">
+                      <p className="mt-1 text-[10px] text-amber-700 uppercase tracking-wide font-medium">
                         Early check-in · {earlyCheckInSummary.nights} night
-                        {earlyCheckInSummary.nights !== 1 ? "s" : ""}
+                        {earlyCheckInSummary.nights !== 1 ? "s" : ""} · arrives{" "}
+                        {formatStayDate(earlyCheckInSummary.early_check_in_date)}
                       </p>
                     )}
                   </div>

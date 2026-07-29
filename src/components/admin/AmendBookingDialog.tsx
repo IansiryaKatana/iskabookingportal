@@ -168,9 +168,18 @@ export function AmendBookingDialog({
     [startDate, weeksValue, extraDaysValue],
   );
 
+  const effectiveWeeklyPrice = useMemo(() => {
+    if (gradeId && studioGradeId && gradeId !== studioGradeId) {
+      const selected = (gradesData?.grades ?? []).find((g) => g.id === gradeId);
+      const catalog = selected?.price?.weekly_price;
+      if (catalog != null && Number(catalog) > 0) return Number(catalog);
+    }
+    return weeklyPrice ?? 0;
+  }, [gradeId, studioGradeId, gradesData?.grades, weeklyPrice]);
+
   const previewTotal = useMemo(
-    () => computeContractTotal(weeklyPrice ?? 0, weeksValue, extraDaysValue),
-    [weeklyPrice, weeksValue, extraDaysValue],
+    () => computeContractTotal(effectiveWeeklyPrice, weeksValue, extraDaysValue),
+    [effectiveWeeklyPrice, weeksValue, extraDaysValue],
   );
 
   useEffect(() => {
@@ -349,8 +358,11 @@ export function AmendBookingDialog({
             />
             <p className="text-[11px] text-muted-foreground">
               Duration: {formatContractDuration({ weeks: weeksValue, extra_days: extraDaysValue })}
-              {weeklyPrice != null && weeklyPrice > 0 && (
-                <> · Est. contract total £{previewTotal.toFixed(2)}</>
+              {effectiveWeeklyPrice > 0 && (
+                <>
+                  {" "}
+                  · £{effectiveWeeklyPrice.toFixed(2)}/wk · Est. total £{previewTotal.toFixed(2)}
+                </>
               )}
             </p>
           </div>
@@ -365,13 +377,17 @@ export function AmendBookingDialog({
                 {(gradesData?.grades ?? []).map((g) => (
                   <SelectItem key={g.id} value={g.id}>
                     {g.name}
+                    {g.price?.weekly_price != null
+                      ? ` · £${Number(g.price.weekly_price).toFixed(0)}/wk`
+                      : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             {gradeId && studioGradeId && gradeId !== studioGradeId && (
               <p className="text-[11px] text-amber-700">
-                Grade change will clear the assigned studio if it no longer matches.
+                Grade change will use the new grade&apos;s catalog weekly rate and clear the
+                assigned studio if it no longer matches.
               </p>
             )}
           </div>
