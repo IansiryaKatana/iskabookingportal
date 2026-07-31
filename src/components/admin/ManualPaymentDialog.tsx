@@ -240,12 +240,21 @@ const ManualPaymentDialog = ({
     const list = instalments ?? [];
     if (list.length === 0) return [];
     // Prefer precise per-instalment breakdown when available: exclude only fully paid instalments.
+    // Overlay remaining_amount so dropdown labels match autofill / waterfall (includes discount).
     if (installmentBreakdown && installmentBreakdown.length > 0) {
       const byId = new Map(installmentBreakdown.map((b) => [b.installment_id, b]));
-      return list.filter((inst) => {
-        const b = byId.get(inst.id);
-        return !b || b.payment_status !== "paid";
-      });
+      return list
+        .filter((inst) => {
+          const b = byId.get(inst.id);
+          return !b || b.payment_status !== "paid";
+        })
+        .map((inst) => {
+          const b = byId.get(inst.id);
+          if (!b) return inst;
+          const displayAmount =
+            b.remaining_amount > 0 ? Number(b.remaining_amount) : Number(b.amount_due);
+          return { ...inst, amount: displayAmount };
+        });
     }
     // Fallback to existing logic if breakdown is not available.
     if (usedPlanBasedSchedule) {
@@ -577,7 +586,8 @@ const ManualPaymentDialog = ({
                 <SelectContent>
                   {unpaidInstalments.map((instalment) => (
                     <SelectItem key={instalment.id} value={instalment.id}>
-                      Instalment {instalment.instalment_number} - £{instalment.amount} (Due:{" "}
+                      Instalment {instalment.instalment_number} - £
+                      {Number(instalment.amount).toFixed(2)} (Due:{" "}
                       {new Date(instalment.due_date).toLocaleDateString("en-GB")})
                     </SelectItem>
                   ))}

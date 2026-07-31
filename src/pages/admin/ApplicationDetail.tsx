@@ -2402,7 +2402,10 @@ const ApplicationDetail = () => {
                             <tr key={row.id} className="border-b border-border/40 last:border-0 hover:bg-muted/30">
                               <td className="py-2 px-3 text-muted-foreground">{row.label ?? `Instalment ${row.sequence}`}</td>
                               <td className="py-2 px-3 text-right font-medium">
-                                {formatCurrency(displayAmount)}
+                                £{Number(displayAmount).toLocaleString("en-GB", {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}
                               </td>
                               <td className="py-2 px-3 text-center">
                                 {breakdown ? (

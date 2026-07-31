@@ -462,12 +462,21 @@ const ManualPaymentEntry = () => {
     const list = linkInstalments ?? [];
     if (!list.length) return [];
     // Prefer precise per-instalment breakdown when available: exclude only fully paid instalments.
+    // Overlay remaining_amount so dropdown labels match autofill / waterfall (includes discount).
     if (linkInstallmentBreakdown && linkInstallmentBreakdown.length > 0) {
       const byId = new Map(linkInstallmentBreakdown.map((b) => [b.installment_id, b]));
-      return list.filter((inst) => {
-        const b = byId.get(inst.id);
-        return !b || b.payment_status !== "paid";
-      });
+      return list
+        .filter((inst) => {
+          const b = byId.get(inst.id);
+          return !b || b.payment_status !== "paid";
+        })
+        .map((inst) => {
+          const b = byId.get(inst.id);
+          if (!b) return inst;
+          const displayAmount =
+            b.remaining_amount > 0 ? Number(b.remaining_amount) : Number(b.amount_due);
+          return { ...inst, amount: displayAmount };
+        });
     }
     // Fallback to existing behaviour when breakdown is not available.
     if (usedPlanBasedForLink) return list.filter((_, index) => index >= linkPaymentCount);
@@ -586,12 +595,21 @@ const ManualPaymentEntry = () => {
     const list = linkDialogInstalments ?? [];
     if (!list.length) return [];
     // Prefer precise per-instalment breakdown when available.
+    // Overlay remaining_amount so dropdown labels match autofill / waterfall (includes discount).
     if (linkDialogInstallmentBreakdown && linkDialogInstallmentBreakdown.length > 0) {
       const byId = new Map(linkDialogInstallmentBreakdown.map((b) => [b.installment_id, b]));
-      return list.filter((inst) => {
-        const b = byId.get(inst.id);
-        return !b || b.payment_status !== "paid";
-      });
+      return list
+        .filter((inst) => {
+          const b = byId.get(inst.id);
+          return !b || b.payment_status !== "paid";
+        })
+        .map((inst) => {
+          const b = byId.get(inst.id);
+          if (!b) return inst;
+          const displayAmount =
+            b.remaining_amount > 0 ? Number(b.remaining_amount) : Number(b.amount_due);
+          return { ...inst, amount: displayAmount };
+        });
     }
     // Fallback to previous logic when breakdown is missing.
     if (linkDialogUsedPlanBased) return list.filter((_, index) => index >= linkDialogPaymentCount);
