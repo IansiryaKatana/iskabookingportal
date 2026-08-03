@@ -47,7 +47,7 @@ import {
   CheckCircle2,
   Table2,
 } from "lucide-react";
-import { format } from "date-fns";
+import { addDays, format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -72,6 +72,70 @@ type ReportType =
   | "paid-in-full"
   | "cash-flow";
 
+const applicationStatusLabels: Record<string, string> = {
+  draft: "Draft",
+  awaiting_deposit: "Awaiting Deposit",
+  awaiting_signature: "Awaiting Signature",
+  awaiting_verification: "Awaiting Verification",
+  confirmed: "Confirmed",
+  cancelled: "Cancelled",
+  expired: "Expired",
+  checked_out: "Checked Out",
+  checked_out_early: "Checked Out (Early)",
+};
+
+const getApplicationStatusBadge = (status: string) => {
+  const statusConfig: Record<string, { className: string; label: string }> = {
+    draft: {
+      className: "bg-gray-500 hover:bg-gray-600 text-white",
+      label: "Draft",
+    },
+    awaiting_deposit: {
+      className: "bg-yellow-500 hover:bg-yellow-600 text-white",
+      label: "Awaiting Deposit",
+    },
+    awaiting_signature: {
+      className: "bg-blue-500 hover:bg-blue-600 text-white",
+      label: "Awaiting Signature",
+    },
+    awaiting_verification: {
+      className: "bg-purple-500 hover:bg-purple-600 text-white",
+      label: "Awaiting Verification",
+    },
+    confirmed: {
+      className: "bg-green-500 hover:bg-green-600 text-white",
+      label: "Confirmed",
+    },
+    cancelled: {
+      className: "bg-red-500 hover:bg-red-600 text-white",
+      label: "Cancelled",
+    },
+    expired: {
+      className: "bg-orange-500 hover:bg-orange-600 text-white",
+      label: "Expired",
+    },
+    checked_out: {
+      className: "bg-slate-700 hover:bg-slate-800 text-white",
+      label: "Checked Out",
+    },
+    checked_out_early: {
+      className: "bg-amber-700 hover:bg-amber-800 text-white",
+      label: "Checked Out (Early)",
+    },
+  };
+
+  const config = statusConfig[status] || {
+    className: "bg-gray-500 hover:bg-gray-600 text-white",
+    label: applicationStatusLabels[status] || status.replace(/_/g, " "),
+  };
+
+  return (
+    <Badge className={`uppercase ${config.className} rounded-md px-2.5 py-0.5 text-xs font-medium`}>
+      {config.label}
+    </Badge>
+  );
+};
+
 const AccountingReports = () => {
   const { toast } = useToast();
   const [selectedReport, setSelectedReport] = useState<ReportType>("accounts-receivable");
@@ -83,6 +147,10 @@ const AccountingReports = () => {
   const [upcomingDueWindow, setUpcomingDueWindow] = useState<"7" | "14" | "30" | "all">("all");
   const [upcomingStatusFilter, setUpcomingStatusFilter] = useState<"all" | "upcoming" | "overdue" | "paid" | "partially_paid">("all");
   const [upcomingAcademicYearId, setUpcomingAcademicYearId] = useState<string>("all");
+  const [upcomingStartDate, setUpcomingStartDate] = useState<string>("");
+  const [upcomingEndDate, setUpcomingEndDate] = useState<string>("");
+  const [upcomingPage, setUpcomingPage] = useState(1);
+  const UPCOMING_PER_PAGE = 25;
 
   const [arSearchQuery, setArSearchQuery] = useState("");
   const [arPage, setArPage] = useState(1);
@@ -226,8 +294,6 @@ const AccountingReports = () => {
     return Number.isNaN(d.getTime()) ? "—" : format(d, fmt);
   };
 
-  const today = useMemo(() => format(new Date(), "yyyy-MM-dd"), []);
-
   const filteredArData = useMemo(() => {
     if (!arData) return [];
     let list = arData;
@@ -268,30 +334,49 @@ const AccountingReports = () => {
     setArPage((p) => Math.min(p, arTotalPages));
   }, [arTotalPages]);
 
+  const applyUpcomingDueWindow = (window: "7" | "14" | "30" | "all") => {
+    setUpcomingDueWindow(window);
+    if (window === "all") {
+      setUpcomingStartDate("");
+      setUpcomingEndDate("");
+      return;
+    }
+    const days = parseInt(window, 10);
+    setUpcomingStartDate(format(new Date(), "yyyy-MM-dd"));
+    setUpcomingEndDate(format(addDays(new Date(), days), "yyyy-MM-dd"));
+  };
+
   const filteredUpcomingData = useMemo(() => {
     if (!upcomingData) return [];
     let list = [...upcomingData];
-    if (startDate) {
-      list = list.filter((r) => r.due_date >= startDate);
+    if (upcomingStartDate) {
+      list = list.filter((r) => r.due_date >= upcomingStartDate);
     }
-    if (endDate) {
-      list = list.filter((r) => r.due_date <= endDate);
+    if (upcomingEndDate) {
+      list = list.filter((r) => r.due_date <= upcomingEndDate);
     }
     if (upcomingAcademicYearId !== "all") {
       list = list.filter((r) => r.academic_year_id === upcomingAcademicYearId);
-    }
-    if (upcomingDueWindow !== "all") {
-      const days = parseInt(upcomingDueWindow, 10);
-      const end = new Date();
-      end.setDate(end.getDate() + days);
-      const endStr = format(end, "yyyy-MM-dd");
-      list = list.filter((r) => r.due_date >= today && r.due_date <= endStr);
     }
     if (upcomingStatusFilter !== "all") {
       list = list.filter((r) => r.status === upcomingStatusFilter);
     }
     return list.sort((a, b) => (a.due_date < b.due_date ? -1 : 1));
-  }, [upcomingData, startDate, endDate, upcomingAcademicYearId, upcomingDueWindow, upcomingStatusFilter, today]);
+  }, [upcomingData, upcomingStartDate, upcomingEndDate, upcomingAcademicYearId, upcomingStatusFilter]);
+
+  const upcomingTotalPages = Math.max(1, Math.ceil(filteredUpcomingData.length / UPCOMING_PER_PAGE));
+  const paginatedUpcomingData = useMemo(() => {
+    const start = (upcomingPage - 1) * UPCOMING_PER_PAGE;
+    return filteredUpcomingData.slice(start, start + UPCOMING_PER_PAGE);
+  }, [filteredUpcomingData, upcomingPage]);
+
+  useEffect(() => {
+    setUpcomingPage(1);
+  }, [upcomingStartDate, upcomingEndDate, upcomingAcademicYearId, upcomingStatusFilter, upcomingDueWindow]);
+
+  useEffect(() => {
+    setUpcomingPage((p) => Math.min(p, upcomingTotalPages));
+  }, [upcomingTotalPages]);
 
   const filteredOutstandingData = useMemo(() => {
     if (!outstandingData) return [];
@@ -887,7 +972,6 @@ const AccountingReports = () => {
               {/* Date Filters for Revenue Summary and Bank Reconciliation */}
               {(selectedReport === "revenue-summary" ||
                 selectedReport === "bank-reconciliation" ||
-                selectedReport === "upcoming-payments" ||
                 selectedReport === "paid-in-full") && (
                 <div className="grid gap-4 md:grid-cols-3 mt-4">
                   {selectedReport === "paid-in-full" ? (
@@ -951,55 +1035,6 @@ const AccountingReports = () => {
                       </Select>
                     </div>
                   )}
-                  {selectedReport === "upcoming-payments" && (
-                    <>
-                      <div>
-                        <Label htmlFor="academic-year">Academic year</Label>
-                        <Select value={upcomingAcademicYearId} onValueChange={setUpcomingAcademicYearId}>
-                          <SelectTrigger id="academic-year" className="mt-2">
-                            <SelectValue placeholder="Academic year" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All academic years</SelectItem>
-                            {(academicYears ?? []).map((ay) => (
-                              <SelectItem key={ay.id} value={ay.id}>
-                                {ay.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label htmlFor="due-window">Due within</Label>
-                        <Select value={upcomingDueWindow} onValueChange={(v) => setUpcomingDueWindow(v as "7" | "14" | "30" | "all")}>
-                          <SelectTrigger id="due-window" className="mt-2">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="7">Next 7 days</SelectItem>
-                            <SelectItem value="14">Next 14 days</SelectItem>
-                            <SelectItem value="30">Next 30 days</SelectItem>
-                            <SelectItem value="all">All dates</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label htmlFor="status-filter">Status</Label>
-                        <Select value={upcomingStatusFilter} onValueChange={(v) => setUpcomingStatusFilter(v as "all" | "upcoming" | "overdue" | "paid" | "partially_paid")}>
-                          <SelectTrigger id="status-filter" className="mt-2">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All</SelectItem>
-                            <SelectItem value="upcoming">Upcoming</SelectItem>
-                            <SelectItem value="overdue">Overdue</SelectItem>
-                            <SelectItem value="paid">Paid</SelectItem>
-                            <SelectItem value="partially_paid">Partially paid</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </>
-                  )}
                   {selectedReport === "paid-in-full" && (
                     <div>
                       <Label htmlFor="fully-paid-academic-year">Academic year</Label>
@@ -1021,9 +1056,94 @@ const AccountingReports = () => {
                 </div>
               )}
               {selectedReport === "upcoming-payments" && (
-                <p className="text-xs text-muted-foreground mt-2">
-                  To see overdue installments (e.g. first installment already due), set <strong>Due within: All dates</strong> and <strong>Status: Overdue</strong>. Bulk-imported applications need schedule backfill (see docs) if nothing appears.
-                </p>
+                <div className="mt-4 space-y-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+                    <Select value={upcomingAcademicYearId} onValueChange={setUpcomingAcademicYearId}>
+                      <SelectTrigger aria-label="Academic year">
+                        <SelectValue placeholder="Academic year" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All academic years</SelectItem>
+                        {(academicYears ?? []).map((ay) => (
+                          <SelectItem key={ay.id} value={ay.id}>
+                            {ay.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Select
+                      value={upcomingStatusFilter}
+                      onValueChange={(v) =>
+                        setUpcomingStatusFilter(v as "all" | "upcoming" | "overdue" | "paid" | "partially_paid")
+                      }
+                    >
+                      <SelectTrigger aria-label="Payment status">
+                        <SelectValue placeholder="Payment status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All statuses</SelectItem>
+                        <SelectItem value="upcoming">Upcoming</SelectItem>
+                        <SelectItem value="overdue">Overdue</SelectItem>
+                        <SelectItem value="paid">Paid</SelectItem>
+                        <SelectItem value="partially_paid">Partially paid</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    <Select
+                      value={upcomingDueWindow}
+                      onValueChange={(v) => applyUpcomingDueWindow(v as "7" | "14" | "30" | "all")}
+                    >
+                      <SelectTrigger aria-label="Due within">
+                        <SelectValue placeholder="Due within" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All due dates</SelectItem>
+                        <SelectItem value="7">Next 7 days</SelectItem>
+                        <SelectItem value="14">Next 14 days</SelectItem>
+                        <SelectItem value="30">Next 30 days</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    <div className="relative">
+                      {!upcomingStartDate && (
+                        <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-xs text-muted-foreground">
+                          Due from
+                        </span>
+                      )}
+                      <Input
+                        type="date"
+                        value={upcomingStartDate}
+                        onChange={(e) => {
+                          setUpcomingStartDate(e.target.value);
+                          setUpcomingDueWindow("all");
+                        }}
+                        aria-label="Due from"
+                        title="Due from"
+                        className={!upcomingStartDate ? "text-transparent [&::-webkit-calendar-picker-indicator]:opacity-100" : ""}
+                      />
+                    </div>
+
+                    <div className="relative">
+                      {!upcomingEndDate && (
+                        <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-xs text-muted-foreground">
+                          Due to
+                        </span>
+                      )}
+                      <Input
+                        type="date"
+                        value={upcomingEndDate}
+                        onChange={(e) => {
+                          setUpcomingEndDate(e.target.value);
+                          setUpcomingDueWindow("all");
+                        }}
+                        aria-label="Due to"
+                        title="Due to"
+                        className={!upcomingEndDate ? "text-transparent [&::-webkit-calendar-picker-indicator]:opacity-100" : ""}
+                      />
+                    </div>
+                  </div>
+                </div>
               )}
               {selectedReport === "cash-flow" && (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mt-4">
@@ -1143,7 +1263,7 @@ const AccountingReports = () => {
                   {selectedReport === "upcoming-payments" &&
                     (upcomingLoading
                       ? "Loading..."
-                      : `${filteredUpcomingData.length} installment${filteredUpcomingData.length !== 1 ? "s" : ""}${upcomingAcademicYearId !== "all" ? ` • ${academicYears?.find((ay) => ay.id === upcomingAcademicYearId)?.name ?? "Year"}` : ""} (${upcomingDueWindow === "all" ? "all dates" : `next ${upcomingDueWindow} days`}, ${upcomingStatusFilter === "all" ? "all statuses" : upcomingStatusFilter})`)}
+                      : `${filteredUpcomingData.length} installment${filteredUpcomingData.length !== 1 ? "s" : ""}${upcomingAcademicYearId !== "all" ? ` • ${academicYears?.find((ay) => ay.id === upcomingAcademicYearId)?.name ?? "Year"}` : ""}${upcomingStartDate || upcomingEndDate ? ` • ${upcomingStartDate || "…"} → ${upcomingEndDate || "…"}` : " • all due dates"} • ${upcomingStatusFilter === "all" ? "all statuses" : upcomingStatusFilter}`)}
                   {selectedReport === "paid-in-full" &&
                     (fullyPaidLoading
                       ? "Loading..."
@@ -1211,58 +1331,61 @@ const AccountingReports = () => {
                   </div>
                   {paginatedArData.length > 0 ? (
                     <>
-                      {paginatedArData.map((item) => (
-                        <Card key={item.application_id} className="rounded-2xl">
-                          <CardContent className="p-6">
-                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                              <div className="flex-1 space-y-2">
-                                <div className="flex items-center gap-3 flex-wrap">
-                                  <h3 className="text-sm md:text-lg font-bold">{item.student_name}</h3>
-                                  <Badge
-                                    variant="outline"
-                                    className={`uppercase text-xs ${item.application_status === "confirmed" ? "bg-green-600 text-white border-green-600 hover:bg-green-600" : ""}`}
-                                  >
-                                    {item.application_status}
-                                  </Badge>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs md:text-sm text-muted-foreground">
-                                  <div>
-                                    <span className="font-medium">Contract:</span> {item.contract_name}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Studio Grade:</span> {item.studio_grade}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Payment Plan:</span> {item.payment_plan || "—"}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Total Due:</span> {formatCurrency(item.total_due)}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Total Paid:</span> {formatCurrency(item.total_paid)}
-                                  </div>
-                                </div>
-                                <div className="text-base md:text-lg font-bold text-destructive">
-                                  Outstanding Balance: {formatCurrency(item.outstanding_balance)}
-                                </div>
-                                {(item.early_check_in_outstanding ?? 0) > 0 && (
-                                  <div className="text-sm text-muted-foreground space-y-1">
-                                    <div>
-                                      Early check-in outstanding:{" "}
-                                      {formatCurrency(item.early_check_in_outstanding ?? 0)}
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="border-b">
+                              <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs font-semibold uppercase">Student</th>
+                              <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs font-semibold uppercase">Status</th>
+                              <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs font-semibold uppercase">Contract</th>
+                              <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs font-semibold uppercase">Studio</th>
+                              <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs font-semibold uppercase">Payment Plan</th>
+                              <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs font-semibold uppercase">Total Due</th>
+                              <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs font-semibold uppercase">Total Paid</th>
+                              <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs font-semibold uppercase">Outstanding</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {paginatedArData.map((item, index) => (
+                              <tr
+                                key={item.application_id}
+                                className={index % 2 === 0 ? "bg-muted/30" : ""}
+                              >
+                                <td className="py-2 md:py-3 px-2 md:px-4 text-xs font-medium">
+                                  {item.student_name}
+                                </td>
+                                <td className="py-2 md:py-3 px-2 md:px-4">
+                                  {getApplicationStatusBadge(item.application_status)}
+                                </td>
+                                <td className="py-2 md:py-3 px-2 md:px-4 text-xs">
+                                  {item.contract_name || "—"}
+                                </td>
+                                <td className="py-2 md:py-3 px-2 md:px-4 text-xs">
+                                  {item.studio_number ? `${item.studio_number}` : "—"}
+                                  {item.studio_grade ? ` (${item.studio_grade})` : ""}
+                                </td>
+                                <td className="py-2 md:py-3 px-2 md:px-4 text-xs">
+                                  {item.payment_plan || "—"}
+                                </td>
+                                <td className="py-2 md:py-3 px-2 md:px-4 text-xs text-right">
+                                  {formatCurrency(item.total_due)}
+                                </td>
+                                <td className="py-2 md:py-3 px-2 md:px-4 text-xs text-right">
+                                  {formatCurrency(item.total_paid)}
+                                </td>
+                                <td className="py-2 md:py-3 px-2 md:px-4 text-xs text-right font-semibold text-destructive">
+                                  {formatCurrency(item.total_outstanding ?? item.outstanding_balance)}
+                                  {(item.early_check_in_outstanding ?? 0) > 0 && (
+                                    <div className="text-[10px] font-normal text-muted-foreground mt-0.5">
+                                      incl. ECI {formatCurrency(item.early_check_in_outstanding ?? 0)}
                                     </div>
-                                    {item.total_outstanding != null && (
-                                      <div className="font-semibold text-foreground">
-                                        Total outstanding: {formatCurrency(item.total_outstanding)}
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                       {filteredArData.length > AR_PER_PAGE && (
                         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t">
                           <div className="text-sm text-muted-foreground">
@@ -1701,27 +1824,27 @@ const AccountingReports = () => {
                     <table className="w-full">
                       <thead>
                         <tr className="border-b">
-                          <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Student</th>
-                          <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Studio</th>
-                          <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Contract</th>
-                          <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Payment Plan</th>
-                          <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Due Date</th>
-                          <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Amount</th>
-                          <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Paid</th>
-                          <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Status</th>
-                          <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-semibold uppercase">Paid Date</th>
+                          <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs font-semibold uppercase">Student</th>
+                          <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs font-semibold uppercase">Studio</th>
+                          <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs font-semibold uppercase">Contract</th>
+                          <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs font-semibold uppercase">Payment Plan</th>
+                          <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs font-semibold uppercase">Due Date</th>
+                          <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs font-semibold uppercase">Amount</th>
+                          <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs font-semibold uppercase">Paid</th>
+                          <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs font-semibold uppercase">Status</th>
+                          <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs font-semibold uppercase">Paid Date</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredUpcomingData.map((item, index) => (
+                        {paginatedUpcomingData.map((item, index) => (
                           <tr key={`${item.installment_id}-${item.application_id}`} className={index % 2 === 0 ? "bg-muted/30" : ""}>
-                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm font-medium">{item.student_name ?? "—"}</td>
-                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">{item.studio_number ?? "—"} {item.studio_grade ? `(${item.studio_grade})` : ""}</td>
-                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">{item.contract_name ?? "—"}</td>
-                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">{item.payment_plan ?? "—"}</td>
-                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">{formatDateSafe(item.due_date, "MMM d, yyyy")}</td>
-                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm text-right font-semibold">{formatCurrency(item.amount)}</td>
-                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm text-right">
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs font-medium">{item.student_name ?? "—"}</td>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs">{item.studio_number ?? "—"} {item.studio_grade ? `(${item.studio_grade})` : ""}</td>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs">{item.contract_name ?? "—"}</td>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs">{item.payment_plan ?? "—"}</td>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs">{formatDateSafe(item.due_date, "MMM d, yyyy")}</td>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs text-right font-semibold">{formatCurrency(item.amount)}</td>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs text-right">
                               {item.status === "paid"
                                 ? formatCurrency(item.amount)
                                 : item.status === "partially_paid" && item.amount_paid != null
@@ -1733,12 +1856,79 @@ const AccountingReports = () => {
                                 {item.status === "partially_paid" ? "Partially paid" : item.status}
                               </Badge>
                             </td>
-                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm">{formatDateSafe(item.paid_date, "MMM d, yyyy")}</td>
+                            <td className="py-2 md:py-3 px-2 md:px-4 text-xs">{formatDateSafe(item.paid_date, "MMM d, yyyy")}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
+                  {filteredUpcomingData.length > UPCOMING_PER_PAGE && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t">
+                      <div className="text-sm text-muted-foreground">
+                        Showing {(upcomingPage - 1) * UPCOMING_PER_PAGE + 1} to{" "}
+                        {Math.min(upcomingPage * UPCOMING_PER_PAGE, filteredUpcomingData.length)} of{" "}
+                        {filteredUpcomingData.length}
+                      </div>
+                      <Pagination>
+                        <PaginationContent>
+                          <PaginationItem>
+                            <PaginationPrevious
+                              href="#"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                if (upcomingPage > 1) setUpcomingPage(upcomingPage - 1);
+                              }}
+                              className={upcomingPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                            />
+                          </PaginationItem>
+                          {Array.from({ length: upcomingTotalPages }, (_, i) => i + 1).map((page) => {
+                            if (
+                              page === 1 ||
+                              page === upcomingTotalPages ||
+                              (page >= upcomingPage - 1 && page <= upcomingPage + 1)
+                            ) {
+                              return (
+                                <PaginationItem key={page}>
+                                  <PaginationLink
+                                    href="#"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      setUpcomingPage(page);
+                                    }}
+                                    isActive={upcomingPage === page}
+                                    className="cursor-pointer"
+                                  >
+                                    {page}
+                                  </PaginationLink>
+                                </PaginationItem>
+                              );
+                            } else if (page === upcomingPage - 2 || page === upcomingPage + 2) {
+                              return (
+                                <PaginationItem key={`ellipsis-${page}`}>
+                                  <PaginationEllipsis />
+                                </PaginationItem>
+                              );
+                            }
+                            return null;
+                          })}
+                          <PaginationItem>
+                            <PaginationNext
+                              href="#"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                if (upcomingPage < upcomingTotalPages) setUpcomingPage(upcomingPage + 1);
+                              }}
+                              className={
+                                upcomingPage === upcomingTotalPages
+                                  ? "pointer-events-none opacity-50"
+                                  : "cursor-pointer"
+                              }
+                            />
+                          </PaginationItem>
+                        </PaginationContent>
+                      </Pagination>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <Card className="rounded-3xl border-dashed">
@@ -1747,7 +1937,7 @@ const AccountingReports = () => {
                     <CardDescription>
                       {upcomingData?.length === 0
                         ? "There are no installments in the system for confirmed applications."
-                        : "No installments match the selected filters (academic year, due window, or status). Try selecting All academic years or All dates."}
+                        : "No installments match these filters. Try All academic years, All statuses, or clear Due from / Due to."}
                     </CardDescription>
                   </CardHeader>
                 </Card>

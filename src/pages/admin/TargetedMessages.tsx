@@ -566,11 +566,11 @@ const TargetedMessages = () => {
           <div className="space-y-6 mt-4">
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "select" | "filter")}>
               <TabsList className="grid w-full grid-cols-2 rounded-md">
-                <TabsTrigger value="select" className="rounded-md uppercase tracking-wide">
+                <TabsTrigger value="select" className="rounded-md text-sm font-medium">
                   <Users className="h-4 w-4 mr-2" />
                   Select Students
                 </TabsTrigger>
-                <TabsTrigger value="filter" className="rounded-md uppercase tracking-wide">
+                <TabsTrigger value="filter" className="rounded-md text-sm font-medium">
                   <Filter className="h-4 w-4 mr-2" />
                   Filter by Category
                 </TabsTrigger>
@@ -850,9 +850,8 @@ const TargetedMessages = () => {
                 <div className="pt-2 border-t space-y-4">
                   <Button
                     type="button"
-                    variant="outline"
                     onClick={() => setPreviewOpen(true)}
-                    className="rounded-md uppercase tracking-wide gap-2 w-full"
+                    className="rounded-md text-sm font-medium gap-2 w-full bg-blue-500 hover:bg-blue-600 text-white"
                   >
                     <Eye className="h-4 w-4" />
                     Preview Email
@@ -877,10 +876,10 @@ const TargetedMessages = () => {
                     />
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="destructive"
                       onClick={handleSendTest}
                       disabled={sendTestEmail.isPending}
-                      className="rounded-md uppercase tracking-wide gap-2"
+                      className="rounded-md text-sm font-medium gap-2"
                     >
                       <Send className="h-4 w-4" />
                       {sendTestEmail.isPending ? "Sending..." : "Send Test"}
@@ -891,13 +890,13 @@ const TargetedMessages = () => {
             </div>
           </div>
           <div className="flex justify-end gap-2 mt-6">
-            <Button variant="outline" onClick={() => setDialogOpen(false)} className="rounded-md uppercase tracking-wide">
+            <Button variant="outline" onClick={() => setDialogOpen(false)} className="rounded-md text-sm font-medium">
               Cancel
             </Button>
             <Button
               onClick={handleSubmit}
               disabled={sendMessage.isPending || !formData.email_template_id}
-              className="rounded-md uppercase tracking-wide gap-2"
+              className="rounded-md text-sm font-medium gap-2"
             >
               <Send className="h-4 w-4" />
               {sendMessage.isPending ? "Sending..." : "Send Message"}

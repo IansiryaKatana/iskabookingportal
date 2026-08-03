@@ -70,7 +70,7 @@ serve(async (req) => {
       .select(`
         id,
         student_id,
-        contract:contracts(
+        contract:contracts!contract_id(
           id,
           name,
           contract_start,

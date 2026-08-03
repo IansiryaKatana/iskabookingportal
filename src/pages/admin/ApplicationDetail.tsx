@@ -1057,7 +1057,7 @@ const ApplicationDetail = () => {
     if (!applicationId || !selectedInvoiceInstallmentId) return;
     setSendingInstallmentInvoice(true);
     try {
-      const { error } = await supabase.functions.invoke("send-installment-invoice-email", {
+      const { data, error } = await supabase.functions.invoke("send-installment-invoice-email", {
         body: {
           applicationId,
           installmentId: selectedInvoiceInstallmentId,
@@ -1065,10 +1065,14 @@ const ApplicationDetail = () => {
       });
 
       if (error) {
-        console.error("Error sending installment invoice:", error);
+        console.error("Error sending installment invoice:", error, data);
+        const details =
+          data && typeof data === "object" && "error" in data && typeof (data as { error?: unknown }).error === "string"
+            ? (data as { error: string }).error
+            : null;
         toast({
           title: "Error",
-          description: "Failed to send installment invoice. Please try again.",
+          description: details || "Failed to send installment invoice. Please try again.",
           variant: "destructive",
         });
       } else {

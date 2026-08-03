@@ -367,19 +367,32 @@ export const useBankReconciliationReport = (
 
 export const useUpcomingPaidInstallmentsReport = () => {
   return useQuery({
-    queryKey: ["upcoming-paid-installments-report"],
+    queryKey: ["upcoming-paid-installments-report", "paged-v1"],
     queryFn: async (): Promise<UpcomingPaidInstallmentItem[]> => {
-      const { data, error } = await supabase
-        .from("upcoming_and_paid_installments_report")
-        .select("*")
-        .order("due_date", { ascending: true });
+      const pageSize = 1000;
+      let offset = 0;
+      const allRows: UpcomingPaidInstallmentItem[] = [];
 
-      if (error) {
-        console.error("Failed to fetch upcoming/paid installments report:", error);
-        throw error;
+      while (true) {
+        const { data, error } = await supabase
+          .from("upcoming_and_paid_installments_report")
+          .select("*")
+          .order("due_date", { ascending: true })
+          .range(offset, offset + pageSize - 1);
+
+        if (error) {
+          console.error("Failed to fetch upcoming/paid installments report:", error);
+          throw error;
+        }
+
+        const pageRows = (data || []) as UpcomingPaidInstallmentItem[];
+        allRows.push(...pageRows);
+
+        if (pageRows.length < pageSize) break;
+        offset += pageSize;
       }
 
-      return (data || []) as UpcomingPaidInstallmentItem[];
+      return allRows;
     },
   });
 };
