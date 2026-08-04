@@ -555,6 +555,8 @@ const Settings = () => {
       const usersDeleted = data?.users_deleted || 0;
       const usersPreserved = data?.users_preserved || 0;
       const message = data?.message;
+      const details = data?.details || [];
+      const errors = details.filter((d: any) => d.error || d.success === false);
 
       await logActivity({
         action: "delete",
@@ -567,19 +569,35 @@ const Settings = () => {
           delete_orphaned_users: deleteOrphanedUsersSearch,
           users_deleted: usersDeleted,
           users_preserved: usersPreserved,
+          errors: errors.length > 0 ? errors : undefined,
         },
       });
       queryClient.invalidateQueries({ queryKey: ["application-stats"] });
       queryClient.invalidateQueries({ queryKey: ["student-applications"] });
 
-      let description = `Successfully deleted ${deletedCount} application(s) and all related records.`;
-      if (deleteOrphanedUsersSearch) {
-        description += ` Users: ${usersDeleted} deleted, ${usersPreserved} preserved.`;
+      if (deletedCount === 0) {
+        const firstError = errors[0]?.error as string | undefined;
+        toast({
+          title: "No applications deleted",
+          description:
+            firstError ||
+            message ||
+            "The selected application(s) could not be deleted. Check related early check-in or other linked records.",
+          variant: "destructive",
+        });
+      } else {
+        let description = `Successfully deleted ${deletedCount} application(s) and all related records.`;
+        if (deleteOrphanedUsersSearch) {
+          description += ` Users: ${usersDeleted} deleted, ${usersPreserved} preserved.`;
+        }
+        if (errors.length > 0) {
+          description += ` ${errors.length} failed.`;
+        }
+        toast({
+          title: "Applications deleted",
+          description,
+        });
       }
-      toast({
-        title: "Applications deleted",
-        description,
-      });
 
       // Reset state
       setSearchResults([]);

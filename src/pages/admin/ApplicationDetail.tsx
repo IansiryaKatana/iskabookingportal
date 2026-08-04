@@ -2185,7 +2185,9 @@ const ApplicationDetail = () => {
                     <p className="mt-0.5 font-medium">
                       {formatStayDate(
                         (application as { actual_check_in_date?: string | null }).actual_check_in_date ??
-                          earlyCheckInSummary?.early_check_in_date ??
+                          (hasActiveEarlyCheckIn
+                            ? earlyCheckInSummary?.early_check_in_date
+                            : null) ??
                           application.contract?.contract_start,
                       )}
                     </p>

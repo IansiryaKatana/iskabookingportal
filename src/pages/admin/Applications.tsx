@@ -300,13 +300,15 @@ const Applications = () => {
   );
   const [contractPickerOpen, setContractPickerOpen] = useState(false);
   const [contractSearch, setContractSearch] = useState("");
+  const [studentPickerOpen, setStudentPickerOpen] = useState(false);
+  const [studentSearch, setStudentSearch] = useState("");
 
   const { data: studentProfiles } = useQuery({
     queryKey: ["student-profiles"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, first_name, last_name, phone")
+        .select("id, first_name, last_name, phone, email")
         .eq("role", "student")
         .order("first_name");
       if (error) throw error;
@@ -422,6 +424,26 @@ const Applications = () => {
     const s = studios?.find((x) => x.id === createStudioId);
     return s?.studio_number ?? createStudioId;
   }, [createStudioId, studios]);
+
+  const filteredStudents = useMemo(() => {
+    if (!studentProfiles?.length) return [];
+    const q = studentSearch.trim().toLowerCase();
+    if (!q) return studentProfiles;
+    return studentProfiles.filter((p) => {
+      const name = `${p.first_name ?? ""} ${p.last_name ?? ""}`.toLowerCase();
+      const email = (p.email ?? "").toLowerCase();
+      const phone = (p.phone ?? "").toLowerCase();
+      return name.includes(q) || email.includes(q) || phone.includes(q);
+    });
+  }, [studentProfiles, studentSearch]);
+
+  const selectedStudentLabel = useMemo(() => {
+    if (!createStudentId) return "Select student";
+    const p = studentProfiles?.find((x) => x.id === createStudentId);
+    if (!p) return "Select student";
+    const name = `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim();
+    return p.email ? `${name} (${p.email})` : name || "Select student";
+  }, [createStudentId, studentProfiles]);
 
   const createApplicationMutation = useMutation({
     mutationFn: async () => {
@@ -651,6 +673,8 @@ const Applications = () => {
     setCreateStudioId("");
     setStudioPickerOpen(false);
     setStudioSearch("");
+    setStudentPickerOpen(false);
+    setStudentSearch("");
     setCreateBookingSource("imported");
     setNewStudentEmail("");
     setNewStudentFirstName("");
@@ -1467,23 +1491,71 @@ const Applications = () => {
             {studentMode === "existing" ? (
               <div className="space-y-2">
                 <Label>Student</Label>
-                <Select value={createStudentId} onValueChange={setCreateStudentId}>
-                  <SelectTrigger className="rounded-md">
-                    <SelectValue placeholder="Select student" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {studentProfiles?.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.first_name} {p.last_name} {p.phone ? `(${p.phone})` : ""}
-                      </SelectItem>
-                    ))}
-                    {(!studentProfiles || studentProfiles.length === 0) && (
-                      <SelectItem value="_none" disabled>
-                        No students found. Switch to "Create new" to add one.
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
+                <Popover
+                  open={studentPickerOpen}
+                  onOpenChange={(open) => {
+                    setStudentPickerOpen(open);
+                    if (!open) setStudentSearch("");
+                  }}
+                >
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={studentPickerOpen}
+                      className="w-full justify-between rounded-md font-normal"
+                    >
+                      <span className="truncate">{selectedStudentLabel}</span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                    <Command shouldFilter={false}>
+                      <CommandInput
+                        placeholder="Search by name or email..."
+                        value={studentSearch}
+                        onValueChange={setStudentSearch}
+                      />
+                      <CommandList>
+                        <CommandEmpty>
+                          {!studentProfiles || studentProfiles.length === 0
+                            ? "No students found. Switch to \"Create new\" to add one."
+                            : "No student found."}
+                        </CommandEmpty>
+                        <CommandGroup>
+                          {filteredStudents.map((p) => {
+                            const name = `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim();
+                            return (
+                              <CommandItem
+                                key={p.id}
+                                value={`${name} ${p.email ?? ""} ${p.phone ?? ""}`}
+                                onSelect={() => {
+                                  setCreateStudentId(p.id);
+                                  setStudentPickerOpen(false);
+                                  setStudentSearch("");
+                                }}
+                                className="cursor-pointer"
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4 shrink-0",
+                                    createStudentId === p.id ? "opacity-100" : "opacity-0",
+                                  )}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p className="truncate font-medium">{name || "Unnamed"}</p>
+                                  {p.email && (
+                                    <p className="truncate text-xs text-muted-foreground">{p.email}</p>
+                                  )}
+                                </div>
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
             ) : (
               <div className="space-y-3 p-3 bg-muted/50 rounded-xl">
@@ -1749,23 +1821,71 @@ const Applications = () => {
             {studentMode === "existing" ? (
               <div className="space-y-2">
                 <Label>Student</Label>
-                <Select value={createStudentId} onValueChange={setCreateStudentId}>
-                  <SelectTrigger className="rounded-md">
-                    <SelectValue placeholder="Select student" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {studentProfiles?.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.first_name} {p.last_name} {p.phone ? `(${p.phone})` : ""}
-                      </SelectItem>
-                    ))}
-                    {(!studentProfiles || studentProfiles.length === 0) && (
-                      <SelectItem value="_none" disabled>
-                        No students found. Switch to "Create new" to add one.
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
+                <Popover
+                  open={studentPickerOpen}
+                  onOpenChange={(open) => {
+                    setStudentPickerOpen(open);
+                    if (!open) setStudentSearch("");
+                  }}
+                >
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={studentPickerOpen}
+                      className="w-full justify-between rounded-md font-normal"
+                    >
+                      <span className="truncate">{selectedStudentLabel}</span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                    <Command shouldFilter={false}>
+                      <CommandInput
+                        placeholder="Search by name or email..."
+                        value={studentSearch}
+                        onValueChange={setStudentSearch}
+                      />
+                      <CommandList>
+                        <CommandEmpty>
+                          {!studentProfiles || studentProfiles.length === 0
+                            ? "No students found. Switch to \"Create new\" to add one."
+                            : "No student found."}
+                        </CommandEmpty>
+                        <CommandGroup>
+                          {filteredStudents.map((p) => {
+                            const name = `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim();
+                            return (
+                              <CommandItem
+                                key={p.id}
+                                value={`${name} ${p.email ?? ""} ${p.phone ?? ""}`}
+                                onSelect={() => {
+                                  setCreateStudentId(p.id);
+                                  setStudentPickerOpen(false);
+                                  setStudentSearch("");
+                                }}
+                                className="cursor-pointer"
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4 shrink-0",
+                                    createStudentId === p.id ? "opacity-100" : "opacity-0",
+                                  )}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p className="truncate font-medium">{name || "Unnamed"}</p>
+                                  {p.email && (
+                                    <p className="truncate text-xs text-muted-foreground">{p.email}</p>
+                                  )}
+                                </div>
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
             ) : (
               <div className="space-y-3 p-3 bg-muted/50 rounded-xl">
