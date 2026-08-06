@@ -49,6 +49,10 @@ import { useDocumentUpload } from "@/hooks/useDocumentUpload";
 import { CheckInCheckOutDialog } from "@/components/admin/CheckInCheckOutDialog";
 import { formatDocumentDisplayName, formatDocumentTypeTitle } from "@/utils/documentDisplay";
 import { getStayStatus, STAY_STATUS_LABELS } from "@/utils/stayStatus";
+import {
+  hasDepositMarker,
+  isEnteringDepositRequiredStatus,
+} from "@/utils/depositStatus";
 import { logActivity } from "@/utils/auditLog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
@@ -239,6 +243,10 @@ const ApplicationDetail = () => {
   const [uploadingTenancy, setUploadingTenancy] = useState(false);
   const [uploadingGuarantor, setUploadingGuarantor] = useState(false);
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
+  const [forceStatusDialog, setForceStatusDialog] = useState<{
+    open: boolean;
+    nextStatus: string | null;
+  }>({ open: false, nextStatus: null });
   const [earlyCheckoutSheetOpen, setEarlyCheckoutSheetOpen] = useState(false);
   const [earlyCheckoutDate, setEarlyCheckoutDate] = useState(
     () => new Date().toISOString().slice(0, 10),
@@ -837,13 +845,26 @@ const ApplicationDetail = () => {
     updateBookingSource.mutate(value);
   };
 
-  const handleStatusChange = async (newStatus: string) => {
+  const handleStatusChange = async (newStatus: string, options?: { allowWithoutDeposit?: boolean }) => {
     if (!applicationId) return;
+
+    // Client-side guard mirrors server: entering post-deposit statuses needs a deposit marker
+    // unless staff explicitly force-advances (audited).
+    if (
+      !options?.allowWithoutDeposit &&
+      application &&
+      isEnteringDepositRequiredStatus(application.status, newStatus) &&
+      !hasDepositMarker(application.deposit_payment_intent_id)
+    ) {
+      setForceStatusDialog({ open: true, nextStatus: newStatus });
+      return;
+    }
 
     try {
       await updateStatus.mutateAsync({
         id: applicationId,
         status: newStatus as any,
+        allowWithoutDeposit: options?.allowWithoutDeposit,
       });
 
       // Auto-allocate studio if confirming
@@ -861,16 +882,24 @@ const ApplicationDetail = () => {
 
       toast({
         title: "Status updated",
-        description: `Application status changed to ${newStatus}.`,
+        description: options?.allowWithoutDeposit
+          ? `Application status forced to ${newStatus} without a deposit record (audited).`
+          : `Application status changed to ${newStatus}.`,
       });
+      setForceStatusDialog({ open: false, nextStatus: null });
     } catch (error) {
       console.error("Failed to update status:", error);
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to update application status.";
+      if (message.includes("no deposit payment record")) {
+        setForceStatusDialog({ open: true, nextStatus: newStatus });
+        return;
+      }
       toast({
         title: "Error",
-        description:
-          error instanceof Error
-            ? error.message
-            : "Failed to update application status.",
+        description: message,
         variant: "destructive",
       });
     }
@@ -2126,7 +2155,7 @@ const ApplicationDetail = () => {
               <div>
                 <p className="text-xs sm:text-sm text-muted-foreground mb-2">Deposit Status</p>
                 <div className="font-medium flex flex-wrap items-center gap-2">
-                  {application.deposit_payment_intent_id ? (
+                  {hasDepositMarker(application.deposit_payment_intent_id) ? (
                     <Badge variant="default" className="uppercase text-xs">Paid</Badge>
                   ) : (
                     <>
@@ -2601,7 +2630,7 @@ const ApplicationDetail = () => {
                       Remaining: {formatCurrency(Number(paymentSummary.remaining_balance))}
                     </p>
                     <p className="text-[10px] sm:text-xs text-muted-foreground italic">
-                      {application.deposit_payment_intent_id
+                      {hasDepositMarker(application.deposit_payment_intent_id)
                         ? "Deposit has been recorded separately from these instalments."
                         : "Deposit will be recorded separately from these instalments when it is paid."}
                     </p>
@@ -4144,6 +4173,66 @@ const ApplicationDetail = () => {
                   <XCircle className="mr-2 h-4 w-4" />
                   Discard draft
                 </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Force advance without deposit (audited override) */}
+      <Dialog
+        open={forceStatusDialog.open}
+        onOpenChange={(open) =>
+          setForceStatusDialog((prev) => ({
+            open,
+            nextStatus: open ? prev.nextStatus : null,
+          }))
+        }
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-display uppercase tracking-wide">
+              No deposit recorded
+            </DialogTitle>
+            <DialogDescription>
+              This application has no deposit payment marker. Prefer{" "}
+              <span className="font-medium text-foreground">Record deposit</span>{" "}
+              if money was received. Force advance only for exceptional cases —
+              it is audited and does not create a payment.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full sm:w-auto rounded-md uppercase tracking-wide"
+              onClick={() => {
+                setForceStatusDialog({ open: false, nextStatus: null });
+                setManualPaymentInitialType("deposit");
+                setManualPaymentOpen(true);
+              }}
+            >
+              Record deposit
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              className="w-full sm:w-auto rounded-md uppercase tracking-wide"
+              disabled={updateStatus.isPending || !forceStatusDialog.nextStatus}
+              onClick={() => {
+                if (!forceStatusDialog.nextStatus) return;
+                void handleStatusChange(forceStatusDialog.nextStatus, {
+                  allowWithoutDeposit: true,
+                });
+              }}
+            >
+              {updateStatus.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Forcing…
+                </>
+              ) : (
+                `Force to ${forceStatusDialog.nextStatus ?? "status"}`
               )}
             </Button>
           </DialogFooter>

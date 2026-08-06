@@ -878,13 +878,16 @@ const Applications = () => {
       toast({ title: "Application status updated" });
     } catch (error) {
       console.error(error);
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to update application status.";
       toast({
         variant: "destructive",
         title: "Unable to update status",
-        description:
-          error instanceof Error
-            ? error.message
-            : "Failed to update application status.",
+        description: message.includes("no deposit payment record")
+          ? `${message} Open the application and use Record deposit, or Force advance from the detail page.`
+          : message,
       });
     }
   };

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { differenceInCalendarDays } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { hasDepositMarker } from "@/utils/depositStatus";
 
 type ApplicationRow = Database["public"]["Tables"]["student_applications"]["Row"];
 
@@ -402,8 +403,7 @@ const fetchReport = async (
 
       const depositRecorded =
         paidDepositApplicationIds.has(app.id) ||
-        (typeof app.deposit_payment_intent_id === "string" &&
-          app.deposit_payment_intent_id.startsWith("manual-"));
+        hasDepositMarker(app.deposit_payment_intent_id);
 
       // Filter based on report type
       if (reportType === "awaiting_deposit") {

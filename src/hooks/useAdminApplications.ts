@@ -2,6 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { logActivity } from "@/utils/auditLog";
+import {
+  hasRecordedDeposit,
+  isEnteringDepositRequiredStatus,
+} from "@/utils/depositStatus";
 
 type ApplicationRow = Database["public"]["Tables"]["student_applications"]["Row"];
 
@@ -196,8 +200,10 @@ export const useUpdateApplicationStatus = () => {
       id: string;
       status: ApplicationRow["status"];
       verified_by?: string | null;
+      /** Staff override when advancing without a deposit; always audited. */
+      allowWithoutDeposit?: boolean;
     }) => {
-      const { id, status, ...rest } = payload;
+      const { id, status, allowWithoutDeposit, verified_by } = payload;
       
       // Get current application state and payment marker before changing status.
       const { data: currentApp } = await supabase
@@ -228,27 +234,26 @@ export const useUpdateApplicationStatus = () => {
         .limit(1)
         .maybeSingle();
 
-      const hasRecordedDeposit =
-        Boolean(currentApp?.deposit_payment_intent_id?.startsWith("manual-")) ||
-        Boolean(manualDeposit?.id) ||
-        Boolean(stripeDeposit?.id);
+      const depositRecorded = hasRecordedDeposit({
+        depositPaymentIntentId: currentApp?.deposit_payment_intent_id,
+        hasManualDepositRow: Boolean(manualDeposit?.id),
+        hasStripeDepositRow: Boolean(stripeDeposit?.id),
+      });
 
-      const statusesRequiringDeposit: ApplicationRow["status"][] = [
-        "awaiting_signature",
-        "confirmed",
-      ];
-
+      // Block entering post-deposit statuses from draft/expired/awaiting_deposit/etc.
+      // without a real payment marker. Moves within advanced statuses stay allowed
+      // so legacy apps are not frozen mid-pipeline.
       if (
-        oldStatus === "awaiting_deposit" &&
-        statusesRequiringDeposit.includes(nextStatus) &&
-        !hasRecordedDeposit
+        isEnteringDepositRequiredStatus(oldStatus, nextStatus) &&
+        !depositRecorded &&
+        !allowWithoutDeposit
       ) {
         throw new Error(
-          "Cannot move out of Awaiting Deposit: no deposit payment record exists yet. Record a deposit first."
+          "Cannot advance past deposit: no deposit payment record exists yet. Record a deposit first (or force advance with audit)."
         );
       }
 
-      if (nextStatus === "awaiting_deposit" && hasRecordedDeposit) {
+      if (nextStatus === "awaiting_deposit" && depositRecorded) {
         throw new Error(
           "This application already has a recorded deposit. Reverse/refund the deposit first, then move back to Awaiting Deposit."
         );
@@ -258,7 +263,6 @@ export const useUpdateApplicationStatus = () => {
         .from("student_applications")
         .update({
           status,
-          ...rest,
           updated_at: new Date().toISOString(),
         })
         .eq("id", id)
@@ -279,7 +283,14 @@ export const useUpdateApplicationStatus = () => {
               to: status,
             },
             student_id: currentApp?.student_id,
-            verified_by: rest.verified_by || null,
+            verified_by: verified_by || null,
+            ...(allowWithoutDeposit
+              ? {
+                  force_advance_without_deposit: true,
+                  deposit_payment_intent_id:
+                    currentApp?.deposit_payment_intent_id ?? null,
+                }
+              : {}),
           },
         });
       }

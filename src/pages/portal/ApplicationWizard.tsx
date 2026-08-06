@@ -50,6 +50,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { invokeCreatePayment } from "@/utils/invokeCreatePayment";
+import { hasDepositMarker } from "@/utils/depositStatus";
 import { useToast } from "@/hooks/use-toast";
 import { useBrandingSettings } from "@/hooks/useBranding";
 import {
@@ -2887,25 +2888,16 @@ useEffect(() => {
   const depositPaid = useMemo(() => {
     if (!application) return false;
 
-    // Manual deposit recorded by staff or receipt linking
-    if (application.deposit_payment_intent_id?.startsWith("manual-")) {
+    // Canonical marker: Stripe PI id or manual-{uuid} set by sync / Record deposit
+    if (hasDepositMarker(application.deposit_payment_intent_id)) {
       return true;
     }
 
-    // Receipt number verified (linked on submit)
+    // Receipt number verified (linked on submit) — allow continue before marker is written
     if (
       paymentValues.already_paid_deposit &&
       paymentVerification &&
       !paymentVerification.is_linked
-    ) {
-      return true;
-    }
-
-    // Workflow statuses only advance after server-side deposit verification
-    if (
-      application.status === "awaiting_signature" ||
-      application.status === "awaiting_verification" ||
-      application.status === "confirmed"
     ) {
       return true;
     }
@@ -2915,6 +2907,8 @@ useEffect(() => {
       return true;
     }
 
+    // Do NOT treat workflow status as proof of payment — status can be jumped by staff
+    // without a deposit_payment_intent_id / payment row.
     return false;
   }, [application, paymentValues.deposit_paid, paymentValues.already_paid_deposit, paymentVerification]);
 

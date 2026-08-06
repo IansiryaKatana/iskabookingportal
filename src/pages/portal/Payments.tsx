@@ -31,6 +31,7 @@ import StripePaymentForm from "@/components/StripePaymentForm";
 import { supabase } from "@/integrations/supabase/client";
 import { invokeCreatePayment } from "@/utils/invokeCreatePayment";
 import { getEffectiveWeeks } from "@/utils/contractDuration";
+import { hasDepositMarker } from "@/utils/depositStatus";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 
@@ -400,7 +401,7 @@ const Payments = () => {
     // Only check deposit status if label explicitly says "deposit"
     // This should rarely happen since deposits are usually separate
     if (isDeposit) {
-      if (application.deposit_payment_intent_id?.startsWith("manual-")) {
+      if (hasDepositMarker(application.deposit_payment_intent_id)) {
         return { status: "paid", label: "Paid", color: "default" as const };
       }
     }
@@ -641,7 +642,7 @@ const PaymentCard = ({
   }, [contract]);
 
   const isDepositPaid = useMemo(() => {
-    if (application.deposit_payment_intent_id?.startsWith("manual-")) {
+    if (hasDepositMarker(application.deposit_payment_intent_id)) {
       return true;
     }
     return (unifiedPayments ?? []).some(

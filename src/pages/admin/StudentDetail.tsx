@@ -7,6 +7,7 @@ import { useStudentApplication } from "@/hooks/useStudentApplication";
 import { ArrowLeft, User, Mail, Phone, MapPin, Calendar, Building2, CreditCard, FileText, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { formatContractDuration } from "@/utils/contractDuration";
+import { hasDepositMarker } from "@/utils/depositStatus";
 import { Skeleton } from "@/components/ui/skeleton";
 import ManualPaymentDialog from "@/components/admin/ManualPaymentDialog";
 import { useState } from "react";
@@ -313,7 +314,7 @@ const StudentDetail = () => {
               <div>
                 <p className="text-sm text-muted-foreground">Deposit Status</p>
                 <p className="font-medium">
-                  {application.deposit_payment_intent_id ? (
+                  {hasDepositMarker(application.deposit_payment_intent_id) ? (
                     <Badge variant="default" className="uppercase">Paid</Badge>
                   ) : (
                     <Badge variant="outline" className="uppercase">Pending</Badge>
