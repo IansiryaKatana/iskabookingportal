@@ -2,6 +2,15 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { getCorsHeaders, handleCorsPrelight } from "../_shared/cors.ts";
 import { resolvePortalUrl } from "../_shared/recovery-link.ts";
+import {
+  computeDaysOverdue,
+  filterPaymentInstallmentsForReminders,
+  formatDueDateForEmail,
+  formatGbpAmount,
+  type PaymentDueWithinDays,
+  type PaymentInstallmentRow,
+  type PaymentReminderStatus,
+} from "../_shared/payment-due-window.ts";
 
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -78,6 +87,52 @@ serve(async (req) => {
 
     let filteredApplications: any[] = [];
     const hasStudentSelection = isTargeted && hasStudentIds;
+    const paymentStatusRaw = filtersObject.payment_status;
+    const hasPaymentFilter =
+      paymentStatusRaw === "upcoming" || paymentStatusRaw === "overdue";
+    const paymentInstallmentByStudent = new Map<string, PaymentInstallmentRow>();
+
+    async function fetchAllInstallmentRows(): Promise<PaymentInstallmentRow[]> {
+      const pageSize = 1000;
+      let offset = 0;
+      const allRows: PaymentInstallmentRow[] = [];
+      while (true) {
+        const { data, error } = await supabaseClient
+          .from("upcoming_and_paid_installments_report")
+          .select("*")
+          .order("due_date", { ascending: true })
+          .range(offset, offset + pageSize - 1);
+        if (error) throw error;
+        const pageRows = (data || []) as PaymentInstallmentRow[];
+        allRows.push(...pageRows);
+        if (pageRows.length < pageSize) break;
+        offset += pageSize;
+      }
+      return allRows;
+    }
+
+    async function resolvePaymentRecipients(): Promise<PaymentInstallmentRow[]> {
+      const paymentStatus = paymentStatusRaw as PaymentReminderStatus;
+      let dueWithinDays: PaymentDueWithinDays | null = null;
+      if (paymentStatus === "upcoming") {
+        const rawDays = Number(filtersObject.payment_due_within_days);
+        if (rawDays === 7 || rawDays === 14 || rawDays === 30) {
+          dueWithinDays = rawDays;
+        } else {
+          dueWithinDays = 14;
+        }
+      }
+      const academicYearId = Array.isArray(filtersObject.academic_year_id)
+        ? filtersObject.academic_year_id[0]
+        : filtersObject.academic_year_id || null;
+
+      const rows = await fetchAllInstallmentRows();
+      return filterPaymentInstallmentsForReminders(rows, {
+        paymentStatus,
+        dueWithinDays,
+        academicYearId: academicYearId || null,
+      });
+    }
 
     if (isTargeted) {
       console.log("=== DEBUG: TARGETED MESSAGE PATH ===");
@@ -240,8 +295,92 @@ serve(async (req) => {
 
     // Get student IDs - for targeted messages with student selection, ALWAYS use the provided student_ids
     let studentIds: string[] = [];
-    
-    if (isTargeted && hasStudentIds) {
+
+    // Payment-due targeting: resolve from upcoming_and_paid_installments_report
+    if (isTargeted && hasPaymentFilter) {
+      console.log("=== DEBUG: PAYMENT FILTER PATH ===", {
+        payment_status: paymentStatusRaw,
+        payment_due_within_days: filtersObject.payment_due_within_days,
+      });
+      const paymentRows = await resolvePaymentRecipients();
+      for (const row of paymentRows) {
+        paymentInstallmentByStudent.set(row.student_id, row);
+      }
+      const paymentStudentIds = paymentRows.map((r) => r.student_id).filter(Boolean);
+      console.log(`Payment filter matched ${paymentStudentIds.length} students`);
+
+      if (hasStudentIds) {
+        const selected = new Set(filtersObject.student_ids.filter(Boolean));
+        studentIds = paymentStudentIds.filter((id) => selected.has(id));
+      } else if (
+        (filtersObject.application_status &&
+          Array.isArray(filtersObject.application_status) &&
+          filtersObject.application_status.length > 0) ||
+        (filtersObject.studio_grade_id &&
+          ((typeof filtersObject.studio_grade_id === "string" && filtersObject.studio_grade_id) ||
+            (Array.isArray(filtersObject.studio_grade_id) &&
+              filtersObject.studio_grade_id.length > 0))) ||
+        (filtersObject.contract_id &&
+          ((typeof filtersObject.contract_id === "string" && filtersObject.contract_id) ||
+            (Array.isArray(filtersObject.contract_id) && filtersObject.contract_id.length > 0)))
+      ) {
+        // Intersect with application-filter results (academic year already applied in payment resolve)
+        const appStudentIds = new Set(
+          filteredApplications.map((app) => app.student_id).filter(Boolean),
+        );
+        studentIds = paymentStudentIds.filter((id) => appStudentIds.has(id));
+      } else {
+        studentIds = paymentStudentIds;
+      }
+
+      // Studio grade may not have been applied via application query when only payment filters set
+      if (
+        filtersObject.studio_grade_id &&
+        Array.isArray(filtersObject.studio_grade_id) &&
+        filtersObject.studio_grade_id.length > 0 &&
+        studentIds.length > 0 &&
+        !(
+          filtersObject.application_status?.length ||
+          filtersObject.contract_id?.length ||
+          hasStudentIds
+        )
+      ) {
+        const { data: appsForGrade } = await supabaseClient
+          .from("student_applications")
+          .select("student_id, studio_grade_id, assigned_studio_id")
+          .in("student_id", studentIds);
+        const gradeIds = filtersObject.studio_grade_id as string[];
+        const matching = new Set<string>();
+        for (const app of appsForGrade || []) {
+          if (app.studio_grade_id && gradeIds.includes(app.studio_grade_id)) {
+            matching.add(app.student_id);
+          }
+        }
+        const needsStudio = (appsForGrade || []).filter(
+          (a) => !a.studio_grade_id && a.assigned_studio_id && !matching.has(a.student_id),
+        );
+        if (needsStudio.length > 0) {
+          const studioIds = needsStudio.map((a) => a.assigned_studio_id!).filter(Boolean);
+          const { data: studios } = await supabaseClient
+            .from("studios")
+            .select("id, studio_grade_id")
+            .in("id", studioIds)
+            .in("studio_grade_id", gradeIds);
+          const matchingStudios = new Set((studios || []).map((s) => s.id));
+          for (const app of needsStudio) {
+            if (app.assigned_studio_id && matchingStudios.has(app.assigned_studio_id)) {
+              matching.add(app.student_id);
+            }
+          }
+        }
+        studentIds = studentIds.filter((id) => matching.has(id));
+        for (const id of [...paymentInstallmentByStudent.keys()]) {
+          if (!matching.has(id)) paymentInstallmentByStudent.delete(id);
+        }
+      }
+
+      console.log(`Final payment-targeted student count: ${studentIds.length}`);
+    } else if (isTargeted && hasStudentIds) {
       console.log("=== DEBUG: TARGETED with student_ids ===");
       console.log("Provided student_ids:", filtersObject.student_ids);
       console.log("Applications found:", filteredApplications.length);
@@ -418,11 +557,15 @@ serve(async (req) => {
           // Fetch student data for variable replacement
           // Get student names from application steps
           // First get applications for these students
-          const { data: studentApplications } = await supabaseClient
+          let studentApplicationsQuery = supabaseClient
             .from("student_applications")
             .select("id, student_id")
-            .in("student_id", studentIds)
-            .eq("status", "confirmed");
+            .in("student_id", studentIds);
+          // Payment reminders include committed-sale statuses beyond confirmed
+          if (!hasPaymentFilter) {
+            studentApplicationsQuery = studentApplicationsQuery.eq("status", "confirmed");
+          }
+          const { data: studentApplications } = await studentApplicationsQuery;
 
           const applicationIds = studentApplications?.map((app: any) => app.id) || [];
           const applicationToStudentMap = new Map<string, string>();
@@ -452,7 +595,7 @@ serve(async (req) => {
           }
 
           // Fetch application details for each student
-          const { data: applicationDetails } = await supabaseClient
+          let applicationDetailsQuery = supabaseClient
             .from("student_applications")
             .select(`
               id, 
@@ -461,8 +604,11 @@ serve(async (req) => {
               studios:assigned_studio_id(studio_number),
               contracts:contract_id(start_date, end_date)
             `)
-            .in("student_id", studentIds)
-            .eq("status", "confirmed");
+            .in("student_id", studentIds);
+          if (!hasPaymentFilter) {
+            applicationDetailsQuery = applicationDetailsQuery.eq("status", "confirmed");
+          }
+          const { data: applicationDetails } = await applicationDetailsQuery;
 
           const applicationMap = new Map<string, any>();
           if (applicationDetails) {
@@ -480,7 +626,11 @@ serve(async (req) => {
             if (!text) return "";
             
             let result = text;
-            const studentName = studentNameMap.get(studentId) || "Student";
+            const installment = paymentInstallmentByStudent.get(studentId);
+            const studentName =
+              studentNameMap.get(studentId) ||
+              installment?.student_name ||
+              "Student";
             const application = applicationMap.get(studentId);
             const studioNumber = application?.studios?.studio_number || "TBA";
             const contractStart = application?.contracts?.start_date 
@@ -489,8 +639,14 @@ serve(async (req) => {
             const contractEnd = application?.contracts?.end_date
               ? new Date(application.contracts.end_date).toLocaleDateString()
               : "TBA";
-            const applicationId = application?.id || "";
+            const applicationId = application?.id || installment?.application_id || "";
             const portalUrl = portalAppUrl;
+            const paymentUrl = `${portalBaseUrl}/portal/payments`;
+
+            const amountValue = installment
+              ? Number(installment.amount_remaining ?? installment.amount ?? 0)
+              : 0;
+            const dueDateRaw = installment?.due_date || "";
 
             // Build comprehensive variables object (keys without braces for flexible replacement)
             const vars: Record<string, string> = {
@@ -503,9 +659,19 @@ serve(async (req) => {
               contract_end: contractEnd,
               application_id: applicationId,
               portal_url: portalUrl,
+              payment_url: paymentUrl,
               company_name: companyName,
               COMPANY_NAME: companyName.toUpperCase(),
               current_year: new Date().getFullYear().toString(),
+              amount: installment ? formatGbpAmount(amountValue) : "",
+              due_date: dueDateRaw ? formatDueDateForEmail(dueDateRaw) : "",
+              installment_number: installment
+                ? String(installment.sequence ?? installment.installment_label ?? "")
+                : "",
+              days_overdue:
+                installment && installment.status === "overdue" && dueDateRaw
+                  ? computeDaysOverdue(dueDateRaw)
+                  : "",
             };
 
             // Comprehensive replacement function - runs multiple passes to catch all variations

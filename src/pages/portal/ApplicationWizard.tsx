@@ -2358,14 +2358,22 @@ useEffect(() => {
       });
 
       if (error || data?.error) {
-        const errorBody =
-          (error as any)?.context?.body as
-            | { error?: string; hint?: string; error_code?: string }
-            | undefined;
+        let errorBody:
+          | { error?: string; hint?: string; error_code?: string }
+          | undefined;
+        const context = (error as { context?: Response })?.context;
+        if (context && typeof context.json === "function") {
+          try {
+            errorBody = await context.clone().json();
+          } catch {
+            // Non-JSON error body; fall back to generic message below.
+          }
+        }
+
         const mergedMessage =
           data?.error ??
           errorBody?.error ??
-          (error as any)?.message ??
+          (error as Error | undefined)?.message ??
           "Unknown error";
 
         console.error("DocuSign invoke failed", {

@@ -56,6 +56,16 @@ serve(async (req) => {
 
     const applicationId = body.applicationId as string | undefined;
     const installmentId = body.installmentId as string | undefined;
+    const preview = Boolean(body.preview);
+
+    // Resolve staff caller for history (optional on preview)
+    let sentBy: string | null = null;
+    const authHeader = req.headers.get("Authorization");
+    const token = authHeader?.replace("Bearer ", "");
+    if (token) {
+      const { data: authUser } = await supabaseAdmin.auth.getUser(token);
+      sentBy = authUser?.user?.id ?? null;
+    }
 
     if (!applicationId) {
       return new Response(
@@ -608,13 +618,6 @@ serve(async (req) => {
       }),
     ]);
 
-    if (!resendApiKey) {
-      return new Response(
-        JSON.stringify({ error: "RESEND_API_KEY not configured. Please set it in Settings." }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
-
     const fromEmail = fromEmailRaw || "noreply@send.portal.urbanhub.uk";
     const formattedFrom = fromEmail.includes("<") ? fromEmail : `${companyName} <${fromEmail}>`;
 
@@ -634,6 +637,31 @@ serve(async (req) => {
     )}\nDue date: ${dueDate}\n\nPlease see the attached PDF invoice for details.`;
 
     const filename = `Invoice-${invoiceNumber}-${studentName.replace(/\s+/g, "-")}.pdf`;
+
+    // Preview mode: return rendered content without sending or storing
+    if (preview) {
+      return new Response(
+        JSON.stringify({
+          preview: true,
+          subject,
+          html,
+          text,
+          invoiceNumber,
+          pdfBase64,
+          recipientEmail: studentEmail,
+          installmentId: target.installment_id,
+          filename,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    if (!resendApiKey) {
+      return new Response(
+        JSON.stringify({ error: "RESEND_API_KEY not configured. Please set it in Settings." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     const resendPayload = {
       from: formattedFrom,
@@ -660,10 +688,83 @@ serve(async (req) => {
 
     const responseText = await resendResponse.text();
     if (!resendResponse.ok) {
+      await supabaseAdmin.from("application_outbound_messages").insert({
+        application_id: applicationId,
+        student_id: application.student_id,
+        sent_by: sentBy,
+        message_type: "installment_invoice",
+        channel: "email",
+        recipient_email: studentEmail,
+        subject,
+        body_html: html,
+        body_text: text,
+        status: "failed",
+        metadata: {
+          installment_id: target.installment_id,
+          invoice_number: invoiceNumber,
+          error: responseText.slice(0, 1000),
+        },
+      });
+
       return new Response(
         JSON.stringify({ error: "Failed to send email", details: responseText }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
+    }
+
+    let providerMessageId: string | null = null;
+    try {
+      const parsed = JSON.parse(responseText);
+      providerMessageId = typeof parsed?.id === "string" ? parsed.id : null;
+    } catch {
+      providerMessageId = null;
+    }
+
+    // Store PDF snapshot in private bucket for history re-preview
+    const attachmentPath = `${applicationId}/${invoiceNumber}-${Date.now()}.pdf`;
+    try {
+      const pdfBytesForUpload = Uint8Array.from(atob(pdfBase64), (c) => c.charCodeAt(0));
+      const { error: uploadError } = await supabaseAdmin.storage
+        .from("application-invoices")
+        .upload(attachmentPath, pdfBytesForUpload, {
+          contentType: "application/pdf",
+          upsert: false,
+        });
+      if (uploadError) {
+        console.error("Failed to upload invoice PDF snapshot:", uploadError);
+      }
+    } catch (uploadErr) {
+      console.error("Failed to upload invoice PDF snapshot:", uploadErr);
+    }
+
+    const { data: outboundRow, error: outboundError } = await supabaseAdmin
+      .from("application_outbound_messages")
+      .insert({
+        application_id: applicationId,
+        student_id: application.student_id,
+        sent_by: sentBy,
+        message_type: "installment_invoice",
+        channel: "email",
+        recipient_email: studentEmail,
+        subject,
+        body_html: html,
+        body_text: text,
+        status: "sent",
+        provider_message_id: providerMessageId,
+        attachment_path: attachmentPath,
+        metadata: {
+          installment_id: target.installment_id,
+          invoice_number: invoiceNumber,
+          filename,
+          amount_due: target.amount_due,
+          due_date: target.due_date,
+        },
+      })
+      .select("id")
+      .single();
+
+    if (outboundError) {
+      console.error("Failed to insert outbound message history:", outboundError);
     }
 
     return new Response(
@@ -671,6 +772,8 @@ serve(async (req) => {
         message: "Installment invoice sent",
         invoiceNumber,
         installmentId: target.installment_id,
+        outboundMessageId: outboundRow?.id ?? null,
+        email_id: providerMessageId,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );

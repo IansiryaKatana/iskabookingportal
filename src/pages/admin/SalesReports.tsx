@@ -109,6 +109,13 @@ const SalesReports = () => {
     <AdminLayout
       pageTitle="Sales & Demographics"
       subtitle="Academic year sales and demographics including checked-out students"
+      pageToolbar={
+        <AcademicYearSelector
+          value={academicYearId}
+          onValueChange={setAcademicYearId}
+          className="w-[14rem]"
+        />
+      }
       mobileActionButton={
         <Button
           size="sm"
@@ -128,8 +135,8 @@ const SalesReports = () => {
       <div className="space-y-6">
         <Card className="rounded-3xl">
           <CardContent className="pt-6">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
+            <div className="grid gap-4">
+              <div className="lg:hidden">
                 <Label>Academic Year</Label>
                 <div className="mt-2">
                   <AcademicYearSelector value={academicYearId} onValueChange={setAcademicYearId} />

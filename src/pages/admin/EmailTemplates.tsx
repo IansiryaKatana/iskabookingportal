@@ -17,15 +17,14 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
@@ -905,7 +904,7 @@ const EmailTemplates = () => {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<string | null>(null);
-  const [editorMode, setEditorMode] = useState<"rich" | "html" | "preview">("rich");
+  const [editorMode, setEditorMode] = useState<"rich" | "html" | "preview" | "text">("rich");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
@@ -1331,248 +1330,288 @@ const EmailTemplates = () => {
         )}
       </div>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[700px] rounded-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-display uppercase tracking-wide">
-              {editingTemplate ? "Edit Template" : "Create Template"}
-            </DialogTitle>
-            <DialogDescription>
-              {editingTemplate
-                ? "Update the email template details."
-                : "Create a new email template for student communications."}
-            </DialogDescription>
-          </DialogHeader>
+      <Sheet open={dialogOpen} onOpenChange={setDialogOpen}>
+        <SheetContent
+          side="right"
+          className="flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[700px]"
+        >
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 py-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="sr-only">Template Name *</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        placeholder="Template name, e.g. Welcome email"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="template_type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="sr-only">Template Type *</FormLabel>
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <p className="text-xs text-muted-foreground">
-                        Choose what this email will be used for
-                      </p>
-                      <Popover>
-                        <PopoverTrigger asChild>
+            <form
+              onSubmit={form.handleSubmit(handleSubmit)}
+              className="flex h-full min-h-0 flex-col"
+            >
+              <SheetHeader className="flex-shrink-0 space-y-1 border-b px-6 py-4 pr-14 text-left">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0 space-y-1">
+                    <SheetTitle className="text-xl font-display uppercase tracking-wide">
+                      {editingTemplate ? "Edit Template" : "Create Template"}
+                    </SheetTitle>
+                    <SheetDescription>
+                      {editingTemplate
+                        ? "Update the email template details."
+                        : "Create a new email template for student communications."}
+                    </SheetDescription>
+                  </div>
+                  <FormField
+                    control={form.control}
+                    name="is_active"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-shrink-0 items-center gap-2 space-y-0 pt-1">
+                        <FormLabel className="text-sm font-medium">Active</FormLabel>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </SheetHeader>
+
+              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="sr-only">Template Name *</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder="Template name, e.g. Welcome email"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="template_type"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="sr-only">Template Type *</FormLabel>
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <p className="text-xs text-muted-foreground">
+                          Choose what this email will be used for
+                        </p>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 rounded-md p-0"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Info className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-80 rounded-2xl" align="start">
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2">
+                                <Sparkles className="h-4 w-4 text-primary" />
+                                <h4 className="text-sm font-semibold">Available Variables</h4>
+                              </div>
+                              <p className="mb-3 text-xs text-muted-foreground">
+                                {templateVariables[field.value]?.description || "Custom template variables"}
+                              </p>
+                              <div className="space-y-2">
+                                {(templateVariables[field.value]?.variables || []).map((variable) => (
+                                  <div key={variable} className="flex items-center gap-2">
+                                    <code className="rounded bg-muted px-2 py-1 font-mono text-xs">
+                                      {`{${variable}}`}
+                                    </code>
+                                    <span className="text-xs text-muted-foreground">
+                                      {variable.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                              <p className="mt-3 border-t pt-3 text-xs text-muted-foreground">
+                                Use these variables in your template. They will be replaced with actual values when the email is sent.
+                              </p>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      <div className="flex gap-2">
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger className="flex-1">
+                              <SelectValue placeholder="Select template type" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {templateTypes.map((type) => (
+                              <SelectItem key={type.value} value={type.value}>
+                                {type.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {!editingTemplate && (
                           <Button
                             type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 rounded-md"
-                            onClick={(e) => e.stopPropagation()}
+                            variant="outline"
+                            onClick={handleLoadDefaultTemplate}
+                            className="gap-2 rounded-md uppercase tracking-wide"
                           >
-                            <Info className="h-4 w-4 text-muted-foreground" />
+                            <Sparkles className="h-4 w-4" />
+                            Load Template
                           </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-80 rounded-2xl" align="start">
-                          <div className="space-y-3">
-                            <div className="flex items-center gap-2">
-                              <Sparkles className="h-4 w-4 text-primary" />
-                              <h4 className="font-semibold text-sm">Available Variables</h4>
-                            </div>
-                            <p className="text-xs text-muted-foreground mb-3">
-                              {templateVariables[field.value]?.description || "Custom template variables"}
-                            </p>
-                            <div className="space-y-2">
-                              {(templateVariables[field.value]?.variables || []).map((variable) => (
-                                <div key={variable} className="flex items-center gap-2">
-                                  <code className="text-xs bg-muted px-2 py-1 rounded font-mono">
-                                    {`{${variable}}`}
-                                  </code>
-                                  <span className="text-xs text-muted-foreground">
-                                    {variable.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-3 pt-3 border-t">
-                              Use these variables in your template. They will be replaced with actual values when the email is sent.
-                            </p>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                    <div className="flex gap-2">
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <FormControl>
-                          <SelectTrigger className="flex-1">
-                            <SelectValue placeholder="Select template type" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {templateTypes.map((type) => (
-                            <SelectItem key={type.value} value={type.value}>
-                              {type.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {!editingTemplate && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={handleLoadDefaultTemplate}
-                          className="rounded-md uppercase tracking-wide gap-2"
-                        >
-                          <Sparkles className="h-4 w-4" />
-                          Load Template
-                        </Button>
-                      )}
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="subject"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="sr-only">Email Subject *</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        placeholder="Subject line, e.g. Welcome to {company_name}!"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="body_html"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="sr-only">Email Body *</FormLabel>
-                    <div className="flex items-center gap-1 mb-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={editorMode === "rich" ? "default" : "outline"}
-                        disabled={isFullHtmlDocument(field.value)}
-                        title={isFullHtmlDocument(field.value) ? "Rich Text is disabled for full HTML documents to avoid stripping your markup." : undefined}
-                        className="rounded-md uppercase tracking-wide text-xs h-7"
-                        onClick={() => setEditorMode("rich")}
-                      >
-                        Rich Text
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={editorMode === "html" ? "default" : "outline"}
-                        className="rounded-md uppercase tracking-wide text-xs h-7"
-                        onClick={() => setEditorMode("html")}
-                      >
-                        HTML
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={editorMode === "preview" ? "default" : "outline"}
-                        className="rounded-md uppercase tracking-wide text-xs h-7"
-                        onClick={() => setEditorMode("preview")}
-                      >
-                        Preview
-                      </Button>
-                    </div>
-                    <FormControl>
-                      {editorMode === "rich" ? (
-                        <div className="rounded-2xl border bg-background">
-                          <ReactQuill
-                            theme="snow"
-                            value={field.value}
-                            onChange={field.onChange}
-                            onBlur={field.onBlur}
-                            placeholder="Write the email content here. Use the toolbar to format text, add links, and insert images."
-                            modules={quillModules}
-                            formats={quillFormats}
-                          />
-                        </div>
-                      ) : editorMode === "html" ? (
-                        <Textarea
-                          value={field.value}
-                          onChange={field.onChange}
-                          onBlur={field.onBlur}
-                          rows={18}
-                          spellCheck={false}
-                          className="font-mono text-xs leading-relaxed"
-                          placeholder="Paste or write your full HTML page here, e.g. <!DOCTYPE html> ..."
+                        )}
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="subject"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="sr-only">Email Subject *</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder="Subject line, e.g. Welcome to {company_name}!"
                         />
-                      ) : (
-                        <div className="rounded-2xl border bg-white overflow-hidden">
-                          <iframe
-                            title="Email preview"
-                            sandbox=""
-                            srcDoc={field.value || "<p style='font-family:sans-serif;color:#888;padding:20px'>Nothing to preview yet.</p>"}
-                            className="w-full h-[480px] bg-white"
-                          />
-                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="space-y-2">
+                  <div className="mb-2 flex flex-wrap items-center gap-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={editorMode === "rich" ? "default" : "outline"}
+                      disabled={isFullHtmlDocument(form.watch("body_html"))}
+                      title={
+                        isFullHtmlDocument(form.watch("body_html"))
+                          ? "Rich Text is disabled for full HTML documents to avoid stripping your markup."
+                          : undefined
+                      }
+                      className="h-7 rounded-md text-xs uppercase tracking-wide"
+                      onClick={() => setEditorMode("rich")}
+                    >
+                      Rich Text
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={editorMode === "html" ? "default" : "outline"}
+                      className="h-7 rounded-md text-xs uppercase tracking-wide"
+                      onClick={() => setEditorMode("html")}
+                    >
+                      HTML
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={editorMode === "preview" ? "default" : "outline"}
+                      className="h-7 rounded-md text-xs uppercase tracking-wide"
+                      onClick={() => setEditorMode("preview")}
+                    >
+                      Preview
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={editorMode === "text" ? "default" : "outline"}
+                      className="h-7 rounded-md text-xs uppercase tracking-wide"
+                      onClick={() => setEditorMode("text")}
+                    >
+                      Plain Text
+                    </Button>
+                  </div>
+
+                  {editorMode === "text" ? (
+                    <FormField
+                      control={form.control}
+                      name="body_text"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="sr-only">Email Body (Plain Text)</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              {...field}
+                              rows={18}
+                              placeholder="Optional plain text version. If left blank, we’ll generate one from the rich content."
+                            />
+                          </FormControl>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Plain text fallback for email clients that don’t render HTML. Leave blank to auto-generate from the rich content.
+                          </p>
+                          <FormMessage />
+                        </FormItem>
                       )}
-                    </FormControl>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {editorMode === "html"
-                        ? "Raw HTML is sent to the recipient exactly as written. Note: email clients ignore JavaScript and often block external fonts."
-                        : editorMode === "preview"
-                          ? "This is how the raw HTML renders to the recipient. Variables like {student_name} show as placeholders here and are replaced when the email is sent."
-                          : "Rich formatting and images are supported. Variables like {student_name} and {portal_url} will be replaced automatically."}
-                    </p>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="body_text"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="sr-only">Email Body (Plain Text)</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        {...field}
-                        rows={5}
-                        placeholder="Optional plain text version. If left blank, we’ll generate one from the rich content."
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="is_active"
-                render={({ field }) => (
-                  <FormItem className="flex items-center justify-between rounded-lg border p-4">
-                    <FormLabel>Active</FormLabel>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-              <DialogFooter>
+                    />
+                  ) : (
+                    <FormField
+                      control={form.control}
+                      name="body_html"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="sr-only">Email Body *</FormLabel>
+                          <FormControl>
+                            {editorMode === "rich" ? (
+                              <div className="rounded-2xl border bg-background">
+                                <ReactQuill
+                                  theme="snow"
+                                  value={field.value}
+                                  onChange={field.onChange}
+                                  onBlur={field.onBlur}
+                                  placeholder="Write the email content here. Use the toolbar to format text, add links, and insert images."
+                                  modules={quillModules}
+                                  formats={quillFormats}
+                                />
+                              </div>
+                            ) : editorMode === "html" ? (
+                              <Textarea
+                                value={field.value}
+                                onChange={field.onChange}
+                                onBlur={field.onBlur}
+                                rows={18}
+                                spellCheck={false}
+                                className="font-mono text-xs leading-relaxed"
+                                placeholder="Paste or write your full HTML page here, e.g. <!DOCTYPE html> ..."
+                              />
+                            ) : (
+                              <div className="overflow-hidden rounded-2xl border bg-white">
+                                <iframe
+                                  title="Email preview"
+                                  sandbox=""
+                                  srcDoc={
+                                    field.value ||
+                                    "<p style='font-family:sans-serif;color:#888;padding:20px'>Nothing to preview yet.</p>"
+                                  }
+                                  className="h-[480px] w-full bg-white"
+                                />
+                              </div>
+                            )}
+                          </FormControl>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {editorMode === "html"
+                              ? "Raw HTML is sent to the recipient exactly as written. Note: email clients ignore JavaScript and often block external fonts."
+                              : editorMode === "preview"
+                                ? "This is how the raw HTML renders to the recipient. Variables like {student_name} show as placeholders here and are replaced when the email is sent."
+                                : "Rich formatting and images are supported. Variables like {student_name} and {portal_url} will be replaced automatically."}
+                          </p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                </div>
+              </div>
+
+              <SheetFooter className="flex-shrink-0 gap-2 border-t px-6 py-4 sm:justify-end sm:space-x-0">
                 <Button
                   type="button"
                   variant="outline"
@@ -1588,11 +1627,11 @@ const EmailTemplates = () => {
                 >
                   {editingTemplate ? "Update" : "Create"}
                 </Button>
-              </DialogFooter>
+              </SheetFooter>
             </form>
           </Form>
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
 
       <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
         <AlertDialogContent className="rounded-3xl">

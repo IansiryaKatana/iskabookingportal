@@ -23,13 +23,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useTargetedMessages, useSendTargetedMessage, useBulkDeleteTargetedMessages, type TargetedMessageFilters } from "@/hooks/useTargetedMessages";
+import {
+  useTargetedMessages,
+  useSendTargetedMessage,
+  useBulkDeleteTargetedMessages,
+  usePaymentReminderRecipientsPreview,
+  type TargetedMessageFilters,
+} from "@/hooks/useTargetedMessages";
 import { useEmailTemplates } from "@/hooks/useEmailTemplates";
 import { useSendTestEmail } from "@/hooks/useSendTestEmail";
 import { useStudents } from "@/hooks/useStudents";
 import { useAdminStudioGrades } from "@/hooks/useAdminStudioGrades";
 import { useAdminAcademicYears } from "@/hooks/useAdminAcademicYears";
 import { supabase } from "@/integrations/supabase/client";
+import { formatGbpAmount, formatDueDateForEmail, type PaymentDueWithinDays } from "@/utils/paymentDueWindow";
 import { Plus, Send, Mail, Users, Eye, X, Search, Filter, Trash2 } from "lucide-react";
 import {
   Sheet,
@@ -87,6 +94,15 @@ const TargetedMessages = () => {
     academic_year_id: [],
     filter_logic: "AND",
   });
+
+  const paymentPreviewEnabled =
+    dialogOpen && activeTab === "filter" && !!filters.payment_status;
+
+  const {
+    data: paymentRecipients,
+    isLoading: paymentRecipientsLoading,
+    isFetching: paymentRecipientsFetching,
+  } = usePaymentReminderRecipientsPreview(filters, paymentPreviewEnabled);
 
   const selectedTemplate = useMemo(() => {
     if (!formData.email_template_id || !templates) return null;
@@ -198,6 +214,20 @@ const TargetedMessages = () => {
     }
   };
 
+  // Soft-suggest payment reminder / overdue template when payment filters are set
+  useEffect(() => {
+    if (!filters.payment_status || !templates || formData.email_template_id) return;
+    const preferredType =
+      filters.payment_status === "overdue" ? "overdue_payment" : "payment_reminder";
+    const preferred =
+      templates.find((t) => t.is_active && t.template_type === preferredType) ||
+      templates.find((t) => t.is_active && t.template_type === "payment_reminder");
+    if (preferred) {
+      handleTemplateChange(preferred.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when payment_status flips on
+  }, [filters.payment_status]);
+
   const handleSubmit = async () => {
     if (!formData.email_template_id) {
       toast({
@@ -228,16 +258,40 @@ const TargetedMessages = () => {
     }
 
     if (activeTab === "filter") {
-      const hasFilters = 
+      const hasFilters =
         (filters.application_status && filters.application_status.length > 0) ||
         (filters.studio_grade_id && filters.studio_grade_id.length > 0) ||
         (filters.contract_id && filters.contract_id.length > 0) ||
-        (filters.academic_year_id && filters.academic_year_id.length > 0);
-      
+        (filters.academic_year_id && filters.academic_year_id.length > 0) ||
+        !!filters.payment_status;
+
       if (!hasFilters) {
         toast({
           title: "Validation Error",
           description: "Please apply at least one filter.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (filters.payment_status === "upcoming" && !filters.payment_due_within_days) {
+        toast({
+          title: "Validation Error",
+          description: "Select a due window (Next 7 / 14 / 30 days) for upcoming payments.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (
+        filters.payment_status &&
+        paymentRecipients &&
+        paymentRecipients.length === 0 &&
+        !paymentRecipientsLoading
+      ) {
+        toast({
+          title: "No recipients",
+          description: "No students match the payment filters. Adjust the filters and try again.",
           variant: "destructive",
         });
         return;
@@ -279,6 +333,8 @@ const TargetedMessages = () => {
         studio_grade_id: [],
         contract_id: [],
         academic_year_id: [],
+        payment_status: undefined,
+        payment_due_within_days: undefined,
         filter_logic: "AND",
       });
     } catch (error) {
@@ -665,6 +721,140 @@ const TargetedMessages = () => {
               </TabsContent>
 
               <TabsContent value="filter" className="space-y-4 mt-4">
+                <div className="rounded-2xl border p-4 space-y-4">
+                  <div>
+                    <p className="text-sm font-medium uppercase tracking-wide">Payment due</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Same cohort as Accounting Reports → Upcoming. One reminder per student (soonest matching installment).
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <Label>Payment status</Label>
+                        <InfoTooltip
+                          content="Upcoming = unpaid installments due today or later. Overdue = unpaid installments past due."
+                          label="About payment status"
+                        />
+                      </div>
+                      <Select
+                        value={filters.payment_status || "none"}
+                        onValueChange={(value) => {
+                          if (value === "none") {
+                            setFilters({
+                              ...filters,
+                              payment_status: undefined,
+                              payment_due_within_days: undefined,
+                            });
+                            return;
+                          }
+                          setFilters({
+                            ...filters,
+                            payment_status: value as "upcoming" | "overdue",
+                            payment_due_within_days:
+                              value === "upcoming"
+                                ? filters.payment_due_within_days ?? 14
+                                : undefined,
+                          });
+                        }}
+                      >
+                        <SelectTrigger className="mt-2 rounded-md">
+                          <SelectValue placeholder="Off" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Off</SelectItem>
+                          <SelectItem value="upcoming">Upcoming</SelectItem>
+                          <SelectItem value="overdue">Overdue</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {filters.payment_status === "upcoming" && (
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <Label>Due within</Label>
+                          <InfoTooltip
+                            content="Matches Accounting Reports: due date from today through today + N days."
+                            label="About due within"
+                          />
+                        </div>
+                        <Select
+                          value={String(filters.payment_due_within_days ?? 14)}
+                          onValueChange={(value) => {
+                            setFilters({
+                              ...filters,
+                              payment_due_within_days: Number(value) as PaymentDueWithinDays,
+                            });
+                          }}
+                        >
+                          <SelectTrigger className="mt-2 rounded-md">
+                            <SelectValue placeholder="Next 14 days" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="7">Next 7 days</SelectItem>
+                            <SelectItem value="14">Next 14 days</SelectItem>
+                            <SelectItem value="30">Next 30 days</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+
+                  {filters.payment_status && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Preview recipients
+                        </Label>
+                        <span className="text-xs text-muted-foreground tabular-nums">
+                          {paymentRecipientsLoading || paymentRecipientsFetching
+                            ? "Loading…"
+                            : `${paymentRecipients?.length ?? 0} student${
+                                (paymentRecipients?.length ?? 0) === 1 ? "" : "s"
+                              }`}
+                        </span>
+                      </div>
+                      {(paymentRecipientsLoading || paymentRecipientsFetching) && !paymentRecipients ? (
+                        <Skeleton className="h-24 w-full rounded-md" />
+                      ) : paymentRecipients && paymentRecipients.length > 0 ? (
+                        <div className="max-h-48 overflow-y-auto rounded-md border">
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="hover:bg-transparent">
+                                <TableHead className="text-xs uppercase">Student</TableHead>
+                                <TableHead className="text-xs uppercase">Due</TableHead>
+                                <TableHead className="text-xs uppercase text-right">Amount</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {paymentRecipients.slice(0, 50).map((row) => (
+                                <TableRow key={row.student_id}>
+                                  <TableCell className="text-sm py-2">{row.student_name}</TableCell>
+                                  <TableCell className="text-sm py-2 whitespace-nowrap">
+                                    {formatDueDateForEmail(row.due_date)}
+                                  </TableCell>
+                                  <TableCell className="text-sm py-2 text-right tabular-nums">
+                                    {formatGbpAmount(row.amount)}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                          {paymentRecipients.length > 50 && (
+                            <p className="px-3 py-2 text-xs text-muted-foreground border-t">
+                              Showing first 50 of {paymentRecipients.length}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          No students match these payment filters.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <div className="flex items-center gap-1.5">

@@ -793,21 +793,60 @@ serve(async (req) => {
       "confirmed",
     ]);
 
+    // Canonical deposit proof matches frontend depositStatus.ts:
+    // student_applications.deposit_payment_intent_id is either a Stripe PI id
+    // (pi_...) or a manual deposit marker (manual-{uuid}). Workflow status alone
+    // is not required when the marker is present.
+    const depositIntentId =
+      typeof application.deposit_payment_intent_id === "string"
+        ? application.deposit_payment_intent_id.trim()
+        : "";
+    const isManualDepositMarker = depositIntentId.startsWith("manual-");
+    const isStripePaymentIntentId = depositIntentId.startsWith("pi_");
+
     let depositVerified = depositVerifiedStatuses.has(application.status);
+
+    const promoteToAwaitingSignature = async (source: string) => {
+      if (depositVerifiedStatuses.has(application.status)) return;
+      await supabaseAdmin
+        .from("student_applications")
+        .update({
+          status: "awaiting_signature",
+        })
+        .eq("id", application.id);
+      application.status = "awaiting_signature";
+      console.log("Deposit verified, application status updated to awaiting_signature", {
+        applicationId: application.id,
+        source,
+      });
+    };
+
+    if (!depositVerified && isManualDepositMarker) {
+      console.log("Deposit verified via manual payment marker", {
+        applicationId: application.id,
+        status: application.status,
+        depositPaymentIntentId: depositIntentId,
+      });
+      depositVerified = true;
+      await promoteToAwaitingSignature("manual_deposit_marker");
+    }
 
     if (!depositVerified) {
       console.log("Deposit not verified by status, checking payment intent", {
         applicationId: application.id,
         status: application.status,
-        depositPaymentIntentId: application.deposit_payment_intent_id,
+        depositPaymentIntentId: depositIntentId || null,
         hasStripeSecret: !!stripeSecret,
+        isStripePaymentIntentId,
       });
 
-      if (!stripeSecret || !application.deposit_payment_intent_id) {
+      if (!stripeSecret || !isStripePaymentIntentId) {
         console.error("Missing deposit payment intent or Stripe secret", {
           applicationId: application.id,
           hasStripeSecret: !!stripeSecret,
-          hasPaymentIntentId: !!application.deposit_payment_intent_id,
+          hasPaymentIntentId: Boolean(depositIntentId),
+          isStripePaymentIntentId,
+          isManualDepositMarker,
         });
         return new Response(
           JSON.stringify({
@@ -822,9 +861,7 @@ serve(async (req) => {
       }
 
       try {
-        const paymentIntent = await retrievePaymentIntent(
-          application.deposit_payment_intent_id,
-        );
+        const paymentIntent = await retrievePaymentIntent(depositIntentId);
         console.log("Payment intent retrieved", {
           id: paymentIntent.id,
           status: paymentIntent.status,
@@ -834,14 +871,7 @@ serve(async (req) => {
         
         if (paymentIntent.status === "succeeded") {
           depositVerified = true;
-          await supabaseAdmin
-            .from("student_applications")
-            .update({
-              status: "awaiting_signature",
-            })
-            .eq("id", application.id);
-          application.status = "awaiting_signature";
-          console.log("Deposit verified, application status updated to awaiting_signature");
+          await promoteToAwaitingSignature("stripe_payment_intent");
         } else {
           const friendlyStatus = paymentIntent.status.replaceAll("_", " ");
           console.warn("Payment intent not succeeded", {
@@ -872,9 +902,11 @@ serve(async (req) => {
         );
       }
     } else {
-      console.log("Deposit already verified by application status", {
+      console.log("Deposit already verified", {
         applicationId: application.id,
         status: application.status,
+        viaManualMarker: isManualDepositMarker,
+        viaStatus: depositVerifiedStatuses.has(application.status),
       });
     }
 

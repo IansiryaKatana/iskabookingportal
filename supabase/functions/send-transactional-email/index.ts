@@ -39,7 +39,18 @@ serve(async (req) => {
       template_id,
       variables = {},
       create_notification = true,
+      application_id,
+      message_type,
     } = await req.json();
+
+    // Resolve staff caller for outbound history
+    let sentBy: string | null = null;
+    const authHeader = req.headers.get("Authorization");
+    const callerToken = authHeader?.replace("Bearer ", "");
+    if (callerToken) {
+      const { data: authUser } = await supabaseClient.auth.getUser(callerToken);
+      sentBy = authUser?.user?.id ?? null;
+    }
 
     if (!user_id || !email_type) {
       return new Response(
@@ -80,6 +91,24 @@ serve(async (req) => {
         emailSubject = template.subject;
         emailBodyHtml = template.body_html || template.body_text;
         emailBodyText = template.body_text || template.body_html?.replace(/<[^>]*>/g, "") || "";
+      }
+    }
+
+    // Prefer DB template by email_type when template_id not provided
+    if (!emailSubject && email_type) {
+      const { data: typeTemplate } = await supabaseClient
+        .from("email_templates")
+        .select("*")
+        .eq("template_type", email_type)
+        .eq("is_active", true)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (typeTemplate) {
+        emailSubject = typeTemplate.subject;
+        emailBodyHtml = typeTemplate.body_html || typeTemplate.body_text;
+        emailBodyText = typeTemplate.body_text || typeTemplate.body_html?.replace(/<[^>]*>/g, "") || "";
       }
     }
 
@@ -294,10 +323,58 @@ serve(async (req) => {
       });
     }
 
+    // Persist outbound history when application context is provided
+    let outboundMessageId: string | null = null;
+    const allowedMessageTypes = new Set([
+      "deposit_reminder",
+      "signature_reminder",
+      "application_confirmed",
+      "installment_invoice",
+    ]);
+    const resolvedMessageType =
+      typeof message_type === "string" && allowedMessageTypes.has(message_type)
+        ? message_type
+        : allowedMessageTypes.has(email_type)
+          ? email_type
+          : null;
+
+    if (application_id && resolvedMessageType) {
+      const { data: outboundRow, error: outboundError } = await supabaseClient
+        .from("application_outbound_messages")
+        .insert({
+          application_id,
+          student_id: user_id,
+          sent_by: sentBy,
+          message_type: resolvedMessageType,
+          channel: "email",
+          recipient_email: user.email,
+          subject: emailSubject,
+          body_html: emailBodyHtml,
+          body_text: emailBodyText,
+          status: "sent",
+          provider_message_id: resendData.id ?? null,
+          metadata: {
+            email_type,
+            template_id: template_id ?? null,
+            variables: allVariables,
+          },
+        })
+        .select("id")
+        .single();
+
+      if (outboundError) {
+        console.error("Failed to insert outbound message history:", outboundError);
+      } else {
+        outboundMessageId = outboundRow?.id ?? null;
+      }
+    }
+
     return new Response(
       JSON.stringify({
         message: "Email sent successfully",
         email_id: resendData.id,
+        subject: emailSubject,
+        outboundMessageId,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

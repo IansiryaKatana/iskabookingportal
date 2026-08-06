@@ -47,7 +47,8 @@ import {
   CheckCircle2,
   Table2,
 } from "lucide-react";
-import { addDays, format } from "date-fns";
+import { format } from "date-fns";
+import { resolvePaymentDueWindowPreset } from "@/utils/paymentDueWindow";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -336,14 +337,14 @@ const AccountingReports = () => {
 
   const applyUpcomingDueWindow = (window: "7" | "14" | "30" | "all") => {
     setUpcomingDueWindow(window);
-    if (window === "all") {
+    const range = resolvePaymentDueWindowPreset(window);
+    if (!range) {
       setUpcomingStartDate("");
       setUpcomingEndDate("");
       return;
     }
-    const days = parseInt(window, 10);
-    setUpcomingStartDate(format(new Date(), "yyyy-MM-dd"));
-    setUpcomingEndDate(format(addDays(new Date(), days), "yyyy-MM-dd"));
+    setUpcomingStartDate(range.startDate);
+    setUpcomingEndDate(range.endDate);
   };
 
   const filteredUpcomingData = useMemo(() => {

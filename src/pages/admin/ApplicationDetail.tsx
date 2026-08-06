@@ -75,6 +75,16 @@ import { useResendAgreements } from "@/hooks/useResendAgreements";
 import { useEarlyCheckoutStudent } from "@/hooks/useEarlyCheckout";
 import { useEarlyCheckInSummary } from "@/hooks/useEarlyCheckIn";
 import EarlyCheckInSection from "@/components/admin/EarlyCheckInSection";
+import MessagePreviewSheet, {
+  type MessagePreviewKind,
+} from "@/components/admin/MessagePreviewSheet";
+import {
+  useApplicationOutboundMessages,
+  OUTBOUND_MESSAGE_LABELS,
+  createSignedInvoiceUrl,
+  type ApplicationOutboundMessage,
+} from "@/hooks/useApplicationOutboundMessages";
+import { useBrandingSettings } from "@/hooks/useBranding";
 import {
   usePendingEnvelopeStatusSync,
   useRefreshAgreementStatus,
@@ -1018,32 +1028,6 @@ const ApplicationDetail = () => {
     }
   };
 
-  const handleSendNotification = async (title: string, message: string) => {
-    if (!application?.student_id) return;
-
-    try {
-      await createNotification.mutateAsync({
-        user_id: application.student_id,
-        title,
-        message,
-        type: "info",
-        link: `/portal/applications/${application.id}`,
-      });
-
-      toast({
-        title: "Notification sent",
-        description: "Student has been notified.",
-      });
-    } catch (error) {
-      console.error("Failed to send notification:", error);
-      toast({
-        title: "Error",
-        description: "Failed to send notification.",
-        variant: "destructive",
-      });
-    }
-  };
-
   // Get step data
   const step1 = application?.student_application_steps?.find((s) => s.step_number === 1);
   const step1Data = step1?.payload as any;
@@ -1078,49 +1062,27 @@ const ApplicationDetail = () => {
       (inst) => inst.payment_status === "unpaid" || inst.payment_status === "partial",
     ) ?? [];
 
-  const [installmentInvoiceDialogOpen, setInstallmentInvoiceDialogOpen] = useState(false);
-  const [selectedInvoiceInstallmentId, setSelectedInvoiceInstallmentId] = useState<string>("");
-  const [sendingInstallmentInvoice, setSendingInstallmentInvoice] = useState(false);
+  const { data: brandingSettings } = useBrandingSettings();
+  const { data: outboundMessages = [], isLoading: outboundLoading } =
+    useApplicationOutboundMessages(applicationId);
 
-  const handleSendInstallmentInvoice = async () => {
-    if (!applicationId || !selectedInvoiceInstallmentId) return;
-    setSendingInstallmentInvoice(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("send-installment-invoice-email", {
-        body: {
-          applicationId,
-          installmentId: selectedInvoiceInstallmentId,
-        },
-      });
+  const [messageSheetOpen, setMessageSheetOpen] = useState(false);
+  const [messageSheetMode, setMessageSheetMode] = useState<"compose" | "history">("compose");
+  const [messageSheetKind, setMessageSheetKind] = useState<MessagePreviewKind | null>(null);
+  const [historyMessage, setHistoryMessage] = useState<ApplicationOutboundMessage | null>(null);
 
-      if (error) {
-        console.error("Error sending installment invoice:", error, data);
-        const details =
-          data && typeof data === "object" && "error" in data && typeof (data as { error?: unknown }).error === "string"
-            ? (data as { error: string }).error
-            : null;
-        toast({
-          title: "Error",
-          description: details || "Failed to send installment invoice. Please try again.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Installment invoice sent",
-          description: "The student has been emailed an invoice for the selected installment.",
-        });
-        setInstallmentInvoiceDialogOpen(false);
-      }
-    } catch (error) {
-      console.error("Error invoking send-installment-invoice-email:", error);
-      toast({
-        title: "Error",
-        description: "Failed to send installment invoice. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setSendingInstallmentInvoice(false);
-    }
+  const openComposeSheet = (kind: MessagePreviewKind) => {
+    setMessageSheetMode("compose");
+    setMessageSheetKind(kind);
+    setHistoryMessage(null);
+    setMessageSheetOpen(true);
+  };
+
+  const openHistorySheet = (msg: ApplicationOutboundMessage) => {
+    setMessageSheetMode("history");
+    setMessageSheetKind(msg.message_type);
+    setHistoryMessage(msg);
+    setMessageSheetOpen(true);
   };
 
   const handleStaffUploadSignedDocument = async (envelopeType: "tenancy" | "guarantor", file: File) => {
@@ -3144,7 +3106,7 @@ const ApplicationDetail = () => {
               <Button
                 variant="outline"
                 className="rounded-md tracking-wide gap-2 text-xs sm:text-sm w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-white hover:text-white border-0"
-                onClick={() => handleSendNotification("Deposit Reminder", "Please complete your deposit payment to proceed with your application.")}
+                onClick={() => openComposeSheet("deposit_reminder")}
               >
                 <Send className="h-4 w-4" />
                 <span className="hidden sm:inline">Send deposit reminder</span>
@@ -3154,12 +3116,7 @@ const ApplicationDetail = () => {
                 variant="outline"
                 className="rounded-md tracking-wide gap-2 text-xs sm:text-sm w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600 text-white hover:text-white border-0"
                 disabled={unpaidInstallments.length === 0}
-                onClick={() => {
-                  if (unpaidInstallments.length > 0) {
-                    setSelectedInvoiceInstallmentId(unpaidInstallments[0].installment_id);
-                    setInstallmentInvoiceDialogOpen(true);
-                  }
-                }}
+                onClick={() => openComposeSheet("installment_invoice")}
               >
                 <Send className="h-4 w-4" />
                 <span className="hidden sm:inline">Send installment invoice</span>
@@ -3168,7 +3125,7 @@ const ApplicationDetail = () => {
               <Button
                 variant="outline"
                 className="rounded-md tracking-wide gap-2 text-xs sm:text-sm w-full sm:w-auto bg-blue-500 hover:bg-blue-600 text-white hover:text-white border-0"
-                onClick={() => handleSendNotification("Signature Reminder", "Please complete signing your tenancy agreement.")}
+                onClick={() => openComposeSheet("signature_reminder")}
               >
                 <Send className="h-4 w-4" />
                 <span className="hidden sm:inline">Send signature reminder</span>
@@ -3177,7 +3134,7 @@ const ApplicationDetail = () => {
               <Button
                 variant="outline"
                 className="rounded-md tracking-wide gap-2 text-xs sm:text-sm w-full sm:w-auto bg-green-500 hover:bg-green-600 text-white hover:text-white border-0"
-                onClick={() => handleSendNotification("Application Confirmed", "Your application has been confirmed! Welcome to Urban Hub.")}
+                onClick={() => openComposeSheet("application_confirmed")}
               >
                 <Send className="h-4 w-4" />
                 <span className="hidden sm:inline">Send confirmation</span>
@@ -3192,9 +3149,121 @@ const ApplicationDetail = () => {
                 <span>Download CSV</span>
               </Button>
             </div>
+
+            <div className="mt-6 border-t border-border/60 pt-4 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Sent message history
+                </p>
+                {outboundLoading && (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                )}
+              </div>
+              {outboundMessages.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No emails sent from Quick Actions yet.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {outboundMessages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 rounded-lg border border-border/60 bg-muted/20 px-3 py-2"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="secondary" className="uppercase text-[10px]">
+                            {OUTBOUND_MESSAGE_LABELS[msg.message_type] || msg.message_type}
+                          </Badge>
+                          <Badge
+                            variant={msg.status === "sent" ? "default" : "destructive"}
+                            className="uppercase text-[10px]"
+                          >
+                            {msg.status}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {format(new Date(msg.created_at), "dd MMM yyyy HH:mm")}
+                          </span>
+                        </div>
+                        <p className="text-sm font-medium truncate mt-0.5">{msg.subject}</p>
+                        <p className="text-xs text-muted-foreground truncate">{msg.recipient_email}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {msg.attachment_path && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="rounded-md text-xs"
+                            onClick={async () => {
+                              try {
+                                const url = await createSignedInvoiceUrl(msg.attachment_path!);
+                                window.open(url, "_blank", "noopener,noreferrer");
+                              } catch (error) {
+                                toast({
+                                  variant: "destructive",
+                                  title: "PDF unavailable",
+                                  description:
+                                    error instanceof Error
+                                      ? error.message
+                                      : "Could not open invoice PDF.",
+                                });
+                              }
+                            }}
+                          >
+                            PDF
+                          </Button>
+                        )}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="rounded-md text-xs"
+                          onClick={() => openHistorySheet(msg)}
+                        >
+                          Preview
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
+
+      {applicationId && application?.student_id && (
+        <MessagePreviewSheet
+          open={messageSheetOpen}
+          onOpenChange={setMessageSheetOpen}
+          mode={messageSheetMode}
+          kind={messageSheetKind}
+          applicationId={applicationId}
+          studentId={application.student_id}
+          recipientEmail={step2Data?.email || application.student?.email}
+          emailContext={{
+            applicationId,
+            studentName:
+              [step1Data?.first_name, step1Data?.last_name].filter(Boolean).join(" ") ||
+              [application.student?.first_name, application.student?.last_name]
+                .filter(Boolean)
+                .join(" ") ||
+              null,
+            studentEmail: step2Data?.email || application.student?.email || null,
+            studioNumber: application.assigned_studio?.studio_number || null,
+            contractStart: application.contract?.contract_start || null,
+            contractEnd: application.contract?.contract_end || null,
+            depositAmount:
+              (application.contract as { deposit_override?: number | null } | null)
+                ?.deposit_override ?? 99,
+            companyName: brandingSettings?.company_name || null,
+            portalUrl: typeof window !== "undefined" ? window.location.origin : null,
+          }}
+          unpaidInstallments={unpaidInstallments}
+          historyMessage={historyMessage}
+        />
+      )}
 
       {applicationId && (
         <ManualPaymentDialog
@@ -3207,68 +3276,6 @@ const ApplicationDetail = () => {
           paymentType={manualPaymentInitialType}
         />
       )}
-
-      {/* Installment Invoice Dialog */}
-      <Dialog open={installmentInvoiceDialogOpen} onOpenChange={setInstallmentInvoiceDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-display uppercase tracking-wide">
-              Send Installment Invoice
-            </DialogTitle>
-            <DialogDescription>
-              Choose which unpaid or partially paid installment to email an invoice for.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            {unpaidInstallments.length > 0 ? (
-              <div className="space-y-2">
-                <Label htmlFor="installment-select">Select installment</Label>
-                <Select
-                  value={selectedInvoiceInstallmentId}
-                  onValueChange={setSelectedInvoiceInstallmentId}
-                >
-                  <SelectTrigger id="installment-select">
-                    <SelectValue placeholder="Choose installment" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {unpaidInstallments.map((inst) => (
-                      <SelectItem key={inst.installment_id} value={inst.installment_id}>
-                        Instalment {inst.sequence} – £
-                        {Number(inst.amount_due).toFixed(2)} (Due:{" "}
-                        {new Date(inst.due_date).toLocaleDateString("en-GB")})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                There are no unpaid or partially paid installments for this application.
-              </p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setInstallmentInvoiceDialogOpen(false)}
-              className="rounded-md uppercase tracking-wide"
-            >
-              Cancel
-            </Button>
-            <Button
-              className="rounded-md uppercase tracking-wide"
-              onClick={handleSendInstallmentInvoice}
-              disabled={
-                sendingInstallmentInvoice ||
-                !selectedInvoiceInstallmentId ||
-                unpaidInstallments.length === 0
-              }
-            >
-              {sendingInstallmentInvoice ? "Sending..." : "Send Invoice"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Cashback Dialog */}
       <Dialog open={cashbackDialogOpen} onOpenChange={setCashbackDialogOpen}>

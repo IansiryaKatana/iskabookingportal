@@ -1,6 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import {
+  filterPaymentInstallmentsForReminders,
+  toPaymentRecipientPreviews,
+  type PaymentDueWithinDays,
+  type PaymentRecipientPreview,
+  type PaymentReminderStatus,
+} from "@/utils/paymentDueWindow";
+import type { UpcomingPaidInstallmentItem } from "@/hooks/useAccountingReports";
 
 type BulkMessage = Database["public"]["Tables"]["bulk_messages"]["Row"];
 
@@ -30,9 +38,13 @@ export type TargetedMessageFilters = {
   has_pending_documents?: boolean;
   has_rejected_documents?: boolean;
   
-  // Payment filters
+  // Payment filters (Accounting Upcoming parity)
+  payment_status?: PaymentReminderStatus;
+  payment_due_within_days?: PaymentDueWithinDays;
+  /** @deprecated Prefer payment_status === "overdue" */
   has_overdue_payments?: boolean;
-  payment_due_soon?: boolean; // within 7 days
+  /** @deprecated Prefer payment_status + payment_due_within_days */
+  payment_due_soon?: boolean;
   
   // Date filters
   application_created_after?: string;
@@ -42,6 +54,103 @@ export type TargetedMessageFilters = {
   
   // Filter combination logic
   filter_logic?: "AND" | "OR";
+};
+
+async function fetchAllUpcomingInstallments(): Promise<UpcomingPaidInstallmentItem[]> {
+  const pageSize = 1000;
+  let offset = 0;
+  const allRows: UpcomingPaidInstallmentItem[] = [];
+
+  while (true) {
+    const { data, error } = await supabase
+      .from("upcoming_and_paid_installments_report")
+      .select("*")
+      .order("due_date", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+
+    if (error) throw error;
+
+    const pageRows = (data || []) as UpcomingPaidInstallmentItem[];
+    allRows.push(...pageRows);
+    if (pageRows.length < pageSize) break;
+    offset += pageSize;
+  }
+
+  return allRows;
+}
+
+export const usePaymentReminderRecipientsPreview = (
+  filters: TargetedMessageFilters,
+  enabled: boolean,
+) => {
+  return useQuery({
+    queryKey: [
+      "payment-reminder-recipients-preview",
+      filters.payment_status,
+      filters.payment_due_within_days,
+      filters.academic_year_id,
+      filters.studio_grade_id,
+    ],
+    enabled: enabled && !!filters.payment_status,
+    queryFn: async (): Promise<PaymentRecipientPreview[]> => {
+      if (!filters.payment_status) return [];
+
+      const rows = await fetchAllUpcomingInstallments();
+      const academicYearId = filters.academic_year_id?.[0] ?? null;
+
+      let matched = filterPaymentInstallmentsForReminders(rows, {
+        paymentStatus: filters.payment_status,
+        dueWithinDays:
+          filters.payment_status === "upcoming"
+            ? filters.payment_due_within_days ?? null
+            : null,
+        academicYearId,
+      });
+
+      // Optional studio grade filter via grade name on the report row
+      // (report stores grade name; UI filter uses grade IDs — resolve via applications if needed)
+      if (filters.studio_grade_id && filters.studio_grade_id.length > 0) {
+        const gradeIds = filters.studio_grade_id;
+        const studentIds = [...new Set(matched.map((r) => r.student_id))];
+        if (studentIds.length === 0) return [];
+
+        const { data: apps } = await supabase
+          .from("student_applications")
+          .select("student_id, studio_grade_id, assigned_studio_id")
+          .in("student_id", studentIds);
+
+        const matchingStudentIds = new Set<string>();
+        for (const app of apps || []) {
+          if (app.studio_grade_id && gradeIds.includes(app.studio_grade_id)) {
+            matchingStudentIds.add(app.student_id);
+          }
+        }
+
+        // Also check via assigned studio when studio_grade_id is null on application
+        const needsStudioLookup = (apps || []).filter(
+          (a) => !a.studio_grade_id && a.assigned_studio_id && !matchingStudentIds.has(a.student_id),
+        );
+        if (needsStudioLookup.length > 0) {
+          const studioIds = needsStudioLookup.map((a) => a.assigned_studio_id!).filter(Boolean);
+          const { data: studios } = await supabase
+            .from("studios")
+            .select("id, studio_grade_id")
+            .in("id", studioIds)
+            .in("studio_grade_id", gradeIds);
+          const matchingStudios = new Set((studios || []).map((s) => s.id));
+          for (const app of needsStudioLookup) {
+            if (app.assigned_studio_id && matchingStudios.has(app.assigned_studio_id)) {
+              matchingStudentIds.add(app.student_id);
+            }
+          }
+        }
+
+        matched = matched.filter((r) => matchingStudentIds.has(r.student_id));
+      }
+
+      return toPaymentRecipientPreviews(matched);
+    },
+  });
 };
 
 export const useTargetedMessages = () => {
