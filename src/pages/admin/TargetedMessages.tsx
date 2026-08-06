@@ -28,6 +28,8 @@ import {
   useSendTargetedMessage,
   useBulkDeleteTargetedMessages,
   usePaymentReminderRecipientsPreview,
+  useRetryTargetedMessage,
+  canRetryTargetedMessage,
   type TargetedMessageFilters,
 } from "@/hooks/useTargetedMessages";
 import { useEmailTemplates } from "@/hooks/useEmailTemplates";
@@ -36,8 +38,11 @@ import { useStudents } from "@/hooks/useStudents";
 import { useAdminStudioGrades } from "@/hooks/useAdminStudioGrades";
 import { useAdminAcademicYears } from "@/hooks/useAdminAcademicYears";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { formatGbpAmount, formatDueDateForEmail, type PaymentDueWithinDays } from "@/utils/paymentDueWindow";
-import { Plus, Send, Mail, Users, Eye, X, Search, Filter, Trash2 } from "lucide-react";
+import { Plus, Send, Mail, Users, Eye, X, Search, Filter, Trash2, RefreshCw } from "lucide-react";
+
+type BulkMessage = Database["public"]["Tables"]["bulk_messages"]["Row"];
 import {
   Sheet,
   SheetContent,
@@ -63,6 +68,7 @@ const TargetedMessages = () => {
   const { data: messages, isLoading } = useTargetedMessages();
   const { data: templates } = useEmailTemplates();
   const sendMessage = useSendTargetedMessage();
+  const retryMessage = useRetryTargetedMessage();
   const bulkDeleteMessages = useBulkDeleteTargetedMessages();
   const sendTestEmail = useSendTestEmail();
   const { data: students } = useStudents();
@@ -72,6 +78,8 @@ const TargetedMessages = () => {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyMessage, setHistoryMessage] = useState<BulkMessage | null>(null);
   const [testEmails, setTestEmails] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
@@ -108,6 +116,11 @@ const TargetedMessages = () => {
     if (!formData.email_template_id || !templates) return null;
     return templates.find((t) => t.id === formData.email_template_id && t.is_active);
   }, [formData.email_template_id, templates]);
+
+  const historyEmailTemplate = useMemo(() => {
+    if (!historyMessage?.email_template_id || !templates) return null;
+    return templates.find((t) => t.id === historyMessage.email_template_id) ?? null;
+  }, [historyMessage, templates]);
 
   useEffect(() => {
     if (!dialogOpen) return;
@@ -177,33 +190,29 @@ const TargetedMessages = () => {
     return students.filter((s) => selectedStudentIds.includes(s.student_id));
   }, [students, selectedStudentIds]);
 
+  const humanizeTemplatePlaceholders = (text: string) =>
+    text.replace(/\{([^}]+)\}/g, (_match, varName: string) =>
+      varName === "student_name" ? "Student" : varName.replace(/_/g, " "),
+    );
+
   const handleTemplateChange = (templateId: string) => {
     const template = templates?.find((t) => t.id === templateId);
     if (template) {
       let plainText = "";
       if (template.body_text) {
-        plainText = template.body_text.replace(/{[^}]+}/g, (match) => {
-          const varName = match.replace(/[{}]/g);
-          return varName === "student_name" ? "Student" : varName.replace(/_/g, " ");
-        }).substring(0, 200);
+        plainText = humanizeTemplatePlaceholders(template.body_text).substring(0, 200);
       } else if (template.body_html) {
         const tempDiv = document.createElement("div");
         tempDiv.innerHTML = template.body_html;
         plainText = tempDiv.textContent || tempDiv.innerText || "";
-        plainText = plainText.replace(/{[^}]+}/g, (match) => {
-          const varName = match.replace(/[{}]/g);
-          return varName === "student_name" ? "Student" : varName.replace(/_/g, " ");
-        });
+        plainText = humanizeTemplatePlaceholders(plainText);
         plainText = plainText.replace(/\s+/g, " ").trim().substring(0, 200);
       }
       
       setFormData({
         ...formData,
         email_template_id: templateId,
-        title: formData.title || template.subject.replace(/{[^}]+}/g, (match) => {
-          const varName = match.replace(/[{}]/g);
-          return varName === "student_name" ? "Student" : varName.replace(/_/g, " ");
-        }),
+        title: formData.title || humanizeTemplatePlaceholders(template.subject),
         message: formData.message || plainText,
       });
     } else {
@@ -422,6 +431,35 @@ const TargetedMessages = () => {
     }
   };
 
+  const openHistoryPreview = (message: BulkMessage) => {
+    setHistoryMessage(message);
+    setHistoryOpen(true);
+  };
+
+  const handleRetry = async (message: BulkMessage) => {
+    try {
+      const result = await retryMessage.mutateAsync(message);
+      toast({
+        title: "Retry complete",
+        description: result.skipNotifications
+          ? "Emails re-sent. Refresh if the recipient count looks stale."
+          : "Notifications and emails re-sent.",
+      });
+      setHistoryMessage(null);
+      setHistoryOpen(false);
+    } catch (error) {
+      console.error("Retry failed:", error);
+      const msg = error instanceof Error ? error.message : String(error);
+      toast({
+        title: "Retry failed",
+        description: msg.includes("504") || msg.includes("non-2xx")
+          ? "The send timed out. Hard-refresh and try Retry emails again — batching is now enabled."
+          : "Could not re-send this campaign. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (isLoading && !messages) {
     return (
       <AdminLayout pageTitle="Targeted Messages" subtitle="Send messages to specific students">
@@ -485,21 +523,24 @@ const TargetedMessages = () => {
                 </div>
               )}
               <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="w-12">
+                <TableHeader className="bg-muted">
+                  <TableRow className="hover:bg-muted border-b-border/80">
+                    <TableHead className="w-12 bg-muted">
                       <Checkbox
                         checked={allSelected ? true : someSelected ? "indeterminate" : false}
                         onCheckedChange={toggleSelectAll}
                         aria-label="Select all messages"
                       />
                     </TableHead>
-                    <TableHead className="uppercase tracking-wide text-xs">Title</TableHead>
-                    <TableHead className="uppercase tracking-wide text-xs">Status</TableHead>
-                    <TableHead className="uppercase tracking-wide text-xs text-right">Recipients</TableHead>
-                    <TableHead className="uppercase tracking-wide text-xs text-right">Notifications</TableHead>
-                    <TableHead className="uppercase tracking-wide text-xs text-right">Emails</TableHead>
-                    <TableHead className="uppercase tracking-wide text-xs">Sent</TableHead>
+                    <TableHead className="uppercase tracking-wide text-xs bg-muted">Title</TableHead>
+                    <TableHead className="uppercase tracking-wide text-xs bg-muted">Status</TableHead>
+                    <TableHead className="uppercase tracking-wide text-xs text-right bg-muted">
+                      Recipients
+                    </TableHead>
+                    <TableHead className="uppercase tracking-wide text-xs text-right bg-muted">
+                      Notifications
+                    </TableHead>
+                    <TableHead className="uppercase tracking-wide text-xs bg-muted">Sent</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -507,8 +548,10 @@ const TargetedMessages = () => {
                     <TableRow
                       key={message.id}
                       data-state={selectedIds.includes(message.id) ? "selected" : undefined}
+                      className="cursor-pointer"
+                      onClick={() => openHistoryPreview(message)}
                     >
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <Checkbox
                           checked={selectedIds.includes(message.id)}
                           onCheckedChange={() => toggleSelection(message.id)}
@@ -519,7 +562,7 @@ const TargetedMessages = () => {
                         <div className="flex items-center gap-2">
                           <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                           <div className="min-w-0">
-                            <p className="font-display uppercase tracking-wide truncate">
+                            <p className="font-sans font-medium truncate">
                               {message.title}
                             </p>
                             <p className="text-xs text-muted-foreground truncate">
@@ -529,9 +572,10 @@ const TargetedMessages = () => {
                         </div>
                       </TableCell>
                       <TableCell>{getStatusBadge(message.status)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{message.total_recipients}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {message.emails_sent ?? 0}/{message.total_recipients ?? 0}
+                      </TableCell>
                       <TableCell className="text-right tabular-nums">{message.notifications_sent}</TableCell>
-                      <TableCell className="text-right tabular-nums">{message.emails_sent}</TableCell>
                       <TableCell className="whitespace-nowrap text-muted-foreground">
                         {message.created_at
                           ? format(new Date(message.created_at), "d MMM yyyy HH:mm")
@@ -546,10 +590,14 @@ const TargetedMessages = () => {
             {/* Mobile & tablet: card layout */}
             <div className="space-y-4 lg:hidden">
               {messageList.map((message) => (
-                <Card key={message.id} className="rounded-3xl">
+                <Card
+                  key={message.id}
+                  className="rounded-3xl cursor-pointer hover:bg-muted/40 transition-colors"
+                  onClick={() => openHistoryPreview(message)}
+                >
                   <CardHeader>
                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
-                      <CardTitle className="text-lg font-display uppercase tracking-wide flex items-center gap-2 flex-1">
+                      <CardTitle className="text-lg font-sans font-medium flex items-center gap-2 flex-1">
                         <Mail className="h-4 w-4 flex-shrink-0" />
                         <span className="break-words">{message.title}</span>
                       </CardTitle>
@@ -560,21 +608,17 @@ const TargetedMessages = () => {
                   </CardHeader>
                   <CardContent className="pt-0">
                     <p className="text-sm text-muted-foreground mb-4 break-words">{message.message}</p>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                       <div>
                         <p className="text-muted-foreground">Recipients</p>
-                        <p className="font-medium flex items-center gap-1">
+                        <p className="font-medium flex items-center gap-1 tabular-nums">
                           <Users className="h-4 w-4" />
-                          {message.total_recipients}
+                          {message.emails_sent ?? 0}/{message.total_recipients ?? 0}
                         </p>
                       </div>
                       <div>
                         <p className="text-muted-foreground">Notifications</p>
                         <p className="font-medium">{message.notifications_sent}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Emails</p>
-                        <p className="font-medium">{message.emails_sent}</p>
                       </div>
                       <div>
                         <p className="text-muted-foreground">Sent</p>
@@ -1129,6 +1173,147 @@ const TargetedMessages = () => {
               Close
             </Button>
           </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet
+        open={historyOpen}
+        onOpenChange={(open) => {
+          setHistoryOpen(open);
+          if (!open) setHistoryMessage(null);
+        }}
+      >
+        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="font-sans font-medium flex items-center gap-2">
+              <Eye className="h-5 w-5" />
+              Sent message
+            </SheetTitle>
+            <SheetDescription>
+              Campaign details and the email template that was used.
+            </SheetDescription>
+          </SheetHeader>
+
+          {historyMessage && (
+            <div className="mt-4 space-y-6">
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {getStatusBadge(historyMessage.status)}
+                  {canRetryTargetedMessage(historyMessage) && (
+                    <Badge className="rounded-md bg-amber-500 hover:bg-amber-600 text-white uppercase text-xs">
+                      Incomplete emails
+                    </Badge>
+                  )}
+                </div>
+                <p className="font-sans font-medium text-base">{historyMessage.title}</p>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                  {historyMessage.message}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+                <div className="rounded-md border p-3">
+                  <p className="text-muted-foreground text-xs uppercase tracking-wide">Recipients</p>
+                  <p className="font-medium tabular-nums mt-1">
+                    {historyMessage.emails_sent ?? 0}/{historyMessage.total_recipients ?? 0}
+                  </p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-muted-foreground text-xs uppercase tracking-wide">Notifications</p>
+                  <p className="font-medium tabular-nums mt-1">{historyMessage.notifications_sent}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-muted-foreground text-xs uppercase tracking-wide">Sent</p>
+                  <p className="font-medium mt-1">
+                    {historyMessage.created_at
+                      ? format(new Date(historyMessage.created_at), "d MMM yyyy HH:mm")
+                      : "—"}
+                  </p>
+                </div>
+              </div>
+
+              {(() => {
+                const f = (historyMessage.filters || {}) as Record<string, unknown>;
+                const bits: string[] = [];
+                if (f.payment_status === "upcoming") {
+                  bits.push(
+                    `Upcoming · next ${f.payment_due_within_days ?? "—"} days`,
+                  );
+                } else if (f.payment_status === "overdue") {
+                  bits.push("Overdue payments");
+                }
+                if (Array.isArray(f.application_status) && f.application_status.length) {
+                  bits.push(`Status: ${(f.application_status as string[]).join(", ")}`);
+                }
+                if (!bits.length) return null;
+                return (
+                  <div className="rounded-md border p-3 text-sm">
+                    <p className="text-muted-foreground text-xs uppercase tracking-wide mb-1">
+                      Filters
+                    </p>
+                    <p className="font-medium">{bits.join(" · ")}</p>
+                  </div>
+                );
+              })()}
+
+              <div className="space-y-2">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Email template
+                </p>
+                {historyEmailTemplate ? (
+                  <>
+                    <p className="text-sm font-medium">{historyEmailTemplate.subject}</p>
+                    <div className="rounded-lg border overflow-hidden bg-white">
+                      <iframe
+                        title="Sent template preview"
+                        sandbox=""
+                        srcDoc={
+                          historyEmailTemplate.body_html ||
+                          `<pre style="font-family:sans-serif;white-space:pre-wrap;padding:16px">${
+                            historyEmailTemplate.body_text || ""
+                          }</pre>`
+                        }
+                        className="w-full h-[420px] bg-white"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Preview shows the template; student variables were filled per recipient when sent.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    {historyMessage.email_template_id
+                      ? "Template no longer available."
+                      : "No email template was attached to this campaign."}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setHistoryOpen(false)}
+                  className="rounded-md text-sm font-medium"
+                >
+                  Close
+                </Button>
+                {canRetryTargetedMessage(historyMessage) && (
+                  <Button
+                    onClick={() => handleRetry(historyMessage)}
+                    disabled={retryMessage.isPending}
+                    className="rounded-md text-sm font-medium gap-2"
+                  >
+                    <RefreshCw className={cn("h-4 w-4", retryMessage.isPending && "animate-spin")} />
+                    {retryMessage.isPending
+                      ? "Retrying…"
+                      : (historyMessage.notifications_sent ?? 0) > 0
+                        ? "Retry emails"
+                        : "Retry send"}
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
         </SheetContent>
       </Sheet>
 

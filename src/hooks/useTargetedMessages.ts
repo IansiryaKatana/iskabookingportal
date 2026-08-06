@@ -266,3 +266,59 @@ export const useBulkDeleteTargetedMessages = () => {
   });
 };
 
+/** True when emails never finished for a campaign that still has a template. */
+export function canRetryTargetedMessage(message: BulkMessage): boolean {
+  if (!message.email_template_id) return false;
+  if (message.status === "failed" || message.status === "pending") return true;
+  if (message.status === "completed") {
+    return (message.emails_sent ?? 0) < (message.total_recipients ?? 0);
+  }
+  return false;
+}
+
+export const useRetryTargetedMessage = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (message: BulkMessage) => {
+      const filters = (message.filters || {}) as Record<string, unknown>;
+      const skipNotifications = (message.notifications_sent ?? 0) > 0;
+
+      await supabase
+        .from("bulk_messages")
+        .update({ status: "pending" })
+        .eq("id", message.id);
+
+      const { data: result, error: functionError } = await supabase.functions.invoke(
+        "send-bulk-message",
+        {
+          body: {
+            mode: "targeted",
+            bulk_message_id: message.id,
+            title: message.title,
+            message: message.message,
+            notification_type: message.notification_type || "info",
+            email_template_id: message.email_template_id,
+            filters,
+            skip_notifications: skipNotifications,
+          },
+        },
+      );
+
+      if (functionError) {
+        await supabase
+          .from("bulk_messages")
+          .update({ status: "failed" })
+          .eq("id", message.id);
+        throw functionError;
+      }
+
+      return { message, result, skipNotifications };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["targeted-messages"] });
+      queryClient.invalidateQueries({ queryKey: ["bulk-messages"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+};
+

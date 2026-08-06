@@ -159,22 +159,21 @@ const BulkMessages = () => {
       // Auto-populate title and message from template
       // Extract plain text from HTML for notification message - better extraction
       let plainText = "";
+      const humanizeTemplatePlaceholders = (text: string) =>
+        text.replace(/\{([^}]+)\}/g, (_match, varName: string) =>
+          varName === "student_name" ? "Student" : varName.replace(/_/g, " "),
+        );
+
       if (template.body_text) {
         // Use body_text if available (cleaner)
-        plainText = template.body_text.replace(/{[^}]+}/g, (match) => {
-          const varName = match.replace(/[{}]/g);
-          return varName === "student_name" ? "Student" : varName.replace(/_/g, " ");
-        }).substring(0, 200);
+        plainText = humanizeTemplatePlaceholders(template.body_text).substring(0, 200);
       } else if (template.body_html) {
         // Extract from HTML - remove all HTML tags and clean up
         const tempDiv = document.createElement("div");
         tempDiv.innerHTML = template.body_html;
         plainText = tempDiv.textContent || tempDiv.innerText || "";
         // Replace variables with readable placeholders
-        plainText = plainText.replace(/{[^}]+}/g, (match) => {
-          const varName = match.replace(/[{}]/g);
-          return varName === "student_name" ? "Student" : varName.replace(/_/g, " ");
-        });
+        plainText = humanizeTemplatePlaceholders(plainText);
         // Clean up whitespace
         plainText = plainText.replace(/\s+/g, " ").trim().substring(0, 200);
       }
@@ -182,10 +181,7 @@ const BulkMessages = () => {
       setFormData({
         ...formData,
         email_template_id: templateId,
-        title: formData.title || template.subject.replace(/{[^}]+}/g, (match) => {
-          const varName = match.replace(/[{}]/g);
-          return varName === "student_name" ? "Student" : varName.replace(/_/g, " ");
-        }),
+        title: formData.title || humanizeTemplatePlaceholders(template.subject),
         message: formData.message || plainText,
       });
     } else {

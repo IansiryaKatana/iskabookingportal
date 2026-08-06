@@ -46,6 +46,7 @@ serve(async (req) => {
       notification_type = "info",
       email_template_id,
       filters = {},
+      skip_notifications = false,
     } = requestBody;
 
     if (!bulk_message_id || !title || !message) {
@@ -445,6 +446,17 @@ serve(async (req) => {
     let notificationsSent = 0;
     let emailsSent = 0;
 
+    // Preserve existing counts when retrying emails only
+    const { data: existingMessage } = await supabaseClient
+      .from("bulk_messages")
+      .select("notifications_sent, emails_sent")
+      .eq("id", bulk_message_id)
+      .maybeSingle();
+    if (skip_notifications) {
+      notificationsSent = existingMessage?.notifications_sent || 0;
+      console.log(`Skipping notifications (retry emails only). Keeping notifications_sent=${notificationsSent}`);
+    }
+
     // Fetch email template if provided
     let emailTemplate = null;
     if (email_template_id) {
@@ -460,68 +472,107 @@ serve(async (req) => {
       }
     }
 
-    // Create notifications for all students
-    // First, try to determine which schema is in use by checking table structure
-    // We'll try the new schema first (with type and is_read)
-    const notifications = studentIds.map((studentId) => ({
-      user_id: studentId,
-      title,
-      message,
-      type: notification_type,
-      is_read: false,
-      link: null,
-      metadata: email_template_id ? {
-        bulk_message_id,
-        email_template_id,
-      } : { bulk_message_id },
-    }));
-
-    let { error: notifError, data: insertedNotifications } = await supabaseClient
-      .from("notifications")
-      .insert(notifications)
-      .select();
-
-    // If that fails, try old schema format (notification_type instead of type)
-    if (notifError) {
-      console.error("Error creating notifications with new schema:", notifError);
-      console.error("Trying old schema format...");
-      
-      const oldFormatNotifications = studentIds.map((studentId) => ({
+    if (!skip_notifications) {
+      // Create notifications for all students
+      // First, try to determine which schema is in use by checking table structure
+      // We'll try the new schema first (with type and is_read)
+      const notifications = studentIds.map((studentId) => ({
         user_id: studentId,
-        title: title || "",
-        message: message || "",
-        notification_type: notification_type,
+        title,
+        message,
+        type: notification_type,
+        is_read: false,
+        link: null,
         metadata: email_template_id ? {
           bulk_message_id,
           email_template_id,
         } : { bulk_message_id },
       }));
-      
-      const oldResult = await supabaseClient
+
+      let { error: notifError, data: insertedNotifications } = await supabaseClient
         .from("notifications")
-        .insert(oldFormatNotifications)
+        .insert(notifications)
         .select();
+
+      // If that fails, try old schema format (notification_type instead of type)
+      if (notifError) {
+        console.error("Error creating notifications with new schema:", notifError);
+        console.error("Trying old schema format...");
         
-      if (oldResult.error) {
-        console.error("Error creating notifications with old format:", oldResult.error);
-        console.error("Full error:", JSON.stringify(oldResult.error, null, 2));
-        // Don't throw - we'll still update the bulk message status
+        const oldFormatNotifications = studentIds.map((studentId) => ({
+          user_id: studentId,
+          title: title || "",
+          message: message || "",
+          notification_type: notification_type,
+          metadata: email_template_id ? {
+            bulk_message_id,
+            email_template_id,
+          } : { bulk_message_id },
+        }));
+        
+        const oldResult = await supabaseClient
+          .from("notifications")
+          .insert(oldFormatNotifications)
+          .select();
+          
+        if (oldResult.error) {
+          console.error("Error creating notifications with old format:", oldResult.error);
+          console.error("Full error:", JSON.stringify(oldResult.error, null, 2));
+          // Don't throw - we'll still update the bulk message status
+        } else {
+          notificationsSent = oldResult.data?.length || oldFormatNotifications.length;
+          console.log(`Successfully created ${notificationsSent} notifications using old schema format`);
+          notifError = null; // Clear error since old format worked
+        }
       } else {
-        notificationsSent = oldResult.data?.length || oldFormatNotifications.length;
-        console.log(`Successfully created ${notificationsSent} notifications using old schema format`);
-        notifError = null; // Clear error since old format worked
+        notificationsSent = insertedNotifications?.length || notifications.length;
+        console.log(`Successfully created ${notificationsSent} notifications using new schema format`);
       }
-    } else {
-      notificationsSent = insertedNotifications?.length || notifications.length;
-      console.log(`Successfully created ${notificationsSent} notifications using new schema format`);
     }
 
     // Send emails if template is provided
     if (emailTemplate) {
-      // Fetch user emails and student data
-      const { data: { users }, error: usersError } = await supabaseClient.auth.admin.listUsers();
+      // Fetch user emails (paginate — listUsers defaults to 50 and silently truncates)
+      const users: { id: string; email?: string }[] = [];
+      let usersError: Error | null = null;
+      {
+        let page = 1;
+        const perPage = 1000;
+        let hasMore = true;
+        while (hasMore) {
+          const { data: usersData, error: pageError } = await supabaseClient.auth.admin.listUsers({
+            page,
+            perPage,
+          });
+          if (pageError) {
+            usersError = pageError;
+            break;
+          }
+          const pageUsers = usersData?.users || [];
+          users.push(...pageUsers);
+          const foundIds = new Set(users.map((u) => u.id));
+          const allFound = studentIds.every((id) => foundIds.has(id));
+          if (allFound || pageUsers.length < perPage) {
+            hasMore = false;
+          } else {
+            page += 1;
+          }
+        }
+        // Fallback for any student IDs still missing from list pages
+        const missingIds = studentIds.filter((id) => !users.some((u) => u.id === id));
+        for (const userId of missingIds) {
+          try {
+            const { data, error } = await supabaseClient.auth.admin.getUserById(userId);
+            if (!error && data?.user) {
+              users.push(data.user);
+            }
+          } catch (err) {
+            console.warn(`Could not fetch auth user ${userId}:`, err);
+          }
+        }
+      }
 
-      if (!usersError && users) {
+      if (!usersError && users.length > 0) {
         // Get branding settings (company name)
         const { data: brandingSettings } = await supabaseClient
           .from("branding_settings")
@@ -695,155 +746,125 @@ serve(async (req) => {
             return result;
           };
 
-          // Helper function to delay execution (for rate limiting)
-          const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+          // Batch via Resend /emails/batch (up to 100 per request) to avoid gateway 504s
+          const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+          const BATCH_SIZE = 100;
+          const BATCH_GAP_MS = 150;
+          const userById = new Map(users.map((u) => [u.id, u]));
+          const formattedFromEmail = fromEmail.includes("<")
+            ? fromEmail
+            : `${companyName} <${fromEmail}>`;
+          const logoUrl = `${portalBaseUrl}/storage/v1/object/public/studio-media/favicon.png`;
 
-          // Helper function to send email with retry logic for rate limiting
-          const sendEmailWithRetry = async (
-            emailPayload: any,
-            userEmail: string,
-            maxRetries: number = 3
-          ): Promise<boolean> => {
-            for (let attempt = 0; attempt < maxRetries; attempt++) {
-              try {
-                const resendResponse = await fetch("https://api.resend.com/emails", {
-                  method: "POST",
-                  headers: {
-                    "Authorization": `Bearer ${resendApiKey}`,
-                    "Content-Type": "application/json",
-                  },
-                  body: JSON.stringify(emailPayload),
-                });
-
-                const responseText = await resendResponse.text();
-                
-                // Check if response is HTML (error page) instead of JSON
-                if (responseText.trim().startsWith("<!DOCTYPE") || responseText.trim().startsWith("<html")) {
-                  console.error(`✗ Resend API returned HTML instead of JSON for ${userEmail}`);
-                  console.error(`Response preview: ${responseText.substring(0, 1000)}`);
-                  return false;
-                }
-
-                if (resendResponse.ok) {
-                  try {
-                    const responseData = JSON.parse(responseText);
-                    console.log(`✓ Email sent successfully to ${userEmail} (ID: ${responseData.id || "N/A"})`);
-                    return true;
-                  } catch (parseError) {
-                    console.error(`✗ Error parsing response for ${userEmail}:`, parseError);
-                    return false;
-                  }
-                } else {
-                  try {
-                    const errorData = JSON.parse(responseText);
-                    
-                    // Handle rate limiting (429) with exponential backoff
-                    if (resendResponse.status === 429) {
-                      const retryAfter = resendResponse.headers.get("retry-after");
-                      const waitTime = retryAfter 
-                        ? parseInt(retryAfter) * 1000 
-                        : Math.min(1000 * Math.pow(2, attempt), 10000); // Exponential backoff, max 10s
-                      
-                      console.warn(`⚠ Rate limit hit for ${userEmail}. Waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
-                      await delay(waitTime);
-                      continue; // Retry
-                    }
-                    
-                    // For other errors, log and return false
-                    console.error(`✗ Resend API error for ${userEmail}:`, JSON.stringify(errorData, null, 2));
-                    console.error(`Response status: ${resendResponse.status}`);
-                    return false;
-                  } catch (parseError) {
-                    console.error(`✗ Error parsing error response for ${userEmail}:`, parseError);
-                    return false;
-                  }
-                }
-              } catch (fetchError) {
-                console.error(`✗ Network error sending email to ${userEmail} (attempt ${attempt + 1}):`, fetchError);
-                if (attempt < maxRetries - 1) {
-                  await delay(1000 * Math.pow(2, attempt)); // Exponential backoff
-                }
-              }
-            }
-            return false; // All retries failed
+          type BatchEmailPayload = {
+            from: string;
+            to: string[];
+            subject: string;
+            html: string;
+            text: string;
           };
 
-          // Send personalized emails to each student with rate limiting
-          // Resend allows 2 requests per second, so we'll send at max 1.5 per second (650ms delay) to be safe
-          const RATE_LIMIT_DELAY_MS = 650; // Slightly less than 500ms to account for processing time
-          
-          console.log(`Starting to send ${studentIds.length} emails with rate limiting (${RATE_LIMIT_DELAY_MS}ms delay between emails)`);
-          
-          for (let i = 0; i < studentIds.length; i++) {
-            const studentId = studentIds[i];
-            const user = users.find((u) => u.id === studentId);
+          const payloads: BatchEmailPayload[] = [];
+          for (const studentId of studentIds) {
+            const user = userById.get(studentId);
             if (!user?.email) {
               console.log(`Skipping student ${studentId} - no email found`);
               continue;
             }
-
             try {
-              // Replace variables for this specific student
               const emailSubject = replaceVariables(emailTemplate.subject, studentId);
               let emailBodyHtml = replaceVariables(
                 emailTemplate.body_html || emailTemplate.body_text || "",
-                studentId
+                studentId,
               );
-              
-              // Debug logging for first email (to verify company_name replacement)
-              if (i === 0) {
-                console.log("=== EMAIL TEMPLATE REPLACEMENT (First Email) ===");
-                console.log("Company name value:", companyName);
-                console.log("Company name type:", typeof companyName);
-                console.log("Template subject (before):", emailTemplate.subject);
-                console.log("Template subject (after):", emailSubject);
-                console.log("Template body_html contains {company_name}:", (emailTemplate.body_html || "").includes("{company_name}"));
-                console.log("Template body_html contains {COMPANY_NAME}:", (emailTemplate.body_html || "").includes("{COMPANY_NAME}"));
-                console.log("Replaced body_html contains {company_name}:", emailBodyHtml.includes("{company_name}"));
-                console.log("Replaced body_html contains {COMPANY_NAME}:", emailBodyHtml.includes("{COMPANY_NAME}"));
-                console.log("=== END REPLACEMENT ===");
-              }
-              
-              // Replace logo URL placeholder with actual logo URL
-              const baseUrl = portalBaseUrl;
-              const logoUrl = `${baseUrl}/storage/v1/object/public/studio-media/favicon.png`;
               emailBodyHtml = emailBodyHtml.replace(/{logo_url}/gi, logoUrl);
-              
               const emailBodyText = replaceVariables(
-                emailTemplate.body_text || emailTemplate.body_html?.replace(/<[^>]*>/g, "") || "",
-                studentId
+                emailTemplate.body_text ||
+                  emailTemplate.body_html?.replace(/<[^>]*>/g, "") ||
+                  "",
+                studentId,
               );
-
-              // Format from email properly
-              const formattedFromEmail = fromEmail.includes("<") ? fromEmail : `${companyName} <${fromEmail}>`;
-              
-              // Prepare email payload
-              const emailPayload = {
+              payloads.push({
                 from: formattedFromEmail,
-                to: user.email,
+                to: [user.email],
                 subject: emailSubject,
                 html: emailBodyHtml,
                 text: emailBodyText,
-              };
-              
-              // Send email with retry logic
-              const success = await sendEmailWithRetry(emailPayload, user.email);
-              
-              if (success) {
-                emailsSent++;
-                // Log progress every 10 emails
-                if (emailsSent % 10 === 0) {
-                  console.log(`Progress: Sent ${emailsSent}/${studentIds.length} emails (${Math.round(emailsSent / studentIds.length * 100)}%)`);
+              });
+            } catch (emailError) {
+              console.error(
+                `✗ Exception building email for student ${studentId} (${user.email}):`,
+                emailError,
+              );
+            }
+          }
+
+          console.log(
+            `Starting batch send of ${payloads.length}/${studentIds.length} emails (batch size ${BATCH_SIZE})`,
+          );
+
+          const sendBatchWithRetry = async (
+            batch: BatchEmailPayload[],
+            maxRetries = 3,
+          ): Promise<number> => {
+            for (let attempt = 0; attempt < maxRetries; attempt++) {
+              try {
+                const resendResponse = await fetch("https://api.resend.com/emails/batch", {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${resendApiKey}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify(batch),
+                });
+                const responseText = await resendResponse.text();
+                if (resendResponse.status === 429) {
+                  const retryAfter = resendResponse.headers.get("retry-after");
+                  const waitTime = retryAfter
+                    ? parseInt(retryAfter, 10) * 1000
+                    : Math.min(1000 * Math.pow(2, attempt), 10000);
+                  console.warn(
+                    `⚠ Batch rate limited. Waiting ${waitTime}ms (attempt ${attempt + 1}/${maxRetries})`,
+                  );
+                  await delay(waitTime);
+                  continue;
+                }
+                if (!resendResponse.ok) {
+                  console.error(
+                    `✗ Resend batch error (${resendResponse.status}):`,
+                    responseText.slice(0, 1000),
+                  );
+                  return 0;
+                }
+                try {
+                  const responseData = JSON.parse(responseText);
+                  const sentCount = Array.isArray(responseData?.data)
+                    ? responseData.data.length
+                    : batch.length;
+                  console.log(`✓ Batch sent ${sentCount} emails`);
+                  return sentCount;
+                } catch {
+                  console.log(`✓ Batch accepted (${batch.length} emails)`);
+                  return batch.length;
+                }
+              } catch (fetchError) {
+                console.error(
+                  `✗ Network error on batch send (attempt ${attempt + 1}):`,
+                  fetchError,
+                );
+                if (attempt < maxRetries - 1) {
+                  await delay(1000 * Math.pow(2, attempt));
                 }
               }
-              
-              // Rate limiting: Wait before sending next email (except for the last one)
-              if (i < studentIds.length - 1) {
-                await delay(RATE_LIMIT_DELAY_MS);
-              }
-              
-            } catch (emailError) {
-              console.error(`✗ Exception sending email to student ${studentId} (${user.email}):`, emailError);
+            }
+            return 0;
+          };
+
+          for (let offset = 0; offset < payloads.length; offset += BATCH_SIZE) {
+            const batch = payloads.slice(offset, offset + BATCH_SIZE);
+            emailsSent += await sendBatchWithRetry(batch);
+            if (offset + BATCH_SIZE < payloads.length) {
+              await delay(BATCH_GAP_MS);
             }
           }
 
