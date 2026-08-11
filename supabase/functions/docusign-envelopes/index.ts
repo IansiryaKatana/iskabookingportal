@@ -1440,7 +1440,8 @@ serve(async (req) => {
       })),
     });
 
-    // Tenancy contract: Tenant signs (1), Witness views (2 - optional), Guarantor signs (2 or 3 depending on witness)
+    // Tenancy contract: Tenant signs (1). Witness (optional) and Guarantor share
+    // routing order 2 so a missing/bounced witness never blocks the guarantor.
     const tenancyRecipients = [
       {
         roleName: tenancyStudentRole,
@@ -1459,9 +1460,9 @@ serve(async (req) => {
       },
     ];
 
-    // Optionally add witness as viewer (routing order 2) - only if details provided
+    // Optionally add witness as a non-blocking viewer (same routing order as guarantor)
     const hasWitness = witness.name.trim() && witness.email.trim();
-    let nextRoutingOrder = 2;
+    const postTenantRoutingOrder = "2";
 
     if (hasWitness && !isValidEmail(witness.email)) {
       return new Response(
@@ -1480,13 +1481,12 @@ serve(async (req) => {
         roleName: tenancyWitnessRole,
         name: witness.name,
         email: witness.email,
-        routingOrder: String(nextRoutingOrder),
+        routingOrder: postTenantRoutingOrder,
         // Witness is a viewer, not a signer - DocuSign will handle this based on template role settings
       });
-      nextRoutingOrder = 3;
     }
 
-    // If guarantor is required, add them as a signer (routing order 2 or 3 depending on witness)
+    // Guarantor signs in parallel with witness (never waits on witness completion)
     let existingGuarantorEnvelopeId: string | null = null;
 
     if (requiresGuarantor) {
@@ -1518,7 +1518,7 @@ serve(async (req) => {
         roleName: tenancyGuarantorRole,
         name: guarantor.name,
         email: guarantor.email,
-        routingOrder: String(nextRoutingOrder),
+        routingOrder: postTenantRoutingOrder,
       });
     }
 

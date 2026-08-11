@@ -14,18 +14,18 @@ export type GradeWithPricing = StudioGrade & {
 
 const fetchActiveAcademicYear = async (academicYearId?: string): Promise<AcademicYear | null> => {
   if (academicYearId) {
+    // Resolve by ID even if archived — admins still need to view that year's data
     const { data, error } = await supabase
       .from("academic_years")
       .select("*")
       .eq("id", academicYearId)
-      .eq("is_active", true)
       .maybeSingle();
 
     if (error) throw error;
     return data ?? null;
   }
 
-  // If no ID provided, get most recent future year
+  // If no ID provided, default to most recent active year
   const { data, error } = await supabase
     .from("academic_years")
     .select("*")

@@ -20,6 +20,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const StudioGradePage = lazy(() => import("./pages/StudioGrade"));
 const StudioGradeStatic = lazy(() => import("./pages/reference/StudioGradeStatic"));
 const StudiosCatalog = lazy(() => import("./pages/StudiosCatalog"));
+const StudiosYearOrSlugPage = lazy(() => import("./pages/StudiosYearOrSlugPage"));
 const ContractDetail = lazy(() => import("./pages/ContractDetail"));
 const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
 const AdminLogin = lazy(() => import("./pages/admin/Login"));
@@ -145,9 +146,9 @@ const App = () => (
                 <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/studios" element={<StudiosCatalog />} />
-            <Route path="/studios/:year" element={<StudiosCatalog />} />
             <Route path="/studios/:year/:slug" element={<StudioGradePage />} />
-            <Route path="/studios/:slug" element={<StudioGradePage />} />
+            {/* Single segment: academic year (YYYY-YYYY) → catalog; otherwise studio grade slug */}
+            <Route path="/studios/:yearOrSlug" element={<StudiosYearOrSlugPage />} />
             <Route path="/contracts/*" element={<ContractDetail />} />
             <Route path="/reference/studio-grade-static" element={<StudioGradeStatic />} />
             <Route path="/portal/login" element={<PortalAuth />} />

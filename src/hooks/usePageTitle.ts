@@ -44,9 +44,16 @@ export const usePageTitle = () => {
     
     // If no exact match, try to match route patterns
     if (!pageTitle) {
+      // Match studio catalog year URLs: /studios/2026-2027
+      const studiosYearOnly = pathname.match(/^\/studios\/(\d{4}-\d{4})$/);
+      if (studiosYearOnly) {
+        pageTitle = "Studios Catalog";
+      }
       // Match studio grade pages - fetch the actual name
-      if (pathname.startsWith("/studios/") && pathname !== "/studios") {
-        const slug = pathname.split("/studios/")[1]?.split("/")[0]; // Get slug, ignore any additional path segments
+      else if (pathname.startsWith("/studios/") && pathname !== "/studios") {
+        const segments = pathname.split("/studios/")[1]?.split("/") ?? [];
+        // /studios/2026-2027/silver -> slug is second segment; /studios/silver -> first
+        const slug = /^\d{4}-\d{4}$/.test(segments[0] ?? "") ? segments[1] : segments[0];
         if (slug) {
           // Set temporary title while loading
           document.title = `Studio Grade | ${baseTitle}`;

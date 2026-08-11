@@ -4235,8 +4235,8 @@ useEffect(() => {
                     <>
                       Optionally provide an independent adult witness who will view your tenancy agreement.
                       {requiresGuarantor
-                        ? " If provided, the witness will view the agreement before the guarantor signs."
-                        : " If provided, the witness will view the agreement after you sign."}
+                        ? " If provided, the witness will also receive the agreement to view (this does not delay the guarantor)."
+                        : " If provided, the witness will also receive the agreement to view after you sign."}
                     </>
                   }
                   tooltipLabel="About Witness Details"
@@ -5059,10 +5059,14 @@ useEffect(() => {
                   it multiple times if you need to pause.
                 </p>
                 <p>
-                  2) {paymentValues.witness_name && paymentValues.witness_email 
-                    ? "Your witness views, then " 
-                    : ""}{requiresGuarantor ? "Your guarantor signs" : "Once you've signed"} via the emails we sent. If they
-                  can't find it, use the Refresh button below after we resend.
+                  2) {requiresGuarantor
+                    ? "Your guarantor signs the tenancy agreement via email"
+                    : "Once you've signed"}{paymentValues.witness_name &&
+                  paymentValues.witness_email
+                    ? ", and your witness also receives a copy to view"
+                    : ""}
+                  . If they can't find it, use the Refresh button below after we
+                  resend.
                 </p>
                 <p>
                   3) Once all parties sign, your application automatically moves to

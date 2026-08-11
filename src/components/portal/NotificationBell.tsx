@@ -1,15 +1,16 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { useNotifications, useUnreadNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from "@/hooks/useNotifications";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
@@ -26,6 +27,7 @@ const NotificationBell = () => {
 
   const unreadNotifications = notifications?.filter((n) => !n.is_read) || [];
   const readNotifications = notifications?.filter((n) => n.is_read) || [];
+  const showBadge = (unreadCount ?? 0) > 0;
 
   const handleNotificationClick = async (notification: typeof notifications[0]) => {
     if (!notification.is_read) {
@@ -57,28 +59,29 @@ const NotificationBell = () => {
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
         <Button
           variant="ghost"
           size="icon"
           className="relative rounded-md h-10 w-10"
+          aria-label={showBadge ? `${unreadCount} unread notifications` : "Notifications"}
         >
-          <div className="relative flex items-center justify-center">
-            <Bell className="h-5 w-5" />
-            {unreadCount !== undefined && (
-              <Badge
-                className="absolute -top-2 -right-2 h-5 px-1.5 bg-orange-500 hover:bg-orange-600 text-white text-[10px] font-semibold rounded-md min-w-[20px] flex items-center justify-center shadow-sm border-2 border-background"
-              >
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </Badge>
-            )}
-          </div>
+          <Bell className="h-5 w-5" />
+          {showBadge && (
+            <span
+              className="absolute top-1.5 right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-semibold leading-none text-white ring-2 ring-background"
+            >
+              {unreadCount! > 9 ? "9+" : unreadCount}
+            </span>
+          )}
         </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-80 p-0 rounded-3xl" align="end">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="font-semibold text-sm uppercase tracking-wide">Notifications</h3>
+      </SheetTrigger>
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-md">
+        <SheetHeader className="flex-row items-center justify-between space-y-0 border-b px-4 py-4 pr-12 text-left">
+          <SheetTitle className="text-sm font-semibold uppercase tracking-wide">
+            Notifications
+          </SheetTitle>
           {unreadNotifications.length > 0 && (
             <Button
               variant="ghost"
@@ -90,8 +93,8 @@ const NotificationBell = () => {
               Mark all read
             </Button>
           )}
-        </div>
-        <ScrollArea className="h-[400px]">
+        </SheetHeader>
+        <ScrollArea className="flex-1">
           {isLoading ? (
             <div className="p-4 space-y-3">
               {[1, 2, 3].map((i) => (
@@ -172,10 +175,9 @@ const NotificationBell = () => {
             </div>
           )}
         </ScrollArea>
-      </PopoverContent>
-    </Popover>
+      </SheetContent>
+    </Sheet>
   );
 };
 
 export default NotificationBell;
-

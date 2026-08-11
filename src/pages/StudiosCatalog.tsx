@@ -30,7 +30,8 @@ type StudioGradeSummary = {
 };
 
 const StudiosCatalog = () => {
-  const { year } = useParams<{ year?: string }>();
+  const { year, yearOrSlug } = useParams<{ year?: string; yearOrSlug?: string }>();
+  const yearParam = year ?? yearOrSlug;
   const navigate = useNavigate();
   const [grades, setGrades] = useState<StudioGradeSummary[]>([]);
   const [academicYears, setAcademicYears] = useState<AcademicYearRow[]>([]);
@@ -69,6 +70,10 @@ const StudiosCatalog = () => {
 
       if (fetchError) {
         console.error("Unable to load academic years:", fetchError);
+        setAcademicYears([]);
+        setSelectedYear(null);
+        setError("We couldn't load academic years just now. Please try again shortly.");
+        setLoading(false);
         return;
       }
 
@@ -78,11 +83,11 @@ const StudiosCatalog = () => {
       // Determine selected year
       let selected: AcademicYearRow | null = null;
 
-      if (year) {
+      if (yearParam) {
         // Try to find by name (format: "2025-2026" or "2025/2026")
-        const normalizedYear = year.replace(/-/g, "/");
+        const normalizedYear = yearParam.replace(/-/g, "/");
         selected = years.find(
-          (y) => y.name === normalizedYear || y.name === year
+          (y) => y.name === normalizedYear || y.name === yearParam
         ) || null;
       }
 
@@ -96,12 +101,15 @@ const StudiosCatalog = () => {
       setSelectedYear(selected);
 
       // If year param doesn't match selected, update URL
-      if (selected && year !== selected.name.replace(/\//g, "-")) {
+      if (selected && yearParam !== selected.name.replace(/\//g, "-")) {
         const urlYear = selected.name.replace(/\//g, "-");
         navigate(`/studios/${urlYear}`, { replace: true });
-      } else if (!selected && year) {
+      } else if (!selected && yearParam) {
         // Invalid year, redirect to default
         navigate("/studios", { replace: true });
+      } else if (!selected) {
+        setError("No active academic years are available yet.");
+        setLoading(false);
       }
     };
 
@@ -110,7 +118,7 @@ const StudiosCatalog = () => {
     return () => {
       mounted = false;
     };
-  }, [year, navigate]);
+  }, [yearParam, navigate]);
 
   // Load studio grades filtered by selected academic year
   useEffect(() => {
@@ -434,7 +442,7 @@ const StudiosCatalog = () => {
                           asChild
                           className="rounded-[16px] bg-accent-yellow px-6 py-2 text-sm font-bold uppercase tracking-normal text-black shadow-[0_12px_24px_rgba(255,204,0,0.35)] hover:bg-[#ff2020] hover:text-white transition-colors"
                         >
-                          <Link to={`/studios/${year || selectedYear.name.replace(/\//g, "-")}/${grade.slug}`}>
+                          <Link to={`/studios/${yearParam || selectedYear.name.replace(/\//g, "-")}/${grade.slug}`}>
                             Book Now
                           </Link>
                         </Button>

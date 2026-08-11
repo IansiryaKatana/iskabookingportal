@@ -41,10 +41,11 @@ export const AcademicYearSelector = ({
     }
 
     const loadAcademicYears = async () => {
+      // Show all years in admin (including archived) so records remain filterable.
+      // Student-facing pages still filter to is_active = true only.
       const { data, error } = await supabase
         .from("academic_years")
         .select("*")
-        .eq("is_active", true)
         .order("start_date", { ascending: false });
 
       if (error) {
@@ -56,10 +57,12 @@ export const AcademicYearSelector = ({
       const years = data || [];
       setAcademicYears(years);
 
-      // Find most recent future year (or most recent if none are future)
+      // Prefer an active year as the default; fall back to most recent future/any year
       const now = new Date();
-      const futureYear = years.find((y) => new Date(y.start_date) > now);
-      const selected = futureYear || years[0] || null;
+      const activeYears = years.filter((y) => y.is_active);
+      const futureActive = activeYears.find((y) => new Date(y.start_date) > now);
+      const selected =
+        futureActive || activeYears[0] || years.find((y) => new Date(y.start_date) > now) || years[0] || null;
       setDefaultYear(selected);
       
       // Set initial internal value based on props or default
@@ -138,6 +141,7 @@ export const AcademicYearSelector = ({
           {academicYears.map((year) => (
             <SelectItem key={year.id} value={year.id}>
               {formatYearForDisplay(year.name)} ({year.name})
+              {!year.is_active ? " — Archived" : ""}
             </SelectItem>
           ))}
         </SelectContent>

@@ -235,7 +235,13 @@ const loadStudioGrade = async (slug: string, academicYearName?: string): Promise
 const StudioGradePage = () => {
   const { data: brandingSettings } = useBrandingSettings();
   const companyName = brandingSettings?.company_name || "Urban Hub";
-  const { slug, year } = useParams<{ slug: string; year?: string }>();
+  const { slug: slugParam, year, yearOrSlug } = useParams<{
+    slug?: string;
+    year?: string;
+    yearOrSlug?: string;
+  }>();
+  // /studios/:year/:slug → slug + year; /studios/:yearOrSlug (grade) → slug only
+  const slug = slugParam ?? yearOrSlug;
   const navigate = useNavigate();
   const [redirecting, setRedirecting] = useState(false);
   const [redirectError, setRedirectError] = useState<string | null>(null);
