@@ -52,7 +52,9 @@ import {
   useRecordEarlyCheckInPayment,
 } from "@/hooks/useEarlyCheckIn";
 import { OTA_PAYMENT_STATUS_LABELS, type OTAPaymentStatus } from "@/utils/otaPayment";
+import { getErrorMessage } from "@/utils/getErrorMessage";
 import { cn } from "@/lib/utils";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   bank_transfer: "Bank transfer",
@@ -116,6 +118,7 @@ const EarlyCheckInSection = ({
   const [eciDate, setEciDate] = useState("");
   const [nightlyRate, setNightlyRate] = useState("");
   const [createNotes, setCreateNotes] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const [recordOpen, setRecordOpen] = useState(false);
   const [payAmount, setPayAmount] = useState("");
@@ -165,6 +168,7 @@ const EarlyCheckInSection = ({
     if (!createOpen) return;
     setEciDate("");
     setCreateNotes("");
+    setCreateError(null);
     setNightlyRate(defaultRate != null ? String(defaultRate) : "");
     // Only reset when the sheet opens; rate fill below handles late-loaded defaults.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -187,20 +191,27 @@ const EarlyCheckInSection = ({
   }, [recordOpen, summary?.remaining_balance, summary?.status]);
 
   const handleCreate = async () => {
+    setCreateError(null);
     if (!eciDate) {
-      toast({ title: "Date required", description: "Choose an early check-in date.", variant: "destructive" });
+      const message = "Choose an early check-in date.";
+      setCreateError(message);
+      toast({ title: "Date required", description: message, variant: "destructive" });
       return;
     }
     if (contractStart && eciDate >= contractStart) {
+      const message = "Early check-in must be before the contract start date.";
+      setCreateError(message);
       toast({
         title: "Invalid date",
-        description: "Early check-in must be before the contract start date.",
+        description: message,
         variant: "destructive",
       });
       return;
     }
     if (nightsPreview <= 0) {
-      toast({ title: "Invalid nights", description: "Date must produce at least one night.", variant: "destructive" });
+      const message = "Date must produce at least one night.";
+      setCreateError(message);
+      toast({ title: "Invalid nights", description: message, variant: "destructive" });
       return;
     }
 
@@ -218,9 +229,11 @@ const EarlyCheckInSection = ({
       toast({ title: "Early check-in created" });
       setCreateOpen(false);
     } catch (err: unknown) {
+      const message = getErrorMessage(err, "Please try again.");
+      setCreateError(message);
       toast({
         title: "Unable to create early check-in",
-        description: err instanceof Error ? err.message : "Please try again.",
+        description: message,
         variant: "destructive",
       });
     }
@@ -251,7 +264,7 @@ const EarlyCheckInSection = ({
     } catch (err: unknown) {
       toast({
         title: "Unable to record payment",
-        description: err instanceof Error ? err.message : "Please try again.",
+        description: getErrorMessage(err, "Please try again."),
         variant: "destructive",
       });
     }
@@ -269,7 +282,7 @@ const EarlyCheckInSection = ({
     } catch (err: unknown) {
       toast({
         title: "Unable to cancel",
-        description: err instanceof Error ? err.message : "Please try again.",
+        description: getErrorMessage(err, "Please try again."),
         variant: "destructive",
       });
     }
@@ -497,7 +510,10 @@ const EarlyCheckInSection = ({
                   type="date"
                   value={eciDate}
                   max={maxEciDate}
-                  onChange={(e) => setEciDate(e.target.value)}
+                  onChange={(e) => {
+                    setEciDate(e.target.value);
+                    setCreateError(null);
+                  }}
                   className="rounded-md"
                 />
                 {nightsPreview > 0 && (
@@ -507,6 +523,12 @@ const EarlyCheckInSection = ({
                   </p>
                 )}
               </div>
+              {createError && (
+                <Alert variant="destructive">
+                  <AlertTitle>Unable to create early check-in</AlertTitle>
+                  <AlertDescription>{createError}</AlertDescription>
+                </Alert>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="eci_rate">Nightly rate (£)</Label>
                 <Input
