@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import ReactQuill from "react-quill";
@@ -61,6 +61,12 @@ const parseTagsValue = (value: string) =>
 
 const normalizeSource = (value?: string | null) => (value || "").trim().toLowerCase().replace(/\s+/g, "_");
 const hasEmbeddedDataImages = (html: string) => /<img[^>]+src=["']data:image\//i.test(html);
+
+/** Full HTML documents must stay out of ReactQuill or Quill will strip markup. */
+const isFullHtmlDocument = (html: string): boolean => {
+  if (!html) return false;
+  return /<!DOCTYPE|<html[\s>]|<head[\s>]|<style[\s>]|<body[\s>]|<link[\s>]|<meta[\s>]/i.test(html);
+};
 const CONTACTS_PAGE_SIZE = 15;
 const isTemplateInUseDeleteError = (error: any) =>
   error?.code === "23503" &&
@@ -151,7 +157,9 @@ const MarketingCampaigns = () => {
   const [contactsDialogOpen, setContactsDialogOpen] = useState(false);
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const [previewTemplateId, setPreviewTemplateId] = useState<string | null>(null);
+  const [templateEditorMode, setTemplateEditorMode] = useState<"rich" | "html" | "preview">("rich");
   const [testEmails, setTestEmails] = useState("");
+  const [campaignTestEmails, setCampaignTestEmails] = useState("");
   const [templateForm, setTemplateForm] = useState({
     name: "",
     subject: "",
@@ -285,6 +293,14 @@ const MarketingCampaigns = () => {
     });
   }, [previewTemplateId]);
 
+  useEffect(() => {
+    if (!campaignDialogOpen) return;
+    supabase.auth.getUser().then(({ data }) => {
+      const email = data.user?.email;
+      if (email) setCampaignTestEmails((current) => current || email);
+    });
+  }, [campaignDialogOpen]);
+
   const handleSendTestEmail = async () => {
     if (!previewTemplate) return;
     const recipients = splitEmails(testEmails);
@@ -317,8 +333,48 @@ const MarketingCampaigns = () => {
     }
   };
 
+  const handleSendCampaignTestEmail = async () => {
+    if (!campaignForm.template_id) {
+      toast({
+        title: "Select a template",
+        description: "Choose a marketing template before sending a test email.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const recipients = splitEmails(campaignTestEmails);
+    if (recipients.length === 0) {
+      toast({
+        title: "No recipients",
+        description: "Enter at least one valid email address to send a test.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      const result = await sendTestEmail.mutateAsync({
+        template_id: campaignForm.template_id,
+        to: recipients,
+      });
+      toast({
+        title: "Test email sent",
+        description: `Sent ${result.sent} test email${result.sent === 1 ? "" : "s"}${
+          result.failed ? `, ${result.failed} failed` : ""
+        }. Check the inbox (and spam) for the [TEST] message.`,
+        variant: result.failed && !result.sent ? "destructive" : undefined,
+      });
+    } catch (error) {
+      toast({
+        title: "Failed to send test",
+        description: error instanceof Error ? error.message : "Something went wrong.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const openCreateTemplateDialog = () => {
     setEditingTemplateId(null);
+    setTemplateEditorMode("html");
     setTemplateForm({
       name: "",
       subject: "",
@@ -332,6 +388,7 @@ const MarketingCampaigns = () => {
     const template = templates.find((item) => item.id === templateId);
     if (!template) return;
     setEditingTemplateId(templateId);
+    setTemplateEditorMode(isFullHtmlDocument(template.body_html) ? "html" : "rich");
     setTemplateForm({
       name: template.name,
       subject: template.subject,
@@ -1106,74 +1163,146 @@ const MarketingCampaigns = () => {
             </div>
             <div>
               <Label>Body HTML</Label>
-              <div className="flex items-center justify-end mt-2 mb-2">
-                <input
-                  ref={templateImageInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleTemplateImageUpload}
-                />
+              <div className="mb-2 mt-2 flex flex-wrap items-center gap-1">
                 <Button
                   type="button"
-                  variant="outline"
                   size="sm"
-                  className="rounded-md uppercase tracking-wide"
-                  onClick={() => templateImageInputRef.current?.click()}
-                  disabled={uploadingTemplateImage}
+                  variant={templateEditorMode === "rich" ? "default" : "outline"}
+                  disabled={isFullHtmlDocument(templateForm.body_html)}
+                  title={
+                    isFullHtmlDocument(templateForm.body_html)
+                      ? "Rich Text is disabled for full HTML documents to avoid stripping your markup."
+                      : undefined
+                  }
+                  className="h-7 rounded-md text-xs uppercase tracking-wide"
+                  onClick={() => setTemplateEditorMode("rich")}
                 >
-                  <Upload className="h-4 w-4 mr-1" />
-                  {uploadingTemplateImage ? "Uploading..." : "Upload Image"}
+                  Rich Text
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={templateEditorMode === "html" ? "default" : "outline"}
+                  className="h-7 rounded-md text-xs uppercase tracking-wide"
+                  onClick={() => setTemplateEditorMode("html")}
+                >
+                  HTML
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={templateEditorMode === "preview" ? "default" : "outline"}
+                  className="h-7 rounded-md text-xs uppercase tracking-wide"
+                  onClick={() => setTemplateEditorMode("preview")}
+                >
+                  Preview
                 </Button>
               </div>
-              <div className="rounded-2xl border p-3 mb-2 bg-muted/30">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Clickable Image Helper</p>
-                <div className="grid gap-2 md:grid-cols-2">
-                  <Input
-                    placeholder="Image URL (https://...)"
-                    value={clickableImageForm.imageUrl}
-                    onChange={(e) => setClickableImageForm((prev) => ({ ...prev, imageUrl: e.target.value }))}
-                  />
-                  <Input
-                    placeholder="Destination URL (https://...)"
-                    value={clickableImageForm.targetUrl}
-                    onChange={(e) => setClickableImageForm((prev) => ({ ...prev, targetUrl: e.target.value }))}
-                  />
-                  <Input
-                    placeholder="Alt text"
-                    value={clickableImageForm.altText}
-                    onChange={(e) => setClickableImageForm((prev) => ({ ...prev, altText: e.target.value }))}
-                    className="md:col-span-2"
+              {templateEditorMode !== "preview" && (
+                <>
+                  <div className="flex items-center justify-end mt-2 mb-2">
+                    <input
+                      ref={templateImageInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleTemplateImageUpload}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-md uppercase tracking-wide"
+                      onClick={() => templateImageInputRef.current?.click()}
+                      disabled={uploadingTemplateImage}
+                    >
+                      <Upload className="h-4 w-4 mr-1" />
+                      {uploadingTemplateImage ? "Uploading..." : "Upload Image"}
+                    </Button>
+                  </div>
+                  <div className="rounded-2xl border p-3 mb-2 bg-muted/30">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Clickable Image Helper</p>
+                    <div className="grid gap-2 md:grid-cols-2">
+                      <Input
+                        placeholder="Image URL (https://...)"
+                        value={clickableImageForm.imageUrl}
+                        onChange={(e) => setClickableImageForm((prev) => ({ ...prev, imageUrl: e.target.value }))}
+                      />
+                      <Input
+                        placeholder="Destination URL (https://...)"
+                        value={clickableImageForm.targetUrl}
+                        onChange={(e) => setClickableImageForm((prev) => ({ ...prev, targetUrl: e.target.value }))}
+                      />
+                      <Input
+                        placeholder="Alt text"
+                        value={clickableImageForm.altText}
+                        onChange={(e) => setClickableImageForm((prev) => ({ ...prev, altText: e.target.value }))}
+                        className="md:col-span-2"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between mt-2 gap-2">
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        {lastUploadedTemplateImageUrl ? `Last uploaded image: ${lastUploadedTemplateImageUrl}` : "Upload an image or paste an image URL."}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="rounded-md uppercase tracking-wide"
+                        onClick={insertClickableImage}
+                      >
+                        Insert Clickable Image
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
+              {templateEditorMode === "rich" ? (
+                <div className="rounded-2xl border bg-background mt-2">
+                  <ReactQuill
+                    ref={quillRef}
+                    theme="snow"
+                    value={templateForm.body_html}
+                    onChange={(value) => setTemplateForm((prev) => ({ ...prev, body_html: value }))}
+                    modules={quillModules}
+                    formats={quillFormats}
+                    placeholder="Write your marketing email body. You can format text and insert images."
                   />
                 </div>
-                <div className="flex items-center justify-between mt-2 gap-2">
-                  <p className="text-[11px] text-muted-foreground truncate">
-                    {lastUploadedTemplateImageUrl ? `Last uploaded image: ${lastUploadedTemplateImageUrl}` : "Upload an image or paste an image URL."}
-                  </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="rounded-md uppercase tracking-wide"
-                    onClick={insertClickableImage}
-                  >
-                    Insert Clickable Image
-                  </Button>
-                </div>
-              </div>
-              <div className="rounded-2xl border bg-background mt-2">
-                <ReactQuill
-                  ref={quillRef}
-                  theme="snow"
+              ) : templateEditorMode === "html" ? (
+                <Textarea
                   value={templateForm.body_html}
-                  onChange={(value) => setTemplateForm((prev) => ({ ...prev, body_html: value }))}
-                  modules={quillModules}
-                  formats={quillFormats}
-                  placeholder="Write your marketing email body. You can format text and insert images."
+                  onChange={(e) => {
+                    const nextHtml = e.target.value;
+                    setTemplateForm((prev) => ({ ...prev, body_html: nextHtml }));
+                    if (isFullHtmlDocument(nextHtml)) {
+                      setTemplateEditorMode("html");
+                    }
+                  }}
+                  rows={18}
+                  spellCheck={false}
+                  className="mt-2 font-mono text-xs leading-relaxed"
+                  placeholder="Paste or write your full HTML here, e.g. <!DOCTYPE html> ..."
                 />
-              </div>
+              ) : (
+                <div className="mt-2 overflow-hidden rounded-2xl border bg-white">
+                  <iframe
+                    title="Marketing template preview"
+                    sandbox=""
+                    srcDoc={
+                      templateForm.body_html ||
+                      "<p style='font-family:sans-serif;color:#888;padding:20px'>Nothing to preview yet.</p>"
+                    }
+                    className="h-[480px] w-full bg-white"
+                  />
+                </div>
+              )}
               <p className="text-xs text-muted-foreground mt-1">
-                Rich formatting and image embedding are supported.
+                {templateEditorMode === "html"
+                  ? "Paste raw HTML here. It is sent exactly as written. Email clients ignore JavaScript and often block external fonts."
+                  : templateEditorMode === "preview"
+                    ? "Preview of how the HTML renders. Variables like {full_name} show as placeholders here and are replaced when sent."
+                    : "Rich formatting and image embedding are supported. Switch to HTML to paste a full email template."}
               </p>
             </div>
             <div>
@@ -1242,13 +1371,15 @@ const MarketingCampaigns = () => {
         </SheetContent>
       </Sheet>
 
-      <Dialog open={campaignDialogOpen} onOpenChange={setCampaignDialogOpen}>
-        <DialogContent className="sm:max-w-[720px] rounded-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="font-display uppercase tracking-wide">Create Marketing Campaign</DialogTitle>
-            <DialogDescription>Upload a lead list or paste emails, pick a template, then send with Resend.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
+      <Sheet open={campaignDialogOpen} onOpenChange={setCampaignDialogOpen}>
+        <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-3xl">
+          <SheetHeader className="flex-shrink-0 space-y-1 border-b px-6 py-4 text-left">
+            <SheetTitle className="font-display uppercase tracking-wide">Create Marketing Campaign</SheetTitle>
+            <SheetDescription>
+              Pick a template, choose your audience, send a test if needed, then send with Resend.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="flex-1 min-h-0 space-y-3 overflow-y-auto px-6 py-4">
             <div>
               <Label>Campaign Name</Label>
               <Input value={campaignForm.name} onChange={(e) => setCampaignForm((prev) => ({ ...prev, name: e.target.value }))} />
@@ -1361,16 +1492,43 @@ const MarketingCampaigns = () => {
               </>
             )}
             <p className="text-xs text-muted-foreground mt-1">Detected {validEmailCount} valid email(s).</p>
+
+            <div className="rounded-xl border p-4 space-y-2">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Send Test Email</p>
+              <p className="text-xs text-muted-foreground">
+                Send a <span className="font-mono">[TEST]</span> copy of the selected template before launching the
+                campaign. Variables are filled with sample data. Separate multiple addresses with commas.
+              </p>
+              <Textarea
+                value={campaignTestEmails}
+                onChange={(e) => setCampaignTestEmails(e.target.value)}
+                rows={2}
+                placeholder="admin@company.com, staff@company.com"
+                className="text-sm"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleSendCampaignTestEmail}
+                disabled={sendTestEmail.isPending || !campaignForm.template_id}
+                className="rounded-md uppercase tracking-wide gap-2"
+              >
+                <Send className="h-4 w-4" />
+                {sendTestEmail.isPending ? "Sending..." : "Send Test Email"}
+              </Button>
+            </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCampaignDialogOpen(false)} className="rounded-md uppercase tracking-wide">Cancel</Button>
+          <SheetFooter className="flex-shrink-0 flex-col gap-2 border-t px-6 py-4 sm:flex-row sm:justify-end">
+            <Button variant="outline" onClick={() => setCampaignDialogOpen(false)} className="rounded-md uppercase tracking-wide">
+              Cancel
+            </Button>
             <Button onClick={handleCampaignSubmit} disabled={createCampaign.isPending} className="rounded-md uppercase tracking-wide">
               <Send className="h-4 w-4 mr-2" />
               {createCampaign.isPending ? "Sending..." : "Send Campaign"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       <Dialog open={contactsDialogOpen} onOpenChange={setContactsDialogOpen}>
         <DialogContent className="sm:max-w-[820px] rounded-3xl max-h-[90vh] overflow-y-auto">
