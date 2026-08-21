@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,9 +9,19 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import {
   useBookingCalendar,
   type BookingCalendarFilters,
   type BookingCalendarItem,
+  type StudioCalendarGroup,
 } from "@/hooks/useBookingCalendar";
 import { useAdminStudioGrades } from "@/hooks/useAdminStudioGrades";
 import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
@@ -97,6 +107,30 @@ const spanCoversDay = (span: BookingSpan, day: Date): boolean => {
   return checkDay >= spanStart && checkDay <= spanEnd;
 };
 
+/** True when any booking span overlaps the visible month (same rule as Booked badge). */
+const studioIsBookedInMonth = (
+  studio: StudioCalendarGroup,
+  monthStart: Date,
+  monthEnd: Date,
+): boolean => {
+  const bookingSpans = buildBookingSpans(studio.bookings);
+  return bookingSpans.some(
+    (span) =>
+      spanCoversDay(span, monthStart) ||
+      spanCoversDay(span, monthEnd) ||
+      (span.start <= monthEnd && span.end >= monthStart),
+  );
+};
+
+const getStudioOccupancyLabel = (
+  studio: StudioCalendarGroup,
+  monthStart: Date,
+  monthEnd: Date,
+): "Booked" | "Available" =>
+  studioIsBookedInMonth(studio, monthStart, monthEnd) ? "Booked" : "Available";
+
+const STUDIOS_PER_PAGE = 25;
+
 const BookingCalendar = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -104,8 +138,10 @@ const BookingCalendar = () => {
   const [allocationFilter, setAllocationFilter] = useState<string>("all");
   const [studioGradeFilter, setStudioGradeFilter] = useState<string>("all");
   const [academicYearFilter, setAcademicYearFilter] = useState<string | undefined>(undefined);
+  const [occupancyFilter, setOccupancyFilter] = useState<string>("all");
   const [selectedStudioId, setSelectedStudioId] = useState<string | null>(null);
   const [studioSearch, setStudioSearch] = useState<string>("");
+  const [studioPage, setStudioPage] = useState(1);
   const [checkInOutDialogOpen, setCheckInOutDialogOpen] = useState(false);
   const [selectedApplication, setSelectedApplication] = useState<{
     id: string;
@@ -180,6 +216,13 @@ const BookingCalendar = () => {
       );
     }
 
+    // Filter by occupancy for the visible month
+    if (occupancyFilter === "booked") {
+      filtered = filtered.filter((s) => studioIsBookedInMonth(s, monthStart, monthEnd));
+    } else if (occupancyFilter === "available") {
+      filtered = filtered.filter((s) => !studioIsBookedInMonth(s, monthStart, monthEnd));
+    }
+
     return filtered.sort((a, b) => {
       // Sort by grade, then by studio number
       if (a.studio_grade_name !== b.studio_grade_name) {
@@ -187,7 +230,22 @@ const BookingCalendar = () => {
       }
       return a.studio_number.localeCompare(b.studio_number);
     });
-  }, [dataToUse, allocationFilter, studioGradeFilter, studioSearch]);
+  }, [dataToUse, allocationFilter, studioGradeFilter, studioSearch, occupancyFilter, currentDate]);
+
+  const studioTotalPages = Math.max(1, Math.ceil(filteredStudios.length / STUDIOS_PER_PAGE));
+
+  const paginatedStudios = useMemo(() => {
+    const start = (studioPage - 1) * STUDIOS_PER_PAGE;
+    return filteredStudios.slice(start, start + STUDIOS_PER_PAGE);
+  }, [filteredStudios, studioPage]);
+
+  useEffect(() => {
+    setStudioPage(1);
+  }, [allocationFilter, studioGradeFilter, studioSearch, occupancyFilter, academicYearFilter, currentDate]);
+
+  useEffect(() => {
+    setStudioPage((p) => Math.min(p, studioTotalPages));
+  }, [studioTotalPages]);
 
   const handlePreviousMonth = () => {
     setCurrentDate(subMonths(currentDate, 1));
@@ -232,7 +290,7 @@ const BookingCalendar = () => {
   };
 
   const exportToCSV = () => {
-    if (!bookingData || bookingData.length === 0) {
+    if (!filteredStudios || filteredStudios.length === 0) {
       toast({
         title: "No data to export",
         description: "There is no booking data available for export.",
@@ -246,6 +304,7 @@ const BookingCalendar = () => {
       "Studio Grade",
       "Allocation",
       "Status",
+      "Occupancy",
       "Student Name",
       "Student Email",
       "Contract Name",
@@ -254,20 +313,39 @@ const BookingCalendar = () => {
       "Academic Year",
     ];
 
-    const rows = dataToUse.flatMap((studio) =>
-      studio.bookings.map((booking) => [
+    const rows = filteredStudios.flatMap((studio) => {
+      const occupancy = getStudioOccupancyLabel(studio, monthStart, monthEnd);
+
+      if (occupancy === "Available") {
+        return [[
+          studio.studio_number,
+          studio.studio_grade_name,
+          studio.allocation || "Unallocated",
+          studio.studio_status,
+          "Available",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+        ]];
+      }
+
+      return studio.bookings.map((booking) => [
         studio.studio_number,
         studio.studio_grade_name,
         studio.allocation || "Unallocated",
         studio.studio_status,
+        "Booked",
         booking.student_name || "",
         booking.student_email || "",
         booking.contract_name || "",
         booking.contract_start || "",
         booking.contract_end || "",
         booking.academic_year_name || "",
-      ]),
-    );
+      ]);
+    });
 
     const csvContent = [
       headers.join(","),
@@ -306,7 +384,7 @@ const BookingCalendar = () => {
         {/* Filters */}
         <Card className="rounded-3xl border border-border/60 shadow-xl">
           <CardContent className="pt-6">
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
               <div className="space-y-2">
                 <Label htmlFor="studio-search" className="text-xs md:text-sm">Search Studio</Label>
                 <div className="relative">
@@ -333,6 +411,20 @@ const BookingCalendar = () => {
                     <SelectItem value="OTA">OTA</SelectItem>
                     <SelectItem value="Keyworkers">Keyworkers</SelectItem>
                     <SelectItem value="Unallocated">Unallocated</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="occupancy-filter" className="text-xs md:text-sm">Occupancy</Label>
+                <Select value={occupancyFilter} onValueChange={setOccupancyFilter}>
+                  <SelectTrigger id="occupancy-filter" className="rounded-md text-xs md:text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All rooms</SelectItem>
+                    <SelectItem value="booked">Booked</SelectItem>
+                    <SelectItem value="available">Available</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -389,7 +481,11 @@ const BookingCalendar = () => {
                   {format(currentDate, "MMMM yyyy")}
                 </CardTitle>
                 <CardDescription>
-                  {filteredStudios.length} studio{filteredStudios.length !== 1 ? "s" : ""} shown
+                  {filteredStudios.length === 0
+                    ? "0 studios shown"
+                    : filteredStudios.length <= STUDIOS_PER_PAGE
+                      ? `${filteredStudios.length} studio${filteredStudios.length !== 1 ? "s" : ""} shown`
+                      : `Showing ${(studioPage - 1) * STUDIOS_PER_PAGE + 1}–${Math.min(studioPage * STUDIOS_PER_PAGE, filteredStudios.length)} of ${filteredStudios.length} studios`}
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
@@ -437,19 +533,15 @@ const BookingCalendar = () => {
                       <div className="font-semibold text-sm text-muted-foreground p-2 border-b border-border h-[60px] md:h-[70px] flex items-center">
                         Studio
                       </div>
-                      {filteredStudios.length === 0 ? (
+                      {paginatedStudios.length === 0 ? (
                         <div className="text-center py-12 text-muted-foreground p-4">
                           <Building2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
                           <p className="text-xs">No studios found</p>
                         </div>
                       ) : (
-                        filteredStudios.map((studio) => {
+                        paginatedStudios.map((studio) => {
                           const isSelected = selectedStudioId === studio.studio_id;
-                          const bookingSpans = buildBookingSpans(studio.bookings);
-                          const hasBookingInMonth = bookingSpans.some(
-                            (span) => spanCoversDay(span, monthStart) || spanCoversDay(span, monthEnd) ||
-                              (span.start <= monthEnd && span.end >= monthStart),
-                          );
+                          const occupancy = getStudioOccupancyLabel(studio, monthStart, monthEnd);
 
                           return (
                             <div
@@ -472,15 +564,21 @@ const BookingCalendar = () => {
                                   {studio.studio_grade_name}
                                 </div>
                               </div>
-                              {hasBookingInMonth ? (
-                                <Badge variant="outline" className="text-[10px] md:text-xs hidden md:inline-flex">
+                              {occupancy === "Booked" ? (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] md:text-xs hidden md:inline-flex border-blue-500/50 bg-blue-500/15 text-blue-800 dark:text-blue-100"
+                                >
                                   Booked
                                 </Badge>
-                              ) : studio.bookings.length === 0 ? (
-                                <Badge variant="secondary" className="text-[10px] md:text-xs hidden md:inline-flex">
+                              ) : (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] md:text-xs hidden md:inline-flex border-green-500/50 bg-green-500/15 text-green-800 dark:text-green-100"
+                                >
                                   Available
                                 </Badge>
-                              ) : null}
+                              )}
                             </div>
                           );
                         })
@@ -562,9 +660,9 @@ const BookingCalendar = () => {
                       </div>
 
                       {/* Studio Rows with Date Cells */}
-                      {filteredStudios.length > 0 && (
+                      {paginatedStudios.length > 0 && (
                         <div>
-                          {filteredStudios.map((studio) => {
+                          {paginatedStudios.map((studio) => {
                             const bookingSpans = buildBookingSpans(studio.bookings);
 
                             return (
@@ -673,6 +771,74 @@ const BookingCalendar = () => {
                     </div>
                   </div>
                 </div>
+              </div>
+            )}
+            {!isLoading && filteredStudios.length > STUDIOS_PER_PAGE && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 mt-4 border-t">
+                <div className="text-sm text-muted-foreground">
+                  Showing {(studioPage - 1) * STUDIOS_PER_PAGE + 1} to{" "}
+                  {Math.min(studioPage * STUDIOS_PER_PAGE, filteredStudios.length)} of{" "}
+                  {filteredStudios.length}
+                </div>
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (studioPage > 1) setStudioPage(studioPage - 1);
+                        }}
+                        className={studioPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                      />
+                    </PaginationItem>
+                    {Array.from({ length: studioTotalPages }, (_, i) => i + 1).map((page) => {
+                      if (
+                        page === 1 ||
+                        page === studioTotalPages ||
+                        (page >= studioPage - 1 && page <= studioPage + 1)
+                      ) {
+                        return (
+                          <PaginationItem key={page}>
+                            <PaginationLink
+                              href="#"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setStudioPage(page);
+                              }}
+                              isActive={studioPage === page}
+                              className="cursor-pointer"
+                            >
+                              {page}
+                            </PaginationLink>
+                          </PaginationItem>
+                        );
+                      }
+                      if (page === studioPage - 2 || page === studioPage + 2) {
+                        return (
+                          <PaginationItem key={page}>
+                            <PaginationEllipsis />
+                          </PaginationItem>
+                        );
+                      }
+                      return null;
+                    })}
+                    <PaginationItem>
+                      <PaginationNext
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (studioPage < studioTotalPages) setStudioPage(studioPage + 1);
+                        }}
+                        className={
+                          studioPage === studioTotalPages
+                            ? "pointer-events-none opacity-50"
+                            : "cursor-pointer"
+                        }
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
               </div>
             )}
           </CardContent>

@@ -3,10 +3,11 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStudentName } from "@/hooks/useStudentName";
 import { useBrandingSettings } from "@/hooks/useBranding";
-import { ChevronLeft, UserCircle2, LayoutDashboard, CreditCard, FileText, FolderOpen, User, Bell, Wrench, ArrowUpRight } from "lucide-react";
+import { ChevronLeft, UserCircle2, LayoutDashboard, CreditCard, FileText, FolderOpen, User, Bell, Wrench, ArrowUpRight, Landmark } from "lucide-react";
 import clsx from "clsx";
 import { useState } from "react";
 import NotificationBell from "./NotificationBell";
+import BankDetailsSheet from "./BankDetailsSheet";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -84,6 +85,7 @@ const PortalLayout = ({
   const companyName = brandingSettings?.company_name || "stucomms";
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [showSignOutDialog, setShowSignOutDialog] = useState(false);
+  const [bankDetailsOpen, setBankDetailsOpen] = useState(false);
 
   const handleBack = () => {
     if (onBack) {
@@ -149,6 +151,17 @@ const PortalLayout = ({
                 );
               })}
             </nav>
+            <div className="px-4 pb-2 flex-shrink-0">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-start gap-3 rounded-2xl px-4 py-3 h-auto text-sm font-medium text-muted-foreground hover:text-foreground"
+                onClick={() => setBankDetailsOpen(true)}
+              >
+                <Landmark className="h-5 w-5" />
+                Bank details
+              </Button>
+            </div>
             {/* Sidebar Footer with Sign Out - Fixed */}
             <div className="px-4 py-4 border-t border-border/50 flex-shrink-0">
               <div className="flex items-center gap-3 px-4 py-3 text-sm">
@@ -202,6 +215,16 @@ const PortalLayout = ({
                 </div>
                 <div className="flex items-center gap-2">
                   <NotificationBell />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="rounded-md h-10 w-10"
+                    aria-label="Bank details"
+                    onClick={() => setBankDetailsOpen(true)}
+                  >
+                    <Landmark className="h-5 w-5" />
+                  </Button>
                   {mobileHeaderActions}
                   <Button
                     variant="outline"
@@ -360,6 +383,8 @@ const PortalLayout = ({
           {children}
         </main>
       </div>
+
+      <BankDetailsSheet open={bankDetailsOpen} onOpenChange={setBankDetailsOpen} />
 
       {/* Sign Out Confirmation Dialog */}
       <AlertDialog open={showSignOutDialog} onOpenChange={setShowSignOutDialog}>
