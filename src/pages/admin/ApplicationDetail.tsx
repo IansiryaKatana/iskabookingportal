@@ -1,12 +1,13 @@
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useStudentApplication } from "@/hooks/useStudentApplication";
 import { useUpdateApplicationStatus } from "@/hooks/useAdminApplications";
 import { useAdminStudios } from "@/hooks/useAdminStudios";
-import { ArrowLeft, ArrowUpLeft, User, Mail, Phone, MapPin, Calendar, Building2, CreditCard, FileText, CheckCircle2, XCircle, Download, Send, RotateCcw, Gift, Percent, Handshake, Pencil, Check, ChevronsUpDown, CalendarPlus, DoorOpen, DoorClosed, Upload, LogIn } from "lucide-react";
+import { ArrowLeft, ArrowUpLeft, Calendar, Building2, CreditCard, FileText, CheckCircle2, XCircle, Download, Send, RotateCcw, Gift, Percent, Handshake, Pencil, Check, ChevronDown, ChevronsUpDown, CalendarPlus, DoorOpen, DoorClosed, Upload, LogIn } from "lucide-react";
 import { addDays, differenceInCalendarDays, format, isAfter, parseISO } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -54,7 +55,6 @@ import {
   isEnteringDepositRequiredStatus,
 } from "@/utils/depositStatus";
 import { logActivity } from "@/utils/auditLog";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
 import { BOOKING_SOURCE_OPTIONS } from "@/constants/bookingSources";
@@ -238,6 +238,9 @@ const ApplicationDetail = () => {
   const [customInstallments, setCustomInstallments] = useState<CustomInstallmentInput[]>([]);
   const [createExtensionOpen, setCreateExtensionOpen] = useState(false);
   const [amendBookingOpen, setAmendBookingOpen] = useState(false);
+  const [documentsSectionOpen, setDocumentsSectionOpen] = useState(true);
+  const [paymentSectionOpen, setPaymentSectionOpen] = useState(true);
+  const [agreementsSectionOpen, setAgreementsSectionOpen] = useState(true);
   const [extensionForm, setExtensionForm] = useState({
     extensionWeeks: 12,
     extensionDays: 0,
@@ -1634,48 +1637,44 @@ const ApplicationDetail = () => {
           </Card>
         )}
 
-        <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2">
-          {/* Step 1: Personal Information */}
-          <Card className="rounded-3xl">
+        <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 items-start">
+          <div className="md:col-span-2 grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 items-stretch">
+          {/* Personal Information */}
+          <Card className="rounded-3xl h-full flex flex-col">
             <CardHeader>
-              <div className="flex items-center justify-between gap-4">
-              <CardTitle className="text-base sm:text-lg font-display uppercase tracking-wide flex items-center gap-2">
-                <User className="h-4 w-4 sm:h-5 sm:w-5" />
-                <span className="text-sm sm:text-base">Step 1: Personal Information</span>
+              <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide">
+                Personal Information
               </CardTitle>
-                <div className="flex items-center gap-3">
-                  <div className="text-right">
-                    <p className="text-xs sm:text-sm text-muted-foreground">Student Photo</p>
-                    {passportPhotoUrl && (
-                      <p className="text-[10px] sm:text-xs text-muted-foreground">
-                        Click to preview
-                      </p>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                    onClick={() => {
-                      if (passportPhotoUrl) setIsPassportPhotoDialogOpen(true);
-                    }}
-                    aria-label="Preview student passport photo"
-                  >
-                    <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border cursor-pointer">
-                      {passportPhotoUrl ? (
-                        <AvatarImage src={passportPhotoUrl} alt="Student passport photo" />
-                      ) : (
-                        <AvatarFallback className="text-xs sm:text-sm">
-                          {step1Data?.first_name?.[0]}
-                          {step1Data?.last_name?.[0]}
-                        </AvatarFallback>
-                      )}
-                    </Avatar>
-                  </button>
-                </div>
-              </div>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+            <CardContent className="flex-1">
+              <div className="space-y-4">
+                <button
+                  type="button"
+                  className="relative block w-24 h-28 sm:w-28 sm:h-32 rounded-xl overflow-hidden border bg-muted cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                  onClick={() => {
+                    if (passportPhotoUrl) setIsPassportPhotoDialogOpen(true);
+                  }}
+                  aria-label="Preview student passport photo"
+                >
+                  {passportPhotoUrl ? (
+                    <img
+                      src={passportPhotoUrl}
+                      alt="Student passport photo"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span className="flex h-full w-full items-center justify-center text-base sm:text-lg font-display font-bold text-muted-foreground">
+                      {step1Data?.first_name?.[0]}
+                      {step1Data?.last_name?.[0]}
+                    </span>
+                  )}
+                  {passportPhotoUrl && (
+                    <span className="absolute inset-x-0 bottom-0 bg-black/50 px-1.5 py-0.5 text-left text-[10px] text-white">
+                      Click to preview
+                    </span>
+                  )}
+                </button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 text-sm">
                 <div>
                   <p className="text-muted-foreground text-xs sm:text-sm mb-1">First Name</p>
                   <p className="font-medium text-sm sm:text-base break-words">{step1Data?.first_name || "—"}</p>
@@ -1691,39 +1690,39 @@ const ApplicationDetail = () => {
                   </p>
                 </div>
                 <div>
+                  <p className="text-muted-foreground text-xs sm:text-sm mb-1">Gender</p>
+                  <p className="font-medium text-sm sm:text-base break-words">{step1Data?.gender || "—"}</p>
+                </div>
+                <div className="sm:col-span-2">
                   <p className="text-muted-foreground text-xs sm:text-sm mb-1">Country</p>
                   <p className="font-medium text-sm sm:text-base break-words">{step1Data?.country || "—"}</p>
                 </div>
-                <div>
+                <div className="sm:col-span-2">
                   <p className="text-muted-foreground text-xs sm:text-sm mb-1">Ethnicity</p>
                   <p className="font-medium text-sm sm:text-base break-words">{step1Data?.ethnicity || "—"}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground text-xs sm:text-sm mb-1">Gender</p>
-                  <p className="font-medium text-sm sm:text-base break-words">{step1Data?.gender || "—"}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground text-xs sm:text-sm mb-1">UCAS ID</p>
                   <p className="font-medium text-sm sm:text-base break-words">{step1Data?.ucas_id || "—"}</p>
                 </div>
-                <div className="sm:col-span-2">
+                <div>
                   <p className="text-muted-foreground text-xs sm:text-sm mb-1">UK Citizen</p>
                   <p className="font-medium text-sm sm:text-base">{step4Data?.uk_citizen === "yes" ? "Yes" : step4Data?.uk_citizen === "no" ? "No" : "—"}</p>
                 </div>
               </div>
+              </div>
             </CardContent>
           </Card>
 
-          {/* Step 2: Contact Information */}
-          <Card className="rounded-3xl">
+          {/* Contact & Academic Information */}
+          <Card className="rounded-3xl h-full flex flex-col">
             <CardHeader>
-              <CardTitle className="text-base sm:text-lg font-display uppercase tracking-wide flex items-center gap-2">
-                <Mail className="h-4 w-4 sm:h-5 sm:w-5" />
-                <span className="text-sm sm:text-base">Step 2: Contact Information</span>
+              <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide">
+                Contact & Academic
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="space-y-3 text-sm">
+            <CardContent className="flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 text-sm">
                 <div>
                   <p className="text-muted-foreground text-xs sm:text-sm mb-1">Email</p>
                   <p className="font-medium text-sm sm:text-base break-words">{step2Data?.email || "—"}</p>
@@ -1732,7 +1731,7 @@ const ApplicationDetail = () => {
                   <p className="text-muted-foreground text-xs sm:text-sm mb-1">Mobile</p>
                   <p className="font-medium text-sm sm:text-base break-words">{step2Data?.mobile || "—"}</p>
                 </div>
-                <div>
+                <div className="sm:col-span-2">
                   <p className="text-muted-foreground text-xs sm:text-sm mb-1">Address</p>
                   <p className="font-medium text-sm sm:text-base break-words">
                     {step2Data?.address_line_1 || step2Data?.town || step2Data?.postcode
@@ -1747,20 +1746,6 @@ const ApplicationDetail = () => {
                       : "—"}
                   </p>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Step 3: Academic Information */}
-          <Card className="rounded-3xl">
-            <CardHeader>
-              <CardTitle className="text-base sm:text-lg font-display uppercase tracking-wide flex items-center gap-2">
-                <Calendar className="h-4 w-4 sm:h-5 sm:w-5" />
-                <span className="text-sm sm:text-base">Step 3: Academic Information</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                 <div>
                   <p className="text-muted-foreground text-xs sm:text-sm mb-1">Year of Study</p>
                   <p className="font-medium text-sm sm:text-base break-words">{step3Data?.year_of_study || "—"}</p>
@@ -1781,7 +1766,7 @@ const ApplicationDetail = () => {
                     {step3Data?.smoker === "yes" ? "Yes" : step3Data?.smoker === "no" ? "No" : "—"}
                   </p>
                 </div>
-                <div>
+                <div className={step3Data?.medical_requirements ? "" : "sm:col-span-2"}>
                   <p className="text-muted-foreground text-xs sm:text-sm mb-1">Entry to UK</p>
                   <p className="font-medium text-sm sm:text-base break-words">{step3Data?.entry_into_uk || "—"}</p>
                 </div>
@@ -1793,7 +1778,6 @@ const ApplicationDetail = () => {
                 )}
               </div>
 
-              {/* Guarantor & Witness Information */}
               {(step5Data?.guarantor_name || step5Data?.witness_name) && (
                 <div className="mt-6 pt-6 border-t">
                   <h4 className="text-sm font-semibold mb-4 text-muted-foreground uppercase tracking-wide">
@@ -1857,30 +1841,46 @@ const ApplicationDetail = () => {
               )}
             </CardContent>
           </Card>
+          </div>
 
           {/* Documents */}
-          <Card className="rounded-3xl">
-            <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
-              <CardTitle className="text-base sm:text-lg font-display uppercase tracking-wide flex items-center gap-2">
-                <FileText className="h-4 w-4 sm:h-5 sm:w-5" />
-                <span className="text-sm sm:text-base">Documents</span>
-              </CardTitle>
-              <Button
-                variant="outline"
-                size="sm"
-                className="rounded-md uppercase tracking-wide text-xs gap-1 shrink-0"
-                onClick={() => {
-                  setUploadDialogMode("additional");
-                  setSelectedRejectedDoc(null);
-                  setUploadFile(null);
-                  setAdditionalDocLabel("");
-                  setUploadDialogOpen(true);
-                }}
-              >
-                <Upload className="h-3 w-3" />
-                Upload additional
-              </Button>
-            </CardHeader>
+          <Card className="rounded-3xl md:col-span-2">
+            <Collapsible open={documentsSectionOpen} onOpenChange={setDocumentsSectionOpen}>
+              <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 items-center gap-2 text-left rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                  >
+                    <FileText className="h-6 w-6 md:h-7 md:w-7 shrink-0" />
+                    <span className="min-w-0 text-2xl md:text-3xl font-display font-black uppercase tracking-wide">
+                      Documents
+                    </span>
+                    <ChevronDown
+                      className={cn(
+                        "h-5 w-5 md:h-6 md:w-6 shrink-0 text-muted-foreground transition-transform",
+                        documentsSectionOpen && "rotate-180",
+                      )}
+                    />
+                  </button>
+                </CollapsibleTrigger>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-md uppercase tracking-wide text-xs gap-1 shrink-0"
+                  onClick={() => {
+                    setUploadDialogMode("additional");
+                    setSelectedRejectedDoc(null);
+                    setUploadFile(null);
+                    setAdditionalDocLabel("");
+                    setUploadDialogOpen(true);
+                  }}
+                >
+                  <Upload className="h-3 w-3" />
+                  Upload additional
+                </Button>
+              </CardHeader>
+              <CollapsibleContent>
             <CardContent className="space-y-3">
               {documents && documents.length > 0 ? (
                 <div className="space-y-3">
@@ -2103,16 +2103,33 @@ const ApplicationDetail = () => {
                 <p className="text-sm text-muted-foreground">No documents uploaded</p>
               )}
             </CardContent>
+              </CollapsibleContent>
+            </Collapsible>
           </Card>
 
           {/* Payment & Contract */}
-          <Card className="rounded-3xl">
-            <CardHeader>
-              <CardTitle className="text-base sm:text-lg font-display uppercase tracking-wide flex items-center gap-2">
-                <CreditCard className="h-4 w-4 sm:h-5 sm:w-5" />
-                <span className="text-sm sm:text-base">Payment & Contract</span>
-              </CardTitle>
-            </CardHeader>
+          <Card className="rounded-3xl md:col-span-2">
+            <Collapsible open={paymentSectionOpen} onOpenChange={setPaymentSectionOpen}>
+              <CardHeader>
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex w-full min-w-0 items-center gap-2 text-left rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                  >
+                    <CreditCard className="h-6 w-6 md:h-7 md:w-7 shrink-0" />
+                    <span className="min-w-0 text-2xl md:text-3xl font-display font-black uppercase tracking-wide">
+                      Payment & Contract
+                    </span>
+                    <ChevronDown
+                      className={cn(
+                        "h-5 w-5 md:h-6 md:w-6 shrink-0 text-muted-foreground transition-transform",
+                        paymentSectionOpen && "rotate-180",
+                      )}
+                    />
+                  </button>
+                </CollapsibleTrigger>
+              </CardHeader>
+              <CollapsibleContent>
             <CardContent className="space-y-4">
               <div>
                 <p className="text-xs sm:text-sm text-muted-foreground mb-2">Deposit Status</p>
@@ -2612,6 +2629,8 @@ const ApplicationDetail = () => {
                 <CreditCard className="h-4 w-4 ml-2 shrink-0" />
               </Button>
             </CardContent>
+              </CollapsibleContent>
+            </Collapsible>
           </Card>
 
           {applicationId && (
@@ -2661,13 +2680,28 @@ const ApplicationDetail = () => {
           )}
 
           {/* Agreements & Studio Assignment (combined section) */}
-          <Card className="rounded-3xl">
-            <CardHeader>
-              <CardTitle className="text-base sm:text-lg font-display uppercase tracking-wide flex items-center gap-2">
-                <FileText className="h-4 w-4 sm:h-5 sm:w-5" />
-                <span className="text-sm sm:text-base">Agreements & Studio</span>
-              </CardTitle>
-            </CardHeader>
+          <Card className="rounded-3xl md:col-span-2">
+            <Collapsible open={agreementsSectionOpen} onOpenChange={setAgreementsSectionOpen}>
+              <CardHeader>
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex w-full min-w-0 items-center gap-2 text-left rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                  >
+                    <FileText className="h-6 w-6 md:h-7 md:w-7 shrink-0" />
+                    <span className="min-w-0 text-2xl md:text-3xl font-display font-black uppercase tracking-wide">
+                      Agreements & Studio
+                    </span>
+                    <ChevronDown
+                      className={cn(
+                        "h-5 w-5 md:h-6 md:w-6 shrink-0 text-muted-foreground transition-transform",
+                        agreementsSectionOpen && "rotate-180",
+                      )}
+                    />
+                  </button>
+                </CollapsibleTrigger>
+              </CardHeader>
+              <CollapsibleContent>
             <CardContent className="space-y-6">
               {/* Agreements block */}
               <div className="space-y-3">
@@ -3073,6 +3107,8 @@ const ApplicationDetail = () => {
                 </div>
               </div>
             </CardContent>
+              </CollapsibleContent>
+            </Collapsible>
           </Card>
         </div>
 

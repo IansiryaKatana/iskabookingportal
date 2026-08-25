@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { differenceInCalendarDays, format, parseISO } from "date-fns";
-import { CalendarPlus, CreditCard, Loader2, Plus, XCircle } from "lucide-react";
+import { CalendarPlus, ChevronDown, CreditCard, Loader2, Plus, XCircle } from "lucide-react";
 import {
   EarlyCheckInPaymentDeleteDialog,
   EarlyCheckInPaymentEditDialog,
@@ -8,7 +8,8 @@ import {
 } from "@/components/admin/EarlyCheckInPaymentEditor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
@@ -107,6 +108,7 @@ const EarlyCheckInSection = ({
   const recordPayment = useRecordEarlyCheckInPayment();
 
   const [internalCreateOpen, setInternalCreateOpen] = useState(false);
+  const [sectionOpen, setSectionOpen] = useState(true);
   const createOpen = controlledCreateOpen ?? internalCreateOpen;
   const setCreateOpen = (open: boolean) => {
     onCreateSheetOpenChange?.(open);
@@ -312,27 +314,40 @@ const EarlyCheckInSection = ({
 
   return (
     <>
-      <Card id="early-check-in-section" className="rounded-3xl">
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <CardTitle className="text-base sm:text-lg font-display uppercase tracking-wide flex items-center gap-2">
-              <CalendarPlus className="h-4 w-4 sm:h-5 sm:w-5" />
-              <span className="text-sm sm:text-base">Early check-in</span>
-              {summary && (
-                <Badge
-                  variant="outline"
+      <Card id="early-check-in-section" className="rounded-3xl md:col-span-2">
+        <Collapsible open={sectionOpen} onOpenChange={setSectionOpen}>
+          <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
+            <CollapsibleTrigger asChild>
+              <button
+                type="button"
+                className="flex min-w-0 flex-1 items-center gap-2 text-left rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+              >
+                <CalendarPlus className="h-6 w-6 md:h-7 md:w-7 shrink-0" />
+                <span className="min-w-0 text-2xl md:text-3xl font-display font-black uppercase tracking-wide">
+                  Early check-in
+                </span>
+                {summary && (
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "text-[10px] uppercase tracking-wide",
+                      summary.status === "confirmed"
+                        ? "border-emerald-500/40 text-emerald-700 bg-emerald-50"
+                        : "border-slate-400/40 text-slate-600 bg-slate-50",
+                    )}
+                  >
+                    {summary.status}
+                  </Badge>
+                )}
+                <ChevronDown
                   className={cn(
-                    "text-[10px] uppercase tracking-wide",
-                    summary.status === "confirmed"
-                      ? "border-emerald-500/40 text-emerald-700 bg-emerald-50"
-                      : "border-slate-400/40 text-slate-600 bg-slate-50",
+                    "h-5 w-5 md:h-6 md:w-6 shrink-0 text-muted-foreground transition-transform",
+                    sectionOpen && "rotate-180",
                   )}
-                >
-                  {summary.status}
-                </Badge>
-              )}
-            </CardTitle>
-            <div className="flex flex-wrap items-center gap-2">
+                />
+              </button>
+            </CollapsibleTrigger>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
               {canCreate && (
                 <Button
                   type="button"
@@ -357,8 +372,8 @@ const EarlyCheckInSection = ({
                 </Button>
               )}
             </div>
-          </div>
-        </CardHeader>
+          </CardHeader>
+          <CollapsibleContent>
         <CardContent className="space-y-4">
           {!summary && canCreate && (
             <p className="text-sm text-muted-foreground">
@@ -495,6 +510,8 @@ const EarlyCheckInSection = ({
             </>
           )}
         </CardContent>
+          </CollapsibleContent>
+        </Collapsible>
       </Card>
 
       {/* Create sheet */}
