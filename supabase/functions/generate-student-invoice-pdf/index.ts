@@ -252,13 +252,13 @@ serve(async (req) => {
       }
     }
 
-    // Get student name
-    const firstName = profile?.first_name ||
-                      (step1?.payload as any)?.first_name ||
+    // Prefer the application Step 1 name (the booking name) over the account profile.
+    const firstName = (step1?.payload as any)?.first_name ||
+                      profile?.first_name ||
                       user?.user_metadata?.first_name ||
                       "";
-    const lastName = profile?.last_name ||
-                     (step1?.payload as any)?.last_name ||
+    const lastName = (step1?.payload as any)?.last_name ||
+                     profile?.last_name ||
                      user?.user_metadata?.last_name ||
                      "";
     const studentName = `${firstName} ${lastName}`.trim() || user?.email || "Student";

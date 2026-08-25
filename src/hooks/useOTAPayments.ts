@@ -49,6 +49,34 @@ export type CreateOTAPaymentInput = {
   notes?: string;
 };
 
+export type UpdateOTAPaymentInput = {
+  id: string;
+  bookingId: string;
+  amount: number;
+  receivedFrom: "ota_payout" | "bank_transfer" | "virtual_card" | "guest_direct" | "other";
+  referenceNumber: string;
+  paymentDate: string;
+  notes?: string;
+};
+
+export type OTAPaymentHistoryRow = OTAPayment & {
+  ota_booking: {
+    id: string;
+    external_ref: string;
+    channel: string;
+    guest_name: string;
+    guest_email: string | null;
+    guest_phone: string | null;
+    check_in: string;
+    check_out: string;
+    studio_id: string | null;
+    currency: string | null;
+    status: string;
+    number_of_nights: number | null;
+    studio?: { studio_number: string } | null;
+  } | null;
+};
+
 export const useOTAPaymentSummary = (bookingId: string | null | undefined) => {
   return useQuery({
     queryKey: ["ota-payment-summary", bookingId],
@@ -155,6 +183,92 @@ export const useOTAPaymentLedger = (filters?: {
   });
 };
 
+export const useOTAPaymentHistory = (filters?: {
+  channel?: string;
+  paymentDateStart?: string;
+  paymentDateEnd?: string;
+  search?: string;
+}) => {
+  return useQuery({
+    queryKey: ["ota-payments", "history", filters],
+    queryFn: async () => {
+      let query = supabase
+        .from("ota_payments")
+        .select(`
+          *,
+          ota_booking:ota_bookings(
+            id, external_ref, channel, guest_name, guest_email, guest_phone,
+            check_in, check_out, studio_id, currency, status, number_of_nights
+          )
+        `)
+        .order("payment_date", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      if (filters?.paymentDateStart) {
+        query = query.gte("payment_date", filters.paymentDateStart);
+      }
+      if (filters?.paymentDateEnd) {
+        query = query.lte("payment_date", filters.paymentDateEnd);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      let rows = (data ?? []) as unknown as OTAPaymentHistoryRow[];
+
+      const studioIds = [
+        ...new Set(rows.map((r) => r.ota_booking?.studio_id).filter(Boolean)),
+      ] as string[];
+      let studioMap: Record<string, string> = {};
+      if (studioIds.length > 0) {
+        const { data: studios } = await supabase
+          .from("studios")
+          .select("id, studio_number")
+          .in("id", studioIds);
+        (studios ?? []).forEach((s) => {
+          studioMap[s.id] = s.studio_number;
+        });
+      }
+
+      rows = rows.map((row) => {
+        const studioId = row.ota_booking?.studio_id;
+        return {
+          ...row,
+          ota_booking: row.ota_booking
+            ? {
+                ...row.ota_booking,
+                studio: studioId && studioMap[studioId]
+                  ? { studio_number: studioMap[studioId] }
+                  : null,
+              }
+            : null,
+        };
+      });
+
+      if (filters?.channel) {
+        rows = rows.filter((r) => r.ota_booking?.channel === filters.channel);
+      }
+
+      const q = filters?.search?.trim().toLowerCase();
+      if (q) {
+        rows = rows.filter((r) => {
+          const booking = r.ota_booking;
+          return (
+            r.reference_number.toLowerCase().includes(q) ||
+            (r.notes ?? "").toLowerCase().includes(q) ||
+            (booking?.external_ref ?? "").toLowerCase().includes(q) ||
+            (booking?.guest_name ?? "").toLowerCase().includes(q) ||
+            (booking?.guest_email ?? "").toLowerCase().includes(q) ||
+            (booking?.studio?.studio_number ?? "").toLowerCase().includes(q)
+          );
+        });
+      }
+
+      return rows;
+    },
+  });
+};
+
 export const useCreateOTAPayment = () => {
   const queryClient = useQueryClient();
 
@@ -203,6 +317,36 @@ export const useCreateOTAPayment = () => {
   });
 };
 
+export const useUpdateOTAPayment = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: UpdateOTAPaymentInput) => {
+      const { data, error } = await supabase
+        .from("ota_payments")
+        .update({
+          amount: input.amount,
+          received_from: input.receivedFrom,
+          reference_number: input.referenceNumber.trim(),
+          payment_date: input.paymentDate,
+          notes: input.notes?.trim() || null,
+        })
+        .eq("id", input.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data as OTAPayment;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["ota-payments"] });
+      queryClient.invalidateQueries({ queryKey: ["ota-payment-summary", variables.bookingId] });
+      queryClient.invalidateQueries({ queryKey: ["ota-payment-ledger"] });
+      queryClient.invalidateQueries({ queryKey: ["ota-bookings"] });
+    },
+  });
+};
+
 export const useDeleteOTAPayment = () => {
   const queryClient = useQueryClient();
 
@@ -216,6 +360,31 @@ export const useDeleteOTAPayment = () => {
       queryClient.invalidateQueries({ queryKey: ["ota-payments"] });
       queryClient.invalidateQueries({ queryKey: ["ota-payment-summary", bookingId] });
       queryClient.invalidateQueries({ queryKey: ["ota-payment-ledger"] });
+      queryClient.invalidateQueries({ queryKey: ["ota-bookings"] });
+    },
+  });
+};
+
+export const useSendOTAPaymentReceipt = () => {
+  return useMutation({
+    mutationFn: async (input: { paymentId: string; toEmail: string }) => {
+      const { data, error } = await supabase.functions.invoke("send-ota-payment-receipt", {
+        body: {
+          paymentId: input.paymentId,
+          toEmail: input.toEmail.trim(),
+        },
+      });
+      if (error) {
+        const message =
+          data && typeof data === "object" && "error" in data && typeof (data as { error: unknown }).error === "string"
+            ? (data as { error: string }).error
+            : error.message;
+        throw new Error(message);
+      }
+      if (data && typeof data === "object" && "error" in data && (data as { error?: string }).error) {
+        throw new Error((data as { error: string }).error);
+      }
+      return data as { message: string; to: string; receiptNumber: string };
     },
   });
 };

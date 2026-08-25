@@ -36,9 +36,10 @@ import { useCreateManualPayment, useLinkManualPaymentById } from "@/hooks/useMan
 import { useToast } from "@/hooks/use-toast";
 import { useInstallmentBreakdown, usePaymentSummary, useUnifiedPayments } from "@/hooks/useUnifiedPayments";
 import { getEffectiveWeeks } from "@/utils/contractDuration";
-import { Loader2, Plus, Search, CheckCircle2, XCircle, Pencil, DoorOpen } from "lucide-react";
+import { Loader2, Search, CheckCircle2, XCircle, Pencil, DoorOpen } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
@@ -178,11 +179,15 @@ const enrichRequestsWithStudentInfo = async <T extends { application_id: string 
   });
 };
 
+const panelCardClass = "rounded-3xl border border-border/60 !shadow-none";
+const tabTriggerClass =
+  "group rounded-md data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none";
+
 const ManualPaymentEntry = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const createPayment = useCreateManualPayment();
-  const [showForm, setShowForm] = useState(false);
+  const [activeTab, setActiveTab] = useState("record");
   const [searchTerm, setSearchTerm] = useState("");
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
@@ -344,7 +349,7 @@ const ManualPaymentEntry = () => {
         academic_year_name: string | null;
       };
     },
-    enabled: showForm || !!linkingPayment,
+    enabled: activeTab === "record" || !!linkingPayment,
   });
 
   // Instalments for selected application (when linking and type is instalment). Use plan-based list when app has selected_plan_id so amounts/count match Application Detail and Record Manual Payment dialog.
@@ -437,7 +442,7 @@ const ManualPaymentEntry = () => {
         instalment_number: row.sequence ?? 0,
       }));
     },
-    enabled: showForm && !!linkApplicationId && paymentType === "instalment",
+    enabled: activeTab === "record" && !!linkApplicationId && paymentType === "instalment",
   });
   const { data: linkPaymentSummary } = usePaymentSummary(linkApplicationId || null);
   const linkPaymentCount = Number(linkPaymentSummary?.payment_count ?? 0);
@@ -807,7 +812,6 @@ const ManualPaymentEntry = () => {
       setNotes("");
       setLinkApplicationId("");
       setLinkInstalmentId("");
-      setShowForm(false);
       await refetch();
     } catch (error: any) {
       console.error("Failed to record payment:", error);
@@ -944,12 +948,23 @@ const ManualPaymentEntry = () => {
     },
   });
 
+  const pendingCount = pendingRequests?.length ?? 0;
+  const unlinkedCount = orphanedPayments?.length ?? 0;
+
+  const resetRecordForm = () => {
+    setAmount("");
+    setReceiptNumber("");
+    setNotes("");
+    setLinkApplicationId("");
+    setLinkInstalmentId("");
+  };
+
   return (
     <AdminLayout
       pageTitle="Manual Payment Entry"
       subtitle="Record payments made outside the system. Approve student payment requests or record unlinked payments."
     >
-      <div className="space-y-6">
+      <div className="flex flex-col gap-6">
         <Alert className="rounded-2xl border-amber-200 bg-amber-50 text-amber-950">
           <DoorOpen className="h-4 w-4" />
           <AlertTitle className="text-sm font-medium">Early check-in payments</AlertTitle>
@@ -965,8 +980,40 @@ const ManualPaymentEntry = () => {
           </AlertDescription>
         </Alert>
 
-        {/* Pending student manual payment requests */}
-        <Card className="rounded-3xl border border-border/60 shadow-xl">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 rounded-md bg-muted border border-border p-1 h-auto">
+            <TabsTrigger value="record" className={tabTriggerClass}>
+              Record payment
+            </TabsTrigger>
+            <TabsTrigger value="pending" className={tabTriggerClass}>
+              Pending
+              {pendingCount > 0 && (
+                <Badge
+                  variant="secondary"
+                  className="ml-2 text-xs group-data-[state=active]:bg-primary-foreground/20 group-data-[state=active]:text-primary-foreground group-data-[state=active]:border-primary-foreground/30"
+                >
+                  {pendingCount}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="history" className={tabTriggerClass}>
+              History
+            </TabsTrigger>
+            <TabsTrigger value="unlinked" className={tabTriggerClass}>
+              Unlinked
+              {unlinkedCount > 0 && (
+                <Badge
+                  variant="secondary"
+                  className="ml-2 text-xs group-data-[state=active]:bg-primary-foreground/20 group-data-[state=active]:text-primary-foreground group-data-[state=active]:border-primary-foreground/30"
+                >
+                  {unlinkedCount}
+                </Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+
+        <TabsContent value="pending" className="mt-4">
+        <Card className={panelCardClass}>
           <CardHeader>
             <CardTitle
               className="text-lg font-display uppercase tracking-wide"
@@ -1072,9 +1119,10 @@ const ManualPaymentEntry = () => {
             )}
           </CardContent>
         </Card>
+        </TabsContent>
 
-        {/* Previously approved / rejected – so they don't just disappear */}
-        <Card className="rounded-3xl border border-border/60 shadow-xl">
+        <TabsContent value="history" className="mt-4">
+        <Card className={panelCardClass}>
           <CardHeader>
             <CardTitle
               className="text-lg font-display uppercase tracking-wide"
@@ -1161,6 +1209,7 @@ const ManualPaymentEntry = () => {
             )}
           </CardContent>
         </Card>
+        </TabsContent>
 
         {/* Reject request dialog – optional reason shown to student */}
         <Dialog open={rejectDialogOpen} onOpenChange={(open) => {
@@ -1221,38 +1270,19 @@ const ManualPaymentEntry = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Create Payment Form */}
-        <Card className="rounded-3xl border border-border/60 shadow-xl">
+        <TabsContent value="record" className="mt-4">
+        <Card className={panelCardClass}>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle
-                  className="text-lg font-display uppercase tracking-wide"
-                  tooltip="Create a payment record that students can verify using the receipt/cheque number."
-                  tooltipLabel="About Record New Payment"
-                >
-                  Record New Payment
-                </CardTitle>
-              </div>
-              <Button
-                variant={showForm ? "outline" : "default"}
-                className="rounded-md uppercase tracking-wide"
-                onClick={() => setShowForm(!showForm)}
-              >
-                {showForm ? (
-                  "Cancel"
-                ) : (
-                  <>
-                    <Plus className="mr-2 h-4 w-4" />
-                    New Payment
-                  </>
-                )}
-              </Button>
-            </div>
+            <CardTitle
+              className="text-lg font-display uppercase tracking-wide"
+              tooltip="Create a payment record that students can verify using the receipt/cheque number."
+              tooltipLabel="About Record New Payment"
+            >
+              Record New Payment
+            </CardTitle>
           </CardHeader>
-          {showForm && (
-            <CardContent>
-              <div className="space-y-4">
+          <CardContent>
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="payment-type">Payment Type</Label>
                   <Select
@@ -1273,6 +1303,26 @@ const ManualPaymentEntry = () => {
                 </div>
 
                 <div>
+                  <Label htmlFor="payment-method">Payment Method</Label>
+                  <Select
+                    value={paymentMethod}
+                    onValueChange={(value) =>
+                      setPaymentMethod(value as "cash" | "card" | "bank_transfer" | "cheque")
+                    }
+                  >
+                    <SelectTrigger id="payment-method" className="mt-2">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">Cash</SelectItem>
+                      <SelectItem value="card">Card</SelectItem>
+                      <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                      <SelectItem value="cheque">Cheque</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="sm:col-span-2">
                   <Label htmlFor="link-application">Link to application (optional)</Label>
                   <Popover open={linkAppDropdownOpen} onOpenChange={setLinkAppDropdownOpen}>
                     <PopoverTrigger asChild>
@@ -1399,7 +1449,7 @@ const ManualPaymentEntry = () => {
                 </div>
 
                 {linkApplicationId && paymentType === "instalment" && (
-                  <div>
+                  <div className="sm:col-span-2">
                     <Label htmlFor="link-instalment">Instalment (required when linking) *</Label>
                     <Select value={linkInstalmentId} onValueChange={setLinkInstalmentId}>
                       <SelectTrigger id="link-instalment" className="mt-2">
@@ -1435,26 +1485,6 @@ const ManualPaymentEntry = () => {
                 </div>
 
                 <div>
-                  <Label htmlFor="payment-method">Payment Method</Label>
-                  <Select
-                    value={paymentMethod}
-                    onValueChange={(value) =>
-                      setPaymentMethod(value as "cash" | "card" | "bank_transfer" | "cheque")
-                    }
-                  >
-                    <SelectTrigger id="payment-method" className="mt-2">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="cash">Cash</SelectItem>
-                      <SelectItem value="card">Card</SelectItem>
-                      <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                      <SelectItem value="cheque">Cheque</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
                   <Label htmlFor="receipt-number">
                     Receipt/Cheque Number {!linkApplicationId ? "*" : "(optional when linked)"}
                   </Label>
@@ -1483,7 +1513,7 @@ const ManualPaymentEntry = () => {
                   />
                 </div>
 
-                <div>
+                <div className="sm:col-span-2">
                   <Label htmlFor="notes">Notes (Optional)</Label>
                   <Textarea
                     id="notes"
@@ -1495,20 +1525,13 @@ const ManualPaymentEntry = () => {
                   />
                 </div>
 
-                <div className="flex justify-end gap-2 pt-2">
+                <div className="flex justify-end gap-2 pt-2 sm:col-span-2">
                   <Button
                     variant="outline"
-                    onClick={() => {
-                      setShowForm(false);
-                      setAmount("");
-                      setReceiptNumber("");
-                      setNotes("");
-                      setLinkApplicationId("");
-                      setLinkInstalmentId("");
-                    }}
+                    onClick={resetRecordForm}
                     className="rounded-md uppercase tracking-wide"
                   >
-                    Cancel
+                    Clear
                   </Button>
                   <Button
                     onClick={handleSubmit}
@@ -1527,11 +1550,11 @@ const ManualPaymentEntry = () => {
                 </div>
               </div>
             </CardContent>
-          )}
         </Card>
+        </TabsContent>
 
-        {/* Orphaned Payments List */}
-        <Card className="rounded-3xl border border-border/60 shadow-xl">
+        <TabsContent value="unlinked" className="mt-4">
+        <Card className={panelCardClass}>
           <CardHeader>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
@@ -1667,6 +1690,8 @@ const ManualPaymentEntry = () => {
             )}
           </CardContent>
         </Card>
+        </TabsContent>
+        </Tabs>
 
         {/* Link payment to application dialog */}
         <Dialog

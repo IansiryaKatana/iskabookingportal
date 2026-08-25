@@ -20,21 +20,15 @@ import {
 } from "@/hooks/useOTAPayments";
 import type { OTABookingWithRelations } from "@/hooks/useOTABookings";
 import {
+  OTA_RECEIVED_FROM_LABELS,
   canRecordOTAPayment,
   formatOTACurrency,
   getOTAAmountDue,
 } from "@/utils/otaPayment";
 import { OTAPaymentStatusBadge } from "@/components/finance/FinanceStatusBadge";
 import RecordOTAPaymentDialog from "@/components/admin/ota/RecordOTAPaymentDialog";
+import OTAPaymentActions from "@/components/admin/ota/OTAPaymentActions";
 import { CreditCard, Plus } from "lucide-react";
-
-const RECEIVED_FROM_LABELS: Record<string, string> = {
-  ota_payout: "OTA payout",
-  bank_transfer: "Bank transfer",
-  virtual_card: "Virtual card",
-  guest_direct: "Guest direct",
-  other: "Other",
-};
 
 type OTABookingPaymentsSectionProps = {
   booking: OTABookingWithRelations;
@@ -59,6 +53,18 @@ const OTABookingPaymentsSection = ({ booking, allBookings }: OTABookingPaymentsS
     summary && summary.amount_due > 0
       ? Math.min(100, (summary.total_received / summary.amount_due) * 100)
       : 0;
+
+  const guestContext = {
+    guestName: booking.guest_name,
+    guestEmail: booking.guest_email,
+    guestPhone: booking.guest_phone,
+    bookingRef: booking.external_ref,
+    channel: booking.channel,
+    checkIn: booking.check_in,
+    checkOut: booking.check_out,
+    studioNumber: booking.studio?.studio_number ?? null,
+    numberOfNights: booking.number_of_nights,
+  };
 
   return (
     <>
@@ -125,6 +131,7 @@ const OTABookingPaymentsSection = ({ booking, allBookings }: OTABookingPaymentsS
                   <TableHead className="text-xs">Amount</TableHead>
                   <TableHead className="text-xs">Source</TableHead>
                   <TableHead className="text-xs">Reference</TableHead>
+                  <TableHead className="text-xs text-right w-[52px]"> </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -138,9 +145,12 @@ const OTABookingPaymentsSection = ({ booking, allBookings }: OTABookingPaymentsS
                       {formatOTACurrency(p.amount, p.currency)}
                     </TableCell>
                     <TableCell className="text-xs">
-                      {RECEIVED_FROM_LABELS[p.received_from] ?? p.received_from}
+                      {OTA_RECEIVED_FROM_LABELS[p.received_from] ?? p.received_from}
                     </TableCell>
                     <TableCell className="text-xs">{p.reference_number}</TableCell>
+                    <TableCell className="text-right">
+                      <OTAPaymentActions payment={p} guest={guestContext} />
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

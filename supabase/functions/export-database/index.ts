@@ -236,6 +236,8 @@ serve(async (req) => {
       "release-expired-reservations",
       "send-bulk-message",
       "send-confirmation-email",
+      "send-installment-invoice-email",
+      "send-ota-payment-receipt",
       "send-transactional-email",
       "notify-booking-event",
       "stripe-webhook",

@@ -65,6 +65,22 @@ export type RecordEarlyCheckInPaymentInput = {
   notes?: string | null;
 };
 
+export type UpdateEarlyCheckInPaymentInput = {
+  paymentId: string;
+  applicationId: string;
+  amount: number;
+  paymentDate: string;
+  referenceNumber: string;
+  paymentMethod?: "bank_transfer" | "cash" | "card" | "stripe" | "other";
+  paymentType?: "payment" | "refund" | "adjustment";
+  notes?: string | null;
+};
+
+export type DeleteEarlyCheckInPaymentInput = {
+  paymentId: string;
+  applicationId: string;
+};
+
 export type EarlyCheckInLedgerRow = {
   early_check_in_id: string;
   application_id: string;
@@ -289,6 +305,46 @@ export const useRecordEarlyCheckInPayment = () => {
         p_payment_method: input.paymentMethod ?? "bank_transfer",
         p_payment_type: input.paymentType ?? "payment",
         p_notes: input.notes?.trim() || null,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_data, variables) => {
+      invalidateEarlyCheckInQueries(queryClient, variables.applicationId);
+    },
+  });
+};
+
+export const useUpdateEarlyCheckInPayment = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: UpdateEarlyCheckInPaymentInput) => {
+      const { data, error } = await (supabase as any).rpc("admin_update_early_check_in_payment", {
+        p_payment_id: input.paymentId,
+        p_amount: input.amount,
+        p_payment_date: input.paymentDate,
+        p_reference_number: input.referenceNumber.trim(),
+        p_payment_method: input.paymentMethod ?? "bank_transfer",
+        p_payment_type: input.paymentType ?? "payment",
+        p_notes: input.notes?.trim() || null,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_data, variables) => {
+      invalidateEarlyCheckInQueries(queryClient, variables.applicationId);
+    },
+  });
+};
+
+export const useDeleteEarlyCheckInPayment = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: DeleteEarlyCheckInPaymentInput) => {
+      const { data, error } = await (supabase as any).rpc("admin_delete_early_check_in_payment", {
+        p_payment_id: input.paymentId,
       });
       if (error) throw error;
       return data;

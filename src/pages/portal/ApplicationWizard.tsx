@@ -1749,12 +1749,8 @@ useEffect(() => {
         : undefined,
     });
 
-    // Sync first_name and last_name to profiles only when the applicant is the logged-in user.
-    // When staff create an application on behalf of a student, do NOT update the staff's profile with the student's name.
-    if (
-      application?.student_id === user?.id &&
-      (sanitized.first_name || sanitized.last_name)
-    ) {
+    // Sync the application name onto the student's profile (never the logged-in staff user).
+    if (application?.student_id && (sanitized.first_name || sanitized.last_name)) {
       try {
         const { error: profileError } = await supabase
           .from("profiles")
@@ -1762,15 +1758,13 @@ useEffect(() => {
             first_name: sanitized.first_name || null,
             last_name: sanitized.last_name || null,
           })
-          .eq("id", user.id);
+          .eq("id", application.student_id);
 
         if (profileError) {
           console.error("Failed to sync profile names from application step:", profileError);
           // Don't fail step submission, just log the error - step still saves successfully
-        } else {
-          if (refreshProfile) {
-            await refreshProfile();
-          }
+        } else if (application.student_id === user?.id && refreshProfile) {
+          await refreshProfile();
         }
       } catch (err) {
         console.error("Error updating profile from application step:", err);

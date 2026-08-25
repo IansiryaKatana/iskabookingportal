@@ -33,8 +33,10 @@ import { useToast } from "@/hooks/use-toast";
 import { useCreateOTAPayment, useOTAPaymentSummary } from "@/hooks/useOTAPayments";
 import type { OTABookingWithRelations } from "@/hooks/useOTABookings";
 import {
+  OTA_RECEIVED_FROM_OPTIONS,
   canRecordOTAPayment,
   formatOTACurrency,
+  type OTAReceivedFrom,
 } from "@/utils/otaPayment";
 import { OTAPaymentStatusBadge } from "@/components/finance/FinanceStatusBadge";
 import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
@@ -47,14 +49,6 @@ type RecordOTAPaymentDialogProps = {
   preselectedBookingId?: string | null;
   onSuccess?: () => void;
 };
-
-const RECEIVED_FROM_OPTIONS = [
-  { value: "ota_payout", label: "OTA payout" },
-  { value: "bank_transfer", label: "Bank transfer" },
-  { value: "virtual_card", label: "Virtual card" },
-  { value: "guest_direct", label: "Guest direct" },
-  { value: "other", label: "Other" },
-] as const;
 
 const RecordOTAPaymentDialog = ({
   open,
@@ -74,7 +68,7 @@ const RecordOTAPaymentDialog = ({
   const [bookingPickerOpen, setBookingPickerOpen] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string>("");
   const [amount, setAmount] = useState("");
-  const [receivedFrom, setReceivedFrom] = useState<(typeof RECEIVED_FROM_OPTIONS)[number]["value"]>("ota_payout");
+  const [receivedFrom, setReceivedFrom] = useState<OTAReceivedFrom>("ota_payout");
   const [referenceNumber, setReferenceNumber] = useState("");
   const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
@@ -291,12 +285,12 @@ const RecordOTAPaymentDialog = ({
 
           <div className="space-y-2">
             <Label>Received from</Label>
-            <Select value={receivedFrom} onValueChange={(v) => setReceivedFrom(v as typeof receivedFrom)}>
+            <Select value={receivedFrom} onValueChange={(v) => setReceivedFrom(v as OTAReceivedFrom)}>
               <SelectTrigger className="rounded-md">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {RECEIVED_FROM_OPTIONS.map((opt) => (
+                {OTA_RECEIVED_FROM_OPTIONS.map((opt) => (
                   <SelectItem key={opt.value} value={opt.value}>
                     {opt.label}
                   </SelectItem>

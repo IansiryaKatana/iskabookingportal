@@ -1,17 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import { CalendarPlus, CreditCard, Loader2, Plus, XCircle } from "lucide-react";
+import {
+  EarlyCheckInPaymentDeleteDialog,
+  EarlyCheckInPaymentEditDialog,
+  EarlyCheckInPaymentRowActions,
+} from "@/components/admin/EarlyCheckInPaymentEditor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
@@ -50,6 +47,7 @@ import {
   useEarlyCheckInPayments,
   useEarlyCheckInSummary,
   useRecordEarlyCheckInPayment,
+  type EarlyCheckInPayment,
 } from "@/hooks/useEarlyCheckIn";
 import { OTA_PAYMENT_STATUS_LABELS, type OTAPaymentStatus } from "@/utils/otaPayment";
 import { getErrorMessage } from "@/utils/getErrorMessage";
@@ -130,6 +128,11 @@ const EarlyCheckInSection = ({
 
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+
+  const [editingPayment, setEditingPayment] = useState<EarlyCheckInPayment | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deletingPayment, setDeletingPayment] = useState<EarlyCheckInPayment | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const hasActiveEci = summary?.status === "confirmed";
   const canCreate =
@@ -435,6 +438,7 @@ const EarlyCheckInSection = ({
                         <TableHead className="text-xs">Type</TableHead>
                         <TableHead className="text-xs">Method</TableHead>
                         <TableHead className="text-xs">Reference</TableHead>
+                        <TableHead className="text-xs text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -454,6 +458,19 @@ const EarlyCheckInSection = ({
                             {PAYMENT_METHOD_LABELS[p.payment_method] ?? p.payment_method}
                           </TableCell>
                           <TableCell className="text-xs">{p.reference_number}</TableCell>
+                          <TableCell className="text-right">
+                            <EarlyCheckInPaymentRowActions
+                              payment={p}
+                              onEdit={(payment) => {
+                                setEditingPayment(payment);
+                                setEditOpen(true);
+                              }}
+                              onDelete={(payment) => {
+                                setDeletingPayment(payment);
+                                setDeleteOpen(true);
+                              }}
+                            />
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -589,18 +606,27 @@ const EarlyCheckInSection = ({
         </SheetContent>
       </Sheet>
 
-      {/* Record payment dialog */}
-      <Dialog open={recordOpen} onOpenChange={setRecordOpen}>
-        <DialogContent className="rounded-2xl sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="font-display uppercase tracking-wide">
+      {/* Record payment sheet */}
+      <Sheet open={recordOpen} onOpenChange={setRecordOpen}>
+        <SheetContent
+          side={isMobile ? "bottom" : "right"}
+          className={cn(
+            "flex flex-col gap-0 overflow-hidden p-4 sm:p-6",
+            isMobile ? "max-h-[90vh] mb-0 rounded-t-2xl" : "h-full w-full sm:max-w-md",
+            "[&>button]:!flex [&>button]:!h-8 [&>button]:!w-8 [&>button]:!items-center [&>button]:!justify-center",
+            "[&>button]:!rounded-md [&>button]:!bg-red-500 [&>button]:!text-white [&>button]:!opacity-100",
+            "[&>button]:!shadow-md [&>button]:transition-colors [&>button]:hover:!bg-red-600",
+          )}
+        >
+          <SheetHeader className="flex-shrink-0 text-left space-y-1 pr-10">
+            <SheetTitle className="font-display uppercase tracking-wide">
               Record early check-in payment
-            </DialogTitle>
-            <DialogDescription>
+            </SheetTitle>
+            <SheetDescription>
               Unpaid balance does not block the student&apos;s stay.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
+            </SheetDescription>
+          </SheetHeader>
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-3 py-4">
             <div className="space-y-2">
               <Label htmlFor="eci_pay_amount">Amount (£)</Label>
               <Input
@@ -680,7 +706,7 @@ const EarlyCheckInSection = ({
               />
             </div>
           </div>
-          <DialogFooter className="gap-2">
+          <SheetFooter className="flex-shrink-0 flex-row justify-end gap-2 pt-4 border-t">
             <Button
               type="button"
               variant="outline"
@@ -705,22 +731,31 @@ const EarlyCheckInSection = ({
                 "Save payment"
               )}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
-      {/* Cancel dialog */}
-      <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
-        <DialogContent className="rounded-2xl sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="font-display uppercase tracking-wide">
+      {/* Cancel sheet */}
+      <Sheet open={cancelOpen} onOpenChange={setCancelOpen}>
+        <SheetContent
+          side={isMobile ? "bottom" : "right"}
+          className={cn(
+            "flex flex-col gap-0 overflow-hidden p-4 sm:p-6",
+            isMobile ? "max-h-[90vh] mb-0 rounded-t-2xl" : "h-full w-full sm:max-w-md",
+            "[&>button]:!flex [&>button]:!h-8 [&>button]:!w-8 [&>button]:!items-center [&>button]:!justify-center",
+            "[&>button]:!rounded-md [&>button]:!bg-red-500 [&>button]:!text-white [&>button]:!opacity-100",
+            "[&>button]:!shadow-md [&>button]:transition-colors [&>button]:hover:!bg-red-600",
+          )}
+        >
+          <SheetHeader className="flex-shrink-0 text-left space-y-1 pr-10">
+            <SheetTitle className="font-display uppercase tracking-wide">
               Cancel early check-in
-            </DialogTitle>
-            <DialogDescription>
+            </SheetTitle>
+            <SheetDescription>
               This restores the contract check-in date. Existing payments remain on the ledger.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2 py-2">
+            </SheetDescription>
+          </SheetHeader>
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-2 py-4">
             <Label htmlFor="eci_cancel_reason">Reason (optional)</Label>
             <Textarea
               id="eci_cancel_reason"
@@ -731,7 +766,7 @@ const EarlyCheckInSection = ({
               placeholder="e.g. Student no longer arriving early"
             />
           </div>
-          <DialogFooter className="gap-2">
+          <SheetFooter className="flex-shrink-0 flex-row justify-end gap-2 pt-4 border-t">
             <Button
               type="button"
               variant="outline"
@@ -757,9 +792,27 @@ const EarlyCheckInSection = ({
                 "Cancel early check-in"
               )}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+
+      <EarlyCheckInPaymentEditDialog
+        open={editOpen}
+        onOpenChange={(open) => {
+          setEditOpen(open);
+          if (!open) setEditingPayment(null);
+        }}
+        payment={editingPayment}
+        eciStatus={summary?.status}
+      />
+      <EarlyCheckInPaymentDeleteDialog
+        open={deleteOpen}
+        onOpenChange={(open) => {
+          setDeleteOpen(open);
+          if (!open) setDeletingPayment(null);
+        }}
+        payment={deletingPayment}
+      />
     </>
   );
 };

@@ -524,42 +524,63 @@ const PaymentHistory = () => {
       selectedPayments.has(`${p.payment_source}-${p.payment_id}`)
     );
 
-  // Fetch student info on demand
+  // Fetch student info on demand. Prefer application Step 1 name over the profile
+  // so receipts match the name shown on the booking after an application edit.
   const fetchStudentInfo = async (studentId: string, applicationId: string) => {
-    // Get profile
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("first_name, last_name, phone")
-      .eq("id", studentId)
-      .single();
+    const [profileResult, emailsResult, step1Result, step2Result] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("first_name, last_name, phone")
+        .eq("id", studentId)
+        .maybeSingle(),
+      supabase.functions.invoke("get-user-emails", {
+        body: { userIds: [studentId] },
+      }),
+      supabase
+        .from("student_application_steps")
+        .select("payload")
+        .eq("application_id", applicationId)
+        .eq("step_number", 1)
+        .maybeSingle(),
+      supabase
+        .from("student_application_steps")
+        .select("payload")
+        .eq("application_id", applicationId)
+        .eq("step_number", 2)
+        .maybeSingle(),
+    ]);
 
-    // Get email
-    const { data: emailsData } = await supabase.functions.invoke("get-user-emails", {
-      body: { userIds: [studentId] },
-    });
-    const email = emailsData?.emails?.[studentId] || "";
+    const profile = profileResult.data;
+    const email = emailsResult.data?.emails?.[studentId] || "";
+    const step1Payload = step1Result.data?.payload as
+      | { first_name?: string; last_name?: string }
+      | null
+      | undefined;
+    const step2Payload = step2Result.data?.payload as
+      | {
+          address_line1?: string;
+          address_line_1?: string;
+          address_line2?: string;
+          address_line_2?: string;
+          town?: string;
+          postcode?: string;
+        }
+      | null
+      | undefined;
 
-    // Get address from application step 2
     let address = null;
-    const { data: step2 } = await supabase
-      .from("student_application_steps")
-      .select("payload")
-      .eq("application_id", applicationId)
-      .eq("step_number", 2)
-      .single();
-
-    if (step2?.payload) {
+    if (step2Payload) {
       address = {
-        line1: step2.payload.address_line1,
-        line2: step2.payload.address_line2,
-        city: step2.payload.town,
-        postcode: step2.payload.postcode,
+        line1: step2Payload.address_line1 || step2Payload.address_line_1,
+        line2: step2Payload.address_line2 || step2Payload.address_line_2,
+        city: step2Payload.town,
+        postcode: step2Payload.postcode,
       };
     }
 
-    const name = profile
-      ? `${profile.first_name || ""} ${profile.last_name || ""}`.trim() || email.split("@")[0] || "Student"
-      : email.split("@")[0] || "Student";
+    const firstName = step1Payload?.first_name || profile?.first_name || "";
+    const lastName = step1Payload?.last_name || profile?.last_name || "";
+    const name = `${firstName} ${lastName}`.trim() || email.split("@")[0] || "Student";
 
     return {
       name,
@@ -884,7 +905,7 @@ const PaymentHistory = () => {
       toast({
         title: "Cannot edit payment",
         description:
-          "Early check-in payments must be managed from the Early Check-in section on the application.",
+          "Early check-in payments are managed from Early Check-in Payments or the application Early Check-in section.",
         variant: "destructive",
       });
       return;
@@ -975,7 +996,7 @@ const PaymentHistory = () => {
       toast({
         title: "Cannot delete payment",
         description:
-          "Early check-in payments must be managed from the Early Check-in section on the application.",
+          "Early check-in payments are managed from Early Check-in Payments or the application Early Check-in section.",
         variant: "destructive",
       });
       return;

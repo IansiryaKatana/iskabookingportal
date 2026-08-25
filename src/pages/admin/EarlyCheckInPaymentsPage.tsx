@@ -1,22 +1,25 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { format, parseISO, startOfMonth, endOfMonth } from "date-fns";
-import { Download, Loader2, Plus } from "lucide-react";
+import { Download, Loader2, MoreVertical, Pencil, Plus } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
+import { EarlyCheckInPaymentsManageDialog } from "@/components/admin/EarlyCheckInPaymentEditor";
 import { FinanceStatusBadge } from "@/components/finance/FinanceStatusBadge";
 import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -35,6 +38,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import {
   useEarlyCheckInLedger,
@@ -61,6 +71,7 @@ const formatMoney = (amount: number | null | undefined, currency = "GBP") => {
 };
 
 const EarlyCheckInPaymentsPage = () => {
+  const isMobile = useIsMobile();
   const { toast } = useToast();
   const now = new Date();
   const [dateFrom, setDateFrom] = useState(format(startOfMonth(now), "yyyy-MM-dd"));
@@ -72,8 +83,10 @@ const EarlyCheckInPaymentsPage = () => {
   );
   const [searchQuery, setSearchQuery] = useState("");
   const [recordOpen, setRecordOpen] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
   const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(null);
   const [selectedStudentName, setSelectedStudentName] = useState<string>("");
+  const [selectedEciStatus, setSelectedEciStatus] = useState<string | null>(null);
   const [payAmount, setPayAmount] = useState("");
   const [payDate, setPayDate] = useState(format(now, "yyyy-MM-dd"));
   const [payMethod, setPayMethod] = useState("bank_transfer");
@@ -153,14 +166,27 @@ const EarlyCheckInPaymentsPage = () => {
     toast({ title: "Exported", description: "Early check-in payments ledger downloaded." });
   };
 
-  const openRecord = (applicationId: string, studentName: string, remaining: number) => {
+  const openRecord = (
+    applicationId: string,
+    studentName: string,
+    remaining: number,
+    eciStatus: string,
+  ) => {
     setSelectedApplicationId(applicationId);
     setSelectedStudentName(studentName);
+    setSelectedEciStatus(eciStatus);
     setPayAmount(remaining > 0 ? remaining.toFixed(2) : "");
     setPayDate(format(new Date(), "yyyy-MM-dd"));
     setPayMethod("bank_transfer");
     setPayReference("");
     setRecordOpen(true);
+  };
+
+  const openManage = (applicationId: string, studentName: string, eciStatus: string) => {
+    setSelectedApplicationId(applicationId);
+    setSelectedStudentName(studentName);
+    setSelectedEciStatus(eciStatus);
+    setManageOpen(true);
   };
 
   const handleRecordPayment = async () => {
@@ -267,7 +293,7 @@ const EarlyCheckInPaymentsPage = () => {
 
         <Card className="rounded-3xl">
           <CardHeader>
-            <CardTitle className="text-base font-display uppercase">Payment ledger</CardTitle>
+            <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide">Payment ledger</CardTitle>
             <CardDescription>
               {financeEligible.length} early check-in
               {financeEligible.length !== 1 ? "s" : ""} matching filters
@@ -390,22 +416,51 @@ const EarlyCheckInPaymentsPage = () => {
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
-                            {canAdd && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="rounded-md text-xs h-8 gap-1"
-                                onClick={() =>
-                                  openRecord(
-                                    row.application_id,
-                                    row.student_name,
-                                    row.remaining_balance,
-                                  )
-                                }
-                              >
-                                <Plus className="h-3 w-3" />
-                                Add payment
-                              </Button>
+                            {(row.payment_count > 0 || canAdd) && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="rounded-md p-1 h-8 w-8"
+                                    aria-label={`Actions for ${row.student_name}`}
+                                  >
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                  {row.payment_count > 0 && (
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        openManage(
+                                          row.application_id,
+                                          row.student_name,
+                                          row.eci_status,
+                                        )
+                                      }
+                                    >
+                                      <Pencil className="mr-2 h-4 w-4" />
+                                      Manage
+                                    </DropdownMenuItem>
+                                  )}
+                                  {canAdd && (
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        openRecord(
+                                          row.application_id,
+                                          row.student_name,
+                                          row.remaining_balance,
+                                          row.eci_status,
+                                        )
+                                      }
+                                    >
+                                      <Plus className="mr-2 h-4 w-4" />
+                                      Add payment
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             )}
                           </TableCell>
                         </TableRow>
@@ -419,25 +474,53 @@ const EarlyCheckInPaymentsPage = () => {
         </Card>
       </div>
 
-      <Dialog
+      <EarlyCheckInPaymentsManageDialog
+        open={manageOpen}
+        onOpenChange={(open) => {
+          setManageOpen(open);
+          if (!open && !recordOpen) {
+            setSelectedApplicationId(null);
+            setSelectedStudentName("");
+            setSelectedEciStatus(null);
+          }
+        }}
+        applicationId={selectedApplicationId}
+        studentName={selectedStudentName}
+        eciStatus={selectedEciStatus}
+      />
+
+      <Sheet
         open={recordOpen}
         onOpenChange={(open) => {
           setRecordOpen(open);
-          if (!open) setSelectedApplicationId(null);
+          if (!open && !manageOpen) {
+            setSelectedApplicationId(null);
+            setSelectedStudentName("");
+            setSelectedEciStatus(null);
+          }
         }}
       >
-        <DialogContent className="rounded-2xl sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="font-display uppercase tracking-wide">
+        <SheetContent
+          side={isMobile ? "bottom" : "right"}
+          className={cn(
+            "flex flex-col gap-0 overflow-hidden p-4 sm:p-6",
+            isMobile ? "max-h-[90vh] mb-0 rounded-t-2xl" : "h-full w-full sm:max-w-md",
+            "[&>button]:!flex [&>button]:!h-8 [&>button]:!w-8 [&>button]:!items-center [&>button]:!justify-center",
+            "[&>button]:!rounded-md [&>button]:!bg-red-500 [&>button]:!text-white [&>button]:!opacity-100",
+            "[&>button]:!shadow-md [&>button]:transition-colors [&>button]:hover:!bg-red-600",
+          )}
+        >
+          <SheetHeader className="flex-shrink-0 text-left space-y-1 pr-10">
+            <SheetTitle className="font-display uppercase tracking-wide">
               Record early check-in payment
-            </DialogTitle>
-            <DialogDescription>
+            </SheetTitle>
+            <SheetDescription>
               {selectedStudentName
                 ? `Recording payment for ${selectedStudentName}.`
                 : "Enter payment details."}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
+            </SheetDescription>
+          </SheetHeader>
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-3 py-4">
             <div className="space-y-2">
               <Label htmlFor="eci_ledger_amount">Amount (£)</Label>
               <Input
@@ -486,7 +569,7 @@ const EarlyCheckInPaymentsPage = () => {
               />
             </div>
           </div>
-          <DialogFooter className="gap-2">
+          <SheetFooter className="flex-shrink-0 flex-row justify-end gap-2 pt-4 border-t">
             <Button
               type="button"
               variant="outline"
@@ -511,9 +594,9 @@ const EarlyCheckInPaymentsPage = () => {
                 "Save payment"
               )}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </AdminLayout>
   );
 };

@@ -75,3 +75,6 @@ verify_jwt = true
 
 [functions.send-installment-invoice-email]
 verify_jwt = true
+
+[functions.send-ota-payment-receipt]
+verify_jwt = true

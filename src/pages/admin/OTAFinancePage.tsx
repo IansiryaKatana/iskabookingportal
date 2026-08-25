@@ -262,8 +262,8 @@ const OTAFinancePage = () => {
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <p className="text-sm text-muted-foreground">
-            Record payments in{" "}
-            <Link to="/ota-bookings/payments" className="text-primary underline-offset-4 hover:underline">
+            Record payments and edit payment history in{" "}
+            <Link to="/ota-bookings/payments?tab=history" className="text-primary underline-offset-4 hover:underline">
               OTA Payments
             </Link>
             . Expected payout is not cash until recorded.
