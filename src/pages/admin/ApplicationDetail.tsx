@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { useStudentApplication } from "@/hooks/useStudentApplication";
 import { useUpdateApplicationStatus } from "@/hooks/useAdminApplications";
 import { useAdminStudios } from "@/hooks/useAdminStudios";
-import { ArrowLeft, ArrowUpLeft, Calendar, Building2, CreditCard, FileText, CheckCircle2, XCircle, Download, Send, RotateCcw, Gift, Percent, Handshake, Pencil, Check, ChevronDown, ChevronsUpDown, CalendarPlus, DoorOpen, DoorClosed, Upload, LogIn } from "lucide-react";
+import { ArrowLeft, ArrowUpLeft, Calendar, Building2, CreditCard, FileText, CheckCircle2, XCircle, Download, Send, RotateCcw, Gift, Percent, Handshake, Pencil, Check, ChevronDown, ChevronsUpDown, CalendarPlus, DoorOpen, DoorClosed, Upload, LogIn, Plus, Trash2 } from "lucide-react";
 import { addDays, differenceInCalendarDays, format, isAfter, parseISO } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -39,7 +39,12 @@ import { useInstallmentBreakdown, usePaymentSummary } from "@/hooks/useUnifiedPa
 import { useStudentPayments } from "@/hooks/useStudentPayments";
 import {
   useCreateCustomContractFromApplication,
+  useApplicationPaymentPlanOptions,
+  useSelectApplicationPaymentPlan,
   applicationHasInstalmentPayments,
+  addCustomInstallmentRow,
+  removeCustomInstallmentRow,
+  redistributeInstallmentAmounts,
   type CustomInstallmentInput,
 } from "@/hooks/useCreateCustomContractFromApplication";
 import { useCreateNotification } from "@/hooks/useNotifications";
@@ -391,6 +396,8 @@ const ApplicationDetail = () => {
     enabled: !!applicationId,
   });
   const createCustomContract = useCreateCustomContractFromApplication();
+  const { data: paymentPlanOptions } = useApplicationPaymentPlanOptions(applicationId);
+  const selectPaymentPlan = useSelectApplicationPaymentPlan();
 
   useEffect(() => {
     if (applicationNotesDirty) return;
@@ -2287,7 +2294,9 @@ const ApplicationDetail = () => {
                   </Button>
                 )}
               </div>
-              {application.contract?.contract_payment_plans && application.contract.contract_payment_plans.length > 0 && (
+              {(paymentPlanOptions && paymentPlanOptions.length > 0) ||
+              (application.contract?.contract_payment_plans &&
+                application.contract.contract_payment_plans.length > 0) ? (
                 <div>
                   <Label className="text-xs sm:text-sm text-muted-foreground">Payment plan</Label>
                   <Select
@@ -2295,15 +2304,15 @@ const ApplicationDetail = () => {
                     onValueChange={async (planId) => {
                       if (!applicationId || !planId) return;
                       try {
-                        const { error } = await supabase.rpc("set_selected_payment_plan", {
-                          p_application_id: applicationId,
-                          p_plan_id: planId,
+                        await selectPaymentPlan.mutateAsync({
+                          applicationId,
+                          planId,
                         });
-                        if (error) throw error;
-                        await queryClient.invalidateQueries({ queryKey: ["student-application", applicationId] });
-                        await queryClient.invalidateQueries({ queryKey: ["student-payments", applicationId] });
-                        await queryClient.invalidateQueries({ queryKey: ["payment-summary", applicationId] });
-                        toast({ title: "Payment plan updated", description: "Schedule and journey will show the selected plan." });
+                        toast({
+                          title: "Payment plan updated",
+                          description:
+                            "Schedule now follows the selected plan. Template plans re-bind to the catalog contract.",
+                        });
                       } catch (err: unknown) {
                         toast({
                           variant: "destructive",
@@ -2312,27 +2321,47 @@ const ApplicationDetail = () => {
                         });
                       }
                     }}
-                    disabled={!!hasInstalmentPayments}
+                    disabled={!!hasInstalmentPayments || selectPaymentPlan.isPending}
                   >
                     <SelectTrigger className="mt-1.5 rounded-md">
                       <SelectValue placeholder="Select plan" />
                     </SelectTrigger>
                     <SelectContent>
-                      {[...(application.contract.contract_payment_plans || [])]
-                        .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0))
-                        .filter((link) => link.payment_plan_id && link.payment_plan)
-                        .map((link) => (
-                          <SelectItem key={link.payment_plan_id!} value={link.payment_plan_id!}>
-                            {link.payment_plan?.name ?? link.payment_plan_id}
-                          </SelectItem>
-                        ))}
+                      {(paymentPlanOptions && paymentPlanOptions.length > 0
+                        ? paymentPlanOptions
+                        : [...(application.contract?.contract_payment_plans || [])]
+                            .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0))
+                            .filter((link) => link.payment_plan_id && link.payment_plan)
+                            .map((link) => ({
+                              planId: link.payment_plan_id!,
+                              name: link.payment_plan?.name ?? link.payment_plan_id!,
+                              installmentCount:
+                                link.payment_plan?.payment_plan_installments?.filter(
+                                  (i) => !i.label?.toLowerCase().includes("deposit")
+                                ).length ?? 0,
+                              isCustom: false,
+                              isTemplate: true,
+                            }))
+                      ).map((opt) => (
+                        <SelectItem key={opt.planId} value={opt.planId}>
+                          {opt.name}
+                          {opt.isCustom ? " (custom)" : ""}
+                          {opt.installmentCount > 0 ? ` · ${opt.installmentCount}` : ""}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
-                  {hasInstalmentPayments && (
-                    <p className="text-[10px] text-muted-foreground mt-1 italic">Cannot change plan after instalment payments are recorded.</p>
+                  {hasInstalmentPayments ? (
+                    <p className="text-[10px] text-muted-foreground mt-1 italic">
+                      Cannot change plan after instalment payments are recorded.
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Standard plans come from the template contract. Use Customise to set a custom count or amounts.
+                    </p>
                   )}
                 </div>
-              )}
+              ) : null}
               <div>
                 <p className="text-xs sm:text-sm text-muted-foreground mb-1">Total Value</p>
                 <div className="space-y-1">
@@ -3542,7 +3571,9 @@ const ApplicationDetail = () => {
               Customise payment schedule
             </DialogTitle>
             <DialogDescription>
-              Enter amounts per instalment. Total must equal the contract total. Saving creates a new contract and plan for this student only; the default contract is unchanged.
+              Add or remove rent instalments and set amounts/dates. Total must equal the contract
+              total. Deposit stays separate. Saving updates this student&apos;s custom plan (or
+              creates one from the template) without changing the catalog contract.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -3550,9 +3581,40 @@ const ApplicationDetail = () => {
               <span>Contract total</span>
               <span>{formatCurrency(application?.total_contract_value ?? 0)}</span>
             </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-md text-xs gap-1"
+                onClick={() => {
+                  const total = Number(application?.total_contract_value ?? 0);
+                  setCustomInstallments((prev) => addCustomInstallmentRow(prev, total));
+                }}
+              >
+                <Plus className="h-3 w-3" />
+                Add instalment
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-md text-xs"
+                onClick={() => {
+                  const total = Number(application?.total_contract_value ?? 0);
+                  setCustomInstallments((prev) => redistributeInstallmentAmounts(prev, total));
+                }}
+                disabled={customInstallments.length === 0}
+              >
+                Split equally
+              </Button>
+            </div>
             <div className="space-y-3">
               {customInstallments.map((inst, index) => (
-                <div key={inst.sequence} className="grid grid-cols-[1fr_100px_1fr] gap-2 items-center">
+                <div
+                  key={`custom-inst-${index}`}
+                  className="grid grid-cols-[1fr_100px_1fr_auto] gap-2 items-center"
+                >
                   <Label className="text-xs col-span-1 truncate">{inst.label}</Label>
                   <Input
                     type="number"
@@ -3578,6 +3640,22 @@ const ApplicationDetail = () => {
                       setCustomInstallments(next);
                     }}
                   />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                    disabled={customInstallments.length <= 1}
+                    onClick={() => {
+                      const total = Number(application?.total_contract_value ?? 0);
+                      setCustomInstallments((prev) =>
+                        removeCustomInstallmentRow(prev, index, total)
+                      );
+                    }}
+                    aria-label={`Remove ${inst.label}`}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
               ))}
             </div>
@@ -3589,7 +3667,9 @@ const ApplicationDetail = () => {
               return (
                 <div className="flex flex-wrap justify-between items-center gap-2 text-sm pt-2 border-t">
                   <span className={valid ? "text-muted-foreground" : "text-amber-600 font-medium"}>
-                    Allocated: {formatCurrency(sum)} · Remaining: {formatCurrency(remaining)}
+                    {customInstallments.length} instalment
+                    {customInstallments.length !== 1 ? "s" : ""} · Allocated:{" "}
+                    {formatCurrency(sum)} · Remaining: {formatCurrency(remaining)}
                   </span>
                   {!valid && remaining > 0 && (
                     <Button
@@ -3600,7 +3680,6 @@ const ApplicationDetail = () => {
                       onClick={() => {
                         const lastIndex = customInstallments.length - 1;
                         const sumPrev = customInstallments.slice(0, lastIndex).reduce((s, i) => s + i.amount, 0);
-                        const total = Number(application?.total_contract_value ?? 0);
                         const lastAmount = Math.round((total - sumPrev) * 100) / 100;
                         const next = [...customInstallments];
                         next[lastIndex] = { ...next[lastIndex], amount: lastAmount };
@@ -3646,19 +3725,21 @@ const ApplicationDetail = () => {
                     ? `${step1Data.first_name} ${step1Data.last_name}`.trim()
                     : "Student";
                 try {
-                  await createCustomContract.mutateAsync({
+                  const result = await createCustomContract.mutateAsync({
                     applicationId: applicationId!,
                     studentDisplayName: studentName,
-                    installments: customInstallments.map((i) => ({
-                      sequence: i.sequence,
-                      label: i.label,
+                    installments: customInstallments.map((i, index) => ({
+                      sequence: index + 1,
+                      label: `Instalment ${index + 1}`,
                       amount: Math.round(i.amount * 100) / 100,
                       due_date: i.due_date,
                     })),
                   });
                   toast({
                     title: "Schedule customised",
-                    description: "A new contract and payment plan have been created for this student.",
+                    description: result.replaced
+                      ? "This student's custom payment plan was updated in place."
+                      : "A student-specific payment plan has been created from the template.",
                   });
                   setCustomScheduleOpen(false);
                 } catch (err: unknown) {
@@ -3676,7 +3757,7 @@ const ApplicationDetail = () => {
                   Saving…
                 </>
               ) : (
-                "Save custom schedule"
+                "Save schedule"
               )}
             </Button>
           </DialogFooter>
