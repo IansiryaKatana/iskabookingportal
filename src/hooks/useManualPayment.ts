@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { logActivity } from "@/utils/auditLog";
 import { notifyBookingEvent } from "@/utils/notifyBookingEvent";
+import { syncPaymentPlanFromStep5 } from "@/utils/syncPaymentPlanFromStep5";
 
 type ManualPayment = Database["public"]["Tables"]["manual_payments"]["Row"];
 
@@ -140,6 +141,14 @@ export const useCreateManualPayment = () => {
             .from("student_application_steps")
             .update({ payload: updatedPayload })
             .eq("id", step5.id);
+        }
+
+        // If journey already chose a plan in step 5 but app.selected_payment_plan_id
+        // was never set, sync it now so finance totals use the plan (not mixed schedules).
+        try {
+          await syncPaymentPlanFromStep5(input.applicationId);
+        } catch (syncError) {
+          console.warn("Failed to sync payment plan from step 5 after deposit:", syncError);
         }
 
         void notifyBookingEvent("deposit_paid", input.applicationId, {

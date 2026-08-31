@@ -5,7 +5,9 @@ import { logActivity } from "@/utils/auditLog";
 import {
   hasRecordedDeposit,
   isEnteringDepositRequiredStatus,
+  isStatusRequiringDeposit,
 } from "@/utils/depositStatus";
+import { syncPaymentPlanFromStep5 } from "@/utils/syncPaymentPlanFromStep5";
 
 type ApplicationRow = Database["public"]["Tables"]["student_applications"]["Row"];
 
@@ -208,7 +210,7 @@ export const useUpdateApplicationStatus = () => {
       // Get current application state and payment marker before changing status.
       const { data: currentApp } = await supabase
         .from("student_applications")
-        .select("status, student_id, deposit_payment_intent_id, contract:contracts!contract_id(contract_start), assigned_studio:studios(studio_number)")
+        .select("status, student_id, deposit_payment_intent_id, selected_payment_plan_id, contract:contracts!contract_id(contract_start), assigned_studio:studios(studio_number)")
         .eq("id", id)
         .single();
 
@@ -257,6 +259,21 @@ export const useUpdateApplicationStatus = () => {
         throw new Error(
           "This application already has a recorded deposit. Reverse/refund the deposit first, then move back to Awaiting Deposit."
         );
+      }
+
+      // Post-deposit statuses need a payment plan so finance totals stay correct.
+      // Sync from step 5 if present; do not invent a plan. Block if still missing.
+      if (isStatusRequiringDeposit(nextStatus)) {
+        let planId = currentApp?.selected_payment_plan_id ?? null;
+        if (!planId) {
+          const syncResult = await syncPaymentPlanFromStep5(id);
+          planId = syncResult.planId;
+        }
+        if (!planId) {
+          throw new Error(
+            "Cannot advance: no payment plan selected. Choose a plan on the application (or complete step 5 with a plan) first."
+          );
+        }
       }
 
       const { data, error } = await supabase
