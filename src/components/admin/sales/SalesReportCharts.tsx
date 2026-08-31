@@ -1,14 +1,27 @@
 import { useMemo, useId } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
 import {
   Area,
   AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
+  LabelList,
   XAxis,
   YAxis,
 } from "recharts";
@@ -17,15 +30,18 @@ import type { SalesDemographicsRow, SalesOccupancyMonthlyRow, SalesRebookersMont
 
 const occupancyChartConfig = {
   occupancy: { label: "Occupancy %", color: "hsl(var(--chart-1))" },
-} as const;
+} satisfies ChartConfig;
 
 const rebookerChartConfig = {
   rebooker_share: { label: "Rebooker Share %", color: "hsl(var(--chart-2))" },
-} as const;
+} satisfies ChartConfig;
 
 const countryChartConfig = {
   contracts: { label: "Contracts", color: "hsl(var(--chart-4))" },
-} as const;
+} satisfies ChartConfig;
+
+const chartCardTitleClassName =
+  "flex items-center gap-2 text-base font-display font-bold uppercase tracking-wide";
 
 function aggregateOccupancyByMonth(rows: SalesOccupancyMonthlyRow[]) {
   const byMonth = new Map<
@@ -182,7 +198,7 @@ export function SalesReportCharts({
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <CardTitle
-                  className="flex items-center gap-2 text-sm font-display md:text-base"
+                  className={chartCardTitleClassName}
                   tooltip="Weighted occupancy across all studio grades (confirmed contracts only)."
                   tooltipLabel="About Occupancy by Month"
                 >
@@ -251,7 +267,7 @@ export function SalesReportCharts({
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <CardTitle
-                  className="flex items-center gap-2 text-sm font-display md:text-base"
+                  className={chartCardTitleClassName}
                   tooltip="Share of confirmed contracts that are returning students."
                   tooltipLabel="About Rebookers by Month"
                 >
@@ -333,7 +349,7 @@ export function SalesReportCharts({
         <Card className="rounded-2xl">
           <CardHeader className="pb-2">
             <CardTitle
-              className="flex items-center gap-2 text-sm font-display md:text-base"
+              className={chartCardTitleClassName}
               tooltip="Distribution for the selected application statuses."
               tooltipLabel="About Payment Plans"
             >
@@ -375,13 +391,14 @@ export function SalesReportCharts({
         <Card className="rounded-2xl">
           <CardHeader className="pb-2">
             <CardTitle
-              className="flex items-center gap-2 text-sm font-display md:text-base"
+              className={chartCardTitleClassName}
               tooltip="Where your selected contracts are coming from."
               tooltipLabel="About Top Countries"
             >
               <Globe className="h-4 w-4 text-primary" />
               Top Countries
             </CardTitle>
+            <CardDescription>Top origins for selected contracts</CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
             {loadingDemographics ? (
@@ -390,35 +407,55 @@ export function SalesReportCharts({
               <EmptyChartState message="No country data for the current selection." />
             ) : (
               <ChartContainer config={countryChartConfig} className="aspect-auto h-64 w-full">
-                <BarChart data={countryData} layout="vertical" margin={{ top: 4, right: 12, left: 4, bottom: 4 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
-                  <YAxis
-                    type="category"
+                <BarChart
+                  accessibilityLayer
+                  data={countryData}
+                  margin={{ top: 20, right: 8, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid vertical={false} />
+                  <XAxis
                     dataKey="name"
-                    width={72}
-                    tick={{ fontSize: 10 }}
-                    tickFormatter={(value) => (value.length > 12 ? `${value.slice(0, 12)}…` : value)}
-                  />
-                  <ChartTooltip
-                    content={
-                      <ChartTooltipContent
-                        formatter={(value) => [`${value} contracts`, "Count"]}
-                        labelFormatter={(label) => String(label)}
-                      />
+                    tickLine={false}
+                    tickMargin={10}
+                    axisLine={false}
+                    tickFormatter={(value) =>
+                      String(value).length > 8 ? `${String(value).slice(0, 8)}…` : String(value)
                     }
                   />
-                  <Bar dataKey="contracts" fill="var(--color-contracts)" radius={[0, 6, 6, 0]} barSize={18} />
+                  <ChartTooltip
+                    cursor={false}
+                    content={<ChartTooltipContent hideLabel />}
+                  />
+                  <Bar dataKey="contracts" fill="var(--color-contracts)" radius={8}>
+                    <LabelList
+                      position="top"
+                      offset={12}
+                      className="fill-foreground"
+                      fontSize={12}
+                    />
+                  </Bar>
                 </BarChart>
               </ChartContainer>
             )}
           </CardContent>
+          {!loadingDemographics && countryData.length > 0 && (
+            <CardFooter className="flex-col items-start gap-1 text-sm">
+              <div className="flex gap-2 leading-none font-medium">
+                {countryData[0]?.name ?? "—"} leads with {countryData[0]?.contracts ?? 0}{" "}
+                contracts
+                <TrendingUp className="h-4 w-4" />
+              </div>
+              <div className="leading-none text-muted-foreground">
+                Showing top countries for the current selection
+              </div>
+            </CardFooter>
+          )}
         </Card>
 
         <Card className="rounded-2xl md:col-span-2 xl:col-span-1">
           <CardHeader className="pb-2">
             <CardTitle
-              className="flex items-center gap-2 text-sm font-display md:text-base"
+              className={chartCardTitleClassName}
               tooltip="Received vs expected sales value for the academic year."
               tooltipLabel="About Cash Collection"
             >
