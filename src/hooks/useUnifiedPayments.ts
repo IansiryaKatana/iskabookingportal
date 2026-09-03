@@ -233,7 +233,10 @@ export const useAllPayments = (filters?: {
         let query = supabase
           .from("unified_payment_history")
           .select("*")
+          // Stable ordering: payment_date alone is not unique (many manuals share the same date),
+          // so offset pagination can return the same row on adjacent pages and duplicate React keys.
           .order("payment_date", { ascending: false })
+          .order("payment_id", { ascending: false })
           .range(offset, offset + pageSize - 1);
 
         if (filters?.contractId) {
@@ -260,7 +263,17 @@ export const useAllPayments = (filters?: {
         offset += pageSize;
       }
 
-      return allRows;
+      // Safety net against any residual pagination overlap.
+      const seen = new Set<string>();
+      const deduped: UnifiedPayment[] = [];
+      for (const row of allRows) {
+        const key = `${row.payment_source}-${row.payment_id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        deduped.push(row);
+      }
+
+      return deduped;
     },
   });
 };

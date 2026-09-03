@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { notifyBookingEvent } from "@/utils/notifyBookingEvent";
+import {
+  isScheduleInstalmentAlreadyPaid,
+  resolveScheduleInstalmentId,
+} from "@/utils/resolveScheduleInstalmentId";
 
 export type ManualPaymentRequestRow = {
   id: string;
@@ -71,11 +75,61 @@ export function useCreateManualPaymentRequest() {
   return useMutation({
     mutationFn: async (input: CreateManualPaymentRequestInput) => {
       const { data: { user } } = await supabase.auth.getUser();
+
+      // Always store contract_payment_schedule.id (portal may still send plan installment ids).
+      const scheduleInstalmentId = await resolveScheduleInstalmentId(
+        input.applicationId,
+        input.instalmentId,
+      );
+
+      const paidCheck = await isScheduleInstalmentAlreadyPaid(
+        input.applicationId,
+        scheduleInstalmentId,
+      );
+      if (paidCheck.paid) {
+        throw new Error(
+          `${paidCheck.label ?? "This instalment"} is already marked as paid. You do not need to submit another request.`,
+        );
+      }
+
+      const { data: existingPending, error: pendingError } = await supabase
+        .from("manual_payment_requests")
+        .select("id")
+        .eq("application_id", input.applicationId)
+        .eq("instalment_id", scheduleInstalmentId)
+        .eq("status", "pending")
+        .limit(1)
+        .maybeSingle();
+      if (pendingError) throw pendingError;
+      if (existingPending) {
+        throw new Error(
+          "You already have a pending request for this instalment. Please wait for the office to review it.",
+        );
+      }
+
+      // Also block duplicate pending against the raw id the UI sent (legacy plan ids still in flight).
+      if (input.instalmentId !== scheduleInstalmentId) {
+        const { data: legacyPending, error: legacyError } = await supabase
+          .from("manual_payment_requests")
+          .select("id")
+          .eq("application_id", input.applicationId)
+          .eq("instalment_id", input.instalmentId)
+          .eq("status", "pending")
+          .limit(1)
+          .maybeSingle();
+        if (legacyError) throw legacyError;
+        if (legacyPending) {
+          throw new Error(
+            "You already have a pending request for this instalment. Please wait for the office to review it.",
+          );
+        }
+      }
+
       const { data, error } = await supabase
         .from("manual_payment_requests")
         .insert({
           application_id: input.applicationId,
-          instalment_id: input.instalmentId,
+          instalment_id: scheduleInstalmentId,
           amount: input.amount,
           payment_method: input.paymentMethod,
           reference: input.reference?.trim() || null,

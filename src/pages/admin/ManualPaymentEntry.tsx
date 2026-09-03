@@ -36,6 +36,10 @@ import { useCreateManualPayment, useLinkManualPaymentById } from "@/hooks/useMan
 import { useToast } from "@/hooks/use-toast";
 import { useInstallmentBreakdown, usePaymentSummary, useUnifiedPayments } from "@/hooks/useUnifiedPayments";
 import { getEffectiveWeeks } from "@/utils/contractDuration";
+import {
+  isScheduleInstalmentAlreadyPaid,
+  resolveScheduleInstalmentId,
+} from "@/utils/resolveScheduleInstalmentId";
 import { Loader2, Search, CheckCircle2, XCircle, Pencil, DoorOpen } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -257,13 +261,33 @@ const ManualPaymentEntry = () => {
     mutationFn: async (req: PendingRequestRow) => {
       const { data: { user } } = await supabase.auth.getUser();
       const receiptNumber = `REQ-${req.id}`;
-      // manual_payments.instalment_id must reference contract_payment_schedule; student may have sent payment_plan_installments.id
-      const { data: scheduleRow } = await supabase
-        .from("contract_payment_schedule")
+
+      // Always resolve to contract_payment_schedule.id (legacy requests may store plan installment ids).
+      const instalmentIdForManual = await resolveScheduleInstalmentId(
+        req.application_id,
+        req.instalment_id,
+      );
+
+      const paidCheck = await isScheduleInstalmentAlreadyPaid(
+        req.application_id,
+        instalmentIdForManual,
+      );
+      if (paidCheck.paid) {
+        throw new Error(
+          `${paidCheck.label ?? "This instalment"} is already marked as paid from existing cash. Reject this request, or void the duplicate payment first.`,
+        );
+      }
+
+      // Prevent double-approve of the same REQ receipt number (unique index) and warn on same-day duplicate amount.
+      const { data: existingReceipt } = await supabase
+        .from("manual_payments")
         .select("id")
-        .eq("id", req.instalment_id)
+        .eq("receipt_number", receiptNumber)
         .maybeSingle();
-      const instalmentIdForManual = scheduleRow?.id ?? null;
+      if (existingReceipt) {
+        throw new Error("This request was already approved and recorded.");
+      }
+
       const { data: inserted, error: insertErr } = await supabase
         .from("manual_payments")
         .insert({
@@ -280,9 +304,16 @@ const ManualPaymentEntry = () => {
         .select("id")
         .single();
       if (insertErr) throw insertErr;
+
+      // Backfill the request row to the resolved schedule id for audit consistency.
       const { error: updateErr } = await supabase
         .from("manual_payment_requests")
-        .update({ status: "approved", reviewed_by: user?.id, reviewed_at: new Date().toISOString() })
+        .update({
+          status: "approved",
+          instalment_id: instalmentIdForManual,
+          reviewed_by: user?.id,
+          reviewed_at: new Date().toISOString(),
+        })
         .eq("id", req.id);
       if (updateErr) throw updateErr;
       return inserted;
@@ -293,6 +324,7 @@ const ManualPaymentEntry = () => {
       queryClient.invalidateQueries({ queryKey: ["manual-payment-requests-resolved"] });
       queryClient.invalidateQueries({ queryKey: ["unified-payments"] });
       queryClient.invalidateQueries({ queryKey: ["payment-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["installment-breakdown"] });
       refetchPending();
       setApprovingId(null);
       toast({ title: "Approved", description: "Payment recorded. Student will see the instalment as paid." });

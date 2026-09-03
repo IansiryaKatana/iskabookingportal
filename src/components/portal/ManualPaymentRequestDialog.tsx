@@ -74,7 +74,7 @@ export default function ManualPaymentRequestDialog({
       console.error("Failed to submit manual payment request:", error);
       toast({
         title: "Error",
-        description: "Failed to submit request. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to submit request. Please try again.",
         variant: "destructive",
       });
     }

@@ -143,6 +143,17 @@ const fetchPaymentSchedule = async (
       return Math.round((value + Number.EPSILON) * 100) / 100;
     };
 
+    // Map plan rows onto contract_payment_schedule ids so Stripe / bank-transfer
+    // requests store FKs that manual_payments and breakdown expect.
+    const { data: scheduleRows } = await supabase
+      .from("contract_payment_schedule")
+      .select("id, sequence, label")
+      .eq("contract_id", contract.id)
+      .order("sequence", { ascending: true });
+    const nonDepositSchedule = (scheduleRows ?? []).filter(
+      (row) => !String(row.label ?? "").toLowerCase().includes("deposit"),
+    );
+
     const generatedSchedule: PaymentSchedule[] = installments.map((inst, index) => {
       // Calculate amount from full contract total (deposit is separate, not deducted)
       let amount = 0;
@@ -173,8 +184,10 @@ const fetchPaymentSchedule = async (
         dueDate = new Date(effectiveStart);
       }
 
+      const scheduleId = nonDepositSchedule[index]?.id ?? inst.id;
+
       return {
-        id: inst.id,
+        id: scheduleId,
         contract_id: contract.id,
         label: inst.label || `Instalment ${inst.sequence}`,
         sequence: inst.sequence,
