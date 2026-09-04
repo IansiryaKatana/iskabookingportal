@@ -14,12 +14,13 @@ import {
   type ReportType,
   type MoveOutWindow,
 } from "@/hooks/useReports";
-import { Download, FileText, AlertCircle, CreditCard, Users, Building2, LayoutGrid } from "lucide-react";
+import { FileText, AlertCircle, CreditCard, Users, Building2, LayoutGrid } from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
+import { ExportButton } from "@/components/admin/ExportButton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -480,14 +481,14 @@ const Reports = () => {
             selectedReport !== "studio-allocation" &&
             reportData &&
             reportData.length > 0)) ? (
-          <Button
+          <ExportButton
             size="sm"
             variant="outline"
             className="rounded-md p-2 h-9 w-9 flex-shrink-0"
-            onClick={exportToCSV}
-          >
-            <Download className="h-4 w-4" />
-          </Button>
+            iconOnly
+            label="Export CSV"
+            onExport={exportToCSV}
+          />
         ) : undefined
       }
     >
@@ -638,13 +639,11 @@ const Reports = () => {
                   selectedReport !== "ota-vs-direct" &&
                   reportData &&
                   reportData.length > 0)) && (
-                <Button
-                  onClick={exportToCSV}
+                <ExportButton
+                  onExport={exportToCSV}
                   className="rounded-md uppercase tracking-wide gap-2 hidden lg:flex"
-                >
-                  <Download className="h-4 w-4" />
-                  Export CSV
-                </Button>
+                  label="Export CSV"
+                />
               )}
             </div>
           </CardHeader>

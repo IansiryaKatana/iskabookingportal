@@ -9,7 +9,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useCalculateForecast, type ForecastResult } from "@/hooks/useFinancialForecast";
 import { useAdminAcademicYears } from "@/hooks/useAdminAcademicYears";
 import { useAdminStudioGrades } from "@/hooks/useAdminStudioGrades";
-import { Loader2, TrendingUp, Users, Building2, Download, RefreshCw } from "lucide-react";
+import { Loader2, TrendingUp, Users, Building2, RefreshCw } from "lucide-react";
+import { ExportButton } from "@/components/admin/ExportButton";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
@@ -169,14 +170,14 @@ const FinancialForecast = () => {
       subtitle="Calculate how many students you need to reach your revenue target"
       mobileActionButton={
         forecastResult ? (
-          <Button
+          <ExportButton
             size="sm"
             variant="outline"
             className="rounded-md p-2 h-9 w-9 flex-shrink-0"
-            onClick={handleExportCSV}
-          >
-            <Download className="h-4 w-4" />
-          </Button>
+            iconOnly
+            label="Export CSV"
+            onExport={handleExportCSV}
+          />
         ) : undefined
       }
     >
@@ -399,15 +400,13 @@ const FinancialForecast = () => {
                     Number of students needed per contract type to reach target
                   </CardDescription>
                 </div>
-                <Button
+                <ExportButton
                   variant="outline"
                   size="sm"
                   className="rounded-md uppercase tracking-wide gap-2 hidden lg:flex"
-                  onClick={handleExportCSV}
-                >
-                  <Download className="h-4 w-4" />
-                  Export CSV
-                </Button>
+                  onExport={handleExportCSV}
+                  label="Export CSV"
+                />
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">

@@ -38,3 +38,8 @@ export const BOOKING_SOURCE_BADGE_CONFIG: Record<
   hfs_sales: { label: "HFS Sales", className: "bg-emerald-500 hover:bg-emerald-600 text-white" },
   extension: { label: "Extension", className: "bg-indigo-500 hover:bg-indigo-600 text-white" },
 };
+
+export function getBookingSourceLabel(source?: string | null): string {
+  if (!source) return "";
+  return BOOKING_SOURCE_BADGE_CONFIG[source]?.label ?? source;
+}

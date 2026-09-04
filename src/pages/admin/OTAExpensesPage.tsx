@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
-import { Edit, Loader2, Plus, Receipt, Trash2, Download } from "lucide-react";
+import { Edit, Loader2, Plus, Receipt, Trash2 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
+import { ExportButton } from "@/components/admin/ExportButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -288,10 +289,12 @@ const OTAExpensesPage = () => {
         <Card className="rounded-3xl border border-border/60 shadow-xl">
           <CardHeader className="flex flex-row items-center justify-end space-y-0 pb-4">
               <div className="flex items-center gap-2">
-                <Button variant="outline" onClick={exportToCSV} className="rounded-md gap-2 text-xs md:text-sm">
-                  <Download className="h-3 w-3 md:h-4 md:w-4" />
-                  Export
-                </Button>
+                <ExportButton
+                  variant="outline"
+                  onExport={exportToCSV}
+                  className="rounded-md gap-2 text-xs md:text-sm"
+                  label="Export"
+                />
                 <Button
                   onClick={() => {
                     setEditExpenseId(null);

@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Download, Calendar, TrendingUp } from "lucide-react";
+import { Calendar, TrendingUp } from "lucide-react";
+import { ExportButton } from "@/components/admin/ExportButton";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
@@ -152,15 +153,15 @@ const WeeklyPaymentReport = () => {
       pageTitle="Weekly Payment Report"
       subtitle="View and export weekly payment summaries"
       mobileActionButton={
-        <Button
+        <ExportButton
           size="sm"
           variant="outline"
           className="rounded-md p-2 h-9 w-9 flex-shrink-0"
-          onClick={exportToCSV}
+          iconOnly
+          label="Export CSV"
+          onExport={exportToCSV}
           disabled={!reportData}
-        >
-          <Download className="h-4 w-4" />
-        </Button>
+        />
       }
     >
       <div className="space-y-6">
@@ -245,15 +246,13 @@ const WeeklyPaymentReport = () => {
                     {safeFormatDate(reportData.weekEndDate, "MMM dd, yyyy")}
                   </CardDescription>
                 </div>
-                <Button
-                  onClick={exportToCSV}
+                <ExportButton
+                  onExport={exportToCSV}
                   variant="outline"
                   className="rounded-md uppercase tracking-wide gap-2 hidden lg:flex"
                   disabled={!reportData}
-                >
-                  <Download className="h-4 w-4" />
-                  Export CSV
-                </Button>
+                  label="Export CSV"
+                />
               </div>
             </CardHeader>
             <CardContent className="space-y-6">

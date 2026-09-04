@@ -7,7 +7,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Download, FileText, Handshake, DollarSign, Calendar, CheckCircle2 } from "lucide-react";
+import { Handshake, DollarSign, Calendar, CheckCircle2 } from "lucide-react";
+import { ExportButton } from "@/components/admin/ExportButton";
 import { format } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -247,22 +248,23 @@ const PartnerCommissions = () => {
       mobileActionButton={
         commissions && commissions.length > 0 ? (
           <div className="flex gap-2">
-            <Button
+            <ExportButton
               size="sm"
               variant="outline"
               className="rounded-md p-2 h-9 w-9 flex-shrink-0"
-              onClick={exportToCSV}
-            >
-              <Download className="h-4 w-4" />
-            </Button>
-            <Button
+              iconOnly
+              label="Export CSV"
+              onExport={exportToCSV}
+            />
+            <ExportButton
               size="sm"
               variant="outline"
               className="rounded-md p-2 h-9 w-9 flex-shrink-0"
-              onClick={exportToPDF}
-            >
-              <FileText className="h-4 w-4" />
-            </Button>
+              icon="file"
+              iconOnly
+              label="Export PDF"
+              onExport={exportToPDF}
+            />
           </div>
         ) : undefined
       }
@@ -379,22 +381,19 @@ const PartnerCommissions = () => {
               </div>
               {commissions && commissions.length > 0 && (
                 <div className="flex gap-2 hidden lg:flex">
-                  <Button
-                    onClick={exportToCSV}
+                  <ExportButton
+                    onExport={exportToCSV}
                     variant="outline"
                     className="rounded-md uppercase tracking-wide gap-2"
-                  >
-                    <Download className="h-4 w-4" />
-                    CSV
-                  </Button>
-                  <Button
-                    onClick={exportToPDF}
+                    label="CSV"
+                  />
+                  <ExportButton
+                    onExport={exportToPDF}
+                    icon="file"
                     variant="outline"
                     className="rounded-md uppercase tracking-wide gap-2"
-                  >
-                    <FileText className="h-4 w-4" />
-                    PDF
-                  </Button>
+                    label="PDF"
+                  />
                 </div>
               )}
             </div>

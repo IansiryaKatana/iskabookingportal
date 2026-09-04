@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useOTAStudioIncomeSummaryReport } from "@/hooks/useReports";
 import { useOTAExpenses } from "@/hooks/useOTAExpenses";
-import { Download, FileText, CalendarRange } from "lucide-react";
+import { CalendarRange } from "lucide-react";
+import { ExportButton } from "@/components/admin/ExportButton";
 import { format, startOfMonth, endOfMonth, subDays } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -240,12 +241,23 @@ const OTAReports = () => {
       mobileActionButton={
         hasData ? (
           <div className="flex gap-1">
-            <Button size="sm" variant="outline" className="rounded-md p-2 h-9 w-9" onClick={exportToCSV}>
-              <Download className="h-4 w-4" />
-            </Button>
-            <Button size="sm" variant="outline" className="rounded-md p-2 h-9 w-9" onClick={exportToPDF}>
-              <FileText className="h-4 w-4" />
-            </Button>
+            <ExportButton
+              size="sm"
+              variant="outline"
+              className="rounded-md p-2 h-9 w-9"
+              iconOnly
+              label="Export CSV"
+              onExport={exportToCSV}
+            />
+            <ExportButton
+              size="sm"
+              variant="outline"
+              className="rounded-md p-2 h-9 w-9"
+              icon="file"
+              iconOnly
+              label="Export PDF"
+              onExport={exportToPDF}
+            />
           </div>
         ) : undefined
       }
@@ -265,24 +277,21 @@ const OTAReports = () => {
               </div>
               {hasData && (
                 <div className="flex gap-2 flex-shrink-0 rounded-lg bg-muted/80 p-2 md:p-2.5">
-                  <Button
-                    onClick={exportToCSV}
+                  <ExportButton
+                    onExport={exportToCSV}
                     variant="secondary"
                     size="sm"
                     className="rounded-md gap-1.5 bg-background shadow-sm hover:bg-muted"
-                  >
-                    <Download className="h-4 w-4" />
-                    Export CSV
-                  </Button>
-                  <Button
-                    onClick={exportToPDF}
+                    label="Export CSV"
+                  />
+                  <ExportButton
+                    onExport={exportToPDF}
+                    icon="file"
                     variant="secondary"
                     size="sm"
                     className="rounded-md gap-1.5 bg-background shadow-sm hover:bg-muted"
-                  >
-                    <FileText className="h-4 w-4" />
-                    Export PDF
-                  </Button>
+                    label="Export PDF"
+                  />
                 </div>
               )}
             </div>

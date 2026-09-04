@@ -30,6 +30,7 @@ export type AccountsReceivableItem = {
   contract_end: string | null;
   academic_year_name: string | null;
   payment_plan: string | null;
+  booking_source?: string | null;
 };
 
 export type RevenueSummaryItem = {

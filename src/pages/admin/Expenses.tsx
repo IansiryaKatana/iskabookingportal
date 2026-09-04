@@ -41,7 +41,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
-import { Receipt, Plus, Edit, Trash2, Download, Loader2, Image as ImageIcon, X } from "lucide-react";
+import { ExportButton } from "@/components/admin/ExportButton";
+import { Receipt, Plus, Edit, Trash2, Loader2, Image as ImageIcon, X } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -417,15 +418,15 @@ const Expenses = () => {
         <Card className="rounded-3xl border border-border/60 shadow-xl">
           <CardHeader className="flex flex-row items-center justify-end space-y-0 pb-4">
               <div className="flex items-center gap-2">
-                <Button
+                <ExportButton
                   variant="outline"
-                  onClick={exportToCSV}
+                  onExport={exportToCSV}
                   className="rounded-md gap-2 text-xs md:text-sm"
+                  label="Export CSV"
                 >
-                  <Download className="h-3 w-3 md:h-4 md:w-4" />
                   <span className="hidden sm:inline">Export CSV</span>
                   <span className="sm:hidden">Export</span>
-                </Button>
+                </ExportButton>
                 <Button
                   onClick={() => {
                     setFormData({

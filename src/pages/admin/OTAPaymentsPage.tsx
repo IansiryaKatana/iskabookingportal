@@ -33,7 +33,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
+import { ExportButton } from "@/components/admin/ExportButton";
 import { useToast } from "@/hooks/use-toast";
 
 type LedgerRow = ReturnType<typeof useOTAPaymentLedger>["data"] extends (infer R)[] | undefined ? R : never;
@@ -216,14 +217,12 @@ const OTAPaymentsPage = () => {
             </TabsTrigger>
           </TabsList>
           <div className="flex gap-2">
-            <Button
+            <ExportButton
               variant="outline"
               className="rounded-md gap-2"
-              onClick={pageTab === "history" ? exportHistoryCsv : exportLedgerCsv}
-            >
-              <Download className="h-4 w-4" />
-              Export
-            </Button>
+              onExport={pageTab === "history" ? exportHistoryCsv : exportLedgerCsv}
+              label="Export"
+            />
             <Button
               className="rounded-md gap-2"
               onClick={() => {

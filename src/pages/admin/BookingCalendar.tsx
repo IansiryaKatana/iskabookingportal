@@ -25,13 +25,13 @@ import {
 } from "@/hooks/useBookingCalendar";
 import { useAdminStudioGrades } from "@/hooks/useAdminStudioGrades";
 import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
+import { ExportButton } from "@/components/admin/ExportButton";
 import { useToast } from "@/hooks/use-toast";
 import { CheckInCheckOutDialog } from "@/components/admin/CheckInCheckOutDialog";
 import { 
   Calendar, 
   ChevronLeft, 
   ChevronRight, 
-  Download, 
   Building2,
   Users,
   Briefcase,
@@ -457,15 +457,15 @@ const BookingCalendar = () => {
               </div>
 
               <div className="flex items-end">
-                <Button
-                  onClick={exportToCSV}
+                <ExportButton
+                  onExport={exportToCSV}
                   className="w-full rounded-md bg-red-500 hover:bg-red-600 text-white p-2 h-10"
                   variant="default"
                   size="icon"
                   title="Export to CSV"
-                >
-                  <Download className="h-4 w-4" />
-                </Button>
+                  iconOnly
+                  label="Export CSV"
+                />
               </div>
             </div>
           </CardContent>

@@ -25,12 +25,15 @@ import {
   Search,
   Trash,
   MoreVertical,
+  Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Link } from "react-router-dom";
 import { generateInvoicePDF } from "@/utils/invoicePdfGenerator";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useExporting } from "@/hooks/useExporting";
+import { ExportButton } from "@/components/admin/ExportButton";
 import {
   Dialog,
   DialogContent,
@@ -61,6 +64,7 @@ import {
 
 const PaymentHistory = () => {
   const { toast } = useToast();
+  const { isExporting, runExport } = useExporting();
   const queryClient = useQueryClient();
   const [selectedContract, setSelectedContract] = useState<string>("all");
   const [selectedYear, setSelectedYear] = useState<string>("all");
@@ -1043,15 +1047,17 @@ const PaymentHistory = () => {
               ))}
             </SelectContent>
           </Select>
-          <Button
+          <ExportButton
             size="sm"
             variant="outline"
             className="rounded-md p-2 h-9 w-9 flex-shrink-0"
-            onClick={exportToCSV}
+            iconOnly
+            label="Export CSV"
+            onExport={exportToCSV}
             disabled={!filteredPayments || filteredPayments.length === 0}
-          >
-            <Download className="h-4 w-4" />
-          </Button>
+            isExporting={isExporting}
+            runExport={runExport}
+          />
         </div>
       }
     >
@@ -1073,24 +1079,28 @@ const PaymentHistory = () => {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
-                disabled={!filteredPayments || filteredPayments.length === 0}
+                disabled={isExporting || !filteredPayments || filteredPayments.length === 0}
                 className="rounded-md uppercase tracking-wide gap-2"
               >
-                <Download className="h-4 w-4" />
-                Download CSV
+                {isExporting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
+                {isExporting ? "Exporting..." : "Download CSV"}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => exportToCSV()}>
+              <DropdownMenuItem onClick={() => void runExport(exportToCSV)}>
                 Report format (all filtered)
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => exportToBulkUploadCSV(true)}
+                onClick={() => void runExport(() => exportToBulkUploadCSV(true))}
                 disabled={selectedPayments.size === 0}
               >
                 Re-upload format (selected)
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportToBulkUploadCSV(false)}>
+              <DropdownMenuItem onClick={() => void runExport(() => exportToBulkUploadCSV(false))}>
                 Re-upload format (all filtered)
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -1308,23 +1318,27 @@ const PaymentHistory = () => {
                         <Button
                           variant="outline"
                           className="rounded-md uppercase tracking-wide gap-2"
-                          disabled={!filteredPayments || filteredPayments.length === 0}
+                          disabled={isExporting || !filteredPayments || filteredPayments.length === 0}
                         >
-                          <Download className="h-4 w-4" />
-                          Download CSV
+                          {isExporting ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Download className="h-4 w-4" />
+                          )}
+                          {isExporting ? "Exporting..." : "Download CSV"}
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => exportToCSV()}>
+                        <DropdownMenuItem onClick={() => void runExport(exportToCSV)}>
                           Report format (all filtered)
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={() => exportToBulkUploadCSV(true)}
+                          onClick={() => void runExport(() => exportToBulkUploadCSV(true))}
                           disabled={selectedPayments.size === 0}
                         >
                           Re-upload format (selected)
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => exportToBulkUploadCSV(false)}>
+                        <DropdownMenuItem onClick={() => void runExport(() => exportToBulkUploadCSV(false))}>
                           Re-upload format (all filtered)
                         </DropdownMenuItem>
                       </DropdownMenuContent>

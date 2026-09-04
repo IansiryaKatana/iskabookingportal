@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -35,8 +34,9 @@ import { cn } from "@/lib/utils";
 import { useDragToScroll } from "@/hooks/useDragToScroll";
 import { useAdminAcademicYears } from "@/hooks/useAdminAcademicYears";
 import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
+import { ExportButton } from "@/components/admin/ExportButton";
+import { getBookingSourceLabel } from "@/constants/bookingSources";
 import {
-  Download,
   FileText,
   TrendingUp,
   AlertCircle,
@@ -477,6 +477,7 @@ const AccountingReports = () => {
           "Contract End",
           "Academic Year",
           "Payment Plan",
+          "Booking Source",
         ];
         rows = filteredArData.map((item) => [
           item.application_id,
@@ -500,6 +501,7 @@ const AccountingReports = () => {
           item.contract_end ? format(new Date(item.contract_end), "yyyy-MM-dd") : "",
           item.academic_year_name || "",
           item.payment_plan || "",
+          getBookingSourceLabel(item.booking_source),
         ]);
         filename = `accounts_receivable_${format(new Date(), "yyyy-MM-dd")}.csv`;
         break;
@@ -890,32 +892,33 @@ const AccountingReports = () => {
       mobileActionButton={
         selectedReport === "cash-flow" ? (
           <div className="flex gap-1">
-            <Button
+            <ExportButton
               size="sm"
               variant="outline"
               className="rounded-md p-2 h-9 w-9 flex-shrink-0"
-              onClick={exportToCSV}
-            >
-              <Download className="h-4 w-4" />
-            </Button>
-            <Button
+              iconOnly
+              label="Export CSV"
+              onExport={exportToCSV}
+            />
+            <ExportButton
               size="sm"
               variant="outline"
               className="rounded-md p-2 h-9 w-9 flex-shrink-0"
-              onClick={exportCashFlowPdf}
-            >
-              <FileText className="h-4 w-4" />
-            </Button>
+              icon="file"
+              iconOnly
+              label="Export PDF"
+              onExport={exportCashFlowPdf}
+            />
           </div>
         ) : (
-          <Button
+          <ExportButton
             size="sm"
             variant="outline"
             className="rounded-md p-2 h-9 w-9 flex-shrink-0"
-            onClick={exportToCSV}
-          >
-            <Download className="h-4 w-4" />
-          </Button>
+            iconOnly
+            label="Export CSV"
+            onExport={exportToCSV}
+          />
         )
       }
     >
@@ -1277,23 +1280,25 @@ const AccountingReports = () => {
               </div>
               {selectedReport === "cash-flow" ? (
                 <div className="hidden lg:flex gap-2">
-                  <Button onClick={exportToCSV} variant="secondary" className="rounded-md uppercase tracking-wide gap-2">
-                    <Download className="h-4 w-4" />
-                    Export CSV
-                  </Button>
-                  <Button onClick={exportCashFlowPdf} className="rounded-md uppercase tracking-wide gap-2">
-                    <FileText className="h-4 w-4" />
-                    Export PDF
-                  </Button>
+                  <ExportButton
+                    onExport={exportToCSV}
+                    variant="secondary"
+                    className="rounded-md uppercase tracking-wide gap-2"
+                    label="Export CSV"
+                  />
+                  <ExportButton
+                    onExport={exportCashFlowPdf}
+                    icon="file"
+                    className="rounded-md uppercase tracking-wide gap-2"
+                    label="Export PDF"
+                  />
                 </div>
               ) : (
-                <Button
-                  onClick={exportToCSV}
+                <ExportButton
+                  onExport={exportToCSV}
                   className="rounded-md uppercase tracking-wide gap-2 hidden lg:flex"
-                >
-                  <Download className="h-4 w-4" />
-                  Export CSV
-                </Button>
+                  label="Export CSV"
+                />
               )}
             </div>
           </CardHeader>

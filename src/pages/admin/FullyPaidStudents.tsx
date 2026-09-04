@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Download, CheckCircle2, FileDown } from "lucide-react";
+import { CheckCircle2, FileDown } from "lucide-react";
+import { ExportButton } from "@/components/admin/ExportButton";
 import { format } from "date-fns";
 import { useAdminContracts } from "@/hooks/useAdminContracts";
 import { useAdminAcademicYears } from "@/hooks/useAdminAcademicYears";
@@ -166,27 +167,25 @@ const FullyPaidStudents = () => {
       pageTitle="Fully Paid Students"
       subtitle="Students who have completed all payments for their contracts"
       mobileActionButton={
-        <Button
+        <ExportButton
           size="sm"
           variant="outline"
           className="rounded-md p-2 h-9 w-9 flex-shrink-0"
-          onClick={exportToCSV}
+          iconOnly
+          label="Export CSV"
+          onExport={exportToCSV}
           disabled={!students || students.length === 0}
-        >
-          <Download className="h-4 w-4" />
-        </Button>
+        />
       }
     >
       <div className="space-y-6">
         <div className="hidden lg:flex items-center justify-end gap-2">
-          <Button
-            onClick={exportToCSV}
+          <ExportButton
+            onExport={exportToCSV}
             disabled={!students || students.length === 0}
             className="rounded-md uppercase tracking-wide gap-2"
-          >
-            <Download className="h-4 w-4" />
-            Export CSV
-          </Button>
+            label="Export CSV"
+          />
         </div>
 
         {/* Error Display */}

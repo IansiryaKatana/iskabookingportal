@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Search, Download, RefreshCw } from "lucide-react";
+import { ExportButton } from "@/components/admin/ExportButton";
+import { Search, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import {
   Table,
@@ -170,14 +171,14 @@ const AuditLogs = () => {
       subtitle="View staff activity and system changes"
       mobileActionButton={
         logs && logs.length > 0 ? (
-          <Button
+          <ExportButton
             size="sm"
             variant="outline"
             className="rounded-md p-2 h-9 w-9 flex-shrink-0"
-            onClick={exportToCSV}
-          >
-            <Download className="h-4 w-4" />
-          </Button>
+            iconOnly
+            label="Export CSV"
+            onExport={exportToCSV}
+          />
         ) : undefined
       }
     >
@@ -263,14 +264,12 @@ const AuditLogs = () => {
                   Refresh
                 </Button>
                 {logs && logs.length > 0 && (
-                  <Button
-                    onClick={exportToCSV}
+                  <ExportButton
+                    onExport={exportToCSV}
                     variant="outline"
                     className="rounded-md uppercase tracking-wide gap-2 hidden lg:flex"
-                  >
-                    <Download className="h-4 w-4" />
-                    Export CSV
-                  </Button>
+                    label="Export CSV"
+                  />
                 )}
               </div>
             </div>

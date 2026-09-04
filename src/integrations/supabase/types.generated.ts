@@ -6938,6 +6938,7 @@ export type Database = {
             | Database["public"]["Enums"]["application_status"]
             | null
           assigned_studio_id: string | null
+          booking_source: string | null
           cashback_amount: number | null
           contract_end: string | null
           contract_name: string | null

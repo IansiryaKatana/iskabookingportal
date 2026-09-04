@@ -8,11 +8,12 @@ import type { OTAPaymentStatus } from "@/utils/otaPayment";
 import { OTAPaymentStatusBadge } from "@/components/finance/FinanceStatusBadge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ExportButton } from "@/components/admin/ExportButton";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, parseISO, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, addWeeks, subMonths, addMonths } from "date-fns";
 import {
-  DollarSign, TrendingUp, TrendingDown, Download, Calendar,
+  DollarSign, TrendingUp, TrendingDown, Calendar,
   Loader2, Building2, CreditCard, FileText, BarChart3, Receipt
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -354,14 +355,12 @@ const OTAFinancePage = () => {
                 </Select>
               </div>
               <div className="flex-shrink-0">
-                <Button
-                  onClick={exportToCSV}
+                <ExportButton
+                  onExport={exportToCSV}
                   className="rounded-md gap-2"
                   variant="destructive"
-                >
-                  <Download className="h-4 w-4" />
-                  Export CSV
-                </Button>
+                  label="Export CSV"
+                />
               </div>
             </div>
             {dateRange !== "custom" && (

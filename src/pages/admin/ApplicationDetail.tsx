@@ -62,6 +62,7 @@ import {
 import { logActivity } from "@/utils/auditLog";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
+import { ExportButton } from "@/components/admin/ExportButton";
 import { BOOKING_SOURCE_OPTIONS } from "@/constants/bookingSources";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
@@ -3205,14 +3206,12 @@ const ApplicationDetail = () => {
                 <span className="hidden sm:inline">Send confirmation</span>
                 <span className="sm:hidden">Confirmation</span>
               </Button>
-              <Button
+              <ExportButton
                 variant="outline"
                 className="rounded-md tracking-wide gap-2 text-xs sm:text-sm w-full sm:w-auto bg-primary hover:bg-primary/80 text-white font-semibold border-0"
-                onClick={handleDownloadApplicationCsv}
-              >
-                <Download className="h-4 w-4" />
-                <span>Download CSV</span>
-              </Button>
+                onExport={handleDownloadApplicationCsv}
+                label="Download CSV"
+              />
             </div>
 
             <div className="mt-6 border-t border-border/60 pt-4 space-y-3">

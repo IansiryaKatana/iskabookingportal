@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { format, parseISO, startOfMonth, endOfMonth } from "date-fns";
-import { Download, Loader2, MoreVertical, Pencil, Plus } from "lucide-react";
+import { Loader2, MoreVertical, Pencil, Plus } from "lucide-react";
+import { ExportButton } from "@/components/admin/ExportButton";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { EarlyCheckInPaymentsManageDialog } from "@/components/admin/EarlyCheckInPaymentEditor";
 import { FinanceStatusBadge } from "@/components/finance/FinanceStatusBadge";
@@ -264,10 +265,12 @@ const EarlyCheckInPaymentsPage = () => {
               </TabsTrigger>
             </TabsList>
           </Tabs>
-          <Button variant="outline" className="rounded-md gap-2" onClick={exportCsv}>
-            <Download className="h-4 w-4" />
-            Export
-          </Button>
+          <ExportButton
+            variant="outline"
+            className="rounded-md gap-2"
+            onExport={exportCsv}
+            label="Export"
+          />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
