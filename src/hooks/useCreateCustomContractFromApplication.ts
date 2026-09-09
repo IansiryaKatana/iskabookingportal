@@ -139,6 +139,87 @@ function renumberInstallments(
   }));
 }
 
+function isUniqueSlugConflict(message?: string | null): boolean {
+  const text = (message ?? "").toLowerCase();
+  return text.includes("contracts_slug_key") || text.includes("duplicate key");
+}
+
+function isUniqueConstraintConflict(message?: string | null): boolean {
+  const text = (message ?? "").toLowerCase();
+  return text.includes("duplicate key") || text.includes("unique constraint");
+}
+
+/** Amend and extension clones use different slug patterns and must not be retargeted. */
+function isProtectedCloneSlug(slug: string | null | undefined): boolean {
+  if (!slug) return false;
+  return slug.includes("-amend-") || slug.startsWith("extension-");
+}
+
+async function planOwnedByApplication(
+  planId: string | null | undefined,
+  applicationId: string
+): Promise<string | null> {
+  if (!planId) return null;
+  const { data } = await supabase
+    .from("payment_plans")
+    .select("id, student_application_id")
+    .eq("id", planId)
+    .maybeSingle();
+  return data?.student_application_id === applicationId ? data.id : null;
+}
+
+/**
+ * Prefer the existing custom clone for this application so Save never
+ * inserts a second contracts row with the same deterministic slug.
+ * Amend/extension clones use different slugs and are never reused here.
+ */
+async function findReusableCustomContract(args: {
+  applicationId: string;
+  uniqueSlug: string;
+}): Promise<{ id: string; payment_plan_id: string | null; slug: string | null } | null> {
+  const { applicationId, uniqueSlug } = args;
+
+  const { data: bySlug } = await supabase
+    .from("contracts")
+    .select("id, payment_plan_id, student_application_id, slug")
+    .eq("slug", uniqueSlug)
+    .maybeSingle();
+
+  if (bySlug?.id && bySlug.student_application_id === applicationId) {
+    return {
+      id: bySlug.id,
+      payment_plan_id: bySlug.payment_plan_id,
+      slug: bySlug.slug,
+    };
+  }
+
+  const { data: ownedClones } = await supabase
+    .from("contracts")
+    .select("id, payment_plan_id, slug, created_at")
+    .eq("student_application_id", applicationId)
+    .not("payment_plan_id", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  for (const clone of ownedClones ?? []) {
+    if (isProtectedCloneSlug(clone.slug)) continue;
+
+    const ownedPlanId = await planOwnedByApplication(
+      clone.payment_plan_id,
+      applicationId
+    );
+    if (ownedPlanId) {
+      return {
+        id: clone.id,
+        payment_plan_id: ownedPlanId,
+        slug: clone.slug,
+      };
+    }
+  }
+
+  return null;
+}
+
 async function replaceStudentCustomPlanInstallments(args: {
   applicationId: string;
   contractId: string;
@@ -349,43 +430,58 @@ async function createCustomContractFromApplication(
   const baseSlug =
     typeof root.slug === "string" && root.slug ? root.slug : "custom";
   const uniqueSlug = `${baseSlug}-${applicationId.slice(0, 8)}`;
+  const customName = customContractName(
+    typeof root.name === "string" ? root.name : "Custom Contract",
+    studentDisplayName
+  );
 
-  const { data: priorCustomContract } = await supabase
-    .from("contracts")
-    .select("id, payment_plan_id")
-    .eq("student_application_id", applicationId)
-    .limit(1)
-    .maybeSingle();
+  const reusable = await findReusableCustomContract({
+    applicationId,
+    uniqueSlug,
+  });
+  const reusableOwnedPlanId = reusable
+    ? await planOwnedByApplication(reusable.payment_plan_id, applicationId)
+    : null;
 
-  if (priorCustomContract?.id && priorCustomContract.payment_plan_id) {
-    const { data: priorPlan } = await supabase
-      .from("payment_plans")
-      .select("id, student_application_id, deposit_amount")
-      .eq("id", priorCustomContract.payment_plan_id)
-      .maybeSingle();
-
-    if (priorPlan?.student_application_id === applicationId) {
-      await supabase
+  if (reusable?.id && reusableOwnedPlanId) {
+    const contractUpdate: {
+      name: string;
+      source_contract_id: string;
+      slug?: string;
+    } = {
+      name: customName,
+      source_contract_id: rootContractId,
+    };
+    // Only retarget slug when it is free or already this row — never collide
+    // with an existing customise clone or an amend/extension slug.
+    if (reusable.slug !== uniqueSlug) {
+      const { data: slugOwner } = await supabase
         .from("contracts")
-        .update({
-          name: customContractName(
-            typeof root.name === "string" ? root.name : "Custom Contract",
-            studentDisplayName
-          ),
-          source_contract_id: rootContractId,
-          slug: uniqueSlug,
-        })
-        .eq("id", priorCustomContract.id);
-
-      const result = await replaceStudentCustomPlanInstallments({
-        applicationId,
-        contractId: priorCustomContract.id,
-        planId: priorPlan.id,
-        studentDisplayName,
-        installments: numberedInput,
-      });
-      return { ...result, replaced: true };
+        .select("id")
+        .eq("slug", uniqueSlug)
+        .maybeSingle();
+      if (!slugOwner || slugOwner.id === reusable.id) {
+        contractUpdate.slug = uniqueSlug;
+      }
     }
+
+    const { error: reuseUpdateError } = await supabase
+      .from("contracts")
+      .update(contractUpdate)
+      .eq("id", reusable.id);
+
+    if (reuseUpdateError) {
+      throw new Error(`Failed to update contract: ${reuseUpdateError.message}`);
+    }
+
+    const result = await replaceStudentCustomPlanInstallments({
+      applicationId,
+      contractId: reusable.id,
+      planId: reusableOwnedPlanId,
+      studentDisplayName,
+      installments: numberedInput,
+    });
+    return { ...result, replaced: true };
   }
 
   const { data: sourcePlan, error: planError } = await supabase
@@ -444,43 +540,90 @@ async function createCustomContractFromApplication(
     }
   }
 
-  const newContractName = customContractName(
-    typeof root.name === "string" ? root.name : "Custom Contract",
-    studentDisplayName
-  );
+  let newContractId: string | null = reusable?.id && reusable.slug === uniqueSlug
+    ? reusable.id
+    : null;
 
-  const { data: newContract, error: insertContractError } = await supabase
-    .from("contracts")
-    .insert({
-      academic_year_id: root.academic_year_id,
-      studio_grade_id: root.studio_grade_id,
-      payment_plan_id: newPlanId,
-      slug: uniqueSlug,
-      name: newContractName,
-      summary: root.summary ?? null,
-      contract_start: root.contract_start,
-      contract_end: root.contract_end,
-      weeks: root.weeks,
-      weekly_price_override: root.weekly_price_override,
-      deposit_override: root.deposit_override,
-      cta_label: root.cta_label,
-      display_order: root.display_order ?? 0,
-      is_active: true,
-      extra_days: root.extra_days ?? null,
-      source_contract_id: rootContractId,
-      student_application_id: applicationId,
-      visible_on_portal: false,
-    })
-    .select("id")
-    .single();
+  if (newContractId) {
+    const { error: attachError } = await supabase
+      .from("contracts")
+      .update({
+        name: customName,
+        source_contract_id: rootContractId,
+        payment_plan_id: newPlanId,
+        student_application_id: applicationId,
+        visible_on_portal: false,
+      })
+      .eq("id", newContractId);
 
-  if (insertContractError || !newContract) {
-    throw new Error(
-      insertContractError?.message ?? "Failed to create contract."
-    );
+    if (attachError) {
+      throw new Error(`Failed to update contract: ${attachError.message}`);
+    }
+  } else {
+    const { data: newContract, error: insertContractError } = await supabase
+      .from("contracts")
+      .insert({
+        academic_year_id: root.academic_year_id,
+        studio_grade_id: root.studio_grade_id,
+        payment_plan_id: newPlanId,
+        slug: uniqueSlug,
+        name: customName,
+        summary: root.summary ?? null,
+        contract_start: root.contract_start,
+        contract_end: root.contract_end,
+        weeks: root.weeks,
+        weekly_price_override: root.weekly_price_override,
+        deposit_override: root.deposit_override,
+        cta_label: root.cta_label,
+        display_order: root.display_order ?? 0,
+        is_active: true,
+        extra_days: root.extra_days ?? null,
+        source_contract_id: rootContractId,
+        student_application_id: applicationId,
+        visible_on_portal: false,
+      })
+      .select("id")
+      .single();
+
+    if (insertContractError || !newContract) {
+      if (isUniqueSlugConflict(insertContractError?.message)) {
+        const { data: existing } = await supabase
+          .from("contracts")
+          .select("id, student_application_id")
+          .eq("slug", uniqueSlug)
+          .maybeSingle();
+
+        if (
+          existing?.id &&
+          (existing.student_application_id === applicationId ||
+            existing.student_application_id == null)
+        ) {
+          const { error: attachError } = await supabase
+            .from("contracts")
+            .update({
+              name: customName,
+              source_contract_id: rootContractId,
+              payment_plan_id: newPlanId,
+              visible_on_portal: false,
+            })
+            .eq("id", existing.id);
+
+          if (attachError) {
+            throw new Error(`Failed to update contract: ${attachError.message}`);
+          }
+          newContractId = existing.id;
+        }
+      }
+
+      if (!newContractId) {
+        throw new Error(
+          insertContractError?.message ?? "Failed to create contract."
+        );
+      }
+    } else {
+      newContractId = newContract.id;
+    }
   }
-
-  const newContractId = newContract.id;
 
   const { error: linkError } = await supabase
     .from("contract_payment_plans")
@@ -490,7 +633,7 @@ async function createCustomContractFromApplication(
       display_order: 1,
     });
 
-  if (linkError) {
+  if (linkError && !isUniqueConstraintConflict(linkError.message)) {
     throw new Error(`Failed to link plan to contract: ${linkError.message}`);
   }
 
