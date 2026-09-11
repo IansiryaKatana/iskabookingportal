@@ -40,6 +40,15 @@ export async function getStaffMfaRedirect(): Promise<string | null> {
   return MFA_SETUP_PATH;
 }
 
+type PendingTotpEnrollment = {
+  factorId: string;
+  qr: string;
+  secret: string;
+};
+
+let pendingTotpEnrollment: PendingTotpEnrollment | null = null;
+let pendingTotpEnrollmentPromise: Promise<PendingTotpEnrollment> | null = null;
+
 export async function unenrollUnverifiedTotpFactors(): Promise<void> {
   const { data, error } = await supabase.auth.mfa.listFactors();
   if (error || !data) return;
@@ -50,4 +59,40 @@ export async function unenrollUnverifiedTotpFactors(): Promise<void> {
   await Promise.all(
     unverified.map((factor) => supabase.auth.mfa.unenroll({ factorId: factor.id })),
   );
+}
+
+/** Enroll once per tab even if React Strict Mode mounts the setup page twice. */
+export async function startStaffTotpEnrollment(): Promise<PendingTotpEnrollment> {
+  if (pendingTotpEnrollment) return pendingTotpEnrollment;
+  if (pendingTotpEnrollmentPromise) return pendingTotpEnrollmentPromise;
+
+  pendingTotpEnrollmentPromise = (async () => {
+    await unenrollUnverifiedTotpFactors();
+    const { data, error } = await supabase.auth.mfa.enroll({
+      factorType: "totp",
+      friendlyName: "Urban Hub staff",
+    });
+    if (error || !data || data.type !== "totp") {
+      throw error ?? new Error("Could not start authenticator setup");
+    }
+    pendingTotpEnrollment = {
+      factorId: data.id,
+      qr: data.totp.qr_code,
+      secret: data.totp.secret,
+    };
+    return pendingTotpEnrollment;
+  })();
+
+  try {
+    return await pendingTotpEnrollmentPromise;
+  } catch (error) {
+    pendingTotpEnrollmentPromise = null;
+    pendingTotpEnrollment = null;
+    throw error;
+  }
+}
+
+export function clearPendingStaffTotpEnrollment(): void {
+  pendingTotpEnrollment = null;
+  pendingTotpEnrollmentPromise = null;
 }

@@ -10,8 +10,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { getDefaultRouteForRole } from "@/utils/getDefaultRoute";
 import {
   MFA_CHALLENGE_PATH,
+  clearPendingStaffTotpEnrollment,
   getStaffMfaRedirect,
-  unenrollUnverifiedTotpFactors,
+  startStaffTotpEnrollment,
 } from "@/utils/staffMfa";
 
 const MfaSetup = () => {
@@ -53,18 +54,11 @@ const MfaSetup = () => {
         return;
       }
       try {
-        await unenrollUnverifiedTotpFactors();
-        const { data, error: enrollError } = await supabase.auth.mfa.enroll({
-          factorType: "totp",
-          friendlyName: "Urban Hub staff",
-        });
-        if (enrollError || !data || data.type !== "totp") {
-          throw enrollError ?? new Error("Could not start authenticator setup");
-        }
+        const enrollment = await startStaffTotpEnrollment();
         if (cancelled) return;
-        setFactorId(data.id);
-        setQr(data.totp.qr_code);
-        setSecret(data.totp.secret);
+        setFactorId(enrollment.factorId);
+        setQr(enrollment.qr);
+        setSecret(enrollment.secret);
       } catch (enrollErr) {
         if (!cancelled) {
           setError(enrollErr instanceof Error ? enrollErr.message : "Could not start authenticator setup");
@@ -93,9 +87,27 @@ const MfaSetup = () => {
         code: value,
       });
       if (verifyResult.error) throw verifyResult.error;
+      clearPendingStaffTotpEnrollment();
       await continueToApp();
     } catch (verifyErr) {
-      setError(verifyErr instanceof Error ? verifyErr.message : "That code was not accepted. Try again.");
+      const message =
+        verifyErr instanceof Error ? verifyErr.message : "That code was not accepted. Try again.";
+      if (/factor not found/i.test(message)) {
+        clearPendingStaffTotpEnrollment();
+        try {
+          const enrollment = await startStaffTotpEnrollment();
+          setFactorId(enrollment.factorId);
+          setQr(enrollment.qr);
+          setSecret(enrollment.secret);
+          setError("That QR expired. Scan the new code, then enter a fresh 6-digit code.");
+        } catch (enrollErr) {
+          setError(enrollErr instanceof Error ? enrollErr.message : message);
+        }
+        setCode("");
+        setVerifying(false);
+        return;
+      }
+      setError(message);
       setCode("");
       setVerifying(false);
     }
