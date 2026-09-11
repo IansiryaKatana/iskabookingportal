@@ -43,7 +43,8 @@ export async function getStaffMfaRedirect(): Promise<string | null> {
 export async function unenrollUnverifiedTotpFactors(): Promise<void> {
   const { data, error } = await supabase.auth.mfa.listFactors();
   if (error || !data) return;
-  const unverified = (data.all ?? []).filter(
+  const factors = "all" in data && Array.isArray(data.all) ? data.all : [...data.totp];
+  const unverified = factors.filter(
     (factor) => factor.factor_type === "totp" && factor.status !== "verified",
   );
   await Promise.all(
