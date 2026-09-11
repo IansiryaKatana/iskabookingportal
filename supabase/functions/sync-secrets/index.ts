@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { getCorsHeaders, handleCorsPrelight } from "../_shared/cors.ts";
+import { aal2ForbiddenResponse, tokenHasAal2 } from "../_shared/require-aal2.ts";
 
 interface SyncRequest {
   credential_key?: string; // Optional: sync specific credential, otherwise sync all
@@ -61,6 +62,10 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         },
       );
+    }
+
+    if (!tokenHasAal2(token)) {
+      return aal2ForbiddenResponse(corsHeaders);
     }
 
     // Check if user is superadmin

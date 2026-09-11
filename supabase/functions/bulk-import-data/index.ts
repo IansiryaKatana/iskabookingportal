@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { getCorsHeaders, handleCorsPrelight } from "../_shared/cors.ts";
+import { aal2ForbiddenResponse, tokenHasAal2 } from "../_shared/require-aal2.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -346,6 +347,10 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
+    }
+
+    if (!tokenHasAal2(token)) {
+      return aal2ForbiddenResponse(corsHeaders);
     }
 
     // Check if user is staff

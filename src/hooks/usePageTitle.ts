@@ -7,6 +7,8 @@ const routeTitleMap: Record<string, string> = {
   "/": "Studios Catalog",
   "/studios": "Studios Catalog",
   "/admin/login": "Admin Portal Login",
+  "/admin/mfa-setup": "Set up authenticator",
+  "/admin/mfa-challenge": "Authenticator code",
   "/admin": "Admin Dashboard",
   "/admin/academic-years": "Academic Years",
   "/admin/studio-grades": "Studio Grades",

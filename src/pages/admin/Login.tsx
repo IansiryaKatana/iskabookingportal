@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Loader2, Mail, Eye, EyeOff, ArrowRight, Lock, ArrowLeft } from "lucide-react";
 import { useBrandingSettings } from "@/hooks/useBranding";
 import { getDefaultRouteForRole } from "@/utils/getDefaultRoute";
+import { getStaffMfaRedirect, isStaffPortalRole } from "@/utils/staffMfa";
 
 const Login = () => {
   const { signIn, loading, user, profile } = useAuth();
@@ -52,9 +53,14 @@ const Login = () => {
 
   useEffect(() => {
     const effectiveRole = profile?.staff_subrole ?? profile?.role;
-    if (user && effectiveRole && effectiveRole !== "student") {
+    if (user && effectiveRole && isStaffPortalRole(effectiveRole)) {
       // Check if user has access to the redirect path, if not, find their default route
       const checkAndRedirect = async () => {
+        const mfaPath = await getStaffMfaRedirect();
+        if (mfaPath) {
+          navigate(mfaPath, { replace: true, state: { from: redirectPath } });
+          return;
+        }
         // If redirecting to /admin, check if they have access
         if (redirectPath === "/admin" || redirectPath.startsWith("/admin")) {
           const defaultRoute = await getDefaultRouteForRole(effectiveRole);
@@ -86,6 +92,15 @@ const Login = () => {
 
     const roleForRedirect =
       effectiveRole ?? profile?.staff_subrole ?? profile?.role ?? "";
+
+    if (isStaffPortalRole(roleForRedirect)) {
+      const mfaPath = await getStaffMfaRedirect();
+      if (mfaPath) {
+        navigate(mfaPath, { replace: true, state: { from: redirectPath } });
+        setIsSubmitting(false);
+        return;
+      }
+    }
 
     // After successful login, check if user has access to redirect path
     // If redirecting to /admin and they don't have access, redirect to their default route

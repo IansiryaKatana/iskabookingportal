@@ -19,6 +19,7 @@ import { Loader2, LogIn, UserPlus, CheckCircle2, Mail, Eye, EyeOff, ArrowRight, 
 import { useBrandingSettings } from "@/hooks/useBranding";
 import { userMustChangePassword } from "@/utils/mustChangePassword";
 import { supabase } from "@/integrations/supabase/client";
+import { getStaffMfaRedirect } from "@/utils/staffMfa";
 
 const loginSchema = z.object({
   email: z.string().email("Enter a valid email"),
@@ -124,7 +125,9 @@ const PortalAuth = () => {
                      profile.role === "operations_manager" || profile.role === "reservationist" || 
                      profile.role === "accountant" || profile.role === "front_desk";
       if (isStaff) {
-        navigate("/admin", { replace: true });
+        void getStaffMfaRedirect().then((mfaPath) => {
+          navigate(mfaPath ?? "/admin", { replace: true, state: mfaPath ? { from: "/admin" } : undefined });
+        });
         return;
       }
       // Redirect partners to partner portal

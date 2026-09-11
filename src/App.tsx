@@ -24,6 +24,8 @@ const StudiosYearOrSlugPage = lazy(() => import("./pages/StudiosYearOrSlugPage")
 const ContractDetail = lazy(() => import("./pages/ContractDetail"));
 const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
 const AdminLogin = lazy(() => import("./pages/admin/Login"));
+const AdminMfaSetup = lazy(() => import("./pages/admin/MfaSetup"));
+const AdminMfaChallenge = lazy(() => import("./pages/admin/MfaChallenge"));
 const AdminRequestPasswordReset = lazy(() => import("./pages/admin/RequestPasswordReset"));
 const AdminResetPassword = lazy(() => import("./pages/admin/ResetPassword"));
 const AdminContracts = lazy(() => import("./pages/admin/Contracts"));
@@ -228,6 +230,22 @@ const App = () => (
                   />
 
             <Route path="/admin/login" element={<AdminLogin />} />
+            <Route
+              path="/admin/mfa-setup"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin", "admin", "operations_manager", "reservationist", "accountant", "front_desk", "maintenance_officer", "housekeeper"]} checkDatabase={false}>
+                  <AdminMfaSetup />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/mfa-challenge"
+              element={
+                <ProtectedRoute allowedRoles={["staff", "superadmin", "admin", "operations_manager", "reservationist", "accountant", "front_desk", "maintenance_officer", "housekeeper"]} checkDatabase={false}>
+                  <AdminMfaChallenge />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/admin/request-password-reset" element={<AdminRequestPasswordReset />} />
             <Route path="/admin/reset-password" element={<AdminResetPassword />} />
             <Route

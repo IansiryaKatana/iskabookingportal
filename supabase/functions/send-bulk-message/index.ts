@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { getCorsHeaders, handleCorsPrelight } from "../_shared/cors.ts";
 import { resolvePortalUrl } from "../_shared/recovery-link.ts";
+import { aal2ForbiddenResponse, tokenHasAal2 } from "../_shared/require-aal2.ts";
 import {
   computeDaysOverdue,
   filterPaymentInstallmentsForReminders,
@@ -33,6 +34,54 @@ serve(async (req) => {
         },
       },
     );
+
+    const authHeader = req.headers.get("Authorization");
+    const token = authHeader?.replace("Bearer ", "") ?? "";
+    if (!token) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabaseClient.auth.getUser(token);
+    if (userError || !user) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    if (!tokenHasAal2(token)) {
+      return aal2ForbiddenResponse(corsHeaders);
+    }
+
+    const { data: callerProfile } = await supabaseClient
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (
+      !callerProfile ||
+      !["staff", "superadmin", "admin"].includes(callerProfile.role)
+    ) {
+      return new Response(
+        JSON.stringify({ error: "Forbidden: Staff access required" }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
 
     // Parse request body
     const requestBody = await req.json();

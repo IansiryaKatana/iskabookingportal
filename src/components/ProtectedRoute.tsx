@@ -9,6 +9,11 @@ import {
   ROUTE_PERMISSION_STALE_MS,
 } from "@/hooks/useRoutePermission";
 import { userMustChangePassword } from "@/utils/mustChangePassword";
+import {
+  STAFF_MFA_EXEMPT_PATHS,
+  getStaffMfaRedirect,
+  isStaffPortalRole,
+} from "@/utils/staffMfa";
 
 /** UUID v4 pattern for last path segment (detail routes like /admin/applications/:id) */
 const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -42,9 +47,12 @@ type ProtectedRouteProps = {
 };
 
 const ProtectedRoute = ({ children, allowedRoles, checkDatabase = true }: ProtectedRouteProps) => {
-  const { user, role, loading } = useAuth();
+  const { user, role, loading, profile } = useAuth();
   const location = useLocation();
   const permissionPath = getPermissionPath(location.pathname);
+  const staffRole = profile?.staff_subrole ?? profile?.role ?? role;
+  const requiresStaffMfa =
+    !!user && isStaffPortalRole(staffRole) && !STAFF_MFA_EXEMPT_PATHS.has(location.pathname);
 
   // Check database permissions (default: enabled)
   // For detail routes (e.g. /admin/applications/:id), use parent path so Permissions UI toggle controls both list and detail
@@ -67,6 +75,15 @@ const ProtectedRoute = ({ children, allowedRoles, checkDatabase = true }: Protec
     queryFn: () => getDefaultRouteForRole(role || ""),
     enabled: !!role && !loading, // Always enabled when we have a role, but we'll check hasAccess before using it
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
+
+  const { data: mfaRedirect, isLoading: checkingMfa } = useQuery({
+    queryKey: ["staff-mfa-redirect", user?.id],
+    queryFn: getStaffMfaRedirect,
+    enabled: requiresStaffMfa && !loading,
+    staleTime: 10_000,
+    gcTime: 30_000,
+    refetchOnWindowFocus: false,
   });
 
   // Show loading only if auth is loading, not if permission check is loading
@@ -116,6 +133,18 @@ const ProtectedRoute = ({ children, allowedRoles, checkDatabase = true }: Protec
     location.pathname !== "/portal/force-change-password"
   ) {
     return <Navigate to="/portal/force-change-password" replace />;
+  }
+
+  if (requiresStaffMfa && checkingMfa) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (requiresStaffMfa && mfaRedirect) {
+    return <Navigate to={mfaRedirect} replace state={{ from: location.pathname }} />;
   }
 
   // Check permissions: use database if enabled, otherwise use allowedRoles
