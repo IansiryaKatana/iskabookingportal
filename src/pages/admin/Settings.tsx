@@ -9,6 +9,7 @@ import { Button, constrainedFlexButtonClassName } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { CheckCircle2, XCircle, Loader2, RefreshCw, ExternalLink, Save, Trash2, AlertTriangle, Eye, EyeOff, Lock, Download, Database, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -41,6 +42,8 @@ type IntegrationStatus = {
 const Settings = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { profile } = useAuth();
+  const isSuperadmin = profile?.role === "superadmin";
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -345,6 +348,7 @@ const Settings = () => {
   // Fetch academic years for deletion dropdown
   const { data: academicYears, isLoading: isLoadingYears } = useQuery({
     queryKey: ["academic-years"],
+    enabled: isSuperadmin,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("academic_years")
@@ -359,6 +363,7 @@ const Settings = () => {
   // Fetch application statistics
   const { data: appStats, refetch: refetchStats } = useQuery({
     queryKey: ["application-stats"],
+    enabled: isSuperadmin,
     queryFn: async () => {
       // 1) Fetch all applications with their contract_id
       const { data: allApps, error: allError } = await supabase
@@ -1159,7 +1164,8 @@ const Settings = () => {
           </CardContent>
         </Card>
 
-        {/* Data Management Section */}
+        {/* Data Management Section — superadmin only (RPCs reject everyone else) */}
+        {isSuperadmin && (
         <Card className="rounded-3xl border-destructive/20">
           <CardHeader>
             <CardTitle
@@ -1797,6 +1803,7 @@ const Settings = () => {
             </div>
           </CardContent>
         </Card>
+        )}
 
         {/* Database Export Section */}
         <Card className="rounded-3xl border-blue-200 dark:border-blue-800">
