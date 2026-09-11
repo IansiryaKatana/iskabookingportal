@@ -78,3 +78,7 @@ verify_jwt = true
 
 [functions.send-ota-payment-receipt]
 verify_jwt = true
+
+# Invoked by pg_net from raise_security_alert; auth is x-security-alert-secret.
+[functions.send-security-alert]
+verify_jwt = false
