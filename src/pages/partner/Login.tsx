@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2, Mail, LogIn, Eye, EyeOff, ArrowRight, Lock } from "lucide-react";
 import { useBrandingSettings } from "@/hooks/useBranding";
+import AuthCaptcha from "@/components/AuthCaptcha";
+import { useAuthCaptcha } from "@/hooks/useAuthCaptcha";
 
 const PartnerLogin = () => {
   const { signIn, loading, user, profile } = useAuth();
@@ -26,6 +28,7 @@ const PartnerLogin = () => {
   const [keepSignedIn, setKeepSignedIn] = useState(false);
   const [faviconLoaded, setFaviconLoaded] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const { captchaRef, onVerify, onExpire, resetCaptcha, consumeCaptchaToken } = useAuthCaptcha();
 
   // Track initial load completion
   useEffect(() => {
@@ -56,11 +59,19 @@ const PartnerLogin = () => {
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
+
+    const captcha = consumeCaptchaToken();
+    if (captcha.error || !captcha.token) {
+      setError(captcha.error ?? "Please complete the captcha before continuing.");
+      return;
+    }
+
     setIsSubmitting(true);
 
-    const { error: signInError } = await signIn(email.trim(), password);
+    const { error: signInError } = await signIn(email.trim(), password, captcha.token);
     if (signInError) {
       setError(signInError);
+      resetCaptcha();
       setIsSubmitting(false);
       return;
     }
@@ -424,6 +435,8 @@ const PartnerLogin = () => {
                 Keep me signed in on this device
               </Label>
             </div>
+
+            <AuthCaptcha ref={captchaRef} onVerify={onVerify} onExpire={onExpire} />
 
             {/* Error Message */}
             {error && (

@@ -20,6 +20,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import AuthCaptcha from "@/components/AuthCaptcha";
+import { useAuthCaptcha } from "@/hooks/useAuthCaptcha";
 
 const registerSchema = z.object({
   email: z.string().email("Enter a valid email"),
@@ -42,6 +44,7 @@ const PartnerRegister = () => {
   const [registrationSuccess, setRegistrationSuccess] = useState<{
     email: string;
   } | null>(null);
+  const { captchaRef, onVerify, onExpire, resetCaptcha, consumeCaptchaToken } = useAuthCaptcha();
 
   const form = useForm<z.infer<typeof registerSchema>>({
     resolver: zodResolver(registerSchema),
@@ -81,6 +84,17 @@ const PartnerRegister = () => {
     setRegistrationSuccess(null);
 
     try {
+      const captcha = consumeCaptchaToken();
+      if (captcha.error || !captcha.token) {
+        toast({
+          variant: "destructive",
+          title: "Captcha required",
+          description: captcha.error,
+        });
+        setSubmitting(false);
+        return;
+      }
+
       // Validate referral code one more time
       if (isValidatingCode) {
         toast({
@@ -113,6 +127,7 @@ const PartnerRegister = () => {
           first_name: values.first_name,
           last_name: values.last_name,
         },
+        captcha.token,
       );
 
       // Check if email confirmation is required
@@ -129,6 +144,7 @@ const PartnerRegister = () => {
           title: "Registration failed",
           description: result.error,
         });
+        resetCaptcha();
         setSubmitting(false);
         return;
       }
@@ -167,6 +183,7 @@ const PartnerRegister = () => {
       // Success - redirect to dashboard
       navigate("/partner", { replace: true });
     } catch (error: any) {
+      resetCaptcha();
       toast({
         variant: "destructive",
         title: "Registration failed",
@@ -391,6 +408,8 @@ const PartnerRegister = () => {
                     </FormItem>
                   )}
                 />
+
+                <AuthCaptcha ref={captchaRef} onVerify={onVerify} onExpire={onExpire} />
 
                 <Button
                   type="submit"

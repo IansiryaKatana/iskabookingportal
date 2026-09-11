@@ -7,6 +7,8 @@ import { Loader2, Mail, Eye, EyeOff, ArrowRight, Lock, ArrowLeft } from "lucide-
 import { useBrandingSettings } from "@/hooks/useBranding";
 import { getDefaultRouteForRole } from "@/utils/getDefaultRoute";
 import { getStaffMfaRedirect, isStaffPortalRole } from "@/utils/staffMfa";
+import AuthCaptcha from "@/components/AuthCaptcha";
+import { useAuthCaptcha } from "@/hooks/useAuthCaptcha";
 
 const Login = () => {
   const { signIn, loading, user, profile } = useAuth();
@@ -25,6 +27,7 @@ const Login = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [faviconLoaded, setFaviconLoaded] = useState(false);
+  const { captchaRef, onVerify, onExpire, resetCaptcha, consumeCaptchaToken } = useAuthCaptcha();
 
   // Get time-based greeting
   const getGreeting = () => {
@@ -81,11 +84,19 @@ const Login = () => {
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
+
+    const captcha = consumeCaptchaToken();
+    if (captcha.error || !captcha.token) {
+      setError(captcha.error ?? "Please complete the captcha before continuing.");
+      return;
+    }
+
     setIsSubmitting(true);
 
-    const { error: signInError, effectiveRole } = await signIn(email.trim(), password);
+    const { error: signInError, effectiveRole } = await signIn(email.trim(), password, captcha.token);
     if (signInError) {
       setError(signInError);
+      resetCaptcha();
       setIsSubmitting(false);
       return;
     }
@@ -201,6 +212,10 @@ const Login = () => {
                       )}
                     </button>
                   </div>
+                </div>
+
+                <div className="mb-4">
+                  <AuthCaptcha ref={captchaRef} onVerify={onVerify} onExpire={onExpire} />
                 </div>
 
                 {/* Error Message */}

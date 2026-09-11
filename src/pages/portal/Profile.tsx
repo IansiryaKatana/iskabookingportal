@@ -20,6 +20,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import AuthCaptcha from "@/components/AuthCaptcha";
+import { useAuthCaptcha } from "@/hooks/useAuthCaptcha";
 
 const profileSchema = z.object({
   first_name: z.string().min(1, "First name is required"),
@@ -44,6 +46,7 @@ const Profile = () => {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
+  const { captchaRef, onVerify, onExpire, resetCaptcha, consumeCaptchaToken } = useAuthCaptcha();
 
   // Initialize forms BEFORE any conditional returns (Rules of Hooks)
   const profileForm = useForm<z.infer<typeof profileSchema>>({
@@ -283,15 +286,27 @@ const Profile = () => {
   };
 
   const handlePasswordSubmit = async (values: z.infer<typeof passwordSchema>) => {
+    const captcha = consumeCaptchaToken();
+    if (captcha.error || !captcha.token) {
+      toast({
+        variant: "destructive",
+        title: "Captcha required",
+        description: captcha.error,
+      });
+      return;
+    }
+
     setIsChangingPassword(true);
     try {
       // Verify current password by attempting to sign in
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: user?.email ?? "",
         password: values.current_password,
+        options: { captchaToken: captcha.token },
       });
 
       if (signInError) {
+        resetCaptcha();
         throw new Error("Current password is incorrect");
       }
 
@@ -308,6 +323,7 @@ const Profile = () => {
         description: "Your password has been updated successfully.",
       });
     } catch (error) {
+      resetCaptcha();
       console.error("Error changing password:", error);
       toast({
         variant: "destructive",
@@ -476,14 +492,15 @@ const Profile = () => {
                         <Input type="password" placeholder="••••••••" {...field} />
                       </FormControl>
                       <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button
-                  type="submit"
-                  className="rounded-md uppercase tracking-wide gap-2"
-                  disabled={isChangingPassword}
-                >
+                      </FormItem>
+                    )}
+                  />
+                  <AuthCaptcha ref={captchaRef} onVerify={onVerify} onExpire={onExpire} />
+                  <Button
+                    type="submit"
+                    className="rounded-md uppercase tracking-wide gap-2"
+                    disabled={isChangingPassword}
+                  >
                   {isChangingPassword ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />

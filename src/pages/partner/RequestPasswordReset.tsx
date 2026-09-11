@@ -8,6 +8,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2, Mail, ArrowRight, Lock, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { useBrandingSettings } from "@/hooks/useBranding";
 import { toast } from "sonner";
+import AuthCaptcha from "@/components/AuthCaptcha";
+import { useAuthCaptcha } from "@/hooks/useAuthCaptcha";
 
 const RequestPasswordReset = () => {
   const navigate = useNavigate();
@@ -21,6 +23,7 @@ const RequestPasswordReset = () => {
   const [success, setSuccess] = useState(false);
   const [faviconLoaded, setFaviconLoaded] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const { captchaRef, onVerify, onExpire, resetCaptcha, consumeCaptchaToken } = useAuthCaptcha();
 
   // Track initial load completion
   useEffect(() => {
@@ -53,13 +56,22 @@ const RequestPasswordReset = () => {
       return;
     }
 
+    const captcha = consumeCaptchaToken();
+    if (captcha.error || !captcha.token) {
+      setError(captcha.error ?? "Please complete the captcha before continuing.");
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
         redirectTo: `https://portal.urbanhub.uk/partner/reset-password`,
+        captchaToken: captcha.token,
       });
 
       if (resetError) {
         setError(resetError.message || "Failed to send reset email. Please try again.");
+        resetCaptcha();
         setIsSubmitting(false);
         return;
       }
@@ -362,6 +374,8 @@ const RequestPasswordReset = () => {
                 />
               </div>
             </div>
+
+            <AuthCaptcha ref={captchaRef} onVerify={onVerify} onExpire={onExpire} />
 
             {/* Error Message */}
             {error && (

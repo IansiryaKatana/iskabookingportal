@@ -1,1 +1,5 @@
 /// <reference types="vite/client" />
+
+interface ImportMetaEnv {
+  readonly VITE_HCAPTCHA_SITE_KEY?: string;
+}

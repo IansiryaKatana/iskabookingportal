@@ -20,6 +20,8 @@ import { useBrandingSettings } from "@/hooks/useBranding";
 import { userMustChangePassword } from "@/utils/mustChangePassword";
 import { supabase } from "@/integrations/supabase/client";
 import { getStaffMfaRedirect } from "@/utils/staffMfa";
+import AuthCaptcha from "@/components/AuthCaptcha";
+import { useAuthCaptcha } from "@/hooks/useAuthCaptcha";
 
 const loginSchema = z.object({
   email: z.string().email("Enter a valid email"),
@@ -50,6 +52,7 @@ const PortalAuth = () => {
   } | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [faviconLoaded, setFaviconLoaded] = useState(false);
+  const { captchaRef, onVerify, onExpire, resetCaptcha, consumeCaptchaToken } = useAuthCaptcha();
 
   // Get time-based greeting
   const getGreeting = () => {
@@ -85,6 +88,7 @@ const PortalAuth = () => {
   const switchMode = (nextMode: "login" | "register") => {
     setMode(nextMode);
     setShowPassword(false);
+    resetCaptcha();
     const params = new URLSearchParams(location.search);
     if (nextMode === "register") {
       params.set("mode", "register");
@@ -147,11 +151,17 @@ const PortalAuth = () => {
   }, [user, profile, navigate, redirectPath]);
 
   const handleLogin = async (values: z.infer<typeof loginSchema>) => {
-    setSubmitting(true);
     setError(null);
-    const { error: signInError } = await signIn(values.email, values.password);
+    const captcha = consumeCaptchaToken();
+    if (captcha.error || !captcha.token) {
+      setError(captcha.error ?? "Please complete the captcha before continuing.");
+      return;
+    }
+    setSubmitting(true);
+    const { error: signInError } = await signIn(values.email, values.password, captcha.token);
     if (signInError) {
       setError(signInError);
+      resetCaptcha();
       setSubmitting(false);
       return;
     }
@@ -167,9 +177,14 @@ const PortalAuth = () => {
   };
 
   const handleRegister = async (values: z.infer<typeof registerSchema>) => {
-    setSubmitting(true);
     setError(null);
     setRegistrationSuccess(null);
+    const captcha = consumeCaptchaToken();
+    if (captcha.error || !captcha.token) {
+      setError(captcha.error ?? "Please complete the captcha before continuing.");
+      return;
+    }
+    setSubmitting(true);
     const result = await signUp(
       values.email,
       values.password,
@@ -177,6 +192,7 @@ const PortalAuth = () => {
         first_name: values.first_name,
         last_name: values.last_name,
       },
+      captcha.token,
     );
     
     // Check if email confirmation is required
@@ -189,6 +205,7 @@ const PortalAuth = () => {
     // Check for errors
     if ("error" in result && result.error) {
       setError(result.error);
+      resetCaptcha();
       setSubmitting(false);
       return;
     }
@@ -350,6 +367,7 @@ const PortalAuth = () => {
                       </FormItem>
                     )}
                   />
+                  <AuthCaptcha ref={captchaRef} onVerify={onVerify} onExpire={onExpire} />
                   <Button
                     type="submit"
                     className="w-full h-12 rounded-lg bg-primary hover:bg-primary/90 text-white font-semibold uppercase tracking-wide gap-2 flex items-center justify-center"
@@ -463,6 +481,7 @@ const PortalAuth = () => {
                       </FormItem>
                     )}
                   />
+                  <AuthCaptcha ref={captchaRef} onVerify={onVerify} onExpire={onExpire} />
                   <Button
                     type="submit"
                     className="w-full h-12 rounded-lg bg-primary hover:bg-primary/90 text-white font-semibold uppercase tracking-wide gap-2 flex items-center justify-center"

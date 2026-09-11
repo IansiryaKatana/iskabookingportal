@@ -40,11 +40,16 @@ type AuthContextValue = {
   role: Role;
   session: Session | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error?: string; effectiveRole?: string }>;
+  signIn: (
+    email: string,
+    password: string,
+    captchaToken?: string,
+  ) => Promise<{ error?: string; effectiveRole?: string }>;
   signUp: (
     email: string,
     password: string,
     metadata?: { first_name?: string; last_name?: string },
+    captchaToken?: string,
   ) => Promise<{ error?: string } | { requiresConfirmation: true; email: string }>;
   signOut: () => Promise<void>;
   refreshProfile: (userId?: string) => Promise<ProfileRow | null>;
@@ -314,7 +319,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     };
   }, [refreshProfile, updateUser, clearInvalidSession, invalidatePostAuthQueries]);
 
-  const signIn = useCallback(async (email: string, password: string) => {
+  const signIn = useCallback(async (email: string, password: string, captchaToken?: string) => {
     signingInRef.current = true;
     setLoading(true);
 
@@ -322,6 +327,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
+        options: captchaToken ? { captchaToken } : undefined,
       });
 
       if (error) {
@@ -347,6 +353,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       email: string,
       password: string,
       metadata?: { first_name?: string; last_name?: string },
+      captchaToken?: string,
     ) => {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -358,6 +365,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             role: "student",
           },
           emailRedirectTo: `${window.location.origin}/portal/reset-password`,
+          ...(captchaToken ? { captchaToken } : {}),
         },
       });
 
