@@ -1,0 +1,17 @@
+{
+  "name": "Urban Hub Booking Portal",
+  "install": "npm ci",
+  "terminals": [
+    {
+      "name": "dev",
+      "command": "npm run dev",
+      "description": "Vite dev server for the booking portal SPA (http://localhost:8080)."
+    }
+  ],
+  "ports": [
+    {
+      "name": "dev",
+      "port": 8080
+    }
+  ]
+}
