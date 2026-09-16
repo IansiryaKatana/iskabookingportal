@@ -37,7 +37,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { validatePassword } from "@/utils/passwordStrength";
+import { validatePassword, generateStrongPassword } from "@/utils/passwordStrength";
 import { PasswordRequirementsChecklist } from "@/components/PasswordRequirementsChecklist";
 import {
   Pagination,
@@ -67,6 +67,7 @@ const BulkInvitations = () => {
   const [tempPasswordMode, setTempPasswordMode] = useState<"generate" | "shared">("generate");
   const [sharedTempPassword, setSharedTempPassword] = useState("");
   const [tempPasswordResults, setTempPasswordResults] = useState<TempPasswordResult[] | null>(null);
+  const [isSettingTempPasswords, setIsSettingTempPasswords] = useState(false);
 
   const { data: contracts } = useAdminContracts(selectedAcademicYearId);
   const { data: templates } = useEmailTemplates();
@@ -249,18 +250,52 @@ const BulkInvitations = () => {
       }
     }
 
+    setIsSettingTempPasswords(true);
     try {
-      const result = await setTempPasswords.mutateAsync({
-        application_ids: appsToSend,
-        password: tempPasswordMode === "shared" ? sharedTempPassword.trim() : undefined,
-      });
+      let combinedResults: TempPasswordResult[] = [];
+      let totalSucceeded = 0;
+      let totalFailed = 0;
 
-      setTempPasswordResults(result.results || []);
+      if (tempPasswordMode === "shared") {
+        const result = await setTempPasswords.mutateAsync({
+          application_ids: appsToSend,
+          password: sharedTempPassword.trim(),
+        });
+        combinedResults = result.results || [];
+        totalSucceeded = result.succeeded;
+        totalFailed = result.failed;
+      } else {
+        // "generate" mode: Generate a unique strong password satisfying all criteria (16 chars, upper, lower, digits, symbols)
+        // for each selected student. Sending per-application ensures instant compatibility even with
+        // deployed Edge Functions that predate the new backend generator.
+        const BATCH_SIZE = 4;
+        for (let i = 0; i < appsToSend.length; i += BATCH_SIZE) {
+          const chunk = appsToSend.slice(i, i + BATCH_SIZE);
+          const chunkPromises = chunk.map((appId) => {
+            const uniquePassword = generateStrongPassword(16);
+            return setTempPasswords.mutateAsync({
+              application_ids: [appId],
+              password: uniquePassword,
+            });
+          });
+
+          const chunkResults = await Promise.all(chunkPromises);
+          for (const res of chunkResults) {
+            totalSucceeded += res.succeeded;
+            totalFailed += res.failed;
+            if (res.results) {
+              combinedResults.push(...res.results);
+            }
+          }
+        }
+      }
+
+      setTempPasswordResults(combinedResults);
       await refetch();
 
       toast({
         title: "Temporary passwords set",
-        description: `${result.succeeded} succeeded, ${result.failed} failed. Students must change password on first login.`,
+        description: `${totalSucceeded} succeeded, ${totalFailed} failed. Students must change password on first login.`,
       });
     } catch (error: any) {
       toast({
@@ -268,6 +303,8 @@ const BulkInvitations = () => {
         description: error.message || "Failed to set temporary passwords.",
         variant: "destructive",
       });
+    } finally {
+      setIsSettingTempPasswords(false);
     }
   };
 
@@ -492,7 +529,7 @@ const BulkInvitations = () => {
                     setTempPasswordResults(null);
                     setTempPasswordDialogOpen(true);
                   }}
-                  disabled={selectedApplications.size === 0 || setTempPasswords.isPending}
+                  disabled={selectedApplications.size === 0 || setTempPasswords.isPending || isSettingTempPasswords}
                 >
                   <KeyRound className="h-4 w-4 mr-2" />
                   Set Temp Password ({selectedApplications.size})
@@ -864,11 +901,12 @@ const BulkInvitations = () => {
                 <Button
                   onClick={handleSetTempPasswords}
                   disabled={
+                    isSettingTempPasswords ||
                     setTempPasswords.isPending ||
                     (tempPasswordMode === "shared" && !validatePassword(sharedTempPassword.trim()).isValid)
                   }
                 >
-                  {setTempPasswords.isPending ? (
+                  {isSettingTempPasswords || setTempPasswords.isPending ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       Saving...

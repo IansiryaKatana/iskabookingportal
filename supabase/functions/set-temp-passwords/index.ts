@@ -110,6 +110,8 @@ serve(async (req) => {
     const applicationIds: string[] = Array.isArray(body?.application_ids)
       ? body.application_ids.filter(Boolean)
       : [];
+    const passwordsMap: Record<string, string> =
+      body?.passwords && typeof body.passwords === "object" ? body.passwords : {};
     const sharedPassword =
       typeof body?.password === "string" && isPasswordCompliant(body.password.trim())
         ? body.password.trim()
@@ -185,7 +187,11 @@ serve(async (req) => {
         const name = [profileRow?.first_name, profileRow?.last_name].filter(Boolean).join(" ").trim() ||
           email ||
           "Student";
-        const password = sharedPassword || generateTempPassword();
+        const perAppPassword =
+          typeof passwordsMap[app.id] === "string" && isPasswordCompliant(passwordsMap[app.id].trim())
+            ? passwordsMap[app.id].trim()
+            : null;
+        const password = perAppPassword || sharedPassword || generateTempPassword();
 
         const existingAppMeta = (authUser.app_metadata || {}) as Record<string, unknown>;
         const existingUserMeta = (authUser.user_metadata || {}) as Record<string, unknown>;
