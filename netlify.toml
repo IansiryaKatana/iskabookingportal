@@ -14,7 +14,7 @@
 
 # Build environment
 [build.environment]
-  NODE_VERSION = "18"
+  NODE_VERSION = "20"
 
 # Headers for security and performance
 # If you see CSP errors for fonts/Stripe/hCaptcha, ensure no stricter CSP is set in Netlify dashboard (e.g. Security headers).
