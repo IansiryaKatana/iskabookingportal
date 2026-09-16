@@ -9,6 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Loader2, Lock, Eye, EyeOff, CheckCircle2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { useBrandingSettings } from "@/hooks/useBranding";
+import { validatePassword } from "@/utils/passwordStrength";
+import { PasswordRequirementsChecklist } from "@/components/PasswordRequirementsChecklist";
 import { useAuth } from "@/contexts/AuthContext";
 
 const AdminResetPassword = () => {
@@ -56,8 +58,12 @@ const AdminResetPassword = () => {
     setError(null);
 
     // Validation
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters long");
+    const validation = validatePassword(password);
+    if (!validation.isValid) {
+      setError(
+        validation.errors[0] ||
+          "Password must be at least 8 characters and include uppercase, lowercase, number, and special character",
+      );
       return;
     }
 
@@ -202,7 +208,7 @@ const AdminResetPassword = () => {
               Reset Password
             </h2>
             <p className="text-sm text-muted-foreground">
-              Enter your new password below. Make sure it's at least 6 characters long.
+              Enter your new password below. Make sure it meets the security requirements.
             </p>
           </div>
 
@@ -223,7 +229,6 @@ const AdminResetPassword = () => {
                       onChange={(event) => setPassword(event.target.value)}
                       placeholder="••••••••"
                       className="pr-10 h-12"
-                      minLength={6}
                     />
                     <button
                       type="button"
@@ -238,6 +243,7 @@ const AdminResetPassword = () => {
                       )}
                     </button>
                   </div>
+                  <PasswordRequirementsChecklist password={password} showAlways={true} />
                 </div>
 
                 <div className="space-y-2">

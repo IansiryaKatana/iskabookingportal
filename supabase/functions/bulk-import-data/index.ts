@@ -151,12 +151,35 @@ function rowsToJsonb(rows: Record<string, string>[]): any[] {
 
 // Generate random password for new users
 function generateRandomPassword(): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
-  let password = "";
-  for (let i = 0; i < 16; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  const uppers = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const lowers = "abcdefghijklmnopqrstuvwxyz";
+  const digits = "0123456789";
+  const specials = "!@#$%^&*()_+~=";
+  const all = uppers + lowers + digits + specials;
+
+  const getRandomChar = (pool: string) => {
+    const b = crypto.getRandomValues(new Uint8Array(1))[0];
+    return pool[b % pool.length];
+  };
+
+  const chars = [
+    getRandomChar(uppers),
+    getRandomChar(lowers),
+    getRandomChar(digits),
+    getRandomChar(specials),
+  ];
+
+  for (let i = 0; i < 12; i++) {
+    chars.push(getRandomChar(all));
   }
-  return password;
+
+  // Shuffle
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = crypto.getRandomValues(new Uint8Array(1))[0] % (i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+
+  return chars.join("");
 }
 
 // Create or find user for application import

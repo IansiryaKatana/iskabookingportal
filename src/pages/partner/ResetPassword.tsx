@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Lock, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import { validatePassword } from "@/utils/passwordStrength";
+import { PasswordRequirementsChecklist } from "@/components/PasswordRequirementsChecklist";
 
 const PartnerResetPassword = () => {
   const navigate = useNavigate();
@@ -48,8 +50,12 @@ const PartnerResetPassword = () => {
     setError(null);
 
     // Validation
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters long");
+    const validation = validatePassword(password);
+    if (!validation.isValid) {
+      setError(
+        validation.errors[0] ||
+          "Password must be at least 8 characters and include uppercase, lowercase, number, and special character",
+      );
       return;
     }
 
@@ -169,7 +175,7 @@ const PartnerResetPassword = () => {
             Set New Password
           </CardTitle>
           <CardDescription>
-            Enter your new password below. Make sure it's at least 6 characters long.
+            Enter your new password below. Make sure it meets the security requirements.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -187,7 +193,6 @@ const PartnerResetPassword = () => {
                   onChange={(event) => setPassword(event.target.value)}
                   placeholder="••••••••"
                   className="pr-10"
-                  minLength={6}
                 />
                 <button
                   type="button"
@@ -202,6 +207,7 @@ const PartnerResetPassword = () => {
                   )}
                 </button>
               </div>
+              <PasswordRequirementsChecklist password={password} showAlways={true} />
             </div>
 
             <div className="space-y-2">

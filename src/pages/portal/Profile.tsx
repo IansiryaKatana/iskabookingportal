@@ -22,6 +22,8 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import AuthCaptcha from "@/components/AuthCaptcha";
 import { useAuthCaptcha } from "@/hooks/useAuthCaptcha";
+import { validatePassword } from "@/utils/passwordStrength";
+import { PasswordRequirementsChecklist } from "@/components/PasswordRequirementsChecklist";
 
 const profileSchema = z.object({
   first_name: z.string().min(1, "First name is required"),
@@ -31,9 +33,15 @@ const profileSchema = z.object({
 });
 
 const passwordSchema = z.object({
-  current_password: z.string().min(6, "Current password is required"),
-  new_password: z.string().min(6, "New password must be at least 6 characters"),
-  confirm_password: z.string().min(6, "Confirm password is required"),
+  current_password: z.string().min(1, "Current password is required"),
+  new_password: z
+    .string()
+    .min(8, "New password must be at least 8 characters")
+    .refine((val) => validatePassword(val).isValid, {
+      message:
+        "New password must contain uppercase, lowercase, number, and special character",
+    }),
+  confirm_password: z.string().min(1, "Confirm password is required"),
 }).refine((data) => data.new_password === data.confirm_password, {
   message: "Passwords don't match",
   path: ["confirm_password"],
@@ -478,6 +486,7 @@ const Profile = () => {
                       <FormControl>
                         <Input type="password" placeholder="••••••••" {...field} />
                       </FormControl>
+                      <PasswordRequirementsChecklist password={field.value || ""} />
                       <FormMessage />
                     </FormItem>
                   )}

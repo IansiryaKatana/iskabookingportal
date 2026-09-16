@@ -132,7 +132,13 @@ const ProtectedRoute = ({ children, allowedRoles, checkDatabase = true }: Protec
     location.pathname.startsWith("/portal") &&
     location.pathname !== "/portal/force-change-password"
   ) {
-    return <Navigate to="/portal/force-change-password" replace />;
+    return (
+      <Navigate
+        to="/portal/force-change-password"
+        state={{ from: location.pathname + location.search }}
+        replace
+      />
+    );
   }
 
   if (requiresStaffMfa && checkingMfa) {

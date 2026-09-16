@@ -22,15 +22,25 @@ import { supabase } from "@/integrations/supabase/client";
 import { getStaffMfaRedirect } from "@/utils/staffMfa";
 import AuthCaptcha from "@/components/AuthCaptcha";
 import { useAuthCaptcha } from "@/hooks/useAuthCaptcha";
+import { validatePassword } from "@/utils/passwordStrength";
+import { PasswordRequirementsChecklist } from "@/components/PasswordRequirementsChecklist";
 
 const loginSchema = z.object({
   email: z.string().email("Enter a valid email"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  password: z.string().min(1, "Password is required"),
 });
 
-const registerSchema = loginSchema.extend({
+const registerSchema = z.object({
   first_name: z.string().min(1, "First name is required"),
   last_name: z.string().min(1, "Last name is required"),
+  email: z.string().email("Enter a valid email"),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .refine((val) => validatePassword(val).isValid, {
+      message:
+        "Password must contain uppercase, lowercase, number, and special character",
+    }),
 });
 
 const PortalAuth = () => {
@@ -142,7 +152,10 @@ const PortalAuth = () => {
       // Only students can access portal
       if (profile.role === "student") {
         if (userMustChangePassword(user)) {
-          navigate("/portal/force-change-password", { replace: true });
+          navigate("/portal/force-change-password", {
+            replace: true,
+            state: { from: redirectPath },
+          });
           return;
         }
         navigate(redirectPath, { replace: true });
@@ -168,7 +181,10 @@ const PortalAuth = () => {
 
     const { data: { user: signedInUser } } = await supabase.auth.getUser();
     if (userMustChangePassword(signedInUser)) {
-      navigate("/portal/force-change-password", { replace: true });
+      navigate("/portal/force-change-password", {
+        replace: true,
+        state: { from: redirectPath },
+      });
       setSubmitting(false);
       return;
     }
@@ -477,6 +493,7 @@ const PortalAuth = () => {
                             </button>
                           </div>
                         </FormControl>
+                        <PasswordRequirementsChecklist password={field.value || ""} />
                         <FormMessage />
                       </FormItem>
                     )}

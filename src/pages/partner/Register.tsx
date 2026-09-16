@@ -22,11 +22,19 @@ import { useQuery } from "@tanstack/react-query";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import AuthCaptcha from "@/components/AuthCaptcha";
 import { useAuthCaptcha } from "@/hooks/useAuthCaptcha";
+import { validatePassword } from "@/utils/passwordStrength";
+import { PasswordRequirementsChecklist } from "@/components/PasswordRequirementsChecklist";
 
 const registerSchema = z.object({
   email: z.string().email("Enter a valid email"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
-  confirmPassword: z.string().min(6, "Password must be at least 6 characters"),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .refine((val) => validatePassword(val).isValid, {
+      message:
+        "Password must contain uppercase, lowercase, number, and special character",
+    }),
+  confirmPassword: z.string().min(1, "Confirm password is required"),
   first_name: z.string().min(1, "First name is required"),
   last_name: z.string().min(1, "Last name is required"),
   referral_code: z.string().min(1, "Referral code is required").toUpperCase(),
@@ -323,6 +331,7 @@ const PartnerRegister = () => {
                         <FormControl>
                           <Input type="password" placeholder="••••••••" {...field} />
                         </FormControl>
+                        <PasswordRequirementsChecklist password={field.value || ""} />
                         <FormMessage />
                       </FormItem>
                     )}

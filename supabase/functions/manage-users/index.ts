@@ -3,6 +3,47 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, handleCorsPrelight } from "../_shared/cors.ts";
 import { aal2ForbiddenResponse, tokenHasAal2 } from "../_shared/require-aal2.ts";
 
+function isPasswordCompliant(password: string): boolean {
+  return (
+    password.length >= 8 &&
+    /[A-Z]/.test(password) &&
+    /[a-z]/.test(password) &&
+    /[0-9]/.test(password) &&
+    /[^A-Za-z0-9]/.test(password)
+  );
+}
+
+function generateCompliantPassword(): string {
+  const uppers = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const lowers = "abcdefghijkmnopqrstuvwxyz";
+  const digits = "23456789";
+  const specials = "!@#$%^&*()_+~=";
+  const all = uppers + lowers + digits + specials;
+
+  const getRandomChar = (pool: string) => {
+    const b = crypto.getRandomValues(new Uint8Array(1))[0];
+    return pool[b % pool.length];
+  };
+
+  const chars = [
+    getRandomChar(uppers),
+    getRandomChar(lowers),
+    getRandomChar(digits),
+    getRandomChar(specials),
+  ];
+
+  for (let i = 0; i < 12; i++) {
+    chars.push(getRandomChar(all));
+  }
+
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = crypto.getRandomValues(new Uint8Array(1))[0] % (i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+
+  return chars.join("");
+}
+
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
   
@@ -295,13 +336,16 @@ serve(async (req) => {
         }
       }
 
-      // Use provided password or generate a random temporary password
-      const userPassword = password || (crypto.randomUUID() + crypto.randomUUID().replace(/-/g, ''));
+      // Use provided password or generate a compliant temporary password
+      const userPassword = password || generateCompliantPassword();
 
       // Validate password if provided
-      if (password && password.length < 6) {
+      if (password && !isPasswordCompliant(password)) {
         return new Response(
-          JSON.stringify({ error: "Password must be at least 6 characters long" }),
+          JSON.stringify({
+            error:
+              "Password must be at least 8 characters and include uppercase, lowercase, number, and special character",
+          }),
           {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -535,7 +579,7 @@ serve(async (req) => {
       }
 
       // Update password if provided
-      if (password && password.length >= 6) {
+      if (password && isPasswordCompliant(password)) {
         const { error: passwordError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
           password: password,
         });
@@ -550,10 +594,12 @@ serve(async (req) => {
             },
           );
         }
-      } else if (password && password.length > 0 && password.length < 6) {
-        // This should have been caught by validation, but double-check
+      } else if (password && !isPasswordCompliant(password)) {
         return new Response(
-          JSON.stringify({ error: "Password must be at least 6 characters long" }),
+          JSON.stringify({
+            error:
+              "Password must be at least 8 characters and include uppercase, lowercase, number, and special character",
+          }),
           {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },

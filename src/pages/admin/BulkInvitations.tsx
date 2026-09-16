@@ -37,6 +37,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { validatePassword } from "@/utils/passwordStrength";
+import { PasswordRequirementsChecklist } from "@/components/PasswordRequirementsChecklist";
 import {
   Pagination,
   PaginationContent,
@@ -233,13 +235,18 @@ const BulkInvitations = () => {
       return;
     }
 
-    if (tempPasswordMode === "shared" && sharedTempPassword.trim().length < 6) {
-      toast({
-        title: "Password too short",
-        description: "Shared temporary password must be at least 6 characters.",
-        variant: "destructive",
-      });
-      return;
+    if (tempPasswordMode === "shared") {
+      const validation = validatePassword(sharedTempPassword.trim());
+      if (!validation.isValid) {
+        toast({
+          title: "Password does not meet security requirements",
+          description:
+            validation.errors[0] ||
+            "Shared temporary password must be at least 8 characters and include uppercase, lowercase, number, and special character.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     try {
@@ -789,8 +796,9 @@ const BulkInvitations = () => {
                       type="text"
                       value={sharedTempPassword}
                       onChange={(e) => setSharedTempPassword(e.target.value)}
-                      placeholder="At least 6 characters"
+                      placeholder="Enter secure shared password"
                     />
+                    <PasswordRequirementsChecklist password={sharedTempPassword} showAlways={true} />
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground">
@@ -853,7 +861,13 @@ const BulkInvitations = () => {
                 {tempPasswordResults ? "Close" : "Cancel"}
               </Button>
               {!tempPasswordResults && (
-                <Button onClick={handleSetTempPasswords} disabled={setTempPasswords.isPending}>
+                <Button
+                  onClick={handleSetTempPasswords}
+                  disabled={
+                    setTempPasswords.isPending ||
+                    (tempPasswordMode === "shared" && !validatePassword(sharedTempPassword.trim()).isValid)
+                  }
+                >
                   {setTempPasswords.isPending ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />

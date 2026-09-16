@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { userMustChangePassword } from "@/utils/mustChangePassword";
@@ -10,9 +10,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Loader2, Lock, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { useBrandingSettings } from "@/hooks/useBranding";
+import { validatePassword } from "@/utils/passwordStrength";
+import { PasswordRequirementsChecklist } from "@/components/PasswordRequirementsChecklist";
 
 const PortalForceChangePassword = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, refreshProfile } = useAuth();
   const { data: brandingSettings } = useBrandingSettings();
   const companyName = brandingSettings?.company_name || "Urban Hub";
@@ -24,24 +27,33 @@ const PortalForceChangePassword = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // Target destination if student was heading to an application or specific route
+  const targetRedirect =
+    (location.state as { from?: string } | null)?.from || "/portal";
+
   useEffect(() => {
     if (!user) {
       navigate("/portal/login", { replace: true });
       return;
     }
     if (!userMustChangePassword(user)) {
-      navigate("/portal", { replace: true });
+      navigate(targetRedirect, { replace: true });
     }
-  }, [user, navigate]);
+  }, [user, navigate, targetRedirect]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
 
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters long");
+    const validation = validatePassword(password);
+    if (!validation.isValid) {
+      setError(
+        validation.errors[0] ||
+          "Password must be at least 8 characters and include uppercase, lowercase, number, and special character",
+      );
       return;
     }
+
     if (password !== confirmPassword) {
       setError("Passwords do not match");
       return;
@@ -79,13 +91,15 @@ const PortalForceChangePassword = () => {
       await refreshProfile(user?.id);
 
       toast.success("Password updated successfully");
-      // Hard navigate so AuthContext picks up cleared app_metadata from the refreshed JWT
-      window.location.assign("/portal");
+      // Hard navigate to target destination (e.g. /portal/applications/:id) so AuthContext picks up refreshed JWT
+      window.location.assign(targetRedirect);
     } catch {
       setError("An unexpected error occurred. Please try again.");
       setIsSubmitting(false);
     }
   };
+
+  const isFormValid = validatePassword(password).isValid && password === confirmPassword;
 
   return (
     <div className="min-h-screen bg-primary flex items-center justify-center px-4 py-12">
@@ -95,7 +109,7 @@ const PortalForceChangePassword = () => {
             Set a new password
           </CardTitle>
           <CardDescription>
-            Your account was opened with a temporary password. Choose a new password to continue to the portal.
+            Your account was opened with a temporary password. Choose a new secure password to continue to {companyName}.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -122,6 +136,7 @@ const PortalForceChangePassword = () => {
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
+              <PasswordRequirementsChecklist password={password} showAlways={true} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm password</Label>
@@ -147,7 +162,11 @@ const PortalForceChangePassword = () => {
               </div>
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={isSubmitting || !isFormValid}
+            >
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

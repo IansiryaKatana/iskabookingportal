@@ -53,6 +53,8 @@ import {
   getStaffSubroleBadgeClass,
   getUserRoleBadgeClass,
 } from "@/utils/badgeStyles";
+import { validatePassword } from "@/utils/passwordStrength";
+import { PasswordRequirementsChecklist } from "@/components/PasswordRequirementsChecklist";
 
 /** Website CMS sub-roles — managed separately, not on this portal staff page */
 const WEBSITE_STAFF_SUBROLES = new Set([
@@ -915,9 +917,7 @@ const Users = () => {
                   )}
                 </button>
               </div>
-              {invitePassword && invitePassword.length > 0 && invitePassword.length < 6 && (
-                <p className="text-sm text-destructive mt-1">Password must be at least 6 characters</p>
-              )}
+              <PasswordRequirementsChecklist password={invitePassword} />
             </div>
             <div>
               <Label htmlFor="role">Role *</Label>
@@ -973,7 +973,13 @@ const Users = () => {
                 role: inviteRole,
                 staffSubrole: inviteRole === "staff" ? inviteStaffSubrole : undefined
               })}
-              disabled={!inviteEmail || !inviteFirstName.trim() || !inviteLastName.trim() || (invitePassword.length > 0 && invitePassword.length < 6) || inviteUser.isPending}
+              disabled={
+                !inviteEmail ||
+                !inviteFirstName.trim() ||
+                !inviteLastName.trim() ||
+                (invitePassword.trim().length > 0 && !validatePassword(invitePassword.trim()).isValid) ||
+                inviteUser.isPending
+              }
               className="rounded-md uppercase tracking-wide"
             >
               {inviteUser.isPending ? "Creating..." : "Create User"}
@@ -1038,9 +1044,7 @@ const Users = () => {
                   )}
                 </button>
               </div>
-              {editPassword && editPassword.length > 0 && editPassword.length < 6 && (
-                <p className="text-sm text-destructive mt-1">Password must be at least 6 characters</p>
-              )}
+              <PasswordRequirementsChecklist password={editPassword} />
             </div>
             <div>
               <Label htmlFor="edit-role">Role *</Label>
@@ -1100,7 +1104,12 @@ const Users = () => {
                   });
                 }
               }}
-              disabled={!editFirstName.trim() || !editLastName.trim() || (editPassword.length > 0 && editPassword.length < 6) || updateUser.isPending}
+              disabled={
+                !editFirstName.trim() ||
+                !editLastName.trim() ||
+                (editPassword.trim().length > 0 && !validatePassword(editPassword.trim()).isValid) ||
+                updateUser.isPending
+              }
               className="rounded-md uppercase tracking-wide"
             >
               {updateUser.isPending ? "Updating..." : "Update User"}

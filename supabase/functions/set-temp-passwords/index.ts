@@ -17,10 +17,49 @@ const chunkArray = <T,>(items: T[], size: number): T[][] => {
   return chunks;
 };
 
+function isPasswordCompliant(password: string): boolean {
+  return (
+    password.length >= 8 &&
+    /[A-Z]/.test(password) &&
+    /[a-z]/.test(password) &&
+    /[0-9]/.test(password) &&
+    /[^A-Za-z0-9]/.test(password)
+  );
+}
+
 function generateTempPassword(): string {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
-  const bytes = crypto.getRandomValues(new Uint8Array(12));
-  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
+  const uppers = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const lowers = "abcdefghijkmnopqrstuvwxyz";
+  const digits = "23456789";
+  const specials = "!@#$%^&*()_+~=";
+  const all = uppers + lowers + digits + specials;
+
+  const getRandomChar = (chars: string) => {
+    const b = crypto.getRandomValues(new Uint8Array(1))[0];
+    return chars[b % chars.length];
+  };
+
+  const chars = [
+    getRandomChar(uppers),
+    getRandomChar(lowers),
+    getRandomChar(digits),
+    getRandomChar(specials),
+  ];
+
+  const totalLength = 16;
+  const remaining = totalLength - chars.length;
+  const randomBytes = crypto.getRandomValues(new Uint8Array(remaining));
+  for (let i = 0; i < remaining; i++) {
+    chars.push(all[randomBytes[i] % all.length]);
+  }
+
+  // Shuffle
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = crypto.getRandomValues(new Uint8Array(1))[0] % (i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+
+  return chars.join("");
 }
 
 serve(async (req) => {
@@ -72,7 +111,7 @@ serve(async (req) => {
       ? body.application_ids.filter(Boolean)
       : [];
     const sharedPassword =
-      typeof body?.password === "string" && body.password.trim().length >= 6
+      typeof body?.password === "string" && isPasswordCompliant(body.password.trim())
         ? body.password.trim()
         : null;
 
@@ -84,10 +123,16 @@ serve(async (req) => {
     }
 
     if (typeof body?.password === "string" && body.password.trim().length > 0 && !sharedPassword) {
-      return new Response(JSON.stringify({ error: "Password must be at least 6 characters" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          error:
+            "Password must be at least 8 characters and include uppercase, lowercase, number, and special character",
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     const applications: Array<{ id: string; student_id: string }> = [];
