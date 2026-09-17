@@ -2,6 +2,7 @@ import React, { Component, ErrorInfo, ReactNode } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, RefreshCw, Home } from "lucide-react";
+import { isStaleChunkError, reloadOnceForStaleChunk } from "@/utils/reloadStaleChunk";
 
 interface Props {
   children: ReactNode;
@@ -32,6 +33,11 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    if (isStaleChunkError(error)) {
+      reloadOnceForStaleChunk();
+      return;
+    }
+
     // Log error to console in development
     if (import.meta.env.DEV) {
       console.error("ErrorBoundary caught an error:", error, errorInfo);

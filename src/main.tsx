@@ -2,6 +2,12 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
+import { isStaleChunkError, reloadOnceForStaleChunk } from "@/utils/reloadStaleChunk";
+
+window.addEventListener("vite:preloadError", (event) => {
+  event.preventDefault();
+  reloadOnceForStaleChunk();
+});
 
 // Global error handler to suppress non-critical Stripe postMessage errors
 window.addEventListener("error", (event) => {
@@ -21,6 +27,11 @@ window.addEventListener("error", (event) => {
 // Handle unhandled promise rejections
 window.addEventListener("unhandledrejection", (event) => {
   const errorMessage = event.reason?.message || String(event.reason || "");
+  if (isStaleChunkError(event.reason)) {
+    event.preventDefault();
+    reloadOnceForStaleChunk();
+    return;
+  }
   if (
     errorMessage.includes("message channel closed") ||
     errorMessage.includes("asynchronous response") ||

@@ -21,6 +21,10 @@ verify_jwt = true
 [functions.docusign-webhook]
 verify_jwt = false
 
+# Stripe cannot send a Supabase JWT; auth is stripe-signature + STRIPE_WEBHOOK_SECRET.
+[functions.stripe-webhook]
+verify_jwt = false
+
 # Called by pg_cron with x-cron-secret; polls DocuSign for stale open envelopes.
 [functions.sync-pending-docusign]
 verify_jwt = false

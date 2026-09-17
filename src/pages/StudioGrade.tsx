@@ -665,7 +665,6 @@ const StudioGradePage = () => {
 
         <StudioOverview
           title={`${grade.name} Overview`}
-          intro={grade.short_description ?? undefined}
           description={grade.long_description ?? undefined}
         />
 

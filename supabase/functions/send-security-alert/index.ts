@@ -20,6 +20,9 @@ const KIND_TITLES: Record<string, string> = {
   privileged_mfa_enrolled: "Authenticator enrolled on a staff account",
   blocked_privileged_action: "Blocked attempt to use a superadmin / secrets action",
   abusive_signup_blocked: "Blocked abusive signup",
+  watched_account_login: "Watched staff account signed in",
+  watched_account_ip_change: "Watched staff session changed IP",
+  watched_account_activity: "Watched staff account changed data",
 };
 
 async function readCredential(key: string, envFallback: string): Promise<string> {
