@@ -19,6 +19,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import ManualPaymentDialog from "@/components/admin/ManualPaymentDialog";
 import { guardOpenChangeOnTabBlur } from "@/utils/modalFocus";
+import { extractEdgeFunctionError } from "@/utils/edgeFunctionError";
 import {
   Select,
   SelectContent,
@@ -474,7 +475,13 @@ const Applications = () => {
 
         setIsCreatingStudent(false);
 
+        // supabase-js reports every non-2xx as the generic "Edge Function returned a
+        // non-2xx status code" and returns null data; the real reason is in the
+        // response body. Read it so the user sees an actionable message and so the
+        // "email already exists" detection below can work.
+        const edgeError = createError ? await extractEdgeFunctionError(createError) : null;
         const rawMessage =
+          edgeError?.message ||
           (createError as unknown as { message?: string } | null)?.message ||
           (typeof createData?.error === "string" ? createData.error : "") ||
           "";
@@ -657,6 +664,9 @@ const Applications = () => {
         friendly = "Please enter both first and last name for the student.";
       } else if (msgLower.includes("not authenticated") || msgLower.includes("unauthorized")) {
         friendly = "Your session may have expired. Please sign in again and try again.";
+      } else if (msgLower.includes("authenticator") || /\bmfa\b/.test(msgLower)) {
+        friendly =
+          "You must verify with your authenticator app (MFA) before creating students. Complete the MFA step and try again.";
       }
       toast({
         variant: "destructive",
