@@ -227,113 +227,142 @@ serve(async (req) => {
 
       const normalizedEmail = email.toLowerCase().trim();
 
-      // Check if user already exists by listing users and filtering by email
-      const { data: usersList, error: listError } = await supabaseAdmin.auth.admin.listUsers();
-      
-      if (listError) {
-        console.warn("Error listing users:", listError);
-        // Continue anyway - we'll catch the error when trying to create
-      } else {
-        const existingUser = usersList?.users?.find(u => u.email?.toLowerCase() === normalizedEmail);
-        
-        if (existingUser) {
-          // If we're creating a student and the email already exists, try to reuse
-          // the existing account instead of failing, as long as it's safe.
-          if (role === "student") {
-            // Look up the existing profile to understand current role
-            const { data: existingProfile, error: existingProfileError } = await supabaseAdmin
-              .from("profiles")
-              .select("id, role, first_name, last_name, staff_subrole")
-              .eq("id", existingUser.id)
-              .maybeSingle();
+      // Decide how to respond when an auth user already exists for this email.
+      // Students are safely reused; other roles keep blocking duplicates.
+      const respondForExistingUser = async (
+        existingUser: { id: string; email?: string | null },
+      ): Promise<Response> => {
+        if (role === "student") {
+          // Look up the existing profile to understand current role
+          const { data: existingProfile, error: existingProfileError } = await supabaseAdmin
+            .from("profiles")
+            .select("id, role, first_name, last_name, staff_subrole")
+            .eq("id", existingUser.id)
+            .maybeSingle();
 
-            if (existingProfileError) {
-              console.error("Failed to fetch existing profile for student reuse:", existingProfileError);
-              return new Response(
-                JSON.stringify({ error: "User with this email already exists and profile could not be verified. Please use 'Existing student' instead." }),
-                {
-                  status: 400,
-                  headers: { ...corsHeaders, "Content-Type": "application/json" },
-                },
-              );
-            }
-
-            // If the email belongs to a staff/admin/superadmin account, do NOT reuse it as a student
-            if (existingProfile && existingProfile.role && existingProfile.role !== "student") {
-              return new Response(
-                JSON.stringify({ error: "This email is already used by a staff or admin account. Please use a different email or link the existing account." }),
-                {
-                  status: 400,
-                  headers: { ...corsHeaders, "Content-Type": "application/json" },
-                },
-              );
-            }
-
-            // Build profile data for a (new or existing) student
-            const reusedProfileData: any = {
-              id: existingUser.id,
-              role: "student",
-              first_name: first_name?.trim() || existingProfile?.first_name || null,
-              last_name: last_name?.trim() || existingProfile?.last_name || null,
-              staff_subrole: null,
-            };
-
-            const { error: reuseProfileError } = await supabaseAdmin
-              .from("profiles")
-              .upsert(reusedProfileData, {
-                onConflict: "id",
-              });
-
-            if (reuseProfileError) {
-              console.error("Failed to upsert profile while reusing existing student account:", reuseProfileError);
-              return new Response(
-                JSON.stringify({ error: "User with this email already exists but the profile could not be updated. Please use 'Existing student' instead." }),
-                {
-                  status: 500,
-                  headers: { ...corsHeaders, "Content-Type": "application/json" },
-                },
-              );
-            }
-
-            // Log that we reused an existing student account instead of creating a duplicate
-            await supabaseAdmin
-              .from("staff_activity_logs")
-              .insert({
-                staff_id: user.id,
-                action: "update",
-                entity_type: "user",
-                entity_id: existingUser.id,
-                payload: {
-                  reason: "reused_existing_student_account",
-                  email: normalizedEmail,
-                  role: "student",
-                  first_name: reusedProfileData.first_name,
-                  last_name: reusedProfileData.last_name,
-                },
-              });
-
+          if (existingProfileError) {
+            console.error("Failed to fetch existing profile for student reuse:", existingProfileError);
             return new Response(
-              JSON.stringify({
-                success: true,
-                user: existingUser,
-                message: "Student already exists. Reusing existing account.",
-              }),
+              JSON.stringify({ error: "User with this email already exists and profile could not be verified. Please use 'Existing student' instead." }),
               {
-                status: 200,
+                status: 400,
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
               },
             );
           }
 
-          // For non-student roles, keep the existing safety behaviour and block duplicates
+          // If the email belongs to a staff/admin/superadmin account, do NOT reuse it as a student
+          if (existingProfile && existingProfile.role && existingProfile.role !== "student") {
+            return new Response(
+              JSON.stringify({ error: "This email is already used by a staff or admin account. Please use a different email or link the existing account." }),
+              {
+                status: 400,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              },
+            );
+          }
+
+          // Build profile data for a (new or existing) student
+          const reusedProfileData: any = {
+            id: existingUser.id,
+            role: "student",
+            first_name: first_name?.trim() || existingProfile?.first_name || null,
+            last_name: last_name?.trim() || existingProfile?.last_name || null,
+            staff_subrole: null,
+          };
+
+          const { error: reuseProfileError } = await supabaseAdmin
+            .from("profiles")
+            .upsert(reusedProfileData, {
+              onConflict: "id",
+            });
+
+          if (reuseProfileError) {
+            console.error("Failed to upsert profile while reusing existing student account:", reuseProfileError);
+            return new Response(
+              JSON.stringify({ error: "User with this email already exists but the profile could not be updated. Please use 'Existing student' instead." }),
+              {
+                status: 500,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              },
+            );
+          }
+
+          // Log that we reused an existing student account instead of creating a duplicate
+          await supabaseAdmin
+            .from("staff_activity_logs")
+            .insert({
+              staff_id: user.id,
+              action: "update",
+              entity_type: "user",
+              entity_id: existingUser.id,
+              payload: {
+                reason: "reused_existing_student_account",
+                email: normalizedEmail,
+                role: "student",
+                first_name: reusedProfileData.first_name,
+                last_name: reusedProfileData.last_name,
+              },
+            });
+
           return new Response(
-            JSON.stringify({ error: "User with this email already exists." }),
+            JSON.stringify({
+              success: true,
+              user: existingUser,
+              message: "Student already exists. Reusing existing account.",
+            }),
             {
-              status: 400,
+              status: 200,
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             },
           );
         }
+
+        // For non-student roles, keep the existing safety behaviour and block duplicates
+        return new Response(
+          JSON.stringify({ error: "User with this email already exists." }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      };
+
+      // Reliably resolve an existing auth user by email.
+      // find_user_by_email reads auth.users directly (service role), so unlike
+      // auth.admin.listUsers() - which only returns the first ~50 users and misses
+      // existing students in larger deployments - it lets us reuse the account
+      // instead of failing later with a duplicate-email error.
+      let existingUser: { id: string; email?: string | null } | null = null;
+      try {
+        const { data: existingUserId, error: rpcError } = await supabaseAdmin.rpc(
+          "find_user_by_email",
+          { p_email: normalizedEmail },
+        );
+        if (rpcError) {
+          console.warn("find_user_by_email RPC failed, falling back to listUsers:", rpcError);
+        } else if (existingUserId && typeof existingUserId === "string") {
+          const { data: existingById } = await supabaseAdmin.auth.admin.getUserById(existingUserId);
+          existingUser = existingById?.user ?? { id: existingUserId, email: normalizedEmail };
+        }
+      } catch (lookupError) {
+        console.warn("Error resolving existing user by email:", lookupError);
+      }
+
+      // Fallback: best-effort scan of the first page of users if the RPC is unavailable.
+      if (!existingUser) {
+        const { data: usersList, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+        if (listError) {
+          console.warn("Error listing users:", listError);
+          // Continue anyway - we'll catch the error when trying to create
+        } else {
+          const found = usersList?.users?.find((u) => u.email?.toLowerCase() === normalizedEmail);
+          if (found) existingUser = found;
+        }
+      }
+
+      if (existingUser) {
+        return await respondForExistingUser(existingUser);
       }
 
       // Use provided password or generate a compliant temporary password
@@ -366,6 +395,25 @@ serve(async (req) => {
       });
 
       if (createError) {
+        // If the email was registered between our lookup and this create (race), or
+        // the lookup could not resolve it, resolve the existing user now and reuse it
+        // (for students) instead of returning a confusing duplicate-email error.
+        const createMsg = (createError.message || "").toLowerCase();
+        if (createMsg.includes("already") || createMsg.includes("registered")) {
+          try {
+            const { data: dupUserId } = await supabaseAdmin.rpc("find_user_by_email", {
+              p_email: normalizedEmail,
+            });
+            if (dupUserId && typeof dupUserId === "string") {
+              const { data: dupUser } = await supabaseAdmin.auth.admin.getUserById(dupUserId);
+              return await respondForExistingUser(
+                dupUser?.user ?? { id: dupUserId, email: normalizedEmail },
+              );
+            }
+          } catch (dupLookupError) {
+            console.warn("Error resolving duplicate user after create failure:", dupLookupError);
+          }
+        }
         return new Response(
           JSON.stringify({ error: createError.message || "Failed to create user" }),
           {
