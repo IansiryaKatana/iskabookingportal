@@ -207,3 +207,86 @@ All colors MUST be HSL.
     text-align: left;
   }
 }
+
+.rich-text-editor .ql-toolbar.ql-snow {
+  border: none;
+  border-bottom: 1px solid hsl(var(--border));
+  background: hsl(var(--muted));
+}
+
+.rich-text-editor .ql-container.ql-snow {
+  border: none;
+  font-size: 0.95rem;
+}
+
+.rich-text-editor .ql-editor {
+  min-height: 180px;
+}
+
+.rich-text-editor .ql-snow .ql-picker-options,
+.rich-text-editor .ql-snow .ql-tooltip {
+  z-index: 80;
+}
+
+.studio-overview-html p {
+  margin-bottom: 1rem;
+}
+
+.studio-overview-html p:last-child {
+  margin-bottom: 0;
+}
+
+.studio-overview-html ul,
+.studio-overview-html ol {
+  margin: 0.75rem 0 1rem 1.25rem;
+}
+
+.studio-overview-html ul {
+  list-style: disc;
+}
+
+.studio-overview-html ol {
+  list-style: decimal;
+}
+
+.studio-overview-html a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+}
+
+.studio-overview-html h1,
+.studio-overview-html h2,
+.studio-overview-html h3 {
+  font-weight: 700;
+  margin: 1rem 0 0.5rem;
+  text-transform: none;
+}
+
+.studio-overview-html strong,
+.studio-overview-html b {
+  font-weight: 700;
+}
+
+.studio-overview-html div {
+  margin-bottom: 1rem;
+}
+
+.studio-overview-html div:last-child {
+  margin-bottom: 0;
+}
+
+.studio-overview-html .ql-align-left {
+  text-align: left;
+}
+
+.studio-overview-html .ql-align-center {
+  text-align: center;
+}
+
+.studio-overview-html .ql-align-right {
+  text-align: right;
+}
+
+.studio-overview-html .ql-align-justify {
+  text-align: justify;
+}

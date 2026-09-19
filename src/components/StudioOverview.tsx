@@ -1,3 +1,5 @@
+import { looksLikeHtml, sanitizeHtml } from "@/lib/sanitizeHtml";
+
 type StudioOverviewProps = {
   title?: string;
   intro?: string;
@@ -11,10 +13,14 @@ const StudioOverview = ({
   description,
   highlights = [],
 }: StudioOverviewProps) => {
-  const paragraphs = (description ?? "")
-    .split(/\n+/)
-    .map((paragraph) => paragraph.trim())
-    .filter(Boolean);
+  const htmlDescription =
+    description && looksLikeHtml(description) ? sanitizeHtml(description) : "";
+  const paragraphs = htmlDescription
+    ? []
+    : (description ?? "")
+        .split(/\n+/)
+        .map((paragraph) => paragraph.trim())
+        .filter(Boolean);
 
   return (
     <section
@@ -29,9 +35,16 @@ const StudioOverview = ({
         <div className="space-y-6 text-sm md:text-lg leading-relaxed">
           {intro && <p className="font-semibold text-base md:text-xl">{intro}</p>}
 
-          {paragraphs.map((paragraph, index) => (
-            <p key={index}>{paragraph}</p>
-          ))}
+          {htmlDescription ? (
+            <div
+              className="studio-overview-html"
+              dangerouslySetInnerHTML={{ __html: htmlDescription }}
+            />
+          ) : (
+            paragraphs.map((paragraph, index) => (
+              <p key={index}>{paragraph}</p>
+            ))
+          )}
 
           {highlights.length > 0 && (
             <ul className="space-y-3 text-base md:text-lg">

@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, Pencil, Star, Trash2, Eye, Upload, AlertCircle } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -36,8 +36,9 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
+import RichTextEditor from "@/components/admin/RichTextEditor";
+import { htmlToPlainText } from "@/lib/sanitizeHtml";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -46,7 +47,11 @@ import { AcademicYearSelector } from "@/components/admin/AcademicYearSelector";
 
 const schema = z.object({
   short_description: z.string().min(10, "Add a short description"),
-  long_description: z.string().min(20, "Long description should add more detail"),
+  long_description: z
+    .string()
+    .refine((value) => htmlToPlainText(value).length >= 20, {
+      message: "Long description should add more detail",
+    }),
   weekly_price: z.coerce.number().min(1, "Weekly price required"),
   deposit_amount_override: z.coerce.number().min(0).nullable().optional(),
   promo_video_url: z
@@ -151,10 +156,21 @@ const StudioGrades = () => {
       setEditingGradeId(null);
     } catch (error) {
       console.error(error);
+      const code =
+        error && typeof error === "object" && "code" in error
+          ? String((error as { code?: string }).code)
+          : "";
+      const message =
+        error && typeof error === "object" && "message" in error
+          ? String((error as { message?: string }).message)
+          : "";
       toast({
         variant: "destructive",
         title: "Unable to update studio grade",
-        description: "Please check values and try again.",
+        description:
+          code === "PGRST116"
+            ? "The save was blocked. Complete staff MFA on this account, then try again."
+            : message || "Please check values and try again.",
       });
     }
   });
@@ -240,11 +256,14 @@ const StudioGrades = () => {
           }
         }}
       >
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-xl font-display uppercase tracking-wide">
               Update studio grade
             </DialogTitle>
+            <DialogDescription>
+              Edit overview copy, media, and payment banner text for this studio grade.
+            </DialogDescription>
           </DialogHeader>
 
           {gradeDetailQuery.isLoading && !gradeDetail ? (
@@ -291,10 +310,12 @@ const StudioGrades = () => {
                         <FormItem>
                           <FormLabel>Long description</FormLabel>
                           <FormControl>
-                            <Textarea
-                              rows={5}
+                            <RichTextEditor
+                              key={editingSlug ?? "long-description"}
+                              value={field.value}
+                              onChange={field.onChange}
+                              onBlur={field.onBlur}
                               placeholder="Expanded copy used for the studio overview section."
-                              {...field}
                             />
                           </FormControl>
                           <FormMessage />
