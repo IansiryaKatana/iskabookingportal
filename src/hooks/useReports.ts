@@ -3,6 +3,11 @@ import { differenceInCalendarDays } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { hasDepositMarker } from "@/utils/depositStatus";
+import {
+  getStayStatus,
+  STAY_STATUS_LABELS,
+  type StayStatus,
+} from "@/utils/stayStatus";
 
 type ApplicationRow = Database["public"]["Tables"]["student_applications"]["Row"];
 
@@ -1099,6 +1104,235 @@ export const useMoveOutsReport = (window: MoveOutWindow, academicYearId?: string
   return useQuery({
     queryKey: ["move-outs-report", window, academicYearId],
     queryFn: () => fetchMoveOutsReport(window, academicYearId),
+  });
+};
+
+// =============================================================================
+// Check-in Status (In House vs Awaiting Check-in)
+// =============================================================================
+
+export type CheckInStatusFilter = "all" | StayStatus;
+
+export type CheckInStatusReportItem = {
+  application_id: string;
+  student_id: string | null;
+  student_name: string;
+  student_email: string;
+  contract_name: string;
+  studio_number: string | null;
+  studio_grade: string | null;
+  booking_source: string | null;
+  academic_year_name: string | null;
+  contract_start: string | null;
+  contract_end: string | null;
+  actual_check_in_date: string | null;
+  actual_check_out_date: string | null;
+  checked_in_at: string | null;
+  stay_status: StayStatus;
+  stay_status_label: string;
+  application_status: ApplicationRow["status"];
+};
+
+export type CheckInStatusReport = {
+  items: CheckInStatusReportItem[];
+  totals: {
+    total: number;
+    in_house: number;
+    awaiting_check_in: number;
+    checked_out: number;
+  };
+};
+
+const STAY_SORT_ORDER: Record<StayStatus, number> = {
+  awaiting_check_in: 0,
+  in_house: 1,
+  checked_out: 2,
+};
+
+const fetchCheckInStatusReport = async (
+  academicYearId?: string,
+): Promise<CheckInStatusReport> => {
+  const { data, error } = await supabase
+    .from("student_applications")
+    .select(
+      `
+      id,
+      student_id,
+      status,
+      booking_source,
+      actual_check_in_date,
+      actual_check_out_date,
+      checked_in_at,
+      contract:contracts!contract_id(
+        name,
+        academic_year_id,
+        academic_year:academic_years!academic_year_id(name),
+        contract_start,
+        contract_end
+      ),
+      assigned_studio:studios!assigned_studio_id(studio_number),
+      studio_grade:studio_grades!studio_grade_id(name)
+    `,
+    )
+    .in("status", ["confirmed", "checked_out"]);
+
+  if (error) {
+    console.error("Failed to fetch check-in status report:", error);
+    throw error;
+  }
+
+  const empty: CheckInStatusReport = {
+    items: [],
+    totals: { total: 0, in_house: 0, awaiting_check_in: 0, checked_out: 0 },
+  };
+
+  if (!data || data.length === 0) {
+    return empty;
+  }
+
+  const rows = data as Array<{
+    id: string;
+    student_id: string | null;
+    status: ApplicationRow["status"];
+    booking_source: string | null;
+    actual_check_in_date: string | null;
+    actual_check_out_date: string | null;
+    checked_in_at: string | null;
+    contract: {
+      name: string | null;
+      academic_year_id: string | null;
+      academic_year: { name: string | null } | null;
+      contract_start: string | null;
+      contract_end: string | null;
+    } | null;
+    assigned_studio: { studio_number: string | null } | null;
+    studio_grade: { name: string | null } | null;
+  }>;
+
+  const filteredByYear = academicYearId
+    ? rows.filter((row) => row.contract?.academic_year_id === academicYearId)
+    : rows;
+
+  const withStay = filteredByYear
+    .map((row) => {
+      const stay = getStayStatus({
+        status: row.status,
+        actual_check_in_date: row.actual_check_in_date,
+        actual_check_out_date: row.actual_check_out_date,
+      });
+      return stay ? { row, stay } : null;
+    })
+    .filter((entry): entry is { row: (typeof filteredByYear)[number]; stay: StayStatus } =>
+      Boolean(entry),
+    );
+
+  if (withStay.length === 0) {
+    return empty;
+  }
+
+  const studentIds = [
+    ...new Set(
+      withStay
+        .map(({ row }) => row.student_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+
+  let profiles: Array<{ id: string; first_name: string | null; last_name: string | null }> = [];
+  if (studentIds.length > 0) {
+    const { data: profilesData } = await supabase
+      .from("profiles")
+      .select("id, first_name, last_name")
+      .in("id", studentIds);
+    profiles = profilesData || [];
+  }
+
+  const emailsMap = new Map<string, string>();
+  try {
+    if (studentIds.length > 0) {
+      const { data: emailData, error: emailsError } = await supabase.functions.invoke(
+        "get-user-emails",
+        { body: { userIds: studentIds } },
+      );
+      if (!emailsError && emailData?.emails) {
+        Object.entries(emailData.emails).forEach(([userId, email]) => {
+          emailsMap.set(userId, email as string);
+        });
+      }
+    }
+  } catch (emailError) {
+    console.warn("Could not fetch user emails for check-in status report:", emailError);
+  }
+
+  const profilesMap = new Map(
+    profiles.map((p) => [
+      p.id,
+      { first_name: p.first_name, last_name: p.last_name },
+    ]),
+  );
+
+  const items: CheckInStatusReportItem[] = withStay.map(({ row, stay }) => {
+    const studentId = row.student_id;
+    let student_name = "Student";
+    let student_email = "";
+
+    if (studentId) {
+      const profile = profilesMap.get(studentId);
+      const email = emailsMap.get(studentId) || "";
+      const nameFromProfile = ((profile?.first_name || "") + " " + (profile?.last_name || "")).trim();
+      student_email = email;
+      if (nameFromProfile) {
+        student_name = nameFromProfile;
+      } else if (email) {
+        student_name = email.split("@")[0] || "Student";
+      }
+    }
+
+    return {
+      application_id: row.id,
+      student_id: row.student_id,
+      student_name,
+      student_email,
+      contract_name: row.contract?.name || "—",
+      studio_number: row.assigned_studio?.studio_number ?? null,
+      studio_grade: row.studio_grade?.name ?? null,
+      booking_source: row.booking_source,
+      academic_year_name: row.contract?.academic_year?.name ?? null,
+      contract_start: row.contract?.contract_start ?? null,
+      contract_end: row.contract?.contract_end ?? null,
+      actual_check_in_date: row.actual_check_in_date,
+      actual_check_out_date: row.actual_check_out_date,
+      checked_in_at: row.checked_in_at,
+      stay_status: stay,
+      stay_status_label: STAY_STATUS_LABELS[stay],
+      application_status: row.status,
+    };
+  });
+
+  items.sort((a, b) => {
+    const stayDiff = STAY_SORT_ORDER[a.stay_status] - STAY_SORT_ORDER[b.stay_status];
+    if (stayDiff !== 0) return stayDiff;
+    const aStart = a.contract_start || "";
+    const bStart = b.contract_start || "";
+    if (aStart !== bStart) return aStart.localeCompare(bStart);
+    return a.student_name.localeCompare(b.student_name);
+  });
+
+  const totals = {
+    total: items.length,
+    in_house: items.filter((i) => i.stay_status === "in_house").length,
+    awaiting_check_in: items.filter((i) => i.stay_status === "awaiting_check_in").length,
+    checked_out: items.filter((i) => i.stay_status === "checked_out").length,
+  };
+
+  return { items, totals };
+};
+
+export const useCheckInStatusReport = (academicYearId?: string, enabled = true) => {
+  return useQuery({
+    queryKey: ["check-in-status-report", academicYearId],
+    queryFn: () => fetchCheckInStatusReport(academicYearId),
+    enabled,
   });
 };
 

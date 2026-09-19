@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,10 +11,17 @@ import {
   useApplicationsPipelineReport,
   usePendingDocumentsReport,
   useMoveOutsReport,
+  useCheckInStatusReport,
   type ReportType,
   type MoveOutWindow,
+  type CheckInStatusFilter,
+  type ReportItem,
+  type CheckInStatusReportItem,
+  type MoveOutReportItem,
+  type PendingDocumentReportItem,
+  type StudioAllocationReportItem,
 } from "@/hooks/useReports";
-import { FileText, AlertCircle, CreditCard, Users, Building2, LayoutGrid } from "lucide-react";
+import { FileText, AlertCircle, CreditCard, Users, Building2, LayoutGrid, UserCheck } from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -24,12 +31,22 @@ import { ExportButton } from "@/components/admin/ExportButton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Link } from "react-router-dom";
+import { STAY_STATUS_LABELS } from "@/utils/stayStatus";
+import { ReportDataTable, type ReportTableColumn } from "@/components/admin/reports/ReportDataTable";
+import {
+  ApplicationStatusBadge,
+  BookingSourceBadge,
+  DepositPaidBadge,
+  DocumentStatusBadge,
+  StayStatusBadge,
+} from "@/components/admin/reports/reportBadges";
 
 type ExtendedReportType =
   | ReportType
   | "applications-pipeline"
   | "weekly-payments"
   | "move-outs"
+  | "check-in-status"
   | "ota-vs-direct"
   | "document-status";
 
@@ -71,6 +88,12 @@ const reportTypes: Array<{ value: ExtendedReportType; label: string; icon: typeo
     description: "Counts of applications in each pipeline stage",
   },
   {
+    value: "check-in-status",
+    label: "Check-in Status",
+    icon: UserCheck,
+    description: "In House vs Awaiting Check-in totals and student list",
+  },
+  {
     value: "move-outs",
     label: "Upcoming Move-outs",
     icon: Building2,
@@ -109,7 +132,6 @@ const reportTypes: Array<{ value: ExtendedReportType; label: string; icon: typeo
 ];
 
 const OccupancyDetailsCollapsible = ({
-  gradeName,
   details,
 }: {
   gradeName: string;
@@ -135,38 +157,64 @@ const OccupancyDetailsCollapsible = ({
         </Button>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div className="mt-4 space-y-2 border-t pt-4">
-          {details.map((detail) => (
-            <Card key={detail.studio_id} className="rounded-xl">
-              <CardContent className="p-4">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="font-bold">Studio {detail.studio_number}</span>
-                      <Badge variant="outline" className="uppercase">Occupied</Badge>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-muted-foreground">
-                      <div>
-                        <span className="font-medium">Student:</span> {detail.student_name}
-                      </div>
-                      <div>
-                        <span className="font-medium">Email:</span> {detail.student_email}
-                      </div>
-                      <div>
-                        <span className="font-medium">Contract:</span> {detail.contract_name}
-                      </div>
-                      <div>
-                        <span className="font-medium">Period:</span>{" "}
-                        {detail.contract_start && detail.contract_end
-                          ? `${format(new Date(detail.contract_start), "MMM d, yyyy")} - ${format(new Date(detail.contract_end), "MMM d, yyyy")}`
-                          : "—"}
-                      </div>
-                    </div>
+        <div className="mt-4 border-t pt-4">
+          <ReportDataTable
+            rows={details}
+            getRowId={(row) => row.studio_id}
+            selectedIds={[]}
+            onSelectedIdsChange={() => {}}
+            selectable={false}
+            columns={[
+              {
+                id: "studio",
+                header: "Studio",
+                cell: (row) => <span className="font-medium">{row.studio_number}</span>,
+              },
+              {
+                id: "student",
+                header: "Student",
+                cell: (row) => (
+                  <div>
+                    <div className="font-medium">{row.student_name}</div>
+                    <div className="text-xs text-muted-foreground">{row.student_email}</div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                ),
+              },
+              {
+                id: "contract",
+                header: "Contract",
+                cell: (row) => row.contract_name,
+              },
+              {
+                id: "period",
+                header: "Period",
+                cell: (row) =>
+                  row.contract_start && row.contract_end
+                    ? `${format(new Date(row.contract_start), "MMM d, yyyy")} – ${format(new Date(row.contract_end), "MMM d, yyyy")}`
+                    : "—",
+              },
+              {
+                id: "status",
+                header: "Status",
+                cell: () => (
+                  <Badge className="uppercase rounded-md px-2.5 py-0.5 text-[10px] font-medium bg-orange-500 hover:bg-orange-600 text-white">
+                    Occupied
+                  </Badge>
+                ),
+              },
+              {
+                id: "actions",
+                header: "",
+                headClassName: "text-right",
+                className: "text-right",
+                cell: (row) => (
+                  <Button variant="outline" size="sm" className="rounded-md" asChild>
+                    <Link to={`/admin/applications/${row.application_id}`}>View</Link>
+                  </Button>
+                ),
+              },
+            ]}
+          />
         </div>
       </CollapsibleContent>
     </Collapsible>
@@ -178,6 +226,12 @@ const Reports = () => {
   const [selectedReport, setSelectedReport] = useState<ExtendedReportType>("awaiting_signatures");
   const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string | undefined>();
   const [moveOutWindow] = useState<MoveOutWindow>("30");
+  const [checkInStayFilter, setCheckInStayFilter] = useState<CheckInStatusFilter>("all");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [selectedReport, selectedAcademicYearId, checkInStayFilter, moveOutWindow]);
 
   const listReportType: ReportType =
     selectedReport === "awaiting_signatures" ||
@@ -210,6 +264,15 @@ const Reports = () => {
     moveOutWindow,
     selectedAcademicYearId
   );
+  const { data: checkInStatusReport, isLoading: isLoadingCheckInStatus } = useCheckInStatusReport(
+    selectedAcademicYearId,
+    selectedReport === "check-in-status",
+  );
+
+  const checkInFilteredItems =
+    checkInStatusReport?.items.filter((item) =>
+      checkInStayFilter === "all" ? true : item.stay_status === checkInStayFilter,
+    ) ?? [];
 
   const formatCurrency = (amount: number | null) => {
     if (!amount) return "—";
@@ -221,7 +284,453 @@ const Reports = () => {
     }).format(amount);
   };
 
+  const checkInColumns: ReportTableColumn<CheckInStatusReportItem>[] = [
+    {
+      id: "student",
+      header: "Student",
+      cell: (item) => (
+        <div>
+          <div className="font-medium">{item.student_name}</div>
+          <div className="text-xs text-muted-foreground">{item.student_email || "—"}</div>
+        </div>
+      ),
+    },
+    {
+      id: "stay",
+      header: "Stay",
+      cell: (item) => <StayStatusBadge status={item.stay_status} />,
+    },
+    {
+      id: "studio",
+      header: "Studio",
+      cell: (item) => (
+        <div>
+          <div className="font-medium">{item.studio_number || "Unassigned"}</div>
+          {item.studio_grade && (
+            <div className="text-xs text-muted-foreground">{item.studio_grade}</div>
+          )}
+        </div>
+      ),
+    },
+    {
+      id: "contract",
+      header: "Contract",
+      cell: (item) => (
+        <div>
+          <div className="font-medium">{item.contract_name}</div>
+          {item.academic_year_name && (
+            <div className="text-xs text-muted-foreground">{item.academic_year_name}</div>
+          )}
+        </div>
+      ),
+    },
+    {
+      id: "dates",
+      header: "Dates",
+      cell: (item) => (
+        <div className="text-xs space-y-0.5">
+          <div>
+            Start:{" "}
+            {item.contract_start ? format(new Date(item.contract_start), "dd MMM yyyy") : "—"}
+          </div>
+          <div>
+            Check-in:{" "}
+            {item.actual_check_in_date
+              ? format(new Date(item.actual_check_in_date), "dd MMM yyyy")
+              : "—"}
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "source",
+      header: "Source",
+      cell: (item) => <BookingSourceBadge source={item.booking_source} />,
+    },
+    {
+      id: "actions",
+      header: "",
+      headClassName: "text-right",
+      className: "text-right",
+      cell: (item) => (
+        <Button variant="outline" size="sm" className="rounded-md" asChild>
+          <Link to={`/admin/applications/${item.application_id}`}>View</Link>
+        </Button>
+      ),
+    },
+  ];
+
+  const moveOutColumns: ReportTableColumn<MoveOutReportItem>[] = [
+    {
+      id: "student",
+      header: "Student",
+      cell: (item) => (
+        <div>
+          <div className="font-medium">{item.student_name}</div>
+          <div className="text-xs text-muted-foreground">{item.student_email || "—"}</div>
+        </div>
+      ),
+    },
+    {
+      id: "year",
+      header: "Year",
+      cell: (item) =>
+        item.academic_year_name ? (
+          <Badge variant="outline" className="uppercase text-[10px]">
+            {item.academic_year_name}
+          </Badge>
+        ) : (
+          "—"
+        ),
+    },
+    {
+      id: "contract",
+      header: "Contract",
+      cell: (item) => item.contract_name,
+    },
+    {
+      id: "studio",
+      header: "Studio",
+      cell: (item) => item.studio_number || "Unassigned",
+    },
+    {
+      id: "end",
+      header: "Contract End",
+      cell: (item) => format(new Date(item.contract_end), "dd MMM yyyy"),
+    },
+    {
+      id: "actions",
+      header: "",
+      headClassName: "text-right",
+      className: "text-right",
+      cell: (item) => (
+        <Button variant="outline" size="sm" className="rounded-md" asChild>
+          <Link to={`/admin/applications/${item.application_id}`}>View</Link>
+        </Button>
+      ),
+    },
+  ];
+
+  const documentColumns: ReportTableColumn<PendingDocumentReportItem>[] = [
+    {
+      id: "student",
+      header: "Student",
+      cell: (doc) => (
+        <div>
+          <div className="font-medium">{doc.student_name}</div>
+          <div className="text-xs text-muted-foreground">{doc.student_email || "—"}</div>
+        </div>
+      ),
+    },
+    {
+      id: "type",
+      header: "Document",
+      cell: (doc) => (
+        <Badge variant="outline" className="uppercase text-[10px]">
+          {doc.document_type}
+        </Badge>
+      ),
+    },
+    {
+      id: "status",
+      header: "Status",
+      cell: (doc) => <DocumentStatusBadge status={doc.status} />,
+    },
+    {
+      id: "uploaded",
+      header: "Uploaded",
+      cell: (doc) =>
+        doc.uploaded_at ? format(new Date(doc.uploaded_at), "dd MMM yyyy") : "—",
+    },
+    {
+      id: "actions",
+      header: "",
+      headClassName: "text-right",
+      className: "text-right",
+      cell: (doc) => (
+        <Button variant="outline" size="sm" className="rounded-md" asChild>
+          <Link to={`/admin/applications/${doc.application_id}`}>View</Link>
+        </Button>
+      ),
+    },
+  ];
+
+  const listReportColumns: ReportTableColumn<ReportItem>[] = [
+    {
+      id: "student",
+      header: "Student",
+      cell: (item) => (
+        <div>
+          <div className="font-medium">{item.student_name}</div>
+          <div className="text-xs text-muted-foreground">{item.student_email}</div>
+          {item.student_phone && (
+            <div className="text-xs text-muted-foreground">{item.student_phone}</div>
+          )}
+        </div>
+      ),
+    },
+    {
+      id: "status",
+      header: "Status",
+      cell: (item) => (
+        <div className="flex flex-wrap gap-1">
+          <ApplicationStatusBadge status={item.status} />
+          <DepositPaidBadge paid={item.deposit_paid} />
+        </div>
+      ),
+    },
+    {
+      id: "contract",
+      header: "Contract",
+      cell: (item) => (
+        <div>
+          <div className="font-medium">{item.contract_name}</div>
+          <div className="text-xs text-muted-foreground">{item.studio_grade}</div>
+        </div>
+      ),
+    },
+    {
+      id: "studio",
+      header: "Studio",
+      cell: (item) => item.assigned_studio || "—",
+    },
+    {
+      id: "value",
+      header: "Value",
+      cell: (item) => (
+        <div className="text-xs space-y-0.5">
+          <div>{formatCurrency(item.adjusted_total ?? item.total_contract_value)}</div>
+          {item.partner_name && (
+            <div className="text-muted-foreground">Partner: {item.partner_name}</div>
+          )}
+        </div>
+      ),
+    },
+    ...(selectedReport === "overdue_payments" || selectedReport === "debtors"
+      ? ([
+          {
+            id: "overdue",
+            header: "Overdue",
+            cell: (item: ReportItem) => (
+              <div className="text-xs">
+                <div className="font-bold text-destructive">
+                  {formatCurrency(item.overdue_amount)}
+                </div>
+                {item.overdue_days != null && (
+                  <div className="text-muted-foreground">
+                    {item.overdue_days} day{item.overdue_days !== 1 ? "s" : ""}
+                  </div>
+                )}
+              </div>
+            ),
+          },
+        ] as ReportTableColumn<ReportItem>[])
+      : []),
+    {
+      id: "actions",
+      header: "",
+      headClassName: "text-right",
+      className: "text-right",
+      cell: (item) => (
+        <Button variant="outline" size="sm" className="rounded-md" asChild>
+          <Link to={`/admin/applications/${item.application_id}`}>View</Link>
+        </Button>
+      ),
+    },
+  ];
+
+  const allocationColumns: ReportTableColumn<StudioAllocationReportItem>[] = [
+    {
+      id: "grade",
+      header: "Studio Grade",
+      cell: (grade) => <span className="font-medium">{grade.studio_grade_name}</span>,
+    },
+    {
+      id: "total",
+      header: "Total",
+      cell: (grade) => grade.total_studios,
+    },
+    {
+      id: "students",
+      header: "Students",
+      cell: (grade) => (
+        <Badge className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-md text-[10px] uppercase">
+          {grade.allocated_to_students}
+        </Badge>
+      ),
+    },
+    {
+      id: "ota",
+      header: "OTA",
+      cell: (grade) => (
+        <Badge className="bg-blue-500 hover:bg-blue-600 text-white rounded-md text-[10px] uppercase">
+          {grade.allocated_to_ota}
+        </Badge>
+      ),
+    },
+    {
+      id: "keyworkers",
+      header: "Keyworkers",
+      cell: (grade) => (
+        <Badge className="bg-purple-500 hover:bg-purple-600 text-white rounded-md text-[10px] uppercase">
+          {grade.allocated_to_keyworkers}
+        </Badge>
+      ),
+    },
+    {
+      id: "unallocated",
+      header: "Unallocated",
+      cell: (grade) => (
+        <Badge variant="outline" className="rounded-md text-[10px] uppercase">
+          {grade.unallocated}
+        </Badge>
+      ),
+    },
+    {
+      id: "status",
+      header: "Status Mix",
+      cell: (grade) => (
+        <div className="flex flex-wrap gap-1">
+          <Badge className="bg-green-500 text-white rounded-md text-[10px] uppercase">
+            Avail {grade.status_available}
+          </Badge>
+          <Badge className="bg-orange-500 text-white rounded-md text-[10px] uppercase">
+            Occ {grade.status_occupied}
+          </Badge>
+          <Badge className="bg-yellow-500 text-white rounded-md text-[10px] uppercase">
+            Res {grade.status_reserved}
+          </Badge>
+        </div>
+      ),
+    },
+  ];
+
   const exportToCSV = () => {
+    if (selectedReport === "move-outs") {
+      const rowsToExport =
+        selectedIds.length > 0 && moveOutsReport
+          ? moveOutsReport.filter((item) => selectedIds.includes(item.application_id))
+          : moveOutsReport ?? [];
+
+      if (!rowsToExport.length) {
+        toast({
+          title: "No data to export",
+          description: "There is no move-out data available for this report.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const headers = [
+        "Student Name",
+        "Email",
+        "Contract",
+        "Studio",
+        "Academic Year",
+        "Contract End",
+      ];
+      const rows = rowsToExport.map((item) => [
+        item.student_name,
+        item.student_email,
+        item.contract_name,
+        item.studio_number || "Unassigned",
+        item.academic_year_name || "",
+        format(new Date(item.contract_end), "yyyy-MM-dd"),
+      ]);
+      const csvContent = [
+        headers.join(","),
+        ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
+      ].join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", `move_outs_${format(new Date(), "yyyy-MM-dd")}.csv`);
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast({
+        title: "Report exported",
+        description: `Successfully exported ${rowsToExport.length} move-out records to CSV.`,
+      });
+      return;
+    }
+
+    if (selectedReport === "check-in-status") {
+      const rowsToExport =
+        selectedIds.length > 0
+          ? checkInFilteredItems.filter((item) => selectedIds.includes(item.application_id))
+          : checkInFilteredItems;
+
+      if (!rowsToExport.length) {
+        toast({
+          title: "No data to export",
+          description: "There is no check-in status data available for this report.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const headers = [
+        "Student Name",
+        "Email",
+        "Stay Status",
+        "Studio",
+        "Studio Grade",
+        "Contract",
+        "Academic Year",
+        "Booking Source",
+        "Contract Start",
+        "Contract End",
+        "Actual Check-in Date",
+        "Checked In At",
+        "Actual Check-out Date",
+        "Application Status",
+      ];
+
+      const rows = rowsToExport.map((item) => [
+        item.student_name,
+        item.student_email,
+        item.stay_status_label,
+        item.studio_number || "Unassigned",
+        item.studio_grade || "",
+        item.contract_name,
+        item.academic_year_name || "",
+        item.booking_source || "",
+        item.contract_start ? format(new Date(item.contract_start), "yyyy-MM-dd") : "",
+        item.contract_end ? format(new Date(item.contract_end), "yyyy-MM-dd") : "",
+        item.actual_check_in_date ? format(new Date(item.actual_check_in_date), "yyyy-MM-dd") : "",
+        item.checked_in_at ? format(new Date(item.checked_in_at), "yyyy-MM-dd HH:mm:ss") : "",
+        item.actual_check_out_date ? format(new Date(item.actual_check_out_date), "yyyy-MM-dd") : "",
+        item.application_status,
+      ]);
+
+      const csvContent = [
+        headers.join(","),
+        ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
+      ].join("\n");
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute(
+        "download",
+        `check_in_status_${checkInStayFilter}_${format(new Date(), "yyyy-MM-dd")}.csv`,
+      );
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast({
+        title: "Report exported",
+        description: `Successfully exported ${rowsToExport.length} check-in status records to CSV.`,
+      });
+      return;
+    }
+
     if (selectedReport === "studio-allocation") {
       if (!studioAllocationReport || studioAllocationReport.length === 0) {
         toast({
@@ -370,7 +879,12 @@ const Reports = () => {
     }
 
     // Regular reports export
-    if (!reportData || reportData.length === 0) {
+    const listRows =
+      selectedIds.length > 0 && reportData
+        ? reportData.filter((item) => selectedIds.includes(item.id))
+        : reportData;
+
+    if (!listRows || listRows.length === 0) {
       toast({
         title: "No data to export",
         description: "There is no data available for this report.",
@@ -402,7 +916,7 @@ const Reports = () => {
         : []),
     ];
 
-    const rows = reportData.map((item) => [
+    const rows = listRows.map((item) => [
       item.student_name,
       item.student_email,
       item.student_phone || "",
@@ -445,7 +959,7 @@ const Reports = () => {
 
     toast({
       title: "Report exported",
-      description: `Successfully exported ${reportData.length} records to CSV.`,
+      description: `Successfully exported ${listRows.length} records to CSV.`,
     });
   };
 
@@ -477,8 +991,12 @@ const Reports = () => {
       mobileActionButton={
         ((selectedReport === "occupancy" && occupancyReport && occupancyReport.by_grade.length > 0) ||
           (selectedReport === "studio-allocation" && studioAllocationReport && studioAllocationReport.length > 0) ||
+          (selectedReport === "check-in-status" && checkInFilteredItems.length > 0) ||
+          (selectedReport === "move-outs" && moveOutsReport && moveOutsReport.length > 0) ||
           (selectedReport !== "occupancy" &&
             selectedReport !== "studio-allocation" &&
+            selectedReport !== "check-in-status" &&
+            selectedReport !== "move-outs" &&
             reportData &&
             reportData.length > 0)) ? (
           <ExportButton
@@ -505,7 +1023,10 @@ const Reports = () => {
             <div className="space-y-4">
               <div>
                 <Label htmlFor="report-type">Report Type</Label>
-                <Select value={selectedReport} onValueChange={(value) => setSelectedReport(value as ReportType)}>
+                <Select
+                  value={selectedReport}
+                  onValueChange={(value) => setSelectedReport(value as ExtendedReportType)}
+                >
                   <SelectTrigger id="report-type" className="mt-2">
                     <SelectValue />
                   </SelectTrigger>
@@ -536,6 +1057,7 @@ const Reports = () => {
               {(selectedReport === "occupancy" ||
                 selectedReport === "applications-pipeline" ||
                 selectedReport === "move-outs" ||
+                selectedReport === "check-in-status" ||
                 selectedReport === "awaiting_signatures" ||
                 selectedReport === "awaiting_deposit" ||
                 selectedReport === "overdue_payments" ||
@@ -552,6 +1074,27 @@ const Reports = () => {
                   <p className="text-xs text-muted-foreground mt-2">
                     Leave empty to view all academic years
                   </p>
+                </div>
+              )}
+              {selectedReport === "check-in-status" && (
+                <div className="mt-4">
+                  <Label htmlFor="stay-filter">Stay Status</Label>
+                  <Select
+                    value={checkInStayFilter}
+                    onValueChange={(value) => setCheckInStayFilter(value as CheckInStatusFilter)}
+                  >
+                    <SelectTrigger id="stay-filter" className="mt-2">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All stays</SelectItem>
+                      <SelectItem value="in_house">{STAY_STATUS_LABELS.in_house}</SelectItem>
+                      <SelectItem value="awaiting_check_in">
+                        {STAY_STATUS_LABELS.awaiting_check_in}
+                      </SelectItem>
+                      <SelectItem value="checked_out">{STAY_STATUS_LABELS.checked_out}</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
             </div>
@@ -592,6 +1135,12 @@ const Reports = () => {
                       : moveOutsReport
                         ? `${moveOutsReport.length} upcoming move-out${moveOutsReport.length !== 1 ? "s" : ""}${moveOutWindow !== "all" ? ` in the next ${moveOutWindow} days` : ""}`
                         : "No upcoming move-outs in this period"
+                    : selectedReport === "check-in-status"
+                    ? isLoadingCheckInStatus
+                      ? "Loading check-in status..."
+                      : checkInStatusReport
+                        ? `${checkInStatusReport.totals.in_house} in house · ${checkInStatusReport.totals.awaiting_check_in} awaiting · ${checkInStatusReport.totals.checked_out} checked out (${checkInFilteredItems.length} shown)`
+                        : "No check-in status data available"
                     : selectedReport === "document-status"
                     ? isLoadingPendingDocuments
                       ? "Loading pending documents..."
@@ -630,10 +1179,13 @@ const Reports = () => {
               </div>
               {((selectedReport === "studio-allocation" && studioAllocationReport && studioAllocationReport.length > 0) ||
                 (selectedReport === "occupancy" && occupancyReport && occupancyReport.by_grade.length > 0) ||
+                (selectedReport === "check-in-status" && checkInFilteredItems.length > 0) ||
+                (selectedReport === "move-outs" && moveOutsReport && moveOutsReport.length > 0) ||
                 (selectedReport !== "occupancy" &&
                   selectedReport !== "studio-allocation" &&
                   selectedReport !== "applications-pipeline" &&
                   selectedReport !== "move-outs" &&
+                  selectedReport !== "check-in-status" &&
                   selectedReport !== "document-status" &&
                   selectedReport !== "weekly-payments" &&
                   selectedReport !== "ota-vs-direct" &&
@@ -653,7 +1205,6 @@ const Reports = () => {
                 <ReportSkeleton />
               ) : studioAllocationReport && studioAllocationReport.length > 0 ? (
                 <div className="space-y-6">
-                  {/* Overall Summary */}
                   <Card className="rounded-2xl bg-primary/5">
                     <CardHeader>
                       <CardTitle className="text-base md:text-lg font-display font-bold uppercase">
@@ -696,55 +1247,14 @@ const Reports = () => {
                     </CardContent>
                   </Card>
 
-                  {/* By Studio Grade */}
-                  <div className="space-y-4">
-                    <h3 className="text-base md:text-lg font-bold">By Studio Grade</h3>
-                    {studioAllocationReport.map((grade) => (
-                      <Card key={grade.studio_grade_id} className="rounded-2xl">
-                        <CardHeader>
-                          <CardTitle className="text-base md:text-lg font-display font-bold uppercase">
-                            {grade.studio_grade_name}
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                            <div>
-                              <p className="text-xs md:text-sm text-muted-foreground">Total Studios</p>
-                              <p className="text-lg md:text-xl font-bold">{grade.total_studios}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs md:text-sm text-muted-foreground">Active Studios</p>
-                              <p className="text-lg md:text-xl font-bold">{grade.active_studios}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs md:text-sm text-muted-foreground">Allocated to Students</p>
-                              <p className="text-lg md:text-xl font-bold text-primary">{grade.allocated_to_students}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs md:text-sm text-muted-foreground">Allocated to OTA</p>
-                              <p className="text-lg md:text-xl font-bold text-blue-600">{grade.allocated_to_ota}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs md:text-sm text-muted-foreground">Allocated to Keyworkers</p>
-                              <p className="text-lg md:text-xl font-bold text-purple-600">{grade.allocated_to_keyworkers}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs md:text-sm text-muted-foreground">Unallocated</p>
-                              <p className="text-lg md:text-xl font-bold text-gray-600">{grade.unallocated}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs md:text-sm text-muted-foreground">Status: Available</p>
-                              <p className="text-lg md:text-xl font-bold text-green-600">{grade.status_available}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs md:text-sm text-muted-foreground">Status: Occupied</p>
-                              <p className="text-lg md:text-xl font-bold text-orange-600">{grade.status_occupied}</p>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
+                  <ReportDataTable
+                    rows={studioAllocationReport}
+                    columns={allocationColumns}
+                    getRowId={(grade) => grade.studio_grade_id}
+                    selectedIds={selectedIds}
+                    onSelectedIdsChange={setSelectedIds}
+                    selectable={false}
+                  />
                 </div>
               ) : (
                 <Card className="rounded-3xl border-dashed">
@@ -800,51 +1310,85 @@ const Reports = () => {
                   {/* By Studio Grade */}
                   <div className="space-y-4">
                     <h3 className="text-base md:text-lg font-bold">By Studio Grade</h3>
-                    {occupancyReport.by_grade.map((grade) => (
-                      <Card key={grade.studio_grade_id} className="rounded-2xl">
-                        <CardHeader>
-                          <div className="flex items-center justify-between">
-                            <CardTitle className="text-base md:text-lg font-display font-bold uppercase">
-                              {grade.studio_grade_name}
-                            </CardTitle>
-                            <Badge variant="outline" className="text-sm md:text-lg px-3 py-1">
-                              {grade.occupancy_percentage}% Occupied
+                    <ReportDataTable
+                      rows={occupancyReport.by_grade}
+                      getRowId={(grade) => grade.studio_grade_id}
+                      selectedIds={[]}
+                      onSelectedIdsChange={() => {}}
+                      selectable={false}
+                      columns={[
+                        {
+                          id: "grade",
+                          header: "Studio Grade",
+                          cell: (grade) => (
+                            <span className="font-medium">{grade.studio_grade_name}</span>
+                          ),
+                        },
+                        {
+                          id: "total",
+                          header: "Total",
+                          cell: (grade) => grade.total_studios,
+                        },
+                        {
+                          id: "occupied",
+                          header: "Occupied",
+                          cell: (grade) => (
+                            <Badge className="bg-orange-500 text-white rounded-md text-[10px] uppercase">
+                              {grade.occupied_studios}
                             </Badge>
-                          </div>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
-                            <div>
-                              <p className="text-sm text-muted-foreground">Total</p>
-                              <p className="text-lg md:text-xl font-bold">{grade.total_studios}</p>
-                            </div>
-                            <div>
-                              <p className="text-sm text-muted-foreground">Occupied</p>
-                              <p className="text-lg md:text-xl font-bold text-primary">{grade.occupied_studios}</p>
-                            </div>
-                            <div>
-                              <p className="text-sm text-muted-foreground">Available</p>
-                              <p className="text-lg md:text-xl font-bold text-green-600">{grade.available_studios}</p>
-                            </div>
-                            <div>
-                              <p className="text-sm text-muted-foreground">Reserved</p>
-                              <p className="text-lg md:text-xl font-bold text-yellow-600">{grade.reserved_studios}</p>
-                            </div>
-                            <div>
-                              <p className="text-sm text-muted-foreground">Maintenance</p>
-                              <p className="text-lg md:text-xl font-bold text-gray-600">{grade.maintenance_studios}</p>
-                            </div>
-                          </div>
-
-                          {grade.occupied_details.length > 0 && (
-                            <OccupancyDetailsCollapsible
-                              gradeName={grade.studio_grade_name}
-                              details={grade.occupied_details}
-                            />
-                          )}
-                        </CardContent>
-                      </Card>
-                    ))}
+                          ),
+                        },
+                        {
+                          id: "available",
+                          header: "Available",
+                          cell: (grade) => (
+                            <Badge className="bg-green-500 text-white rounded-md text-[10px] uppercase">
+                              {grade.available_studios}
+                            </Badge>
+                          ),
+                        },
+                        {
+                          id: "reserved",
+                          header: "Reserved",
+                          cell: (grade) => (
+                            <Badge className="bg-yellow-500 text-white rounded-md text-[10px] uppercase">
+                              {grade.reserved_studios}
+                            </Badge>
+                          ),
+                        },
+                        {
+                          id: "maintenance",
+                          header: "Maintenance",
+                          cell: (grade) => (
+                            <Badge variant="outline" className="rounded-md text-[10px] uppercase">
+                              {grade.maintenance_studios}
+                            </Badge>
+                          ),
+                        },
+                        {
+                          id: "pct",
+                          header: "Occupancy",
+                          cell: (grade) => (
+                            <Badge variant="outline" className="rounded-md text-[10px] uppercase">
+                              {grade.occupancy_percentage}%
+                            </Badge>
+                          ),
+                        },
+                      ]}
+                    />
+                    {occupancyReport.by_grade.map((grade) =>
+                      grade.occupied_details.length > 0 ? (
+                        <div key={`${grade.studio_grade_id}-details`} className="space-y-2">
+                          <h4 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                            {grade.studio_grade_name} — Occupied Details
+                          </h4>
+                          <OccupancyDetailsCollapsible
+                            gradeName={grade.studio_grade_name}
+                            details={grade.occupied_details}
+                          />
+                        </div>
+                      ) : null,
+                    )}
                   </div>
                 </div>
               ) : (
@@ -879,18 +1423,42 @@ const Reports = () => {
                       </p>
                     </CardContent>
                   </Card>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {pipelineReport.byStatus.map((item) => (
-                      <Card key={item.status} className="rounded-2xl">
-                        <CardContent className="p-4 space-y-1">
-                          <p className="text-xs md:text-sm text-muted-foreground uppercase truncate">
-                            {item.status.replace(/_/g, " ")}
-                          </p>
-                          <p className="text-xl md:text-2xl font-bold">{item.count}</p>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
+                  <ReportDataTable
+                    rows={pipelineReport.byStatus}
+                    getRowId={(item) => item.status}
+                    selectedIds={[]}
+                    onSelectedIdsChange={() => {}}
+                    selectable={false}
+                    columns={[
+                      {
+                        id: "status",
+                        header: "Status",
+                        cell: (item) => <ApplicationStatusBadge status={item.status} />,
+                      },
+                      {
+                        id: "count",
+                        header: "Count",
+                        cell: (item) => (
+                          <span className="text-lg font-bold">{item.count}</span>
+                        ),
+                      },
+                      {
+                        id: "share",
+                        header: "Share",
+                        cell: (item) => {
+                          const pct =
+                            pipelineReport.total > 0
+                              ? Math.round((item.count / pipelineReport.total) * 1000) / 10
+                              : 0;
+                          return (
+                            <Badge variant="outline" className="rounded-md text-[10px] uppercase">
+                              {pct}%
+                            </Badge>
+                          );
+                        },
+                      },
+                    ]}
+                  />
                 </div>
               ) : (
                 <Card className="rounded-3xl border-dashed">
@@ -908,42 +1476,22 @@ const Reports = () => {
               isLoadingMoveOuts ? (
                 <ReportSkeleton />
               ) : moveOutsReport && moveOutsReport.length > 0 ? (
-                <div className="space-y-4">
-                  {moveOutsReport.map((item) => (
-                    <Card key={item.application_id} className="rounded-2xl">
-                      <CardContent className="p-6">
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                          <div className="flex-1 space-y-2">
-                            <div className="flex items-center gap-3 flex-wrap">
-                              <h3 className="text-base md:text-lg font-bold">{item.student_name}</h3>
-                              {item.academic_year_name && (
-                                <Badge variant="outline" className="uppercase text-xs">
-                                  {item.academic_year_name}
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-muted-foreground">
-                              <div>
-                                <span className="font-medium">Email:</span> {item.student_email || "—"}
-                              </div>
-                              <div>
-                                <span className="font-medium">Contract:</span> {item.contract_name}
-                              </div>
-                              <div>
-                                <span className="font-medium">Studio:</span>{" "}
-                                {item.studio_number || "Unassigned"}
-                              </div>
-                              <div>
-                                <span className="font-medium">Contract end:</span>{" "}
-                                {format(new Date(item.contract_end), "yyyy-MM-dd")}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+                <ReportDataTable
+                  rows={moveOutsReport}
+                  columns={moveOutColumns}
+                  getRowId={(item) => item.application_id}
+                  selectedIds={selectedIds}
+                  onSelectedIdsChange={setSelectedIds}
+                  selectionActions={
+                    <ExportButton
+                      onExport={exportToCSV}
+                      size="sm"
+                      variant="outline"
+                      className="rounded-md"
+                      label="Export selected"
+                    />
+                  }
+                />
               ) : (
                 <Card className="rounded-3xl border-dashed">
                   <CardHeader>
@@ -956,39 +1504,127 @@ const Reports = () => {
                   </CardHeader>
                 </Card>
               )
+            ) : selectedReport === "check-in-status" ? (
+              isLoadingCheckInStatus ? (
+                <ReportSkeleton />
+              ) : checkInStatusReport && checkInStatusReport.totals.total > 0 ? (
+                <div className="space-y-6">
+                  <Card className="rounded-2xl bg-primary/5">
+                    <CardHeader>
+                      <CardTitle className="text-base md:text-lg font-display font-bold uppercase">
+                        Check-in Summary
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Total</p>
+                          <p className="text-xl md:text-2xl font-bold">
+                            {checkInStatusReport.totals.total}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          className="text-left rounded-xl p-2 -m-2 hover:bg-background/60 transition-colors"
+                          onClick={() => setCheckInStayFilter("in_house")}
+                        >
+                          <p className="text-sm text-muted-foreground">{STAY_STATUS_LABELS.in_house}</p>
+                          <p className="text-xl md:text-2xl font-bold text-emerald-600">
+                            {checkInStatusReport.totals.in_house}
+                          </p>
+                        </button>
+                        <button
+                          type="button"
+                          className="text-left rounded-xl p-2 -m-2 hover:bg-background/60 transition-colors"
+                          onClick={() => setCheckInStayFilter("awaiting_check_in")}
+                        >
+                          <p className="text-sm text-muted-foreground">
+                            {STAY_STATUS_LABELS.awaiting_check_in}
+                          </p>
+                          <p className="text-xl md:text-2xl font-bold text-amber-600">
+                            {checkInStatusReport.totals.awaiting_check_in}
+                          </p>
+                        </button>
+                        <button
+                          type="button"
+                          className="text-left rounded-xl p-2 -m-2 hover:bg-background/60 transition-colors"
+                          onClick={() => setCheckInStayFilter("checked_out")}
+                        >
+                          <p className="text-sm text-muted-foreground">
+                            {STAY_STATUS_LABELS.checked_out}
+                          </p>
+                          <p className="text-xl md:text-2xl font-bold text-slate-600">
+                            {checkInStatusReport.totals.checked_out}
+                          </p>
+                        </button>
+                      </div>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <Button
+                          variant={checkInStayFilter === "all" ? "default" : "outline"}
+                          size="sm"
+                          className="rounded-md"
+                          onClick={() => setCheckInStayFilter("all")}
+                        >
+                          Show all
+                        </Button>
+                        <Button variant="outline" size="sm" className="rounded-md" asChild>
+                          <Link
+                            to={`/admin/applications?stay=${
+                              checkInStayFilter === "all" ? "in_house" : checkInStayFilter
+                            }${
+                              selectedAcademicYearId
+                                ? `&academicYearId=${selectedAcademicYearId}`
+                                : ""
+                            }`}
+                          >
+                            Open in Applications
+                          </Link>
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <ReportDataTable
+                    rows={checkInFilteredItems}
+                    columns={checkInColumns}
+                    getRowId={(item) => item.application_id}
+                    selectedIds={selectedIds}
+                    onSelectedIdsChange={setSelectedIds}
+                    emptyMessage="No students in this filter. Try another stay status or academic year."
+                    selectionActions={
+                      <ExportButton
+                        onExport={exportToCSV}
+                        size="sm"
+                        variant="outline"
+                        className="rounded-md"
+                        label="Export selected"
+                      />
+                    }
+                  />
+                </div>
+              ) : (
+                <Card className="rounded-3xl border-dashed">
+                  <CardHeader>
+                    <CardTitle className="text-base md:text-xl font-display font-bold uppercase tracking-wide">
+                      No Check-in Data Found
+                    </CardTitle>
+                    <CardDescription>
+                      There are no confirmed or checked-out students for the selected academic year.
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              )
             ) : selectedReport === "document-status" ? (
               isLoadingPendingDocuments ? (
                 <ReportSkeleton />
               ) : pendingDocuments && pendingDocuments.length > 0 ? (
-                <div className="space-y-4">
-                  {pendingDocuments.map((doc) => (
-                    <Card key={doc.id} className="rounded-2xl">
-                      <CardContent className="p-6">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-3 flex-wrap">
-                            <h3 className="text-base md:text-lg font-bold">{doc.student_name}</h3>
-                            <Badge variant="outline" className="uppercase text-xs">
-                              {doc.document_type}
-                            </Badge>
-                          </div>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-muted-foreground">
-                            <div>
-                              <span className="font-medium">Email:</span> {doc.student_email || "—"}
-                            </div>
-                            <div>
-                              <span className="font-medium">Status:</span>{" "}
-                              <span className="uppercase">{doc.status}</span>
-                            </div>
-                            <div>
-                              <span className="font-medium">Uploaded:</span>{" "}
-                              {doc.uploaded_at ? format(new Date(doc.uploaded_at), "yyyy-MM-dd") : "—"}
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+                <ReportDataTable
+                  rows={pendingDocuments}
+                  columns={documentColumns}
+                  getRowId={(doc) => doc.id}
+                  selectedIds={selectedIds}
+                  onSelectedIdsChange={setSelectedIds}
+                />
               ) : (
                 <Card className="rounded-3xl border-dashed">
                   <CardHeader>
@@ -1076,57 +1712,84 @@ const Reports = () => {
                       })()}
                     </CardContent>
                   </Card>
-                  <div className="space-y-4">
-                    <h3 className="text-base md:text-lg font-bold">By Studio Grade</h3>
-                    {studioAllocationReport.map((grade) => {
-                      const totalAllocated =
-                        grade.allocated_to_students +
-                        grade.allocated_to_ota +
-                        grade.allocated_to_keyworkers;
-                      const pct = (value: number) =>
-                        totalAllocated > 0
-                          ? Math.round((value / totalAllocated) * 100 * 10) / 10
-                          : 0;
-                      return (
-                        <Card key={grade.studio_grade_id} className="rounded-2xl">
-                          <CardHeader>
-                            <CardTitle className="text-base md:text-lg font-display font-bold uppercase">
-                              {grade.studio_grade_name}
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                              <div>
-                                <p className="text-xs md:text-sm text-muted-foreground">
-                                  Student allocation
-                                </p>
-                                <p className="text-lg md:text-xl font-bold">
-                                  {grade.allocated_to_students} ({pct(grade.allocated_to_students)}%)
-                                </p>
-                              </div>
-                              <div>
-                                <p className="text-xs md:text-sm text-muted-foreground">
-                                  OTA allocation
-                                </p>
-                                <p className="text-lg md:text-xl font-bold">
-                                  {grade.allocated_to_ota} ({pct(grade.allocated_to_ota)}%)
-                                </p>
-                              </div>
-                              <div>
-                                <p className="text-xs md:text-sm text-muted-foreground">
-                                  Keyworker allocation
-                                </p>
-                                <p className="text-lg md:text-xl font-bold">
-                                  {grade.allocated_to_keyworkers} (
-                                  {pct(grade.allocated_to_keyworkers)}%)
-                                </p>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                  </div>
+                  <ReportDataTable
+                    rows={studioAllocationReport}
+                    getRowId={(grade) => grade.studio_grade_id}
+                    selectedIds={[]}
+                    onSelectedIdsChange={() => {}}
+                    selectable={false}
+                    columns={[
+                      {
+                        id: "grade",
+                        header: "Studio Grade",
+                        cell: (grade) => (
+                          <span className="font-medium">{grade.studio_grade_name}</span>
+                        ),
+                      },
+                      {
+                        id: "students",
+                        header: "Students",
+                        cell: (grade) => {
+                          const totalAllocated =
+                            grade.allocated_to_students +
+                            grade.allocated_to_ota +
+                            grade.allocated_to_keyworkers;
+                          const pct =
+                            totalAllocated > 0
+                              ? Math.round(
+                                  (grade.allocated_to_students / totalAllocated) * 100 * 10,
+                                ) / 10
+                              : 0;
+                          return (
+                            <Badge className="bg-primary text-primary-foreground rounded-md text-[10px] uppercase">
+                              {grade.allocated_to_students} ({pct}%)
+                            </Badge>
+                          );
+                        },
+                      },
+                      {
+                        id: "ota",
+                        header: "OTA",
+                        cell: (grade) => {
+                          const totalAllocated =
+                            grade.allocated_to_students +
+                            grade.allocated_to_ota +
+                            grade.allocated_to_keyworkers;
+                          const pct =
+                            totalAllocated > 0
+                              ? Math.round((grade.allocated_to_ota / totalAllocated) * 100 * 10) /
+                                10
+                              : 0;
+                          return (
+                            <Badge className="bg-blue-500 text-white rounded-md text-[10px] uppercase">
+                              {grade.allocated_to_ota} ({pct}%)
+                            </Badge>
+                          );
+                        },
+                      },
+                      {
+                        id: "keyworkers",
+                        header: "Keyworkers",
+                        cell: (grade) => {
+                          const totalAllocated =
+                            grade.allocated_to_students +
+                            grade.allocated_to_ota +
+                            grade.allocated_to_keyworkers;
+                          const pct =
+                            totalAllocated > 0
+                              ? Math.round(
+                                  (grade.allocated_to_keyworkers / totalAllocated) * 100 * 10,
+                                ) / 10
+                              : 0;
+                          return (
+                            <Badge className="bg-purple-500 text-white rounded-md text-[10px] uppercase">
+                              {grade.allocated_to_keyworkers} ({pct}%)
+                            </Badge>
+                          );
+                        },
+                      },
+                    ]}
+                  />
                 </div>
               ) : (
                 <Card className="rounded-3xl border-dashed">
@@ -1143,105 +1806,22 @@ const Reports = () => {
             ) : isLoading ? (
               <ReportSkeleton />
             ) : reportData && reportData.length > 0 ? (
-              <div className="space-y-4">
-                {reportData.map((item) => (
-                  <Card key={item.id} className="rounded-2xl">
-                    <CardContent className="p-6">
-                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                        <div className="flex-1 space-y-2">
-                          <div className="flex items-center gap-3">
-                            <h3 className="text-base md:text-lg font-bold">{item.student_name}</h3>
-                            <Badge variant="outline" className="uppercase">
-                              {item.status}
-                            </Badge>
-                            {item.deposit_paid && (
-                              <Badge variant="default" className="uppercase">
-                                Deposit Paid
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-muted-foreground">
-                            <div>
-                              <span className="font-medium">Email:</span> {item.student_email}
-                            </div>
-                            <div>
-                              <span className="font-medium">Phone:</span> {item.student_phone || "—"}
-                            </div>
-                            <div>
-                              <span className="font-medium">Contract Value:</span>{" "}
-                              {formatCurrency(item.total_contract_value)}
-                            </div>
-                            {item.cashback_amount && item.cashback_amount > 0 && (
-                              <div>
-                                <span className="font-medium">Cashback:</span>{" "}
-                                <span className="text-green-600 font-bold">
-                                  -{formatCurrency(item.cashback_amount)}
-                                </span>
-                              </div>
-                            )}
-                            {item.discount_amount && item.discount_amount > 0 && (
-                              <div>
-                                <span className="font-medium">Discount:</span>{" "}
-                                <span className="text-green-600 font-bold">
-                                  -{formatCurrency(item.discount_amount)}
-                                </span>
-                              </div>
-                            )}
-                            {item.adjusted_total && (
-                              <div>
-                                <span className="font-medium">Adjusted Total:</span>{" "}
-                                <span className="font-bold">
-                                  {formatCurrency(item.adjusted_total)}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                          {item.partner_name && (
-                            <div className="text-sm text-muted-foreground mb-2">
-                              <span className="font-medium">Partner:</span>{" "}
-                              <span className="font-bold">{item.partner_name}</span>
-                              {item.commission_amount && (
-                                <span className="ml-2 text-primary">
-                                  (Commission: {formatCurrency(item.commission_amount)})
-                                </span>
-                              )}
-                            </div>
-                          )}
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                            <div>
-                              <span className="text-muted-foreground">Contract:</span>{" "}
-                              <span className="font-medium">{item.contract_name}</span>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Studio Grade:</span>{" "}
-                              <span className="font-medium">{item.studio_grade}</span>
-                            </div>
-                            {item.assigned_studio && (
-                              <div>
-                                <span className="text-muted-foreground">Studio:</span>{" "}
-                                <span className="font-medium">{item.assigned_studio}</span>
-                              </div>
-                            )}
-                          </div>
-                          {(selectedReport === "overdue_payments" || selectedReport === "debtors") &&
-                            item.overdue_amount && (
-                              <div className="flex items-center gap-4 text-sm">
-                                <div className="text-destructive font-bold">
-                                  Overdue: {formatCurrency(item.overdue_amount)}
-                                </div>
-                                {item.overdue_days && (
-                                  <div className="text-muted-foreground">
-                                    {item.overdue_days} day{item.overdue_days !== 1 ? "s" : ""} overdue
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+              <ReportDataTable
+                rows={reportData}
+                columns={listReportColumns}
+                getRowId={(item) => item.id}
+                selectedIds={selectedIds}
+                onSelectedIdsChange={setSelectedIds}
+                selectionActions={
+                  <ExportButton
+                    onExport={exportToCSV}
+                    size="sm"
+                    variant="outline"
+                    className="rounded-md"
+                    label="Export selected"
+                  />
+                }
+              />
             ) : (
               <Card className="rounded-3xl border-dashed">
                 <CardHeader>
