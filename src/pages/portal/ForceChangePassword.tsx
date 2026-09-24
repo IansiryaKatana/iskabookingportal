@@ -20,10 +20,12 @@ const PortalForceChangePassword = () => {
   const { data: brandingSettings } = useBrandingSettings();
   const companyName = brandingSettings?.company_name || "Urban Hub";
 
+  const [currentPassword, setCurrentPassword] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -45,6 +47,11 @@ const PortalForceChangePassword = () => {
     event.preventDefault();
     setError(null);
 
+    if (!currentPassword.trim()) {
+      setError("Enter your current (temporary) password to continue");
+      return;
+    }
+
     const validation = validatePassword(password);
     if (!validation.isValid) {
       setError(
@@ -59,10 +66,16 @@ const PortalForceChangePassword = () => {
       return;
     }
 
+    if (password === currentPassword) {
+      setError("New password must be different from your current password");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const { error: updateError } = await supabase.auth.updateUser({
         password,
+        current_password: currentPassword,
         data: {
           ...(user?.user_metadata || {}),
           account_status: "activated",
@@ -71,7 +84,16 @@ const PortalForceChangePassword = () => {
       });
 
       if (updateError) {
-        setError(updateError.message || "Failed to update password");
+        const message = updateError.message || "Failed to update password";
+        if (
+          message.toLowerCase().includes("current password") ||
+          updateError.code === "current_password_mismatch" ||
+          updateError.code === "current_password_required"
+        ) {
+          setError("Current password is incorrect. Enter the temporary password you used to sign in.");
+        } else {
+          setError(message);
+        }
         setIsSubmitting(false);
         return;
       }
@@ -99,7 +121,11 @@ const PortalForceChangePassword = () => {
     }
   };
 
-  const isFormValid = validatePassword(password).isValid && password === confirmPassword;
+  const isFormValid =
+    currentPassword.trim().length > 0 &&
+    validatePassword(password).isValid &&
+    password === confirmPassword &&
+    password !== currentPassword;
 
   return (
     <div className="min-h-screen bg-primary flex items-center justify-center px-4 py-12">
@@ -109,11 +135,34 @@ const PortalForceChangePassword = () => {
             Set a new password
           </CardTitle>
           <CardDescription>
-            Your account was opened with a temporary password. Choose a new secure password to continue to {companyName}.
+            Your account was opened with a temporary password. Confirm that password, then choose a new secure one to continue to {companyName}.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="currentPassword">Current (temporary) password</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="currentPassword"
+                  type={showCurrentPassword ? "text" : "password"}
+                  className="pl-9 pr-10"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                  onClick={() => setShowCurrentPassword((v) => !v)}
+                  aria-label={showCurrentPassword ? "Hide password" : "Show password"}
+                >
+                  {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="password">New password</Label>
               <div className="relative">

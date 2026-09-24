@@ -318,9 +318,10 @@ const Profile = () => {
         throw new Error("Current password is incorrect");
       }
 
-      // Update password
+      // Update password (Supabase requires current_password when that auth setting is enabled)
       const { error: updateError } = await supabase.auth.updateUser({
         password: values.new_password,
+        current_password: values.current_password,
       });
 
       if (updateError) throw updateError;
